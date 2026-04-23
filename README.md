@@ -1,4 +1,4 @@
-# Rehab respiratoria (app móvil)
+# Rehab respiratoria (app móvil) !!
 
 Aplicación móvil para **rehabilitación pulmonar domiciliaria**, orientada a **adultos mayores con EPOC**. El flujo previsto incluye autenticación, inicio, selección de nivel, sesión terapéutica, resumen, historial, calendario y plan semanal. Los minijuegos finales aún no están definidos; el identificador `rocket-experimental` en el registro de niveles es solo un marcador de prueba futura, no el producto final obligatorio.
 
