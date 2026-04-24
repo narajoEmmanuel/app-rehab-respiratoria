@@ -7,12 +7,16 @@
 
 import type { ViewStyle } from 'react-native';
 
+import { wellnessShadows } from '@/src/shared/theme/wellness-theme';
+
 export const shadows = {
   card: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowColor: '#4F6F52',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   } satisfies ViewStyle,
+  cardFloating: wellnessShadows.card satisfies ViewStyle,
+  tabBar: wellnessShadows.tabBar satisfies ViewStyle,
 } as const;
