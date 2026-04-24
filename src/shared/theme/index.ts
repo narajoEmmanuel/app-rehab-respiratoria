@@ -9,3 +9,9 @@ export { Fonts } from '@/src/shared/theme/typography';
 export { spacing } from '@/src/shared/theme/spacing';
 export { radii } from '@/src/shared/theme/radii';
 export { shadows } from '@/src/shared/theme/shadows';
+export {
+  wellness,
+  wellnessFloatingTabBarInset,
+  wellnessRadii,
+  wellnessShadows,
+} from '@/src/shared/theme/wellness-theme';

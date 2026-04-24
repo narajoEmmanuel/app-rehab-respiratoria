@@ -1,8 +1,7 @@
 /**
- * Purpose: Base auth types placeholder for future implementation.
+ * Purpose: Auth-related types for patient access by clave.
  * Module: auth
  * Dependencies: none
- * Notes: Keep minimal during migration phase.
  */
-export type AuthStatus = 'anonymous' | 'authenticated';
 
+export type AuthStatus = 'anonymous' | 'authenticated';

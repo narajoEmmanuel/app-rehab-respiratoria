@@ -1,20 +1,23 @@
 /**
  * Purpose: Semantic color tokens for light and dark themes.
  * Module: shared/theme
- * Dependencies: none
- * Notes: Used by navigation tabs and themed components.
+ * Dependencies: wellness-theme
+ * Notes: Light mode follows wellness palette; dark kept for system theme.
  */
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+import { wellness } from '@/src/shared/theme/wellness-theme';
+
+/** Tab / link accent: olive in light mode for contrast on pale background */
+const tintColorLight = wellness.primaryDark;
+const tintColorDark = '#A3C4A3';
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
+    text: wellness.text,
+    background: wellness.screenBg,
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
+    icon: wellness.textSecondary,
+    tabIconDefault: wellness.textSecondary,
     tabIconSelected: tintColorLight,
   },
   dark: {
