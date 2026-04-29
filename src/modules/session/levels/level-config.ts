@@ -15,4 +15,6 @@ export type LevelDefinition = {
   difficulty: LevelDifficulty;
   /** Which visual minigame component to mount for this level. */
   gameVisualId: GameVisualId;
+  /** Used by UI to communicate availability. */
+  comingSoon?: boolean;
 };

@@ -6,4 +6,4 @@
  */
 
 /** Visual minigame implementation the UI can mount by id. */
-export type GameVisualId = 'visual-placeholder' | 'rocket-experimental';
+export type GameVisualId = 'visual-placeholder' | 'monkey-jungle' | 'rocket-experimental';
