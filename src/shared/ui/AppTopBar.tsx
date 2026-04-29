@@ -1,10 +1,11 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
+import { appBrand } from '@/src/shared/branding/app-brand';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
-const PRIMARY = '#34aba5';
+const PRIMARY = appBrand.primaryColor;
 
 export function AppTopBar({
   title,
@@ -16,8 +17,15 @@ export function AppTopBar({
   return (
     <View style={styles.wrap}>
       <View style={styles.row}>
-        <View style={styles.leftBadge} accessibilityRole="text">
-          <Text style={styles.leftBadgeText}>R+</Text>
+        <View
+          style={styles.leftBadge}
+          accessibilityRole="image"
+          accessibilityLabel={appBrand.name}>
+          <Image
+            source={appBrand.logo}
+            style={styles.logoImg}
+            resizeMode="contain"
+          />
         </View>
 
         <Text numberOfLines={1} style={styles.title}>
@@ -50,14 +58,19 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   leftBadge: {
-    width: 40,
-    height: 40,
+    width: 56,
+    height: 36,
     borderRadius: wellnessRadii.full,
-    backgroundColor: PRIMARY,
+    backgroundColor: '#FFFFFF',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(52, 171, 165, 0.22)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  leftBadgeText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  logoImg: {
+    width: 34,
+    height: 22,
+  },
   title: { flex: 1, fontSize: 18, fontWeight: '800', color: '#1E1E1E' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   avatarBtn: {
