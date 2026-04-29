@@ -11,6 +11,7 @@ export type PatientRecord = {
   clave: string;
   nombre_completo: string;
   edad: number;
+  current_level_id: 'level-1' | 'level-2' | 'level-3' | 'level-4' | 'level-5' | null;
   racha_actual: number;
   ultima_fecha_cumplida: string | null;
   fecha_creacion: string;

@@ -5,9 +5,12 @@
  * Notes: No deep settings, social auth, or legal flow implemented yet.
  */
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { getLatestDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
+import type { DiagnosticRecord } from '@/src/modules/diagnostics/types';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -16,6 +19,20 @@ import { wellness, wellnessFloatingTabBarInset, wellnessRadii } from '@/src/shar
 export function ProfileScreen() {
   const router = useRouter();
   const { patient, clearSession } = usePatientSession();
+  const [latestDiagnostic, setLatestDiagnostic] = useState<DiagnosticRecord | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const loadDiagnostic = async () => {
+      if (!patient) return;
+      const diagnostic = await getLatestDiagnostic(patient.paciente_id);
+      if (active) setLatestDiagnostic(diagnostic);
+    };
+    void loadDiagnostic();
+    return () => {
+      active = false;
+    };
+  }, [patient]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -28,6 +45,19 @@ export function ProfileScreen() {
           <Text style={styles.line}>Nombre: {patient?.nombre_completo ?? 'No disponible'}</Text>
           <Text style={styles.line}>Edad: {patient?.edad ?? '-'} años</Text>
           <Text style={styles.line}>Clave: {patient?.clave ?? 'No disponible'}</Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Resultados de diagnóstico</Text>
+          <Text style={styles.line}>
+            VIM actual: {latestDiagnostic ? `${latestDiagnostic.max_inspiratory_volume} mL` : 'No disponible'}
+          </Text>
+          <Text style={styles.line}>
+            Fecha: {latestDiagnostic ? new Date(latestDiagnostic.diagnostic_date).toLocaleDateString() : '-'}
+          </Text>
+          <Text style={styles.line}>
+            Diagnóstico número: {latestDiagnostic?.diagnostic_number ?? '-'}
+          </Text>
         </View>
 
         <View style={styles.list}>

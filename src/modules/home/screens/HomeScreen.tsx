@@ -5,13 +5,16 @@
  */
 
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
+import { getCurrentActiveLevel, hasDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+import { updateDailyProgress } from '@/src/modules/session/session-progress-service';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -36,8 +39,41 @@ export function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { patient, clearSession, hydrated } = usePatientSession();
+  const [hasCompletedDiagnostic, setHasCompletedDiagnostic] = useState(false);
+  const [diagnosticLoading, setDiagnosticLoading] = useState(true);
+  const [currentLevelLabel, setCurrentLevelLabel] = useState('Nivel 1');
+  const [todayCompletedSessions, setTodayCompletedSessions] = useState(0);
 
   const bottomPad = insets.bottom + wellnessFloatingTabBarInset;
+
+  const loadDiagnosticStatus = useCallback(async () => {
+    if (!patient) {
+      setHasCompletedDiagnostic(false);
+      setDiagnosticLoading(false);
+      return;
+    }
+    const exists = await hasDiagnostic(patient.paciente_id);
+    setHasCompletedDiagnostic(exists);
+    if (exists) {
+      const activeLevel = await getCurrentActiveLevel(patient.paciente_id);
+      const daily = await updateDailyProgress(patient.paciente_id);
+      setCurrentLevelLabel(activeLevel ? `Nivel ${activeLevel.level_id.split('-')[1]}` : 'Nivel 1');
+      setTodayCompletedSessions(daily.completedToday);
+    } else {
+      setTodayCompletedSessions(0);
+    }
+    setDiagnosticLoading(false);
+  }, [patient]);
+
+  useEffect(() => {
+    void loadDiagnosticStatus();
+  }, [loadDiagnosticStatus]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadDiagnosticStatus();
+    }, [loadDiagnosticStatus]),
+  );
 
   const onLogout = useCallback(async () => {
     await clearSession();
@@ -46,20 +82,22 @@ export function HomeScreen() {
 
   const goNiveles = useCallback(() => {
     onShortcutPress();
+    if (!hasCompletedDiagnostic) return;
     router.push('/(tabs)/niveles');
-  }, [router]);
+  }, [hasCompletedDiagnostic, router]);
 
   const goCalendario = useCallback(() => {
     onShortcutPress();
+    if (!hasCompletedDiagnostic) return;
     router.push('/(tabs)/calendario');
-  }, [router]);
+  }, [hasCompletedDiagnostic, router]);
 
   const goSensorConnection = useCallback(() => {
     onShortcutPress();
     router.push('/sensor-connection');
   }, [router]);
 
-  if (!hydrated || !patient) {
+  if (!hydrated || !patient || diagnosticLoading) {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.center}>
@@ -110,7 +148,36 @@ export function HomeScreen() {
           </Text>
         </View>
 
-        <Text style={styles.sectionLabel}>Accesos rápidos</Text>
+        {!hasCompletedDiagnostic ? (
+          <View style={styles.pendingCard}>
+            <Text style={styles.pendingTitle}>Realiza tu diagnóstico</Text>
+            <Text style={styles.pendingDescription}>
+              Necesitamos medir tu capacidad pulmonar para configurar tu tratamiento
+            </Text>
+            <Pressable
+              style={styles.pendingBtn}
+              onPress={() => router.push('/diagnostico')}
+              accessibilityRole="button">
+              <Text style={styles.pendingBtnText}>Hacer diagnóstico</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {hasCompletedDiagnostic ? <Text style={styles.sectionLabel}>Accesos rápidos</Text> : null}
+        {hasCompletedDiagnostic ? (
+          <View style={styles.progressCard}>
+            <Text style={styles.progressTitle}>{currentLevelLabel} activo</Text>
+            <Text style={styles.progressMetric}>Sesiones completadas hoy: {todayCompletedSessions}/6</Text>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${Math.min(100, (todayCompletedSessions / 6) * 100)}%` }]} />
+            </View>
+            <Text style={styles.progressMessage}>
+              {todayCompletedSessions >= 6
+                ? '¡Completaste tus 6 sesiones de hoy!'
+                : `Te faltan ${6 - todayCompletedSessions} sesiones para completar el nivel de hoy`}
+            </Text>
+          </View>
+        ) : null}
 
         <Pressable
           style={({ pressed }) => [styles.shortcutCard, pressed && styles.shortcutCardPressed]}
@@ -129,38 +196,44 @@ export function HomeScreen() {
           <IconSymbol name="chevron.right" size={22} color={wellness.textSecondary} />
         </Pressable>
 
-        <Pressable
-          style={({ pressed }) => [styles.shortcutCard, pressed && styles.shortcutCardPressed]}
-          onPress={goNiveles}
-          accessibilityRole="button"
-          accessibilityLabel="Ir a niveles desbloqueados">
-          <View style={styles.shortcutIconWrap}>
-            <IconSymbol name="square.grid.2x2.fill" size={28} color={wellness.primaryDark} />
-          </View>
-          <View style={styles.shortcutTextCol}>
-            <Text style={styles.shortcutTitle}>Niveles desbloqueados</Text>
-            <Text style={styles.shortcutSubtitle}>Ver y elegir tu progreso por nivel</Text>
-          </View>
-          <IconSymbol name="chevron.right" size={22} color={wellness.textSecondary} />
-        </Pressable>
+        {hasCompletedDiagnostic ? (
+          <>
+            <Pressable
+              style={({ pressed }) => [styles.shortcutCard, pressed && styles.shortcutCardPressed]}
+              onPress={goNiveles}
+              accessibilityRole="button"
+              accessibilityLabel="Ir a niveles desbloqueados">
+              <View style={styles.shortcutIconWrap}>
+                <IconSymbol name="square.grid.2x2.fill" size={28} color={wellness.primaryDark} />
+              </View>
+              <View style={styles.shortcutTextCol}>
+                <Text style={styles.shortcutTitle}>Niveles desbloqueados</Text>
+                <Text style={styles.shortcutSubtitle}>Ver y elegir tu progreso por nivel</Text>
+              </View>
+              <IconSymbol name="chevron.right" size={22} color={wellness.textSecondary} />
+            </Pressable>
 
-        <Pressable
-          style={({ pressed }) => [styles.shortcutCard, pressed && styles.shortcutCardPressed]}
-          onPress={goCalendario}
-          accessibilityRole="button"
-          accessibilityLabel="Ver calendario">
-          <View style={styles.shortcutIconWrap}>
-            <IconSymbol name="calendar" size={28} color={wellness.primaryDark} />
-          </View>
-          <View style={styles.shortcutTextCol}>
-            <Text style={styles.shortcutTitle}>Ver calendario</Text>
-            <Text style={styles.shortcutSubtitle}>Consulta tus días y hábitos</Text>
-          </View>
-          <IconSymbol name="chevron.right" size={22} color={wellness.textSecondary} />
-        </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.shortcutCard, pressed && styles.shortcutCardPressed]}
+              onPress={goCalendario}
+              accessibilityRole="button"
+              accessibilityLabel="Ver calendario">
+              <View style={styles.shortcutIconWrap}>
+                <IconSymbol name="calendar" size={28} color={wellness.primaryDark} />
+              </View>
+              <View style={styles.shortcutTextCol}>
+                <Text style={styles.shortcutTitle}>Ver calendario</Text>
+                <Text style={styles.shortcutSubtitle}>Consulta tus días y hábitos</Text>
+              </View>
+              <IconSymbol name="chevron.right" size={22} color={wellness.textSecondary} />
+            </Pressable>
+          </>
+        ) : null}
 
         <Text style={styles.footerHint}>
-          También puedes usar el menú inferior para ir a Home, Niveles o Calendario.
+          {hasCompletedDiagnostic
+            ? 'También puedes usar el menú inferior para ir a Home, Niveles o Calendario.'
+            : 'Completa el diagnóstico para desbloquear Terapia, Plan e Historial.'}
         </Text>
 
         <Pressable
@@ -294,4 +367,73 @@ const styles = StyleSheet.create({
   body: { fontSize: BODY, color: wellness.textSecondary, marginBottom: spacing.md },
   linkBtn: { padding: spacing.md },
   link: { fontSize: BODY, fontWeight: '700', color: authPalette.link, textDecorationLine: 'underline' },
+  pendingCard: {
+    backgroundColor: wellness.card,
+    borderRadius: wellnessRadii.cardLarge,
+    borderWidth: 1,
+    borderColor: wellness.borderStrong,
+    padding: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  pendingTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+    marginBottom: spacing.sm,
+  },
+  pendingDescription: {
+    fontSize: LEAD,
+    lineHeight: 24,
+    color: wellness.textSecondary,
+    marginBottom: spacing.md,
+  },
+  pendingBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: wellness.primary,
+    borderRadius: wellnessRadii.pill,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  pendingBtnText: {
+    color: '#ffffff',
+    fontSize: BODY,
+    fontWeight: '700',
+  },
+  progressCard: {
+    backgroundColor: wellness.card,
+    borderRadius: wellnessRadii.cardLarge,
+    borderWidth: 1,
+    borderColor: wellness.borderStrong,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  progressTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+  },
+  progressMetric: {
+    marginTop: spacing.xs,
+    fontSize: 16,
+    color: wellness.text,
+    fontWeight: '700',
+  },
+  progressTrack: {
+    marginTop: spacing.md,
+    height: 12,
+    borderRadius: 999,
+    backgroundColor: '#d8ead8',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: wellness.primary,
+    borderRadius: 999,
+  },
+  progressMessage: {
+    marginTop: spacing.sm,
+    fontSize: 15,
+    color: wellness.textSecondary,
+    fontWeight: '600',
+  },
 });
