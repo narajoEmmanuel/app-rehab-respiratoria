@@ -12,7 +12,7 @@ const LEVELS: LevelDefinition[] = [
     id: 'level-1',
     title: 'Nivel 1',
     difficulty: 'easy',
-    gameVisualId: 'visual-placeholder',
+    gameVisualId: 'monkey-jungle',
   },
   {
     id: 'level-2',
@@ -24,7 +24,22 @@ const LEVELS: LevelDefinition[] = [
     id: 'level-3',
     title: 'Nivel 3',
     difficulty: 'hard',
-    gameVisualId: 'rocket-experimental',
+    gameVisualId: 'visual-placeholder',
+    comingSoon: true,
+  },
+  {
+    id: 'level-4',
+    title: 'Nivel 4',
+    difficulty: 'hard',
+    gameVisualId: 'visual-placeholder',
+    comingSoon: true,
+  },
+  {
+    id: 'level-5',
+    title: 'Nivel 5',
+    difficulty: 'hard',
+    gameVisualId: 'visual-placeholder',
+    comingSoon: true,
   },
 ];
 
