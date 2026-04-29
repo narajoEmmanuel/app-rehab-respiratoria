@@ -27,6 +27,7 @@ export default function RootLayout() {
           <Stack.Screen name="auth/login" options={{ headerShown: false, title: 'Acceso' }} />
           <Stack.Screen name="auth/registro" options={{ headerShown: false, title: 'Registro' }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="sensor-connection" options={{ headerShown: false }} />
         </Stack>
       </PatientSessionProvider>
       <StatusBar style="auto" />

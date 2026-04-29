@@ -12,9 +12,12 @@ const MAPPING = {
   'house.fill': 'home',
   'paperplane.fill': 'send',
   'chevron.left.forwardslash.chevron.right': 'code',
+  'chevron.left': 'chevron-left',
   'chevron.right': 'chevron-right',
   calendar: 'calendar-today',
   'square.grid.2x2.fill': 'apps',
+  'dot.radiowaves.left.and.right': 'sensors',
+  'checkmark.circle.fill': 'check-circle',
 } as const;
 
 export type IconSymbolName = keyof typeof MAPPING;

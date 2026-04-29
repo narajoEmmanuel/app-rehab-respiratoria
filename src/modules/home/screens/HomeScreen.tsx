@@ -53,6 +53,11 @@ export function HomeScreen() {
     router.push('/(tabs)/calendario');
   }, [router]);
 
+  const goSensorConnection = useCallback(() => {
+    onShortcutPress();
+    router.push('/sensor-connection');
+  }, [router]);
+
   if (!hydrated || !patient) {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -101,6 +106,23 @@ export function HomeScreen() {
         </View>
 
         <Text style={styles.sectionLabel}>Accesos rápidos</Text>
+
+        <Pressable
+          style={({ pressed }) => [styles.shortcutCard, pressed && styles.shortcutCardPressed]}
+          onPress={goSensorConnection}
+          accessibilityRole="button"
+          accessibilityLabel="Conexión y calibración del sensor">
+          <View style={styles.shortcutIconWrap}>
+            <IconSymbol name="dot.radiowaves.left.and.right" size={28} color={wellness.primaryDark} />
+          </View>
+          <View style={styles.shortcutTextCol}>
+            <Text style={styles.shortcutTitle}>Conexión y calibración del sensor</Text>
+            <Text style={styles.shortcutSubtitle}>
+              Prepara el dispositivo antes de una sesión (simulado)
+            </Text>
+          </View>
+          <IconSymbol name="chevron.right" size={22} color={wellness.textSecondary} />
+        </Pressable>
 
         <Pressable
           style={({ pressed }) => [styles.shortcutCard, pressed && styles.shortcutCardPressed]}

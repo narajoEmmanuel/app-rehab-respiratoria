@@ -9,7 +9,7 @@ import { StyleSheet, Text, View } from 'react-native';
 export function SummaryScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Prueba de Ame</Text>
+      <Text style={styles.title}>Resumen</Text>
       <Text style={styles.text}>Pantalla base de resultados de sesion.</Text>
     </View>
   );
