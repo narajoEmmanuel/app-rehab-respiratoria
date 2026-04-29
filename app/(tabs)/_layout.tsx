@@ -1,8 +1,8 @@
 /**
- * Purpose: Bottom tab navigator — wellness pill bar, only Home / Niveles / Calendario visible.
+ * Purpose: Bottom tab navigator — wellness pill bar with five primary tabs.
  * Module: app routing
  * Dependencies: expo-router, safe-area, shared theme & ui
- * Notes: Other routes stay in (tabs) with href: null so they remain reachable via router.push.
+ * Notes: Legacy tab routes stay hidden with href: null to preserve existing navigation.
  */
 import { Tabs } from 'expo-router';
 import React from 'react';
@@ -28,7 +28,7 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: tabColors.tabIconSelected,
+        tabBarActiveTintColor: '#34aba5',
         tabBarInactiveTintColor: tabColors.tabIconDefault,
         headerShown: false,
         tabBarButton: HapticTab,
@@ -69,23 +69,23 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: 'Inicio',
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="house.fill" color={color} />,
         }}
       />
       <Tabs.Screen
-        name="niveles"
+        name="terapia"
         options={{
-          title: 'Niveles',
+          title: 'Terapia',
           tabBarIcon: ({ color }) => (
             <IconSymbol size={26} name="square.grid.2x2.fill" color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="calendario"
+        name="plan"
         options={{
-          title: 'Calendario',
+          title: 'Plan',
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="calendar" color={color} />,
         }}
       />
@@ -107,13 +107,34 @@ export default function TabLayout() {
         name="historial"
         options={{
           title: 'Historial',
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="clock.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="perfil"
+        options={{
+          title: 'Perfil',
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="person.crop.circle" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="niveles"
+        options={{
+          title: 'Niveles',
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="calendario"
+        options={{
+          title: 'Calendario',
           href: null,
         }}
       />
       <Tabs.Screen
         name="plan-semanal"
         options={{
-          title: 'Plan',
+          title: 'Plan semanal',
           href: null,
         }}
       />
