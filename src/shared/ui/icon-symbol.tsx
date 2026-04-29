@@ -16,6 +16,7 @@ const MAPPING = {
   'chevron.right': 'chevron-right',
   calendar: 'calendar-today',
   'square.grid.2x2.fill': 'apps',
+  'gearshape.fill': 'settings',
   'clock.fill': 'history',
   'person.crop.circle': 'person',
   'dot.radiowaves.left.and.right': 'sensors',

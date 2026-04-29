@@ -9,6 +9,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessFloatingTabBarInset, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
@@ -18,8 +19,8 @@ export function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <AppTopBar title="Perfil" onPressProfile={() => router.push('/profile')} />
       <View style={styles.container}>
-        <Text style={styles.title}>Perfil</Text>
         <Text style={styles.subtitle}>Espacio básico de cuenta del paciente.</Text>
 
         <View style={styles.card}>
@@ -37,6 +38,10 @@ export function ProfileScreen() {
           <View style={styles.item}>
             <Text style={styles.itemTitle}>Términos y condiciones</Text>
             <Text style={styles.itemText}>Se habilitará en una fase posterior.</Text>
+          </View>
+          <View style={styles.item}>
+            <Text style={styles.itemTitle}>Privacidad y datos</Text>
+            <Text style={styles.itemText}>Información de privacidad (placeholder).</Text>
           </View>
         </View>
 
@@ -64,13 +69,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
+    paddingTop: spacing.md,
     gap: spacing.md,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: wellness.text,
   },
   subtitle: {
     fontSize: 16,

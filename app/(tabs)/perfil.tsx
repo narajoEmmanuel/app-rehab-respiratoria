@@ -4,6 +4,8 @@
  * Dependencies: patient module screen
  * Notes: Placeholder profile surface for navigation phase.
  */
-import { ProfileScreen } from '@/src/modules/patient/screens/ProfileScreen';
+import { Redirect } from 'expo-router';
 
-export default ProfileScreen;
+export default function PerfilLegacyTab() {
+  return <Redirect href="/profile" />;
+}

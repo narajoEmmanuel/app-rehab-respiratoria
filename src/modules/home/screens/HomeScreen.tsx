@@ -13,6 +13,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
+import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
 import {
   wellness,
@@ -78,6 +79,10 @@ export function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <AppTopBar
+        title="Inicio"
+        onPressProfile={() => router.push('/profile')}
+      />
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]}
         showsVerticalScrollIndicator={false}>
@@ -174,7 +179,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: wellness.screenBg },
   scroll: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl + 4,
+    paddingTop: spacing.lg,
   },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
   greeting: {

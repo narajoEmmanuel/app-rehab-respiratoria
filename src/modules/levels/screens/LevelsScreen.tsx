@@ -12,10 +12,17 @@ import { LevelCard } from '@/src/modules/levels/components/LevelCard';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { listLevels } from '@/src/modules/session/registry/level-registry';
+import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessFloatingTabBarInset, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
-export function LevelsScreen() {
+export function LevelsScreen({
+  headerTitle = 'Niveles',
+  headerSubtitle = 'Elige tu aventura respiratoria',
+}: {
+  headerTitle?: string;
+  headerSubtitle?: string;
+} = {}) {
   const router = useRouter();
   const { progress, isLoading, selectLevel } = useLevelsProgress();
   const levels = listLevels();
@@ -27,9 +34,12 @@ export function LevelsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <AppTopBar
+        title={headerTitle}
+        onPressProfile={() => router.push('/profile')}
+      />
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Niveles</Text>
-        <Text style={styles.subtitle}>Elige tu aventura respiratoria</Text>
+        <Text style={styles.subtitle}>{headerSubtitle}</Text>
 
         {levels.map((level) => {
           const locked = !progress.unlockedLevels.includes(level.id as LevelId) || !!level.comingSoon;
@@ -69,13 +79,8 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.xl,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: wellness.text,
   },
   subtitle: {
     marginTop: spacing.xs,

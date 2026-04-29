@@ -17,10 +17,10 @@ export const wellness = {
   text: '#1E1E1E',
   textSecondary: '#6F756C',
 
-  /** Sage / muted green — buttons, highlights */
-  primary: '#8FAF8F',
-  /** Olive / depth — titles, icons on light sage */
-  primaryDark: '#4F6F52',
+  /** Health / wellness accent */
+  primary: '#34aba5',
+  /** Slightly darker accent for text/icons */
+  primaryDark: '#1F7E7A',
   /** Wash behind cards or chips */
   softGreen: '#DDE8D8',
 
@@ -30,10 +30,10 @@ export const wellness = {
   errorBg: '#FDF0F1',
   errorText: '#8C3A42',
   successBg: '#E8F2E4',
-  link: '#4F6F52',
+  link: '#34aba5',
 
   tabBarBg: 'rgba(255, 255, 255, 0.94)',
-  tabBarBorder: 'rgba(79, 111, 82, 0.1)',
+  tabBarBorder: 'rgba(52, 171, 165, 0.16)',
 } as const;
 
 /** Extra-rounded radii for wellness cards (extends base `radii`). */

@@ -22,14 +22,14 @@ export default function TabLayout() {
   const tabColors = Colors[scheme];
   const isLight = scheme === 'light';
 
-  const floatingBottom = Math.max(insets.bottom, 10) + 10;
+  const floatingBottom = Math.max(insets.bottom, 10) + 14;
   const horizontal = 22;
 
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: '#34aba5',
-        tabBarInactiveTintColor: tabColors.tabIconDefault,
+        tabBarInactiveTintColor: isLight ? '#98A19D' : tabColors.tabIconDefault,
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarShowLabel: true,
@@ -53,7 +53,7 @@ export default function TabLayout() {
               height: 64,
               paddingHorizontal: 6,
               paddingTop: 6,
-              paddingBottom: 10,
+              paddingBottom: 12,
               borderRadius: wellnessRadii.pill,
               backgroundColor: wellness.tabBarBg,
               borderWidth: StyleSheet.hairlineWidth * 2,
@@ -113,8 +113,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="perfil"
         options={{
-          title: 'Perfil',
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="person.crop.circle" color={color} />,
+          href: null,
         }}
       />
       <Tabs.Screen
