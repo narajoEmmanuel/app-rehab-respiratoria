@@ -20,6 +20,7 @@ export {
   logoutPatient,
   normalizeClave,
   saveCurrentPatient,
+  updatePatientCurrentLevel,
 } from '@/src/modules/patient/patient-service';
 export {
   PatientSessionProvider,

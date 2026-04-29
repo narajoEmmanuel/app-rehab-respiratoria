@@ -18,6 +18,9 @@ type LevelOneGameViewProps = {
   onPressIn: () => void;
   onPressOut: () => void;
   onPressStop: () => void;
+  simulatedVolume: number;
+  targetVolume: number;
+  holdSeconds: number;
 };
 
 export function LevelOneGameView({
@@ -33,6 +36,9 @@ export function LevelOneGameView({
   onPressIn,
   onPressOut,
   onPressStop,
+  simulatedVolume,
+  targetVolume,
+  holdSeconds,
 }: LevelOneGameViewProps) {
   const monkeyIsJumping = phase === 'holding';
   const obstacleA = useRef(new Animated.Value(360)).current;
@@ -212,6 +218,11 @@ export function LevelOneGameView({
   return (
     <View style={styles.container}>
       <ProgressHud session={session} repetition={repetition} valid={valid} failed={failed} />
+      <View style={styles.metricsCard}>
+        <Text style={styles.metricText}>Tiempo sostenido: {holdSeconds.toFixed(1)} / 3 s</Text>
+        <Text style={styles.metricText}>Volumen simulado: {Math.round(simulatedVolume)} mL</Text>
+        <Text style={styles.metricText}>Meta del nivel: {targetVolume} mL</Text>
+      </View>
       <GameStatusBanner primaryText={status.primary} secondaryText={status.secondary} />
 
       <View style={styles.scene}>
@@ -248,7 +259,7 @@ export function LevelOneGameView({
             monkeyIsJumping ? styles.monkeyJumping : null,
             { transform: [{ translateY: monkeyBounce }, { translateX: monkeyStride }] },
           ]}>
-          🐵
+          🧍
         </Animated.Text>
 
         {showObstacles ? (
@@ -272,7 +283,7 @@ export function LevelOneGameView({
       <Pressable style={styles.touchZone} onPressIn={onPressIn} onPressOut={onPressOut}>
         <Text style={styles.touchTitle}>Mantener presionado para inspirar</Text>
         <Text style={styles.touchDescription}>
-          Mantenga 5 segundos para validar la repeticion. Suelte para exhalar.
+          Mantenga 3 segundos para validar la repeticion. Suelte para exhalar.
         </Text>
       </Pressable>
     </View>
@@ -296,22 +307,22 @@ function getStatusText({
     return { primary: 'Preparate', secondary: `Inicia en ${prepSecondsRemaining}s` };
   }
   if (phase === 'ready') {
-    return { primary: 'Inspira', secondary: 'Presiona y sosten 5 segundos' };
+    return { primary: '¡Sostén!', secondary: 'Presiona y sosten 3 segundos' };
   }
   if (phase === 'holding') {
-    return { primary: 'Sosten 5 segundos', secondary: `Faltan ${holdSecondsRemaining}s` };
+    return { primary: '¡Sostén!', secondary: `Faltan ${holdSecondsRemaining}s` };
   }
   if (phase === 'exhale') {
     if (attemptFeedback === 'valid') {
-      return { primary: 'Repeticion valida', secondary: 'Exhala' };
+      return { primary: '¡Repetición válida!', secondary: 'Exhala' };
     }
     if (attemptFeedback === 'failed') {
-      return { primary: 'Repeticion fallida', secondary: 'Exhala' };
+      return { primary: 'Intenta mantener más tiempo', secondary: 'Exhala' };
     }
     return { primary: 'Exhala' };
   }
   if (phase === 'resting') {
-    return { primary: 'Descansa 5 segundos', secondary: `Faltan ${restSecondsRemaining}s` };
+    return { primary: 'Descansa 3 segundos', secondary: `Faltan ${restSecondsRemaining}s` };
   }
   if (phase === 'session-complete') {
     return { primary: 'Sesion completada', secondary: 'Preparando siguiente sesion' };
@@ -337,6 +348,21 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     justifyContent: 'flex-end',
     marginBottom: 16,
+  },
+  metricsCard: {
+    width: '100%',
+    backgroundColor: '#214b2f',
+    borderWidth: 1,
+    borderColor: '#8be09a',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 12,
+  },
+  metricText: {
+    color: '#e8ffeb',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 2,
   },
   stopButton: {
     position: 'absolute',

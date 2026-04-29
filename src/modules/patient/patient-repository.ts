@@ -20,7 +20,10 @@ export async function readAllPatients(): Promise<PatientRecord[]> {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed as PatientRecord[];
+    return (parsed as PatientRecord[]).map((item) => ({
+      ...item,
+      current_level_id: item.current_level_id ?? null,
+    }));
   } catch {
     return [];
   }
@@ -40,6 +43,16 @@ export async function appendPatient(patient: PatientRecord): Promise<void> {
   const all = await readAllPatients();
   all.push(patient);
   await writeAllPatients(all);
+}
+
+export async function updatePatient(patientId: number, updater: (prev: PatientRecord) => PatientRecord): Promise<PatientRecord | null> {
+  const all = await readAllPatients();
+  const index = all.findIndex((item) => item.paciente_id === patientId);
+  if (index < 0) return null;
+  const next = updater(all[index]);
+  all[index] = next;
+  await writeAllPatients(all);
+  return next;
 }
 
 export async function readCurrentClave(): Promise<string | null> {

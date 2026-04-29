@@ -4,13 +4,19 @@
  * Dependencies: react-native, expo-router, levels/session
  * Notes: Level 1 playable now, levels 2-5 shown as locked/coming soon.
  */
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { DiagnosticLockedView } from '@/src/modules/diagnostics/components/DiagnosticLockedView';
+import { getPatientLevels, hasDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
+import type { PatientLevelRecord } from '@/src/modules/diagnostics/types';
 import { LevelCard } from '@/src/modules/levels/components/LevelCard';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
+import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { listLevels } from '@/src/modules/session/registry/level-registry';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -24,13 +30,71 @@ export function LevelsScreen({
   headerSubtitle?: string;
 } = {}) {
   const router = useRouter();
+  const { patient } = usePatientSession();
   const { progress, isLoading, selectLevel } = useLevelsProgress();
   const levels = listLevels();
+  const [diagnosticLoading, setDiagnosticLoading] = useState(true);
+  const [hasCompletedDiagnostic, setHasCompletedDiagnostic] = useState(false);
+  const [patientLevels, setPatientLevels] = useState<PatientLevelRecord[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    const loadDiagnosticState = async () => {
+      if (!patient) {
+        if (active) {
+          setHasCompletedDiagnostic(false);
+          setDiagnosticLoading(false);
+        }
+        return;
+      }
+      const diagnosticExists = await hasDiagnostic(patient.paciente_id);
+      const patientLevels = await getPatientLevels(patient.paciente_id);
+      if (active) {
+        setHasCompletedDiagnostic(diagnosticExists);
+        setPatientLevels(patientLevels);
+        setDiagnosticLoading(false);
+      }
+    };
+    void loadDiagnosticState();
+    return () => {
+      active = false;
+    };
+  }, [patient]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!diagnosticLoading && !hasCompletedDiagnostic) {
+        Alert.alert('Atención', 'Primero realiza tu diagnóstico para desbloquear tu terapia');
+      }
+    }, [diagnosticLoading, hasCompletedDiagnostic]),
+  );
 
   const onLevelPress = (levelId: LevelId) => {
     selectLevel(levelId);
     router.push({ pathname: '/(tabs)/sesion', params: { levelId } });
   };
+
+  if (isLoading || diagnosticLoading) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <AppTopBar title={headerTitle} onPressProfile={() => router.push('/profile')} />
+        <View style={styles.blockedContainer}>
+          <Text style={styles.subtitle}>Cargando niveles…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!hasCompletedDiagnostic) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <AppTopBar title={headerTitle} onPressProfile={() => router.push('/profile')} />
+        <View style={styles.blockedContainer}>
+          <DiagnosticLockedView />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -42,14 +106,24 @@ export function LevelsScreen({
         <Text style={styles.subtitle}>{headerSubtitle}</Text>
 
         {levels.map((level) => {
-          const locked = !progress.unlockedLevels.includes(level.id as LevelId) || !!level.comingSoon;
+          const levelId = level.id as LevelId;
+          const row = patientLevels.find((item) => item.level_id === levelId);
+          const status = row?.level_status ?? 'locked';
+          const locked = status === 'locked' || !!level.comingSoon;
+          const statusLabel =
+            status === 'active' ? 'Disponible / Activo' : status === 'completed' ? 'Completado' : 'Bloqueado';
+          const sessionsDone = row?.perfect_sessions_completed ?? 0;
           return (
             <LevelCard
               key={level.id}
               title={level.title}
-              subtitle={locked ? 'Bloqueado por ahora' : 'Disponible para jugar'}
+              statusLabel={statusLabel}
+              statusTone={status === 'completed' ? 'completed' : status === 'active' ? 'active' : 'locked'}
+              targetVolumeText={`Meta aprox: ${row?.target_volume ?? 0} mL`}
+              sessionsText={`Sesiones completadas: ${sessionsDone}/6`}
+              helperText="Completa 6 sesiones perfectas para desbloquear el siguiente nivel"
               locked={locked}
-              onPress={() => onLevelPress(level.id as LevelId)}
+              onPress={() => onLevelPress(levelId)}
             />
           );
         })}
@@ -57,7 +131,7 @@ export function LevelsScreen({
         <View style={styles.messageCard}>
           <Text style={styles.messageTitle}>Regla de desbloqueo del Nivel 2</Text>
           <Text style={styles.messageText}>
-            Debes completar 6 sesiones del Nivel 1 con 10 repeticiones validas cada una, sin fallos.
+            Debes completar 6 sesiones del nivel activo con 10 repeticiones válidas cada una.
           </Text>
           {!isLoading && progress.levelOne.levelCompleted && !progress.levelOne.levelPerfect ? (
             <Text style={styles.warningText}>
@@ -81,6 +155,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.xl,
+  },
+  blockedContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
   },
   subtitle: {
     marginTop: spacing.xs,

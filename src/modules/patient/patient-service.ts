@@ -11,9 +11,11 @@ import {
   normalizeClave,
   readAllPatients,
   readCurrentClave,
+  updatePatient,
   writeCurrentClave,
 } from '@/src/modules/patient/patient-repository';
 import type { PatientRecord } from '@/src/modules/patient/types';
+import type { LevelId } from '@/src/modules/levels/types/level-progress';
 
 const PAC_REGEX = /^PAC(\d+)$/i;
 
@@ -52,6 +54,7 @@ export async function createPatient(nombreCompleto: string, edad: number): Promi
     clave,
     nombre_completo: trimmedName,
     edad,
+    current_level_id: null,
     racha_actual: 0,
     ultima_fecha_cumplida: null,
     fecha_creacion: now,
@@ -73,6 +76,10 @@ export async function getCurrentPatient(): Promise<PatientRecord | null> {
 
 export async function logoutPatient(): Promise<void> {
   await clearCurrentClave();
+}
+
+export async function updatePatientCurrentLevel(patientId: number, levelId: LevelId): Promise<PatientRecord | null> {
+  return updatePatient(patientId, (prev) => ({ ...prev, current_level_id: levelId }));
 }
 
 export { normalizeClave };

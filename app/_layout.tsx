@@ -29,6 +29,8 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="profile" options={{ headerShown: false }} />
           <Stack.Screen name="sensor-connection" options={{ headerShown: false }} />
+          <Stack.Screen name="diagnostico" options={{ headerShown: false }} />
+          <Stack.Screen name="diagnostico-resumen" options={{ headerShown: false }} />
         </Stack>
       </PatientSessionProvider>
       <StatusBar style="auto" />

@@ -9,15 +9,25 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { DiagnosticLockedView } from '@/src/modules/diagnostics/components/DiagnosticLockedView';
+import { getCurrentActiveLevel, hasDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
+import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { useLevelOneGame } from '@/src/modules/session/engine/level-one/use-level-one-game';
 import { useTouchInputAdapter } from '@/src/modules/session/engine/touch/use-touch-input-adapter';
 import { LevelOneGameView } from '@/src/modules/session/games/components/LevelOneGameView';
 import { getLevelById } from '@/src/modules/session/registry/level-registry';
+import {
+  checkAndUnlockNextLevel,
+  createAttempt,
+  createSession,
+  updatePatientLevelProgress,
+} from '@/src/modules/session/session-progress-service';
 
 export function SessionScreen() {
   const router = useRouter();
+  const { patient } = usePatientSession();
   const { levelId } = useLocalSearchParams<{ levelId?: string }>();
   const {
     isLoading,
@@ -37,28 +47,18 @@ export function SessionScreen() {
     }
   }, [levelId, progress.selectedLevelId, selectLevel]);
 
-  const levelOneEngine = useLevelOneGame({
-    progress: progress.levelOne,
-    onProgressChange: updateLevelOne,
-  });
-  const { restartCurrentSession, startSession } = levelOneEngine;
-  const inputPort = useTouchInputAdapter({
-    onInhaleStart: levelOneEngine.onInhaleStart,
-    onInhaleEnd: levelOneEngine.onInhaleEnd,
-  });
-
   const isLevelOne = useMemo(() => selectedLevelId === 'level-1', [selectedLevelId]);
   const currentSessionData = progress.levelOne.sessions[progress.levelOne.currentSession - 1];
-  const sessionCompliance = currentSessionData
-    ? Math.round((currentSessionData.validRepetitions / 10) * 100)
-    : 0;
-
-  const summaryKind =
-    levelOneEngine.phase === 'session-complete'
-      ? 'completed'
-      : null;
 
   const [summaryDismissedKind, setSummaryDismissedKind] = useState<'completed' | null>(null);
+  const [diagnosticChecked, setDiagnosticChecked] = useState(false);
+  const [hasCompletedDiagnostic, setHasCompletedDiagnostic] = useState(false);
+  const [targetVolume, setTargetVolume] = useState(1200);
+  const [patientLevelId, setPatientLevelId] = useState<number | null>(null);
+  const [attemptsRuntime, setAttemptsRuntime] = useState<
+    { valid: boolean; holdMs: number; peakVolume: number }[]
+  >([]);
+  const [savingSummary, setSavingSummary] = useState(false);
 
   useEffect(() => {
     if (!summaryKind) {
@@ -66,10 +66,60 @@ export function SessionScreen() {
     }
   }, [summaryKind]);
 
-  if (isLoading) {
+  const levelOneEngine = useLevelOneGame({
+    progress: progress.levelOne,
+    onProgressChange: updateLevelOne,
+    onAttemptResolved: ({ valid, holdMs }) => {
+      const peakVolume = Math.round(
+        targetVolume * Math.max(0.55, Math.min(1.25, holdMs / 3000)) + Math.random() * 35,
+      );
+      setAttemptsRuntime((prev) => [...prev, { valid, holdMs, peakVolume }]);
+    },
+  });
+  const { restartCurrentSession, startSession } = levelOneEngine;
+  const inputPort = useTouchInputAdapter({
+    onInhaleStart: levelOneEngine.onInhaleStart,
+    onInhaleEnd: levelOneEngine.onInhaleEnd,
+  });
+  const summaryKind = levelOneEngine.phase === 'session-complete' ? 'completed' : null;
+
+  useEffect(() => {
+    let active = true;
+    const checkDiagnostic = async () => {
+      if (!patient) {
+        if (active) {
+          setHasCompletedDiagnostic(false);
+          setDiagnosticChecked(true);
+        }
+        return;
+      }
+      const exists = await hasDiagnostic(patient.paciente_id);
+      const activeLevel = await getCurrentActiveLevel(patient.paciente_id);
+      if (active) {
+        setHasCompletedDiagnostic(exists);
+        setTargetVolume(activeLevel?.target_volume ?? 1200);
+        setPatientLevelId(activeLevel?.patient_level_id ?? null);
+        setDiagnosticChecked(true);
+      }
+    };
+    void checkDiagnostic();
+    return () => {
+      active = false;
+    };
+  }, [patient]);
+
+  if (isLoading || !diagnosticChecked) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#6dcf4a" />
+      </SafeAreaView>
+    );
+  }
+
+  if (!hasCompletedDiagnostic) {
+    return (
+      <SafeAreaView style={styles.centered}>
+        <DiagnosticLockedView />
       </SafeAreaView>
     );
   }
@@ -92,6 +142,24 @@ export function SessionScreen() {
       </SafeAreaView>
     );
   }
+
+  const simulatedVolume = Math.round(
+    Math.max(0, targetVolume * Math.min(1.15, levelOneEngine.holdMs / 3000)),
+  );
+  const validAttempts = currentSessionData?.validRepetitions ?? 0;
+  const failedAttempts = currentSessionData?.failedRepetitions ?? 0;
+  const totalAttempts = validAttempts + failedAttempts;
+  const sessionCompliance = totalAttempts > 0 ? Math.round((validAttempts / 10) * 100) : 0;
+  const maxVolume = attemptsRuntime.length > 0 ? Math.max(...attemptsRuntime.map((item) => item.peakVolume)) : 0;
+  const avgVolume =
+    attemptsRuntime.length > 0
+      ? Math.round(attemptsRuntime.reduce((sum, item) => sum + item.peakVolume, 0) / attemptsRuntime.length)
+      : 0;
+  const avgHoldSeconds =
+    attemptsRuntime.length > 0
+      ? attemptsRuntime.reduce((sum, item) => sum + item.holdMs, 0) / attemptsRuntime.length / 1000
+      : 0;
+  const perfectSession = validAttempts === 10 && totalAttempts >= 10;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -137,6 +205,9 @@ export function SessionScreen() {
               ]
             );
           }}
+          simulatedVolume={simulatedVolume}
+          targetVolume={targetVolume}
+          holdSeconds={levelOneEngine.holdMs / 1000}
         />
       ) : null}
       {levelOneEngine.phase === 'not-started' ? (
@@ -149,6 +220,7 @@ export function SessionScreen() {
               if (currentSessionData?.interrupted && !currentSessionData.completed) {
                 repeatCurrentLevelOneSession();
               }
+              setAttemptsRuntime([]);
               startSession();
             }}>
             <Text style={styles.startButtonText}>INICIAR</Text>
@@ -171,17 +243,47 @@ export function SessionScreen() {
               Repeticiones fallidas: {currentSessionData?.failedRepetitions ?? 0}
             </Text>
             <Text style={styles.modalLine}>Porcentaje de cumplimiento: {sessionCompliance}%</Text>
+            <Text style={styles.modalLine}>Volumen maximo: {maxVolume} mL</Text>
+            <Text style={styles.modalLine}>Volumen promedio: {avgVolume} mL</Text>
+            <Text style={styles.modalLine}>Tiempo promedio sostenido: {avgHoldSeconds.toFixed(1)} s</Text>
+            <Text style={styles.modalLine}>Sesion perfecta: {perfectSession ? 'Sí' : 'No'}</Text>
             <Text style={styles.modalMotivation}>
               {sessionCompliance === 100
                 ? 'Excelente trabajo, sesion perfecta.'
                 : 'Buen avance. Sigue practicando para mejorar tu precision.'}
             </Text>
             <Pressable
-              style={styles.modalPrimaryButton}
-              onPress={() => {
+              style={[styles.modalPrimaryButton, savingSummary && { opacity: 0.7 }]}
+              disabled={savingSummary}
+              onPress={async () => {
+                if (!patient || !patientLevelId) return;
+                setSavingSummary(true);
+                const savedSession = await createSession(patient.paciente_id, patientLevelId, {
+                  level_id: selectedLevelId,
+                  valid_attempts: validAttempts,
+                  total_attempts: totalAttempts,
+                  invalid_attempts: failedAttempts,
+                  compliance_percent: sessionCompliance,
+                  max_volume: maxVolume,
+                  avg_volume: avgVolume,
+                  avg_hold_seconds: avgHoldSeconds,
+                  completed: true,
+                  perfect: perfectSession,
+                });
+                for (const attempt of attemptsRuntime) {
+                  await createAttempt(savedSession.session_id, {
+                    hold_ms: attempt.holdMs,
+                    peak_volume: attempt.peakVolume,
+                    valid: attempt.valid,
+                  });
+                }
+                await updatePatientLevelProgress(patient.paciente_id, patientLevelId);
+                await checkAndUnlockNextLevel(patient.paciente_id);
                 finalizeCurrentLevelOneSession();
                 levelOneEngine.stopSession();
+                setAttemptsRuntime([]);
                 setSummaryDismissedKind('completed');
+                setSavingSummary(false);
                 router.push('/(tabs)/niveles');
               }}>
               <Text style={styles.modalPrimaryButtonText}>
@@ -195,6 +297,7 @@ export function SessionScreen() {
                   setSummaryDismissedKind(summaryKind);
                 }
                 repeatCurrentLevelOneSession();
+                setAttemptsRuntime([]);
                 restartCurrentSession();
               }}>
               <Text style={styles.modalSecondaryButtonText}>Repetir sesion</Text>

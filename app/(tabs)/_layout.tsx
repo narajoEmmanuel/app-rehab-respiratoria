@@ -6,9 +6,11 @@
  */
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Platform, StyleSheet } from 'react-native';
+import { Alert, Platform, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { hasDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
+import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { HapticTab } from '@/src/shared/ui/haptic-tab';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { Colors } from '@/src/shared/theme/colors';
@@ -18,12 +20,37 @@ import { wellness, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wel
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
+  const { patient } = usePatientSession();
+  const [hasCompletedDiagnostic, setHasCompletedDiagnostic] = React.useState(false);
   const scheme = colorScheme ?? 'light';
   const tabColors = Colors[scheme];
   const isLight = scheme === 'light';
 
   const floatingBottom = Math.max(insets.bottom, 10) + 14;
   const horizontal = 22;
+
+  React.useEffect(() => {
+    let active = true;
+    const load = async () => {
+      if (!patient) {
+        if (active) setHasCompletedDiagnostic(false);
+        return;
+      }
+      const exists = await hasDiagnostic(patient.paciente_id);
+      if (active) setHasCompletedDiagnostic(exists);
+    };
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [patient]);
+
+  const blockWithoutDiagnostic = (e: { preventDefault: () => void }) => {
+    if (!hasCompletedDiagnostic) {
+      e.preventDefault();
+      Alert.alert('Atención', 'Primero realiza tu diagnóstico para desbloquear tu terapia');
+    }
+  };
 
   return (
     <Tabs
@@ -81,6 +108,7 @@ export default function TabLayout() {
             <IconSymbol size={26} name="square.grid.2x2.fill" color={color} />
           ),
         }}
+        listeners={{ tabPress: blockWithoutDiagnostic }}
       />
       <Tabs.Screen
         name="plan"
@@ -88,6 +116,7 @@ export default function TabLayout() {
           title: 'Plan',
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="calendar" color={color} />,
         }}
+        listeners={{ tabPress: blockWithoutDiagnostic }}
       />
       <Tabs.Screen
         name="sesion"
@@ -109,6 +138,7 @@ export default function TabLayout() {
           title: 'Historial',
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="clock.fill" color={color} />,
         }}
+        listeners={{ tabPress: blockWithoutDiagnostic }}
       />
       <Tabs.Screen
         name="perfil"

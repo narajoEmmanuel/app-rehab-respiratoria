@@ -11,9 +11,9 @@ import type {
   LevelOneSessionProgress,
 } from '@/src/modules/levels/types/level-progress';
 
-const REQUIRED_HOLD_MS = 5000;
-const REST_MS = 5000;
-const PREP_MS = 5000;
+const REQUIRED_HOLD_MS = 3000;
+const REST_MS = 3000;
+const PREP_MS = 3000;
 const MAX_REPS = 10;
 export type LevelOnePhase =
   | 'not-started'
@@ -29,11 +29,12 @@ export type LevelOnePhase =
 type UseLevelOneGameParams = {
   progress: LevelOneProgress;
   onProgressChange: (updater: (prev: LevelOneProgress) => LevelOneProgress) => void;
+  onAttemptResolved?: (payload: { valid: boolean; holdMs: number }) => void;
 };
 
 type AttemptFeedback = 'idle' | 'valid' | 'failed';
 
-export function useLevelOneGame({ progress, onProgressChange }: UseLevelOneGameParams) {
+export function useLevelOneGame({ progress, onProgressChange, onAttemptResolved }: UseLevelOneGameParams) {
   const [phase, setPhase] = useState<LevelOnePhase>('not-started');
   const [countdownMs, setCountdownMs] = useState(PREP_MS);
   const [holdMs, setHoldMs] = useState(0);
@@ -146,8 +147,9 @@ export function useLevelOneGame({ progress, onProgressChange }: UseLevelOneGameP
       setAttemptFeedback(valid ? 'valid' : 'failed');
       setHoldMs(heldMs);
       setPhase('exhale');
+      onAttemptResolved?.({ valid, holdMs: heldMs });
     },
-    [onProgressChange]
+    [onAttemptResolved, onProgressChange]
   );
 
   const onInhaleStart = useCallback(() => {
