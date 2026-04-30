@@ -5,7 +5,7 @@
  * Notes: UI state only; safe for Expo Go. Move route to (tabs) later without changing this file.
  */
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -13,12 +13,14 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
-import { mockRespiratorySamples } from '@/src/modules/device/mocks/mock-device-data';
+import { useEsp32WebSocketSensor } from '@/src/modules/device/adapters/use-esp32-websocket-sensor';
+import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { spacing } from '@/src/shared/theme/spacing';
 import {
@@ -27,35 +29,26 @@ import {
   wellnessShadows,
 } from '@/src/shared/theme/wellness-theme';
 
-export type SensorConnectionFlowState =
-  | 'disconnected'
-  | 'scanning'
-  | 'connected'
-  | 'calibrated'
-  | 'error';
-
-const SCAN_MS = 1600;
-const CALIBRATE_MS = 1200;
-const READING_MS = 700;
-
 function hapticLight() {
   if (Platform.OS === 'ios') {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }
 }
 
-function statusLabel(state: SensorConnectionFlowState): string {
+function statusLabel(state: SensorConnectionStatus): string {
   switch (state) {
-    case 'disconnected':
-      return 'Desconectado';
-    case 'scanning':
-      return 'Buscando sensor…';
+    case 'idle':
+      return 'Inactivo';
+    case 'connecting':
+      return 'Conectando por WiFi local…';
     case 'connected':
-      return 'Conectado';
-    case 'calibrated':
-      return 'Calibrado';
+      return 'Conectado por WebSocket';
+    case 'receiving':
+      return 'Recibiendo datos';
     case 'error':
       return 'Error de conexión';
+    case 'disconnected':
+      return 'Desconectado';
     default:
       return state;
   }
@@ -63,96 +56,59 @@ function statusLabel(state: SensorConnectionFlowState): string {
 
 export function SensorConnectionScreen() {
   const router = useRouter();
-  const [flow, setFlow] = useState<SensorConnectionFlowState>('disconnected');
-  const [readingIndex, setReadingIndex] = useState(0);
-  const [usingSimulatedData, setUsingSimulatedData] = useState(false);
-  const scanTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const calibrateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const readingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const {
+    status,
+    mode,
+    lastReading,
+    errorMessage,
+    url,
+    setUrl,
+    connect,
+    disconnect,
+    startMock,
+    stopMock,
+  } = useEsp32WebSocketSensor();
+  const [isCalibrated, setIsCalibrated] = useState(false);
 
-  const clearScanTimer = useCallback(() => {
-    if (scanTimer.current) {
-      clearTimeout(scanTimer.current);
-      scanTimer.current = null;
-    }
-  }, []);
-
-  const clearCalibrateTimer = useCallback(() => {
-    if (calibrateTimer.current) {
-      clearTimeout(calibrateTimer.current);
-      calibrateTimer.current = null;
-    }
-  }, []);
-
-  const clearReadingTimer = useCallback(() => {
-    if (readingTimer.current) {
-      clearInterval(readingTimer.current);
-      readingTimer.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      clearScanTimer();
-      clearCalibrateTimer();
-      clearReadingTimer();
-    };
-  }, [clearScanTimer, clearCalibrateTimer, clearReadingTimer]);
-
-  const showReading =
-    usingSimulatedData || flow === 'connected' || flow === 'calibrated';
-  const sample = mockRespiratorySamples[readingIndex % mockRespiratorySamples.length];
-
-  useEffect(() => {
-    if (!showReading) {
-      clearReadingTimer();
-      return;
-    }
-    readingTimer.current = setInterval(() => {
-      setReadingIndex((i) => i + 1);
-    }, READING_MS);
-    return clearReadingTimer;
-  }, [showReading, clearReadingTimer]);
-
-  const onSearch = useCallback(() => {
+  const onConnect = useCallback(() => {
     hapticLight();
-    clearScanTimer();
-    setUsingSimulatedData(false);
-    setFlow('scanning');
-
-    scanTimer.current = setTimeout(() => {
-      const fail = Math.random() < 0.22;
-      if (fail) {
-        setFlow('error');
-      } else {
-        setFlow('connected');
-      }
-      scanTimer.current = null;
-    }, SCAN_MS);
-  }, [clearScanTimer]);
+    setIsCalibrated(false);
+    connect();
+  }, [connect]);
 
   const onCalibrate = useCallback(() => {
-    if (flow !== 'connected') return;
+    if (status !== 'connected' && status !== 'receiving') return;
     hapticLight();
-    clearCalibrateTimer();
+    setIsCalibrated(true);
+  }, [status]);
 
-    calibrateTimer.current = setTimeout(() => {
-      setFlow('calibrated');
-      calibrateTimer.current = null;
-    }, CALIBRATE_MS);
-  }, [flow, clearCalibrateTimer]);
-
-  const onSimulated = useCallback(() => {
+  const onStartMock = useCallback(() => {
     hapticLight();
-    clearScanTimer();
-    clearCalibrateTimer();
-    setFlow('calibrated');
-    setUsingSimulatedData(true);
-  }, [clearScanTimer, clearCalibrateTimer]);
+    setIsCalibrated(false);
+    startMock();
+  }, [startMock]);
 
-  const scanning = flow === 'scanning';
-  const canSearch = !scanning;
-  const canCalibrate = flow === 'connected';
+  const onStopMock = useCallback(() => {
+    hapticLight();
+    stopMock();
+  }, [stopMock]);
+
+  const onDisconnect = useCallback(() => {
+    hapticLight();
+    disconnect();
+  }, [disconnect]);
+
+  useEffect(() => {
+    if (status === 'disconnected' || status === 'error') {
+      setIsCalibrated(false);
+    }
+  }, [status]);
+
+  const isConnecting = status === 'connecting';
+  const canCalibrate = status === 'connected' || status === 'receiving';
+  const showReading = Boolean(lastReading);
+  const sustainedSeconds = lastReading ? (lastReading.sustainedTimeMs / 1000).toFixed(1) : '0.0';
+  const modeLabel = mode === 'mock' ? 'Modo demostración' : 'WebSocket (ESP32)';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -179,69 +135,97 @@ export function SensorConnectionScreen() {
         <View style={styles.statusCard}>
           <Text style={styles.statusLabel}>Estado</Text>
           <View style={styles.statusRow}>
-            {scanning ? (
+            {isConnecting ? (
               <ActivityIndicator size="small" color={wellness.primaryDark} />
             ) : null}
-            <Text style={styles.statusValue}>{statusLabel(flow)}</Text>
+            <Text style={styles.statusValue}>{statusLabel(status)}</Text>
           </View>
+          <Text style={styles.statusHint}>Modo actual: {modeLabel}</Text>
         </View>
 
-        {flow === 'connected' || flow === 'calibrated' || usingSimulatedData ? (
+        <View style={styles.urlCard}>
+          <Text style={styles.statusLabel}>URL WebSocket del ESP32</Text>
+          <TextInput
+            value={url}
+            onChangeText={setUrl}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            style={styles.urlInput}
+            placeholder="ws://192.168.4.1:81"
+            placeholderTextColor={wellness.textSecondary}
+          />
+          <Text style={styles.urlHint}>Usa WiFi local para conectarte al ESP32 por WebSocket.</Text>
+        </View>
+
+        {(status === 'connected' || status === 'receiving' || mode === 'mock') && showReading ? (
           <View style={styles.bannerOk}>
             <IconSymbol name="checkmark.circle.fill" size={22} color={wellness.primaryDark} />
             <Text style={styles.bannerOkText}>
-              Sensor conectado de forma simulada. La lectura inferior es solo de demostración.
+              {mode === 'mock'
+                ? 'Modo demostración activo. Puedes usar la app sin hardware.'
+                : 'Conexión ESP32 activa por WiFi local y WebSocket.'}
             </Text>
           </View>
         ) : null}
 
-        {flow === 'calibrated' || usingSimulatedData ? (
+        {isCalibrated ? (
           <View style={styles.bannerCal}>
             <Text style={styles.bannerCalText}>
-              Calibración simulada lista. Puedes continuar con tu sesión cuando integremos el
-              hardware real.
+              Calibración de sensor completada en esta pantalla.
             </Text>
           </View>
         ) : null}
 
-        {flow === 'error' ? (
+        {status === 'error' && errorMessage ? (
           <View style={styles.bannerErr}>
-            <Text style={styles.bannerErrText}>
-              No se encontró ningún sensor (simulación). Pulsa «Buscar sensor» para intentarlo de
-              nuevo.
-            </Text>
+            <Text style={styles.bannerErrText}>{errorMessage}</Text>
           </View>
         ) : null}
 
         {showReading ? (
           <View style={styles.readingCard}>
-            <Text style={styles.readingLabel}>Lectura simulada del sensor</Text>
-            <Text style={styles.readingValue}>
-              Flujo: {sample.flow.toFixed(2)} (t = {sample.timestamp}s)
+            <Text style={styles.readingLabel}>Última lectura recibida</Text>
+            <Text style={styles.readingValue}>Volumen: {lastReading?.volumeMl ?? 0} mL</Text>
+            <Text style={styles.readingHint}>Tiempo sostenido: {sustainedSeconds} s</Text>
+            <Text style={styles.readingHint}>
+              Repeticiones válidas: {lastReading?.validRepetitions ?? 0}
             </Text>
             <Text style={styles.readingHint}>
-              Datos simulados del sensor (modo demostración); la lectura en vivo llegará por WebSocket en la WiFi local.
+              Estado de flujo: {lastReading?.flowState ?? 'idle'} ({lastReading?.source ?? mode})
             </Text>
           </View>
         ) : (
           <View style={styles.readingCardMuted}>
-            <Text style={styles.readingMuted}>Conecta o usa datos simulados para ver la lectura.</Text>
+            <Text style={styles.readingMuted}>
+              Conecta por WiFi local o activa el modo demostración para ver lecturas.
+            </Text>
           </View>
         )}
 
         <Pressable
           style={({ pressed }) => [
             styles.primaryBtn,
-            !canSearch && styles.btnDisabled,
-            pressed && canSearch && styles.primaryBtnPressed,
+            isConnecting && styles.btnDisabled,
+            pressed && !isConnecting && styles.primaryBtnPressed,
           ]}
-          onPress={onSearch}
-          disabled={!canSearch}
+          onPress={onConnect}
+          disabled={isConnecting}
           accessibilityRole="button"
-          accessibilityState={{ disabled: !canSearch }}>
-          <Text style={[styles.primaryBtnText, !canSearch && styles.btnTextDisabled]}>
-            Buscar sensor
+          accessibilityState={{ disabled: isConnecting }}>
+          <Text style={[styles.primaryBtnText, isConnecting && styles.btnTextDisabled]}>
+            Conectar por WiFi
           </Text>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.secondaryBtn,
+            pressed && styles.secondaryBtnPressed,
+          ]}
+          onPress={onDisconnect}
+          accessibilityRole="button">
+          <Text style={styles.secondaryBtnText}>Desconectar</Text>
         </Pressable>
 
         <Pressable
@@ -261,9 +245,16 @@ export function SensorConnectionScreen() {
 
         <Pressable
           style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
-          onPress={onSimulated}
+          onPress={onStartMock}
           accessibilityRole="button">
-          <Text style={styles.ghostBtnText}>Usar datos simulados</Text>
+          <Text style={styles.ghostBtnText}>Usar modo demostración</Text>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
+          onPress={onStopMock}
+          accessibilityRole="button">
+          <Text style={styles.ghostBtnText}>Detener demostración</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -324,6 +315,35 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: wellness.primaryDark,
+  },
+  statusHint: {
+    marginTop: spacing.sm,
+    fontSize: 14,
+    color: wellness.textSecondary,
+  },
+  urlCard: {
+    backgroundColor: wellness.card,
+    borderRadius: wellnessRadii.card,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    marginBottom: spacing.md,
+  },
+  urlInput: {
+    borderWidth: 1,
+    borderColor: wellness.borderStrong,
+    backgroundColor: wellness.screenBg,
+    borderRadius: 14,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    color: wellness.text,
+    fontSize: 15,
+    marginBottom: spacing.sm,
+  },
+  urlHint: {
+    fontSize: 13,
+    color: wellness.textSecondary,
+    lineHeight: 18,
   },
   bannerOk: {
     flexDirection: 'row',
