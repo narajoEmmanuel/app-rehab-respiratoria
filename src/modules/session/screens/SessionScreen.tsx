@@ -9,8 +9,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { DiagnosticLockedView } from '@/src/modules/diagnostics/components/DiagnosticLockedView';
-import { getCurrentActiveLevel, hasDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
+import { getCurrentActiveLevel } from '@/src/modules/diagnostics/diagnostic-service';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
@@ -51,8 +50,7 @@ export function SessionScreen() {
   const currentSessionData = progress.levelOne.sessions[progress.levelOne.currentSession - 1];
 
   const [summaryDismissedKind, setSummaryDismissedKind] = useState<'completed' | null>(null);
-  const [diagnosticChecked, setDiagnosticChecked] = useState(false);
-  const [hasCompletedDiagnostic, setHasCompletedDiagnostic] = useState(false);
+  const [activeLevelLoaded, setActiveLevelLoaded] = useState(false);
   const [targetVolume, setTargetVolume] = useState(1200);
   const [patientLevelId, setPatientLevelId] = useState<number | null>(null);
   const [attemptsRuntime, setAttemptsRuntime] = useState<
@@ -85,41 +83,28 @@ export function SessionScreen() {
 
   useEffect(() => {
     let active = true;
-    const checkDiagnostic = async () => {
+    const loadActiveLevel = async () => {
       if (!patient) {
-        if (active) {
-          setHasCompletedDiagnostic(false);
-          setDiagnosticChecked(true);
-        }
+        if (active) setActiveLevelLoaded(true);
         return;
       }
-      const exists = await hasDiagnostic(patient.paciente_id);
       const activeLevel = await getCurrentActiveLevel(patient.paciente_id);
       if (active) {
-        setHasCompletedDiagnostic(exists);
         setTargetVolume(activeLevel?.target_volume ?? 1200);
         setPatientLevelId(activeLevel?.patient_level_id ?? null);
-        setDiagnosticChecked(true);
+        setActiveLevelLoaded(true);
       }
     };
-    void checkDiagnostic();
+    void loadActiveLevel();
     return () => {
       active = false;
     };
   }, [patient]);
 
-  if (isLoading || !diagnosticChecked) {
+  if (isLoading || !activeLevelLoaded) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#6dcf4a" />
-      </SafeAreaView>
-    );
-  }
-
-  if (!hasCompletedDiagnostic) {
-    return (
-      <SafeAreaView style={styles.centered}>
-        <DiagnosticLockedView />
       </SafeAreaView>
     );
   }

@@ -4,14 +4,12 @@
  * Dependencies: expo-router, safe-area, shared theme & ui
  * Notes: Legacy tab routes stay hidden with href: null to preserve existing navigation.
  *        Tab bar always uses the light capsule (app forces light UI).
+ *        Tabs are always navigable; the diagnostic exam is now optional from Inicio only.
  */
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Alert, Platform, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Platform, StyleSheet, View } from 'react-native';
 
-import { hasDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
-import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { wellnessShadows } from '@/src/shared/theme/wellness-theme';
 import { HapticTab } from '@/src/shared/ui/haptic-tab';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
@@ -75,36 +73,6 @@ function tabBarIconFor(name: TabIconName) {
 }
 
 export default function TabLayout() {
-  const insets = useSafeAreaInsets();
-  const { patient } = usePatientSession();
-  const [hasCompletedDiagnostic, setHasCompletedDiagnostic] = React.useState(false);
-
-  const floatingBottom = Math.max(insets.bottom, 12) + 6;
-  const horizontalInset = 36;
-
-  React.useEffect(() => {
-    let active = true;
-    const load = async () => {
-      if (!patient) {
-        if (active) setHasCompletedDiagnostic(false);
-        return;
-      }
-      const exists = await hasDiagnostic(patient.paciente_id);
-      if (active) setHasCompletedDiagnostic(exists);
-    };
-    void load();
-    return () => {
-      active = false;
-    };
-  }, [patient]);
-
-  const blockWithoutDiagnostic = (e: { preventDefault: () => void }) => {
-    if (!hasCompletedDiagnostic) {
-      e.preventDefault();
-      Alert.alert('Atención', 'Primero realiza tu diagnóstico para desbloquear tu terapia');
-    }
-  };
-
   return (
     <Tabs
       screenOptions={{
@@ -154,7 +122,6 @@ export default function TabLayout() {
           title: 'Terapia',
           tabBarIcon: tabBarIconFor('square.grid.2x2.fill'),
         }}
-        listeners={{ tabPress: blockWithoutDiagnostic }}
       />
       <Tabs.Screen
         name="plan"
@@ -162,7 +129,6 @@ export default function TabLayout() {
           title: 'Plan',
           tabBarIcon: tabBarIconFor('calendar'),
         }}
-        listeners={{ tabPress: blockWithoutDiagnostic }}
       />
       <Tabs.Screen
         name="sesion"
@@ -184,7 +150,6 @@ export default function TabLayout() {
           title: 'Historial',
           tabBarIcon: tabBarIconFor('clock.fill'),
         }}
-        listeners={{ tabPress: blockWithoutDiagnostic }}
       />
       <Tabs.Screen
         name="perfil"

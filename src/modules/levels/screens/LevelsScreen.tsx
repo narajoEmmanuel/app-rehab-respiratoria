@@ -4,14 +4,12 @@
  * Dependencies: react-native, expo-router, levels/session
  * Notes: Level 1 playable now, levels 2-5 shown as locked/coming soon.
  */
-import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { DiagnosticLockedView } from '@/src/modules/diagnostics/components/DiagnosticLockedView';
-import { getPatientLevels, hasDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
+import { getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
 import type { PatientLevelRecord } from '@/src/modules/diagnostics/types';
 import { LevelCard } from '@/src/modules/levels/components/LevelCard';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
@@ -31,64 +29,35 @@ export function LevelsScreen({
   const { patient } = usePatientSession();
   const { progress, isLoading, selectLevel } = useLevelsProgress();
   const levels = listLevels();
-  const [diagnosticLoading, setDiagnosticLoading] = useState(true);
-  const [hasCompletedDiagnostic, setHasCompletedDiagnostic] = useState(false);
   const [patientLevels, setPatientLevels] = useState<PatientLevelRecord[]>([]);
 
   useEffect(() => {
     let active = true;
-    const loadDiagnosticState = async () => {
+    const loadLevels = async () => {
       if (!patient) {
-        if (active) {
-          setHasCompletedDiagnostic(false);
-          setDiagnosticLoading(false);
-        }
+        if (active) setPatientLevels([]);
         return;
       }
-      const diagnosticExists = await hasDiagnostic(patient.paciente_id);
-      const patientLevels = await getPatientLevels(patient.paciente_id);
-      if (active) {
-        setHasCompletedDiagnostic(diagnosticExists);
-        setPatientLevels(patientLevels);
-        setDiagnosticLoading(false);
-      }
+      const rows = await getPatientLevels(patient.paciente_id);
+      if (active) setPatientLevels(rows);
     };
-    void loadDiagnosticState();
+    void loadLevels();
     return () => {
       active = false;
     };
   }, [patient]);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (!diagnosticLoading && !hasCompletedDiagnostic) {
-        Alert.alert('Atención', 'Primero realiza tu diagnóstico para desbloquear tu terapia');
-      }
-    }, [diagnosticLoading, hasCompletedDiagnostic]),
-  );
 
   const onLevelPress = (levelId: LevelId) => {
     selectLevel(levelId);
     router.push({ pathname: '/(tabs)/sesion', params: { levelId } });
   };
 
-  if (isLoading || diagnosticLoading) {
+  if (isLoading) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
         <AppTopBar onPressProfile={() => router.push('/profile')} />
         <View style={styles.blockedContainer}>
           <Text style={styles.subtitle}>Cargando niveles…</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (!hasCompletedDiagnostic) {
-    return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <AppTopBar onPressProfile={() => router.push('/profile')} />
-        <View style={styles.blockedContainer}>
-          <DiagnosticLockedView />
         </View>
       </SafeAreaView>
     );

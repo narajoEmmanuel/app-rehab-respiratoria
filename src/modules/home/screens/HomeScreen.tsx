@@ -2,6 +2,8 @@
  * Purpose: Patient home — wellness layout, patient info, shortcuts to Niveles & Calendario.
  * Module: home
  * Dependencies: expo-router, patient session, shared wellness theme
+ * Notes: Diagnostic is now optional. The "Realizar diagnóstico inicial" card is always
+ *        accessible from this screen but does not block any tab or shortcut.
  */
 
 import { useRouter } from 'expo-router';
@@ -40,16 +42,16 @@ export function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { patient, clearSession, hydrated } = usePatientSession();
   const [hasCompletedDiagnostic, setHasCompletedDiagnostic] = useState(false);
-  const [diagnosticLoading, setDiagnosticLoading] = useState(true);
   const [currentLevelLabel, setCurrentLevelLabel] = useState('Nivel 1');
   const [todayCompletedSessions, setTodayCompletedSessions] = useState(0);
 
   const bottomPad = insets.bottom + wellnessFloatingTabBarInset;
 
-  const loadDiagnosticStatus = useCallback(async () => {
+  const loadProgress = useCallback(async () => {
     if (!patient) {
       setHasCompletedDiagnostic(false);
-      setDiagnosticLoading(false);
+      setCurrentLevelLabel('Nivel 1');
+      setTodayCompletedSessions(0);
       return;
     }
     const exists = await hasDiagnostic(patient.paciente_id);
@@ -60,19 +62,19 @@ export function HomeScreen() {
       setCurrentLevelLabel(activeLevel ? `Nivel ${activeLevel.level_id.split('-')[1]}` : 'Nivel 1');
       setTodayCompletedSessions(daily.completedToday);
     } else {
+      setCurrentLevelLabel('Nivel 1');
       setTodayCompletedSessions(0);
     }
-    setDiagnosticLoading(false);
   }, [patient]);
 
   useEffect(() => {
-    void loadDiagnosticStatus();
-  }, [loadDiagnosticStatus]);
+    void loadProgress();
+  }, [loadProgress]);
 
   useFocusEffect(
     useCallback(() => {
-      void loadDiagnosticStatus();
-    }, [loadDiagnosticStatus]),
+      void loadProgress();
+    }, [loadProgress]),
   );
 
   const onLogout = useCallback(async () => {
@@ -82,22 +84,25 @@ export function HomeScreen() {
 
   const goNiveles = useCallback(() => {
     onShortcutPress();
-    if (!hasCompletedDiagnostic) return;
     router.push('/(tabs)/niveles');
-  }, [hasCompletedDiagnostic, router]);
+  }, [router]);
 
   const goCalendario = useCallback(() => {
     onShortcutPress();
-    if (!hasCompletedDiagnostic) return;
     router.push('/(tabs)/calendario');
-  }, [hasCompletedDiagnostic, router]);
+  }, [router]);
 
   const goSensorConnection = useCallback(() => {
     onShortcutPress();
     router.push('/sensor-connection');
   }, [router]);
 
-  if (!hydrated || !patient || diagnosticLoading) {
+  const goDiagnostico = useCallback(() => {
+    onShortcutPress();
+    router.push('/diagnostico');
+  }, [router]);
+
+  if (!hydrated || !patient) {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.center}>
@@ -145,22 +150,26 @@ export function HomeScreen() {
           </Text>
         </View>
 
-        {!hasCompletedDiagnostic ? (
-          <View style={styles.pendingCard}>
-            <Text style={styles.pendingTitle}>Realiza tu diagnóstico</Text>
-            <Text style={styles.pendingDescription}>
-              Necesitamos medir tu capacidad pulmonar para configurar tu tratamiento
+        <View style={styles.pendingCard}>
+          <Text style={styles.pendingTitle}>Realizar diagnóstico inicial</Text>
+          <Text style={styles.pendingDescription}>
+            {hasCompletedDiagnostic
+              ? 'Puedes repetir el diagnóstico cuando quieras para actualizar tu capacidad pulmonar.'
+              : 'Mide tu capacidad pulmonar para personalizar tu tratamiento. Es opcional y puedes hacerlo cuando quieras.'}
+          </Text>
+          <Pressable
+            style={styles.pendingBtn}
+            onPress={goDiagnostico}
+            accessibilityRole="button"
+            accessibilityLabel="Realizar diagnóstico inicial">
+            <Text style={styles.pendingBtnText}>
+              {hasCompletedDiagnostic ? 'Repetir diagnóstico' : 'Realizar diagnóstico'}
             </Text>
-            <Pressable
-              style={styles.pendingBtn}
-              onPress={() => router.push('/diagnostico')}
-              accessibilityRole="button">
-              <Text style={styles.pendingBtnText}>Hacer diagnóstico</Text>
-            </Pressable>
-          </View>
-        ) : null}
+          </Pressable>
+        </View>
 
-        {hasCompletedDiagnostic ? <Text style={styles.sectionLabel}>Accesos rápidos</Text> : null}
+        <Text style={styles.sectionLabel}>Accesos rápidos</Text>
+
         {hasCompletedDiagnostic ? (
           <View style={styles.progressCard}>
             <Text style={styles.progressTitle}>{currentLevelLabel} activo</Text>
@@ -193,44 +202,38 @@ export function HomeScreen() {
           <IconSymbol name="chevron.right" size={22} color={wellness.textSecondary} />
         </Pressable>
 
-        {hasCompletedDiagnostic ? (
-          <>
-            <Pressable
-              style={({ pressed }) => [styles.shortcutCard, pressed && styles.shortcutCardPressed]}
-              onPress={goNiveles}
-              accessibilityRole="button"
-              accessibilityLabel="Ir a niveles desbloqueados">
-              <View style={styles.shortcutIconWrap}>
-                <IconSymbol name="square.grid.2x2.fill" size={28} color={wellness.primaryDark} />
-              </View>
-              <View style={styles.shortcutTextCol}>
-                <Text style={styles.shortcutTitle}>Niveles desbloqueados</Text>
-                <Text style={styles.shortcutSubtitle}>Ver y elegir tu progreso por nivel</Text>
-              </View>
-              <IconSymbol name="chevron.right" size={22} color={wellness.textSecondary} />
-            </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.shortcutCard, pressed && styles.shortcutCardPressed]}
+          onPress={goNiveles}
+          accessibilityRole="button"
+          accessibilityLabel="Ir a niveles">
+          <View style={styles.shortcutIconWrap}>
+            <IconSymbol name="square.grid.2x2.fill" size={28} color={wellness.primaryDark} />
+          </View>
+          <View style={styles.shortcutTextCol}>
+            <Text style={styles.shortcutTitle}>Niveles</Text>
+            <Text style={styles.shortcutSubtitle}>Ver y elegir tu progreso por nivel</Text>
+          </View>
+          <IconSymbol name="chevron.right" size={22} color={wellness.textSecondary} />
+        </Pressable>
 
-            <Pressable
-              style={({ pressed }) => [styles.shortcutCard, pressed && styles.shortcutCardPressed]}
-              onPress={goCalendario}
-              accessibilityRole="button"
-              accessibilityLabel="Ver calendario">
-              <View style={styles.shortcutIconWrap}>
-                <IconSymbol name="calendar" size={28} color={wellness.primaryDark} />
-              </View>
-              <View style={styles.shortcutTextCol}>
-                <Text style={styles.shortcutTitle}>Ver calendario</Text>
-                <Text style={styles.shortcutSubtitle}>Consulta tus días y hábitos</Text>
-              </View>
-              <IconSymbol name="chevron.right" size={22} color={wellness.textSecondary} />
-            </Pressable>
-          </>
-        ) : null}
+        <Pressable
+          style={({ pressed }) => [styles.shortcutCard, pressed && styles.shortcutCardPressed]}
+          onPress={goCalendario}
+          accessibilityRole="button"
+          accessibilityLabel="Ver calendario">
+          <View style={styles.shortcutIconWrap}>
+            <IconSymbol name="calendar" size={28} color={wellness.primaryDark} />
+          </View>
+          <View style={styles.shortcutTextCol}>
+            <Text style={styles.shortcutTitle}>Ver calendario</Text>
+            <Text style={styles.shortcutSubtitle}>Consulta tus días y hábitos</Text>
+          </View>
+          <IconSymbol name="chevron.right" size={22} color={wellness.textSecondary} />
+        </Pressable>
 
         <Text style={styles.footerHint}>
-          {hasCompletedDiagnostic
-            ? 'También puedes usar el menú inferior para ir a Home, Niveles o Calendario.'
-            : 'Completa el diagnóstico para desbloquear Terapia, Plan e Historial.'}
+          También puedes usar el menú inferior para ir a Inicio, Terapia, Plan o Historial.
         </Text>
 
         <Pressable
