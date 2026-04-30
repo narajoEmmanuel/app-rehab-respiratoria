@@ -117,10 +117,7 @@ export function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <AppTopBar
-        title="Inicio"
-        onPressProfile={() => router.push('/profile')}
-      />
+      <AppTopBar onPressProfile={() => router.push('/profile')} />
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]}
         showsVerticalScrollIndicator={false}>

@@ -39,7 +39,7 @@ export function WeeklyPlanScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <AppTopBar title="Plan" onPressProfile={() => router.push('/profile')} />
+      <AppTopBar onPressProfile={() => router.push('/profile')} />
       <View style={styles.container}>
         {!ready ? (
           <DiagnosticLockedView />

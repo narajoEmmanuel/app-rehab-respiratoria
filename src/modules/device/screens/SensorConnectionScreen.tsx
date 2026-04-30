@@ -1,5 +1,5 @@
 /**
- * Purpose: Simulated sensor discovery, connection, and calibration (no Bluetooth).
+ * Purpose: Simulated sensor discovery, connection, and calibration (WiFi/WebSocket real en fases posteriores; ahora mock / modo demostración).
  * Module: device
  * Dependencies: expo-router, react-native, device mocks, wellness theme
  * Notes: UI state only; safe for Expo Go. Move route to (tabs) later without changing this file.
@@ -220,7 +220,7 @@ export function SensorConnectionScreen() {
               Flujo: {sample.flow.toFixed(2)} (t = {sample.timestamp}s)
             </Text>
             <Text style={styles.readingHint}>
-              Valores tomados del mock local; no provienen de Bluetooth.
+              Datos simulados del sensor (modo demostración); la lectura en vivo llegará por WebSocket en la WiFi local.
             </Text>
           </View>
         ) : (

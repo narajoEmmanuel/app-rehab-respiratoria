@@ -8,7 +8,7 @@ Este documento describe cómo está organizado el código y por qué, para que e
 2. **`src/` contiene el producto.** Dominio, UI reutilizable, datos locales y documentación viven aquí.
 3. **Imports con prefijo explícito:** `@/src/...` y `@/assets/...`. El alias `@/*` sigue apuntando a la raíz del proyecto (no se redirige a `src/`).
 4. **Separar dificultad de juego visual.** En sesión, la dificultad terapéutica y el identificador del minijuego visual son conceptos distintos; se enlazan por configuración, no se mezclan en un solo enum.
-5. **Dispositivo y UI.** La integración Bluetooth / ESP32 debe concentrarse en `device`; la UI del paciente no debe parsear payloads crudos.
+5. **Dispositivo y UI.** La integración **WiFi local / WebSocket** con el ESP32 debe concentrarse en `device`; la UI del paciente no debe parsear payloads crudos.
 6. **Clínica y juego.** El módulo `clinician` debe consumir resultados normalizados (resumen, historial, informes), no montar componentes de minijuego.
 
 ## Capas y carpetas
@@ -33,7 +33,7 @@ Este documento describe cómo está organizado el código y por qué, para que e
 
 Estado actual: placeholders. Dirección prevista:
 
-1. **Transporte:** `device/bluetooth` (conexión, estado).
+1. **Transporte:** `device/websocket` (conexión, estado sobre la red local).
 2. **Ingestión:** `device/ingestion` (parseo, validación, normalización a series temporales o eventos).
 3. **Adaptadores:** `device/adapters` (protocolo ESP32 u otros dispositivos).
 4. **Mocks:** `device/mocks` para desarrollo sin hardware.

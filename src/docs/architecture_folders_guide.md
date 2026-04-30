@@ -35,7 +35,7 @@ Definir las rutas de la aplicación con Expo Router.
 **Qué no debería ir aquí**  
 - lógica de negocio
 - reglas clínicas
-- manejo de Bluetooth
+- manejo de WebSocket / red local hacia el dispositivo
 - procesamiento de datos
 - estado complejo de sesión
 
@@ -384,7 +384,7 @@ Definir el núcleo lógico de la sesión.
 
 **Qué no debería ir aquí**  
 - minijuegos visuales
-- parsing de Bluetooth
+- parsing de payloads del dispositivo (p. ej. vía WebSocket)
 - componentes de pantalla
 
 ---
@@ -449,19 +449,19 @@ Contener pantallas relacionadas con la sesión.
 Agrupar la integración del dispositivo externo con la app.
 
 **Relación con la arquitectura**  
-Este módulo prepara la app para integrarse con ESP32 y Bluetooth sin mezclar esa complejidad con la UI o la lógica clínica.
+Este módulo prepara la app para integrarse con el ESP32 por **WiFi local** y **WebSocket** sin mezclar esa complejidad con la UI o la lógica clínica.
 
 ---
 
-### `src/modules/device/bluetooth/`
+### `src/modules/device/websocket/`
 **Propósito**  
-Gestionar la capa de comunicación Bluetooth.
+Gestionar la capa de comunicación en tiempo real con el hardware (cliente WebSocket hacia el ESP32 en la LAN).
 
 **Qué tipo de código va aquí**  
-- escaneo BLE
-- conexión y desconexión
-- lectura de características
+- apertura y cierre del socket
+- reconexión y heartbeats (según protocolo)
 - estado de conexión
+- entrega de mensajes crudos hacia ingestión/adaptadores
 
 **Qué no debería ir aquí**  
 - lógica clínica
@@ -507,7 +507,7 @@ Simular datos del dispositivo mientras no exista integración real.
 - secuencias de prueba para desarrollo
 
 **Importancia actual**  
-Es clave en esta etapa, porque el proyecto quiere preparar la arquitectura antes de integrar Bluetooth real.
+Es clave en esta etapa, porque el proyecto quiere preparar la arquitectura antes de integrar el cliente WebSocket real.
 
 ---
 

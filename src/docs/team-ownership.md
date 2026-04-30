@@ -12,7 +12,7 @@ Plantilla para repartir trabajo sin solapar conflictos frecuentes. Copia la tabl
 | Resumen + historial | `src/modules/summary/`, `src/modules/history/` | | Post-sesión y listados. |
 | Planes | `src/modules/plans/` | | Calendario y plan semanal. |
 | Auth | `src/modules/auth/` | | Login/registro (ligero hasta backend). |
-| Dispositivo | `src/modules/device/` | | Bluetooth, ingestion, adapters, mocks. |
+| Dispositivo | `src/modules/device/` | | WebSocket (WiFi local), ingestion, adapters, mocks. |
 | Clínico | `src/modules/clinician/` | | Dashboard, reports, export. |
 | Paciente (perfil) | `src/modules/patient/` | | Perfil y preferencias futuras. |
 | Compartido | `src/shared/` | | Coordinar en PR: tema, UI, utils. |

@@ -1,6 +1,6 @@
 # Rehab respiratoria (app móvil)
 
-Aplicación móvil para **rehabilitación pulmonar domiciliaria**, orientada a **adultos mayores con EPOC**. El flujo previsto incluye autenticación, inicio, selección de nivel, sesión terapéutica, resumen, historial, calendario y plan semanal. Los minijuegos finales aún no están definidos; el identificador `rocket-experimental` en el registro de niveles es solo un marcador de prueba futura, no el producto final obligatorio.
+Aplicación móvil para **rehabilitación pulmonar domiciliaria**, orientada a **adultos postoperatorios** que usan **espirómetro incentivador**. El flujo previsto incluye autenticación, inicio, selección de nivel, sesión terapéutica, resumen, historial, calendario y plan semanal. Los minijuegos finales aún no están definidos; el identificador `rocket-experimental` en el registro de niveles es solo un marcador de prueba futura, no el producto final obligatorio.
 
 ## Stack tecnológico
 
@@ -57,7 +57,7 @@ Imports recomendados: `@/src/modules/...`, `@/src/shared/...`, `@/assets/...`. E
 
 Objetivo para cuando exista hardware:
 
-1. **Bluetooth** recibe bytes / notificaciones (`device/bluetooth`).
+1. **WebSocket** sobre **WiFi local** recibe mensajes en tiempo real (`device/websocket`).
 2. **Ingestión** normaliza a modelos internos (`device/ingestion`).
 3. **Adaptadores** mapean protocolo concreto, p. ej. ESP32 (`device/adapters`).
 4. **Mocks** permiten desarrollo sin hardware (`device/mocks`).
@@ -96,7 +96,7 @@ Opcional: sufijo con área (`feat/plans-calendario`).
 | `history` | Historial de actividad o sesiones. |
 | `plans` | Calendario y plan semanal (simple en esta fase). |
 | `patient` | Perfil y datos del paciente (reservado). |
-| `device` | Bluetooth, ingestión, adaptadores, mocks. |
+| `device` | WebSocket (WiFi local), ingestión, adaptadores, mocks. |
 | `clinician` | Dashboard, informes y exportación futuros. |
 
 README específicos: `session`, `device`, `clinician` dentro de cada carpeta.

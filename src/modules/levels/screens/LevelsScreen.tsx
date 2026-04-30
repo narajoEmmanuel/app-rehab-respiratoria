@@ -23,10 +23,8 @@ import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessFloatingTabBarInset, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 export function LevelsScreen({
-  headerTitle = 'Niveles',
   headerSubtitle = 'Elige tu aventura respiratoria',
 }: {
-  headerTitle?: string;
   headerSubtitle?: string;
 } = {}) {
   const router = useRouter();
@@ -77,7 +75,7 @@ export function LevelsScreen({
   if (isLoading || diagnosticLoading) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <AppTopBar title={headerTitle} onPressProfile={() => router.push('/profile')} />
+        <AppTopBar onPressProfile={() => router.push('/profile')} />
         <View style={styles.blockedContainer}>
           <Text style={styles.subtitle}>Cargando niveles…</Text>
         </View>
@@ -88,7 +86,7 @@ export function LevelsScreen({
   if (!hasCompletedDiagnostic) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <AppTopBar title={headerTitle} onPressProfile={() => router.push('/profile')} />
+        <AppTopBar onPressProfile={() => router.push('/profile')} />
         <View style={styles.blockedContainer}>
           <DiagnosticLockedView />
         </View>
@@ -98,10 +96,7 @@ export function LevelsScreen({
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <AppTopBar
-        title={headerTitle}
-        onPressProfile={() => router.push('/profile')}
-      />
+      <AppTopBar onPressProfile={() => router.push('/profile')} />
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.subtitle}>{headerSubtitle}</Text>
 

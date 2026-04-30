@@ -52,7 +52,7 @@ export function DiagnosticExamScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <AppTopBar title="Diagnóstico" onPressProfile={() => router.push('/profile')} />
+      <AppTopBar onPressProfile={() => router.push('/profile')} />
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>Examen diagnóstico</Text>
         <Text style={styles.subtitle}>{instruction}</Text>

@@ -2,7 +2,7 @@
  * Purpose: Session screen with playable Level 1 touch simulation.
  * Module: session
  * Dependencies: expo-router, levels persistence, game engine
- * Notes: Touch adapter is isolated so BLE can replace it later.
+ * Notes: Touch adapter is isolated so a WebSocket / WiFi-local sensor adapter can replace it later.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';

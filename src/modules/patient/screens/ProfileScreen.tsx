@@ -36,7 +36,7 @@ export function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <AppTopBar title="Perfil" onPressProfile={() => router.push('/profile')} />
+      <AppTopBar onPressProfile={() => router.push('/profile')} />
       <View style={styles.container}>
         <Text style={styles.subtitle}>Espacio básico de cuenta del paciente.</Text>
 

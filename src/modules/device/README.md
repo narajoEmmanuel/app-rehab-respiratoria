@@ -1,12 +1,12 @@
 # Device module
 
-Lightweight device scaffold prepared for future ESP32 and Bluetooth integration.
+Lightweight device scaffold prepared for future ESP32 integration over **local WiFi** via **WebSocket**.
 
 ## Current scope
 
-- Folder split ready for `bluetooth`, `ingestion`, `adapters`, and `mocks`.
+- Folder split ready for `websocket`, `ingestion`, `adapters`, and `mocks`.
 - Minimal types and placeholder functions only.
-- No real BLE connection or protocol implementation yet.
+- No real WebSocket client or wire protocol yet; sensor UI still uses mocks / demo mode.
 
 ## Design intent
 

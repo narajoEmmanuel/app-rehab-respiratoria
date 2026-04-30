@@ -7,5 +7,5 @@
 import { LevelsScreen } from '@/src/modules/levels/screens/LevelsScreen';
 
 export default function TerapiaTab() {
-  return <LevelsScreen headerTitle="Terapia" headerSubtitle="Elige tu terapia respiratoria" />;
+  return <LevelsScreen headerSubtitle="Elige tu terapia respiratoria" />;
 }

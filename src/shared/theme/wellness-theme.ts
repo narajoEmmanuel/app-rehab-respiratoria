@@ -3,6 +3,7 @@
  * Module: shared/theme
  * Dependencies: none
  * Notes: Single source for palette, radii extensions, and glass-like surfaces.
+ *        The app root and `app.json` force a light UI; these tokens target that RESPIRA+ look even if the OS theme toggles.
  */
 
 export const wellness = {

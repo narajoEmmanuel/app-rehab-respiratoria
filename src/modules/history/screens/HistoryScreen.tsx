@@ -39,10 +39,7 @@ export function HistoryScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <AppTopBar
-        title="Historial"
-        onPressProfile={() => router.push('/profile')}
-      />
+      <AppTopBar onPressProfile={() => router.push('/profile')} />
       <View style={styles.container}>
         {!ready ? (
           <DiagnosticLockedView />

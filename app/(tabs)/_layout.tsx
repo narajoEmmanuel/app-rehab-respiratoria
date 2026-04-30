@@ -1,33 +1,86 @@
 /**
- * Purpose: Bottom tab navigator — wellness pill bar with five primary tabs.
+ * Purpose: Bottom tab navigator — floating wellness capsule with four primary tabs.
  * Module: app routing
  * Dependencies: expo-router, safe-area, shared theme & ui
  * Notes: Legacy tab routes stay hidden with href: null to preserve existing navigation.
+ *        Tab bar always uses the light capsule (app forces light UI).
  */
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Alert, Platform, StyleSheet } from 'react-native';
+import { Alert, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { hasDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+import { wellnessShadows } from '@/src/shared/theme/wellness-theme';
 import { HapticTab } from '@/src/shared/ui/haptic-tab';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
-import { Colors } from '@/src/shared/theme/colors';
-import { useColorScheme } from '@/src/shared/utils/use-color-scheme';
-import { wellness, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+
+const TAB_ACCENT = '#34aba5';
+const TAB_ACCENT_SOFT = 'rgba(52, 171, 165, 0.14)';
+const TAB_ACCENT_BORDER = 'rgba(52, 171, 165, 0.4)';
+const TAB_INACTIVE_ICON = '#8A958F';
+
+/** Fixed slot so active bubble does not shift siblings; bubble fills slot when focused. */
+const ICON_SLOT = 54;
+const BUBBLE_SIZE_ACTIVE = 54;
+const BUBBLE_SIZE_INACTIVE = 48;
+const ICON_SIZE_ACTIVE = 28;
+const ICON_SIZE_INACTIVE = 24;
+
+const tabBubbleStyles = StyleSheet.create({
+  iconSlot: {
+    width: ICON_SLOT,
+    height: ICON_SLOT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bubbleActive: {
+    width: BUBBLE_SIZE_ACTIVE,
+    height: BUBBLE_SIZE_ACTIVE,
+    borderRadius: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 0,
+    transform: [],
+    backgroundColor: TAB_ACCENT_SOFT,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: TAB_ACCENT_BORDER,
+  },
+  bubbleInactive: {
+    width: BUBBLE_SIZE_INACTIVE,
+    height: BUBBLE_SIZE_INACTIVE,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
+type TabIconName = 'house.fill' | 'square.grid.2x2.fill' | 'calendar' | 'clock.fill';
+
+function tabBarIconFor(name: TabIconName) {
+  return function TabBarIcon({ focused }: { focused: boolean; color: string; size: number }) {
+    return (
+      <View style={tabBubbleStyles.iconSlot}>
+        <View style={focused ? tabBubbleStyles.bubbleActive : tabBubbleStyles.bubbleInactive}>
+          <IconSymbol
+            size={focused ? ICON_SIZE_ACTIVE : ICON_SIZE_INACTIVE}
+            name={name}
+            color={focused ? TAB_ACCENT : TAB_INACTIVE_ICON}
+          />
+        </View>
+      </View>
+    );
+  };
+}
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
   const { patient } = usePatientSession();
   const [hasCompletedDiagnostic, setHasCompletedDiagnostic] = React.useState(false);
-  const scheme = colorScheme ?? 'light';
-  const tabColors = Colors[scheme];
-  const isLight = scheme === 'light';
 
-  const floatingBottom = Math.max(insets.bottom, 10) + 14;
-  const horizontal = 22;
+  const floatingBottom = Math.max(insets.bottom, 12) + 6;
+  const horizontalInset = 36;
 
   React.useEffect(() => {
     let active = true;
@@ -55,58 +108,51 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#34aba5',
-        tabBarInactiveTintColor: isLight ? '#98A19D' : tabColors.tabIconDefault,
+        tabBarActiveTintColor: TAB_ACCENT,
+        tabBarInactiveTintColor: TAB_INACTIVE_ICON,
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarShowLabel: true,
         tabBarHideOnKeyboard: true,
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
-          letterSpacing: 0.2,
-          marginTop: Platform.OS === 'ios' ? 0 : 2,
+          fontSize: 10,
+          fontWeight: '700',
+          letterSpacing: 0.12,
+          marginTop: Platform.OS === 'ios' ? -2 : 0,
         },
         tabBarItemStyle: {
-          paddingVertical: 4,
-          borderRadius: wellnessRadii.pill,
+          paddingTop: 2,
+          paddingBottom: 0,
+          justifyContent: 'flex-end',
         },
-        tabBarStyle: isLight
-          ? {
-              position: 'absolute',
-              left: horizontal,
-              right: horizontal,
-              bottom: floatingBottom,
-              height: 64,
-              paddingHorizontal: 6,
-              paddingTop: 6,
-              paddingBottom: 12,
-              borderRadius: wellnessRadii.pill,
-              backgroundColor: wellness.tabBarBg,
-              borderWidth: StyleSheet.hairlineWidth * 2,
-              borderColor: wellness.tabBarBorder,
-              ...wellnessShadows.tabBar,
-            }
-          : {
-              backgroundColor: tabColors.background,
-              borderTopColor: wellness.tabBarBorder,
-              elevation: 0,
-            },
+        tabBarStyle: {
+          position: 'absolute',
+          left: 6,
+          right: 6,
+          bottom: 16,
+          height: 76,
+          paddingHorizontal: 10,
+          paddingTop: 16,
+          paddingBottom: 8,
+          borderRadius: 40,
+          backgroundColor: 'rgba(255,255,255,0.96)',
+          borderWidth: 1,
+          borderColor: 'rgba(52,171,165,0.18)',
+          ...wellnessShadows.tabBar,
+        },
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'Inicio',
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="house.fill" color={color} />,
+          tabBarIcon: tabBarIconFor('house.fill'),
         }}
       />
       <Tabs.Screen
         name="terapia"
         options={{
           title: 'Terapia',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={26} name="square.grid.2x2.fill" color={color} />
-          ),
+          tabBarIcon: tabBarIconFor('square.grid.2x2.fill'),
         }}
         listeners={{ tabPress: blockWithoutDiagnostic }}
       />
@@ -114,7 +160,7 @@ export default function TabLayout() {
         name="plan"
         options={{
           title: 'Plan',
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="calendar" color={color} />,
+          tabBarIcon: tabBarIconFor('calendar'),
         }}
         listeners={{ tabPress: blockWithoutDiagnostic }}
       />
@@ -136,7 +182,7 @@ export default function TabLayout() {
         name="historial"
         options={{
           title: 'Historial',
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="clock.fill" color={color} />,
+          tabBarIcon: tabBarIconFor('clock.fill'),
         }}
         listeners={{ tabPress: blockWithoutDiagnostic }}
       />
