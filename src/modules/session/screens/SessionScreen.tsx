@@ -22,6 +22,7 @@ import {
   checkAndUnlockNextLevel,
   createAttempt,
   createSession,
+  TARGET_ATTEMPTS,
   updatePatientLevelProgress,
 } from '@/src/modules/session/session-progress-service';
 
@@ -59,6 +60,50 @@ export function SessionScreen() {
     { valid: boolean; holdMs: number; peakVolume: number }[]
   >([]);
   const [savingSummary, setSavingSummary] = useState(false);
+  const [savingInterrupt, setSavingInterrupt] = useState(false);
+
+  const persistInterruptedSessionToHistory = async (
+    valid: number,
+    failed: number,
+    attemptsSnapshot: { valid: boolean; holdMs: number; peakVolume: number }[],
+  ) => {
+    if (!patient || !patientLevelId) return;
+    const total = valid + failed;
+    // Misma semántica que `sessionCompliance` al finalizar: válidas respecto a la meta de repeticiones.
+    const sessionCompliance =
+      total > 0 ? Math.round((valid / TARGET_ATTEMPTS) * 100) : 0;
+    const maxVol = attemptsSnapshot.length > 0 ? Math.max(...attemptsSnapshot.map((item) => item.peakVolume)) : 0;
+    const avgVol =
+      attemptsSnapshot.length > 0
+        ? Math.round(attemptsSnapshot.reduce((sum, item) => sum + item.peakVolume, 0) / attemptsSnapshot.length)
+        : 0;
+    const avgHoldSec =
+      attemptsSnapshot.length > 0
+        ? attemptsSnapshot.reduce((sum, item) => sum + item.holdMs, 0) / attemptsSnapshot.length / 1000
+        : 0;
+    const savedSession = await createSession(patient.paciente_id, patientLevelId, {
+      level_id: selectedLevelId,
+      valid_attempts: valid,
+      total_attempts: total,
+      invalid_attempts: failed,
+      compliance_percent: sessionCompliance,
+      max_volume: maxVol,
+      avg_volume: avgVol,
+      avg_hold_seconds: avgHoldSec,
+      completed: false,
+      perfect: false,
+      interrupted: true,
+    });
+    for (const attempt of attemptsSnapshot) {
+      await createAttempt(savedSession.session_id, {
+        hold_ms: attempt.holdMs,
+        peak_volume: attempt.peakVolume,
+        valid: attempt.valid,
+      });
+    }
+    await updatePatientLevelProgress(patient.paciente_id, patientLevelId);
+    await checkAndUnlockNextLevel(patient.paciente_id);
+  };
 
   useEffect(() => {
     if (!summaryKind) {
@@ -149,7 +194,8 @@ export function SessionScreen() {
   const validAttempts = currentSessionData?.validRepetitions ?? 0;
   const failedAttempts = currentSessionData?.failedRepetitions ?? 0;
   const totalAttempts = validAttempts + failedAttempts;
-  const sessionCompliance = totalAttempts > 0 ? Math.round((validAttempts / 10) * 100) : 0;
+  const sessionCompliance =
+    totalAttempts > 0 ? Math.round((validAttempts / TARGET_ATTEMPTS) * 100) : 0;
   const maxVolume = attemptsRuntime.length > 0 ? Math.max(...attemptsRuntime.map((item) => item.peakVolume)) : 0;
   const avgVolume =
     attemptsRuntime.length > 0
@@ -159,10 +205,18 @@ export function SessionScreen() {
     attemptsRuntime.length > 0
       ? attemptsRuntime.reduce((sum, item) => sum + item.holdMs, 0) / attemptsRuntime.length / 1000
       : 0;
-  const perfectSession = validAttempts === 10 && totalAttempts >= 10;
+  const perfectSession =
+    validAttempts === TARGET_ATTEMPTS &&
+    totalAttempts >= TARGET_ATTEMPTS;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      {savingInterrupt ? (
+        <View style={styles.savingOverlay} pointerEvents="auto">
+          <ActivityIndicator size="large" color="#9cff54" />
+          <Text style={styles.savingOverlayText}>Guardando tu sesión…</Text>
+        </View>
+      ) : null}
       <Text style={styles.screenTitle}>Nivel 1 - Modo Touch</Text>
       <Text style={styles.screenSubtitle}>Respira, juega y completa tus repeticiones.</Text>
 
@@ -187,19 +241,47 @@ export function SessionScreen() {
                 {
                   text: 'Volver a Niveles',
                   onPress: () => {
+                    const validSnap = currentSessionData?.validRepetitions ?? 0;
+                    const failedSnap = currentSessionData?.failedRepetitions ?? 0;
+                    const attemptsSnap = [...attemptsRuntime];
                     interruptCurrentLevelOneSession();
                     levelOneEngine.stopSession();
                     setSummaryDismissedKind(null);
-                    router.push('/(tabs)/niveles');
+                    setAttemptsRuntime([]);
+                    void (async () => {
+                      try {
+                        setSavingInterrupt(true);
+                        await persistInterruptedSessionToHistory(validSnap, failedSnap, attemptsSnap);
+                      } catch {
+                        /* historial opcional: no bloquear salida */
+                      } finally {
+                        setSavingInterrupt(false);
+                      }
+                      router.push('/(tabs)/niveles');
+                    })();
                   },
                 },
                 {
                   text: 'Detener sesión',
                   style: 'destructive',
                   onPress: () => {
+                    const validSnap = currentSessionData?.validRepetitions ?? 0;
+                    const failedSnap = currentSessionData?.failedRepetitions ?? 0;
+                    const attemptsSnap = [...attemptsRuntime];
                     interruptCurrentLevelOneSession();
                     levelOneEngine.stopSession();
                     setSummaryDismissedKind(null);
+                    setAttemptsRuntime([]);
+                    void (async () => {
+                      try {
+                        setSavingInterrupt(true);
+                        await persistInterruptedSessionToHistory(validSnap, failedSnap, attemptsSnap);
+                      } catch {
+                        /* historial opcional: no bloquear salida */
+                      } finally {
+                        setSavingInterrupt(false);
+                      }
+                    })();
                   },
                 },
               ]
@@ -269,6 +351,7 @@ export function SessionScreen() {
                   avg_hold_seconds: avgHoldSeconds,
                   completed: true,
                   perfect: perfectSession,
+                  interrupted: false,
                 });
                 for (const attempt of attemptsRuntime) {
                   await createAttempt(savedSession.session_id, {
@@ -325,6 +408,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+    position: 'relative',
     backgroundColor: '#183911',
     paddingHorizontal: 16,
     paddingTop: 10,
@@ -442,6 +526,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '700',
     fontSize: 15,
+  },
+  savingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 50,
+  },
+  savingOverlayText: {
+    marginTop: 12,
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
 

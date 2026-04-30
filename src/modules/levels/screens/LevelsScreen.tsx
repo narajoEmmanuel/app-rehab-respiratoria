@@ -48,10 +48,10 @@ export function LevelsScreen({
         return;
       }
       const diagnosticExists = await hasDiagnostic(patient.paciente_id);
-      const patientLevels = await getPatientLevels(patient.paciente_id);
+      const levelsRows = await getPatientLevels(patient.paciente_id);
       if (active) {
         setHasCompletedDiagnostic(diagnosticExists);
-        setPatientLevels(patientLevels);
+        setPatientLevels(levelsRows);
         setDiagnosticLoading(false);
       }
     };
@@ -66,7 +66,17 @@ export function LevelsScreen({
       if (!diagnosticLoading && !hasCompletedDiagnostic) {
         Alert.alert('Atención', 'Primero realiza tu diagnóstico para desbloquear tu terapia');
       }
-    }, [diagnosticLoading, hasCompletedDiagnostic]),
+      let cancelled = false;
+      const refreshLevels = async () => {
+        if (!patient) return;
+        const rows = await getPatientLevels(patient.paciente_id);
+        if (!cancelled) setPatientLevels(rows);
+      };
+      void refreshLevels();
+      return () => {
+        cancelled = true;
+      };
+    }, [patient, diagnosticLoading, hasCompletedDiagnostic]),
   );
 
   const onLevelPress = (levelId: LevelId) => {
@@ -112,7 +122,8 @@ export function LevelsScreen({
           const locked = status === 'locked' || !!level.comingSoon;
           const statusLabel =
             status === 'active' ? 'Disponible / Activo' : status === 'completed' ? 'Completado' : 'Bloqueado';
-          const sessionsDone = row?.perfect_sessions_completed ?? 0;
+          const perfectTowardUnlock = row?.perfect_sessions_completed ?? 0;
+          const completedToday = row?.sessions_completed_today ?? 0;
           return (
             <LevelCard
               key={level.id}
@@ -120,7 +131,7 @@ export function LevelsScreen({
               statusLabel={statusLabel}
               statusTone={status === 'completed' ? 'completed' : status === 'active' ? 'active' : 'locked'}
               targetVolumeText={`Meta aprox: ${row?.target_volume ?? 0} mL`}
-              sessionsText={`Sesiones completadas: ${sessionsDone}/6`}
+              sessionsText={`Sesiones perfectas: ${perfectTowardUnlock}/6 · Completadas hoy: ${completedToday}/6`}
               helperText="Completa 6 sesiones perfectas para desbloquear el siguiente nivel"
               locked={locked}
               onPress={() => onLevelPress(levelId)}
