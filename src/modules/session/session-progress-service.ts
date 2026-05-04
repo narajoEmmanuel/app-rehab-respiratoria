@@ -9,6 +9,7 @@ import {
   writeAllSessions,
 } from '@/src/modules/session/storage/session-progress-repository';
 import type { AttemptRecord, SessionRecord } from '@/src/modules/session/types/session-progress';
+import type { SessionResult } from '@/src/modules/session/types/session-result';
 import { getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 
 const TARGET_ATTEMPTS = 10;
@@ -72,6 +73,32 @@ export async function createAttempt(
   all.push(attempt);
   await writeAllAttempts(all);
   return attempt;
+}
+
+export async function persistSessionResult(result: SessionResult): Promise<SessionRecord> {
+  const savedSession = await createSession(result.patientId, result.patientLevelId, {
+    level_id: result.levelId,
+    valid_attempts: result.validAttempts,
+    total_attempts: result.totalAttempts,
+    invalid_attempts: result.invalidAttempts,
+    compliance_percent: result.compliancePercent,
+    max_volume: result.maxVolumeMl,
+    avg_volume: result.avgVolumeMl,
+    avg_hold_seconds: result.avgHoldSeconds,
+    completed: result.completed,
+    perfect: result.perfect,
+    interrupted: result.interrupted,
+  });
+  for (const attempt of result.attempts) {
+    await createAttempt(savedSession.session_id, {
+      hold_ms: attempt.holdMs,
+      peak_volume: attempt.peakVolume,
+      valid: attempt.valid,
+    });
+  }
+  await updatePatientLevelProgress(result.patientId, result.patientLevelId);
+  await checkAndUnlockNextLevel(result.patientId);
+  return savedSession;
 }
 
 export async function updateDailyProgress(patientId: number): Promise<{ completedToday: number; remainingToday: number }> {

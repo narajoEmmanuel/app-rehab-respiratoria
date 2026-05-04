@@ -17,13 +17,8 @@ import { useLevelOneGame } from '@/src/modules/session/engine/level-one/use-leve
 import { useTouchInputAdapter } from '@/src/modules/session/engine/touch/use-touch-input-adapter';
 import { LevelOneGameView } from '@/src/modules/session/games/components/LevelOneGameView';
 import { getLevelById } from '@/src/modules/session/registry/level-registry';
-import {
-  checkAndUnlockNextLevel,
-  createAttempt,
-  createSession,
-  TARGET_ATTEMPTS,
-  updatePatientLevelProgress,
-} from '@/src/modules/session/session-progress-service';
+import { buildSessionResult } from '@/src/modules/session/session-result-factory';
+import { persistSessionResult, TARGET_ATTEMPTS } from '@/src/modules/session/session-progress-service';
 
 type SessionSummaryKind = 'completed' | 'interrupted' | null;
 
@@ -74,41 +69,16 @@ export function SessionScreen() {
     attemptsSnapshot: { valid: boolean; holdMs: number; peakVolume: number }[],
   ) => {
     if (!patient || !patientLevelId) return;
-    const total = valid + failed;
-    // Misma semántica que `sessionCompliance` al finalizar: válidas respecto a la meta de repeticiones.
-    const sessionCompliance =
-      total > 0 ? Math.round((valid / TARGET_ATTEMPTS) * 100) : 0;
-    const maxVol = attemptsSnapshot.length > 0 ? Math.max(...attemptsSnapshot.map((item) => item.peakVolume)) : 0;
-    const avgVol =
-      attemptsSnapshot.length > 0
-        ? Math.round(attemptsSnapshot.reduce((sum, item) => sum + item.peakVolume, 0) / attemptsSnapshot.length)
-        : 0;
-    const avgHoldSec =
-      attemptsSnapshot.length > 0
-        ? attemptsSnapshot.reduce((sum, item) => sum + item.holdMs, 0) / attemptsSnapshot.length / 1000
-        : 0;
-    const savedSession = await createSession(patient.paciente_id, patientLevelId, {
-      level_id: selectedLevelId,
-      valid_attempts: valid,
-      total_attempts: total,
-      invalid_attempts: failed,
-      compliance_percent: sessionCompliance,
-      max_volume: maxVol,
-      avg_volume: avgVol,
-      avg_hold_seconds: avgHoldSec,
-      completed: false,
-      perfect: false,
-      interrupted: true,
+    const result = buildSessionResult({
+      patientId: patient.paciente_id,
+      patientLevelId,
+      levelId: selectedLevelId,
+      status: 'interrupted',
+      validAttempts: valid,
+      invalidAttempts: failed,
+      attemptsRuntime: attemptsSnapshot,
     });
-    for (const attempt of attemptsSnapshot) {
-      await createAttempt(savedSession.session_id, {
-        hold_ms: attempt.holdMs,
-        peak_volume: attempt.peakVolume,
-        valid: attempt.valid,
-      });
-    }
-    await updatePatientLevelProgress(patient.paciente_id, patientLevelId);
-    await checkAndUnlockNextLevel(patient.paciente_id);
+    await persistSessionResult(result);
   };
 
   const levelOneEngine = useLevelOneGame({
@@ -333,28 +303,16 @@ export function SessionScreen() {
               onPress={async () => {
                 if (!patient || !patientLevelId) return;
                 setSavingSummary(true);
-                const savedSession = await createSession(patient.paciente_id, patientLevelId, {
-                  level_id: selectedLevelId,
-                  valid_attempts: validAttempts,
-                  total_attempts: totalAttempts,
-                  invalid_attempts: failedAttempts,
-                  compliance_percent: sessionCompliance,
-                  max_volume: maxVolume,
-                  avg_volume: avgVolume,
-                  avg_hold_seconds: avgHoldSeconds,
-                  completed: true,
-                  perfect: perfectSession,
-                  interrupted: false,
+                const result = buildSessionResult({
+                  patientId: patient.paciente_id,
+                  patientLevelId,
+                  levelId: selectedLevelId,
+                  status: 'completed',
+                  validAttempts,
+                  invalidAttempts: failedAttempts,
+                  attemptsRuntime,
                 });
-                for (const attempt of attemptsRuntime) {
-                  await createAttempt(savedSession.session_id, {
-                    hold_ms: attempt.holdMs,
-                    peak_volume: attempt.peakVolume,
-                    valid: attempt.valid,
-                  });
-                }
-                await updatePatientLevelProgress(patient.paciente_id, patientLevelId);
-                await checkAndUnlockNextLevel(patient.paciente_id);
+                await persistSessionResult(result);
                 finalizeCurrentLevelOneSession();
                 levelOneEngine.stopSession();
                 setAttemptsRuntime([]);
