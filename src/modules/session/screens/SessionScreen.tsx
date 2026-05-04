@@ -25,6 +25,14 @@ import {
   updatePatientLevelProgress,
 } from '@/src/modules/session/session-progress-service';
 
+type SessionSummaryKind = 'completed' | 'interrupted' | null;
+
+function sessionSummaryModalTitle(kind: SessionSummaryKind, sessionNumber: number): string {
+  return kind === 'interrupted'
+    ? `Sesion ${sessionNumber} interrumpida`
+    : `Sesion ${sessionNumber} completada`;
+}
+
 export function SessionScreen() {
   const router = useRouter();
   const { patient } = usePatientSession();
@@ -50,7 +58,7 @@ export function SessionScreen() {
   const isLevelOne = useMemo(() => selectedLevelId === 'level-1', [selectedLevelId]);
   const currentSessionData = progress.levelOne.sessions[progress.levelOne.currentSession - 1];
 
-  const [summaryDismissedKind, setSummaryDismissedKind] = useState<'completed' | null>(null);
+  const [summaryDismissedKind, setSummaryDismissedKind] = useState<SessionSummaryKind>(null);
   const [activeLevelLoaded, setActiveLevelLoaded] = useState(false);
   const [targetVolume, setTargetVolume] = useState(1200);
   const [patientLevelId, setPatientLevelId] = useState<number | null>(null);
@@ -103,12 +111,6 @@ export function SessionScreen() {
     await checkAndUnlockNextLevel(patient.paciente_id);
   };
 
-  useEffect(() => {
-    if (!summaryKind) {
-      setSummaryDismissedKind(null);
-    }
-  }, [summaryKind]);
-
   const levelOneEngine = useLevelOneGame({
     progress: progress.levelOne,
     onProgressChange: updateLevelOne,
@@ -120,11 +122,19 @@ export function SessionScreen() {
     },
   });
   const { restartCurrentSession, startSession } = levelOneEngine;
+  const summaryKind: SessionSummaryKind =
+    levelOneEngine.phase === 'session-complete' ? 'completed' : null;
+
+  useEffect(() => {
+    if (!summaryKind) {
+      setSummaryDismissedKind(null);
+    }
+  }, [summaryKind]);
+
   const inputPort = useTouchInputAdapter({
     onInhaleStart: levelOneEngine.onInhaleStart,
     onInhaleEnd: levelOneEngine.onInhaleEnd,
   });
-  const summaryKind = levelOneEngine.phase === 'session-complete' ? 'completed' : null;
 
   useEffect(() => {
     let active = true;
@@ -301,9 +311,7 @@ export function SessionScreen() {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>
-              {summaryKind === 'interrupted'
-                ? `Sesion ${progress.levelOne.currentSession} interrumpida`
-                : `Sesion ${progress.levelOne.currentSession} completada`}
+              {sessionSummaryModalTitle(summaryKind, progress.levelOne.currentSession)}
             </Text>
             <Text style={styles.modalLine}>Repeticiones validas: {currentSessionData?.validRepetitions ?? 0}</Text>
             <Text style={styles.modalLine}>
