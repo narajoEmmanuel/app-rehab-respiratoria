@@ -40,6 +40,11 @@ export function buildSessionResult(params: BuildSessionResultParams): SessionRes
       ? attemptsRuntime.reduce((sum, a) => sum + a.holdMs, 0) / attemptsRuntime.length / 1000
       : 0;
 
+  const completed = status === 'completed';
+  const interrupted = status === 'interrupted';
+  const perfect =
+    completed && validAttempts === TARGET_ATTEMPTS && totalAttempts >= TARGET_ATTEMPTS;
+
   return {
     patientId,
     patientLevelId,
@@ -52,12 +57,9 @@ export function buildSessionResult(params: BuildSessionResultParams): SessionRes
     maxVolumeMl,
     avgVolumeMl,
     avgHoldSeconds,
-    completed: status === 'completed',
-    interrupted: status === 'interrupted',
-    perfect:
-      status === 'completed' &&
-      validAttempts === TARGET_ATTEMPTS &&
-      totalAttempts >= TARGET_ATTEMPTS,
+    completed,
+    interrupted,
+    perfect,
     attempts: attemptsRuntime,
   };
 }

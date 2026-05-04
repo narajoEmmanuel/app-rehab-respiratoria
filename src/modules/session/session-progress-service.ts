@@ -75,7 +75,25 @@ export async function createAttempt(
   return attempt;
 }
 
+export type SessionDetail = {
+  session: SessionRecord;
+  attempts: AttemptRecord[];
+};
+
+export async function getSessionDetail(sessionId: number): Promise<SessionDetail | null> {
+  const sessions = await readAllSessions();
+  const session = sessions.find((item) => item.session_id === sessionId) ?? null;
+  if (!session) return null;
+  const allAttempts = await readAllAttempts();
+  const attempts = allAttempts.filter((item) => item.session_id === sessionId);
+  return { session, attempts };
+}
+
 export async function persistSessionResult(result: SessionResult): Promise<SessionRecord> {
+  const completed = result.completed;
+  const interrupted = completed ? false : result.interrupted;
+  const perfect = completed ? result.perfect : false;
+
   const savedSession = await createSession(result.patientId, result.patientLevelId, {
     level_id: result.levelId,
     valid_attempts: result.validAttempts,
@@ -85,9 +103,9 @@ export async function persistSessionResult(result: SessionResult): Promise<Sessi
     max_volume: result.maxVolumeMl,
     avg_volume: result.avgVolumeMl,
     avg_hold_seconds: result.avgHoldSeconds,
-    completed: result.completed,
-    perfect: result.perfect,
-    interrupted: result.interrupted,
+    completed,
+    perfect,
+    interrupted,
   });
   for (const attempt of result.attempts) {
     await createAttempt(savedSession.session_id, {

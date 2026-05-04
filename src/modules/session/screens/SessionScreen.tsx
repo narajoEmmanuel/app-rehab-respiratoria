@@ -312,13 +312,16 @@ export function SessionScreen() {
                   invalidAttempts: failedAttempts,
                   attemptsRuntime,
                 });
-                await persistSessionResult(result);
+                const savedSession = await persistSessionResult(result);
                 finalizeCurrentLevelOneSession();
                 levelOneEngine.stopSession();
                 setAttemptsRuntime([]);
                 setSummaryDismissedKind('completed');
                 setSavingSummary(false);
-                router.push('/(tabs)/niveles');
+                router.replace({
+                  pathname: '/(tabs)/resumen',
+                  params: { sessionId: String(savedSession.session_id) },
+                });
               }}>
               <Text style={styles.modalPrimaryButtonText}>
                 Finalizar sesion

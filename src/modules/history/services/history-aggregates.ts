@@ -46,7 +46,7 @@ export const sessionDayKey = sessionRecordLocalDayKey;
 export function classifyCalendarDay(sessions: SessionRecord[]): CalendarDayKind {
   if (sessions.length === 0) return 'none';
   const norm = sessions.map(withLegacySessionDefaults);
-  if (norm.some((s) => s.interrupted === true)) return 'interrupted';
+  if (norm.some((s) => s.interrupted === true && !s.completed)) return 'interrupted';
 
   const completed = norm.filter((s) => s.completed);
   const perfectCompleted = completed.filter((s) => s.perfect);
@@ -89,7 +89,7 @@ export function buildDayAggregate(dateKey: string, sessions: SessionRecord[]): D
   const norm = sessions.map(withLegacySessionDefaults);
   const completed = norm.filter((s) => s.completed);
   const perfectCount = completed.filter((s) => s.perfect).length;
-  const interruptedCount = norm.filter((s) => s.interrupted === true).length;
+  const interruptedCount = norm.filter((s) => s.interrupted === true && !s.completed).length;
   const validRepetitionsSum = norm.reduce((acc, s) => acc + (s.valid_attempts ?? 0), 0);
   const improveRepetitionsSum = norm.reduce((acc, s) => acc + (s.invalid_attempts ?? 0), 0);
   const calendarKind = classifyCalendarDay(norm);
