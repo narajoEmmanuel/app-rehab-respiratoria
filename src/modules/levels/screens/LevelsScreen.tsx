@@ -4,8 +4,9 @@
  * Dependencies: react-native, expo-router, levels/session
  * Notes: Level 1 playable now, levels 2-5 shown as locked/coming soon.
  */
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -38,14 +39,29 @@ export function LevelsScreen({
         if (active) setPatientLevels([]);
         return;
       }
-      const rows = await getPatientLevels(patient.paciente_id);
-      if (active) setPatientLevels(rows);
+      const levelsRows = await getPatientLevels(patient.paciente_id);
+      if (active) setPatientLevels(levelsRows);
     };
     void loadLevels();
     return () => {
       active = false;
     };
   }, [patient]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      const refreshLevels = async () => {
+        if (!patient) return;
+        const rows = await getPatientLevels(patient.paciente_id);
+        if (!cancelled) setPatientLevels(rows);
+      };
+      void refreshLevels();
+      return () => {
+        cancelled = true;
+      };
+    }, [patient]),
+  );
 
   const onLevelPress = (levelId: LevelId) => {
     selectLevel(levelId);
@@ -76,7 +92,8 @@ export function LevelsScreen({
           const locked = status === 'locked' || !!level.comingSoon;
           const statusLabel =
             status === 'active' ? 'Disponible / Activo' : status === 'completed' ? 'Completado' : 'Bloqueado';
-          const sessionsDone = row?.perfect_sessions_completed ?? 0;
+          const perfectTowardUnlock = row?.perfect_sessions_completed ?? 0;
+          const completedToday = row?.sessions_completed_today ?? 0;
           return (
             <LevelCard
               key={level.id}
@@ -84,7 +101,7 @@ export function LevelsScreen({
               statusLabel={statusLabel}
               statusTone={status === 'completed' ? 'completed' : status === 'active' ? 'active' : 'locked'}
               targetVolumeText={`Meta aprox: ${row?.target_volume ?? 0} mL`}
-              sessionsText={`Sesiones completadas: ${sessionsDone}/6`}
+              sessionsText={`Sesiones perfectas: ${perfectTowardUnlock}/6 · Completadas hoy: ${completedToday}/6`}
               helperText="Completa 6 sesiones perfectas para desbloquear el siguiente nivel"
               locked={locked}
               onPress={() => onLevelPress(levelId)}

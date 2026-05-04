@@ -15,6 +15,8 @@ export type SessionRecord = {
   avg_hold_seconds: number;
   completed: boolean;
   perfect: boolean;
+  /** Present when user stopped with STOP; omitted in legacy rows (= false). */
+  interrupted?: boolean;
 };
 
 export type AttemptRecord = {
