@@ -80,9 +80,9 @@ export function LevelsScreen({
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <AppTopBar onPressProfile={() => router.push('/profile')} />
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <Text style={styles.subtitle}>{headerSubtitle}</Text>
 
         {levels.map((level) => {
@@ -129,13 +129,12 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: wellness.screenBg,
-    paddingBottom: wellnessFloatingTabBarInset,
   },
   container: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
-    paddingBottom: spacing.xl,
+    paddingBottom: wellnessFloatingTabBarInset + spacing.xl,
   },
   blockedContainer: {
     flex: 1,

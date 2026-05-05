@@ -59,27 +59,36 @@ const CAL_BG: Record<CalendarDayKind, string> = {
 const WEEK_LABELS = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
 
 function SummaryCard({
-  emoji,
   label,
   value,
+  badge,
+  progress,
   hint,
 }: {
-  emoji: string;
   label: string;
   value: string;
+  badge: string;
+  progress?: number;
   hint?: string;
 }) {
+  const safeProgress = Math.max(0, Math.min(progress ?? 0, 1));
   return (
     <View style={styles.summaryCard}>
-      <View style={styles.summaryIconContainer}>
-        <Text style={styles.summaryCardIcon} accessibilityLabel="">
-          {emoji}
-        </Text>
-      </View>
       <View style={styles.summaryTextColumn}>
-        <Text style={styles.summaryLabel}>{label}</Text>
+        <View style={styles.summaryHeaderRow}>
+          <View style={styles.summaryStatusDot} />
+          <Text style={styles.summaryLabel}>{label}</Text>
+          <View style={styles.summaryBadge}>
+            <Text style={styles.summaryBadgeText}>{badge}</Text>
+          </View>
+        </View>
         <Text style={styles.summaryValue}>{value}</Text>
         {hint ? <Text style={styles.summaryHint}>{hint}</Text> : null}
+        {progress != null ? (
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${safeProgress * 100}%` }]} />
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -88,9 +97,11 @@ function SummaryCard({
 function AchievementRow({ item }: { item: AchievementDef }) {
   return (
     <View style={[styles.achievementRow, !item.unlocked && styles.achievementRowLocked]}>
-      <Text style={[styles.achievementIcon, !item.unlocked && styles.achievementIconLocked]}>
-        {item.unlocked ? '★' : '☆'}
-      </Text>
+      <View style={[styles.achievementBadge, !item.unlocked && styles.achievementBadgeLocked]}>
+        <Text style={[styles.achievementBadgeText, !item.unlocked && styles.achievementBadgeTextLocked]}>
+          {item.unlocked ? 'OK' : '---'}
+        </Text>
+      </View>
       <View style={styles.achievementTextWrap}>
         <Text style={[styles.achievementTitle, !item.unlocked && styles.achievementTitleLocked]}>
           {item.title}
@@ -231,7 +242,7 @@ export function HistoryScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <AppTopBar onPressProfile={() => router.push('/profile')} />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -258,31 +269,46 @@ export function HistoryScreen() {
 
             <View style={styles.summaryStack}>
               <SummaryCard
-                emoji="🔥"
                 label="Racha actual"
                 value={`${streakDays} ${streakDays === 1 ? 'día' : 'días'}`}
+                badge={streakDays > 0 ? 'Activa' : 'Pendiente'}
+                progress={Math.min(streakDays / 7, 1)}
                 hint="Días seguidos con práctica registrada"
               />
               <SummaryCard
-                emoji="📋"
                 label="Sesiones de hoy"
                 value={`${Math.min(completedToday, LEVEL1_DAILY_GOAL)}/${LEVEL1_DAILY_GOAL}`}
+                badge={
+                  completedToday >= LEVEL1_DAILY_GOAL
+                    ? 'Completado'
+                    : completedToday > 0
+                      ? 'Parcial'
+                      : 'Pendiente'
+                }
+                progress={Math.min(completedToday / LEVEL1_DAILY_GOAL, 1)}
                 hint="Completadas (meta del día)"
               />
               <SummaryCard
-                emoji="🎯"
                 label="Progreso Nivel 1"
                 value={`${levelOneSlotsPerfect}/${LEVEL1_DAILY_GOAL} perfectas`}
+                badge={
+                  levelOneSlotsPerfect >= LEVEL1_DAILY_GOAL
+                    ? 'Completado'
+                    : levelOneSlotsPerfect > 0
+                      ? 'Parcial'
+                      : 'Pendiente'
+                }
+                progress={Math.min(levelOneSlotsPerfect / LEVEL1_DAILY_GOAL, 1)}
                 hint="Progreso hacia desbloquear el siguiente nivel"
               />
               <SummaryCard
-                emoji="⏱️"
                 label="Mejor inspiración"
                 value={
                   bestHoldGlobal != null && bestHoldGlobal > 0
                     ? `${bestHoldGlobal.toFixed(1)} s`
                     : 'Pendiente'
                 }
+                badge={bestHoldGlobal != null && bestHoldGlobal > 0 ? 'Completado' : 'Pendiente'}
                 hint="Mayor tiempo sostenido registrado"
               />
             </View>
@@ -341,9 +367,9 @@ export function HistoryScreen() {
                 })}
               </View>
               <View style={styles.legend}>
-                <LegendDot color={CAL_BG.perfect} label="Día perfecto" />
-                <LegendDot color={CAL_BG.good} label="Buen avance" />
-                <LegendDot color={CAL_BG.incomplete} label="Incompleto" />
+                <LegendDot color={CAL_BG.perfect} label="Completado" />
+                <LegendDot color={CAL_BG.good} label="Parcial" />
+                <LegendDot color={CAL_BG.incomplete} label="Pendiente" />
                 <LegendDot color={CAL_BG.interrupted} label="Interrumpido" />
                 <LegendDot color={CAL_BG.none} label="Sin actividad" />
               </View>
@@ -433,11 +459,11 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: wellness.screenBg,
-    paddingBottom: wellnessFloatingTabBarInset,
   },
   scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl,
+    paddingBottom: wellnessFloatingTabBarInset + spacing.xl,
   },
   subtitle: {
     fontSize: 20,
@@ -460,7 +486,7 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     width: '100%',
     backgroundColor: wellness.card,
     borderRadius: wellnessRadii.cardLarge,
@@ -470,25 +496,40 @@ const styles = StyleSheet.create({
     borderColor: wellness.border,
     ...wellnessShadows.card,
   },
-  summaryIconContainer: {
-    width: 52,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingTop: 2,
-  },
-  summaryCardIcon: {
-    fontSize: 34,
-    lineHeight: 40,
-  },
   summaryTextColumn: {
     flex: 1,
     minWidth: 0,
+  },
+  summaryHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  summaryStatusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: wellness.primary,
   },
   summaryLabel: {
     fontSize: 17,
     fontWeight: '700',
     color: wellness.text,
     lineHeight: 24,
+    flex: 1,
+  },
+  summaryBadge: {
+    borderRadius: wellnessRadii.full,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
+    backgroundColor: wellness.softGreen,
+    borderWidth: 1,
+    borderColor: wellness.borderStrong,
+  },
+  summaryBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: wellness.primaryDark,
   },
   summaryValue: {
     marginTop: 6,
@@ -503,6 +544,19 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: wellness.textSecondary,
     lineHeight: 20,
+  },
+  progressTrack: {
+    marginTop: spacing.sm,
+    width: '100%',
+    height: 8,
+    borderRadius: wellnessRadii.full,
+    backgroundColor: '#E7EFE4',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: wellnessRadii.full,
+    backgroundColor: wellness.primary,
   },
   sectionCard: {
     marginTop: spacing.lg,
@@ -640,12 +694,28 @@ const styles = StyleSheet.create({
   achievementRowLocked: {
     opacity: 0.45,
   },
-  achievementIcon: {
-    fontSize: 28,
+  achievementBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: spacing.md,
-    color: '#F9A825',
+    backgroundColor: wellness.softGreen,
+    borderWidth: 1,
+    borderColor: wellness.borderStrong,
   },
-  achievementIconLocked: {
+  achievementBadgeLocked: {
+    backgroundColor: '#EEF1ED',
+    borderColor: wellness.border,
+  },
+  achievementBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+    letterSpacing: 0.4,
+  },
+  achievementBadgeTextLocked: {
     color: wellness.textSecondary,
   },
   achievementTextWrap: {
