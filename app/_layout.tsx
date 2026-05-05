@@ -7,6 +7,7 @@
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -21,6 +22,15 @@ import {
 
 import { PatientSessionProvider } from '@/src/modules/patient/context/PatientSessionContext';
 import { fontRegular } from '@/src/shared/theme/typography';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 export const unstable_settings = {
   initialRouteName: 'index',
@@ -73,6 +83,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="profile" options={{ headerShown: false }} />
           <Stack.Screen name="data-export" options={{ headerShown: false, title: 'Datos y exportación' }} />
+          <Stack.Screen name="notification-settings" options={{ headerShown: false, title: 'Recordatorios' }} />
           <Stack.Screen name="sensor-connection" options={{ headerShown: false }} />
           <Stack.Screen name="diagnostico" options={{ headerShown: false }} />
           <Stack.Screen name="diagnostico-resumen" options={{ headerShown: false }} />

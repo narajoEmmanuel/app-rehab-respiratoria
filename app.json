@@ -9,7 +9,10 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSUserNotificationsUsageDescription": "RESPIRA+ programa recordatorios locales en tu dispositivo para ayudarte con la terapia respiratoria. No usamos notificaciones remotas."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -37,6 +40,16 @@
           "dark": {
             "backgroundColor": "#F7FAF9"
           }
+        }
+      ],
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#34aba5",
+          "sounds": [],
+          "mode": "production"
         }
       ]
     ],

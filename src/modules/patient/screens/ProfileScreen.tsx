@@ -4,9 +4,9 @@
  * Dependencies: expo-router, patient session, legal/export navigation (behavior unchanged).
  */
 import { useFocusEffect } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getLatestDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
@@ -19,6 +19,8 @@ import {
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { openLegalDocument } from '@/src/modules/legal/open-legal-document';
 import type { AcceptedConsentRecord } from '@/src/modules/legal/types';
+import { getNotificationPreferences } from '@/src/modules/notifications/storage/notification-preferences-repository';
+import type { NotificationPreferences } from '@/src/modules/notifications/types/notification-preferences';
 import { ProfileActionRow } from '@/src/modules/patient/components/ProfileActionRow';
 import { ProfileAvatarPicker } from '@/src/modules/patient/components/ProfileAvatarPicker';
 import { ProfileInfoCard } from '@/src/modules/patient/components/ProfileInfoCard';
@@ -42,8 +44,6 @@ import {
   DEFAULT_PROFILE_PREFERENCES,
   type ProfilePreferences,
 } from '@/src/modules/patient/types/profile-preferences';
-
-const ACCENT = '#34aba5';
 
 type SessionQuickStats = {
   completedCount: number;
@@ -102,6 +102,7 @@ export function ProfileScreen() {
   const [latestDiagnostic, setLatestDiagnostic] = useState<DiagnosticRecord | null>(null);
   const [consentRecord, setConsentRecord] = useState<AcceptedConsentRecord | null>(null);
   const [prefs, setPrefs] = useState<ProfilePreferences>(DEFAULT_PROFILE_PREFERENCES);
+  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences | null>(null);
   const [sessionQuickStats, setSessionQuickStats] = useState<SessionQuickStats | null>(null);
 
   const refreshConsent = useCallback(async () => {
@@ -119,16 +120,19 @@ export function ProfileScreen() {
           setLatestDiagnostic(null);
           setSessionQuickStats(null);
           setPrefs(DEFAULT_PROFILE_PREFERENCES);
+          setNotificationPrefs(null);
           return;
         }
-        const [diagnostic, prefsResult, sessions] = await Promise.all([
+        const [diagnostic, prefsResult, sessions, notifPrefsResult] = await Promise.all([
           getLatestDiagnostic(patient.paciente_id),
           getProfilePreferences(patient.paciente_id),
           readAllSessions(),
+          getNotificationPreferences(String(patient.paciente_id)),
         ]);
         if (!active) return;
         setLatestDiagnostic(diagnostic);
         setPrefs(prefsResult);
+        setNotificationPrefs(notifPrefsResult);
         setSessionQuickStats(buildSessionQuickStats(sessions, patient.paciente_id));
       })();
       return () => {
@@ -141,15 +145,6 @@ export function ProfileScreen() {
     async (uri: string | null) => {
       if (!patient) return;
       const next = await updateProfilePreferences(patient.paciente_id, { avatarUri: uri });
-      setPrefs(next);
-    },
-    [patient],
-  );
-
-  const onNotificationsToggle = useCallback(
-    async (enabled: boolean) => {
-      if (!patient) return;
-      const next = await updateProfilePreferences(patient.paciente_id, { notificationsEnabled: enabled });
       setPrefs(next);
     },
     [patient],
@@ -347,32 +342,25 @@ export function ProfileScreen() {
 
         <ProfileSection
           title="Notificaciones"
-          subtitle="Base preparada: aún no programamos recordatorios en el sistema.">
+          subtitle="Recordatorios locales en tu dispositivo para la terapia respiratoria (sin mensajes push remotos).">
           <ProfileInfoCard>
-            <View style={styles.notifRow}>
-              <View style={styles.notifTextCol}>
-                <Text style={styles.notifTitle}>Recordatorios</Text>
-                <Text style={styles.notifHint}>
-                  Activa esta preferencia para cuando habilitemos avisos locales. Estado: solo se guarda en el
-                  dispositivo.
-                </Text>
-                <Text style={styles.comingSoon}>Próximamente</Text>
-              </View>
-              <Switch
-                accessibilityLabel="Preferencia de recordatorios"
-                value={prefs.notificationsEnabled}
-                onValueChange={(v) => void onNotificationsToggle(v)}
-                trackColor={{ false: '#E5E7EB', true: 'rgba(52, 171, 165, 0.35)' }}
-                thumbColor={prefs.notificationsEnabled ? ACCENT : '#F3F4F6'}
-                ios_backgroundColor="#E5E7EB"
-              />
-            </View>
-            <View style={styles.reminderRow}>
-              <Text style={styles.reminderLabel}>Hora preferida del recordatorio</Text>
-              <View style={styles.comingPill}>
-                <Text style={styles.comingPillText}>Próximamente</Text>
-              </View>
-            </View>
+            <Text style={styles.notifStatusLine}>
+              Recordatorios de terapia:{' '}
+              <Text style={styles.notifStatusEmphasis}>
+                {notificationPrefs == null
+                  ? '—'
+                  : notificationPrefs.remindersEnabled
+                    ? 'Activo'
+                    : 'Inactivo'}
+              </Text>
+            </Text>
+            <View style={styles.divider} />
+            <ProfileActionRow
+              label="Recordatorios de terapia"
+              onPress={() => router.push('/notification-settings' as Href)}
+              accessibilityLabel="Abrir configuración de recordatorios de terapia"
+              variant="neutral"
+            />
           </ProfileInfoCard>
         </ProfileSection>
 
@@ -530,61 +518,15 @@ const styles = StyleSheet.create({
     color: wellness.textSecondary,
     marginBottom: spacing.sm,
   },
-  notifRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-  },
-  notifTextCol: {
-    flex: 1,
-    minWidth: 0,
-    gap: 4,
-  },
-  notifTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  notifHint: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: wellness.textSecondary,
-  },
-  comingSoon: {
-    marginTop: 4,
-    fontSize: 12,
-    fontWeight: '700',
-    color: ACCENT,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  reminderRow: {
-    marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  reminderLabel: {
+  notifStatusLine: {
     fontSize: 15,
+    lineHeight: 22,
+    color: wellness.textSecondary,
     fontWeight: '600',
-    color: wellness.text,
-    flex: 1,
   },
-  comingPill: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: 'rgba(52, 171, 165, 0.12)',
-  },
-  comingPillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: ACCENT,
+  notifStatusEmphasis: {
+    color: wellness.primaryDark,
+    fontWeight: '800',
   },
   helpParagraph: {
     fontSize: 14,
