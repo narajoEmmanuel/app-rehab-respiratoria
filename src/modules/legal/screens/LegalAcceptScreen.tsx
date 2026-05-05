@@ -164,7 +164,7 @@ export function LegalAcceptScreen() {
           style={styles.docLink}
           accessibilityRole="button"
           accessibilityLabel="Abrir documento legal completo">
-          <Text style={styles.docLinkText}>Ver documento legal completo (PDF)</Text>
+          <Text style={styles.docLinkText}>Ver términos y condiciones (PDF)</Text>
         </Pressable>
 
         <View style={styles.card}>

@@ -5,9 +5,10 @@
 
 import { Asset } from 'expo-asset';
 import * as Linking from 'expo-linking';
+import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 
-import LEGAL_PDF from '../../../assets/docs/respira-legal-v1.pdf';
+import LEGAL_PDF from '../../../assets/legal/terminos-uso-etico.pdf';
 
 export type OpenLegalDocumentResult = 'opened' | 'cancelled';
 
@@ -17,28 +18,38 @@ export type OpenLegalDocumentResult = 'opened' | 'cancelled';
 export async function openLegalDocument(): Promise<OpenLegalDocumentResult> {
   const asset = Asset.fromModule(LEGAL_PDF);
   await asset.downloadAsync();
-  const uri = asset.localUri ?? asset.uri;
-  if (uri == null || uri === '') {
+  const sourceUri = asset.localUri ?? asset.uri;
+  if (sourceUri == null || sourceUri === '') {
     throw new Error('No se pudo resolver la ruta del documento legal.');
   }
 
   if (Platform.OS === 'web') {
     if (typeof window !== 'undefined') {
-      window.open(uri, '_blank', 'noopener,noreferrer');
+      window.open(sourceUri, '_blank', 'noopener,noreferrer');
       return 'opened';
     }
     throw new Error('Vista web no disponible.');
   }
 
   try {
-    const canOpen = await Linking.canOpenURL(uri);
+    const canOpen = await Linking.canOpenURL(sourceUri);
     if (canOpen) {
-      await Linking.openURL(uri);
+      await Linking.openURL(sourceUri);
       return 'opened';
     }
-    await Linking.openURL(uri);
-    return 'opened';
   } catch {
+    // Falls back to native share sheet when direct open is unavailable in Expo/runtime.
+  }
+
+  const sharingAvailable = await Sharing.isAvailableAsync();
+  if (!sharingAvailable) {
     return 'cancelled';
   }
+
+  await Sharing.shareAsync(sourceUri, {
+    mimeType: 'application/pdf',
+    dialogTitle: 'Términos y condiciones',
+    UTI: 'com.adobe.pdf',
+  });
+  return 'opened';
 }
