@@ -4,8 +4,13 @@
  * Dependencies: levels module screen
  * Notes: Temporary alias for existing levels experience.
  */
+import { ConsentTabGuard } from '@/src/modules/legal/ConsentTabGuard';
 import { LevelsScreen } from '@/src/modules/levels/screens/LevelsScreen';
 
 export default function TerapiaTab() {
-  return <LevelsScreen headerSubtitle="Elige tu terapia respiratoria" />;
+  return (
+    <ConsentTabGuard>
+      <LevelsScreen headerSubtitle="Elige tu terapia respiratoria" />
+    </ConsentTabGuard>
+  );
 }

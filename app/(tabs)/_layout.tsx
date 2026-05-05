@@ -6,10 +6,12 @@
  *        Tab bar always uses the light capsule (app forces light UI).
  *        Tabs are always navigable; the diagnostic exam is now optional from Inicio only.
  */
-import { Tabs } from 'expo-router';
-import React from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Tabs, useRouter } from 'expo-router';
+import React, { useMemo } from 'react';
+import { Alert, Platform, StyleSheet, View } from 'react-native';
 
+import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
+import { useConsentActive } from '@/src/modules/legal/use-consent-active';
 import { wellnessShadows } from '@/src/shared/theme/wellness-theme';
 import { HapticTab } from '@/src/shared/ui/haptic-tab';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
@@ -73,6 +75,35 @@ function tabBarIconFor(name: TabIconName) {
 }
 
 export default function TabLayout() {
+  const router = useRouter();
+  const { ready, active } = useConsentActive();
+
+  const protectedTabListeners = useMemo(
+    () => ({
+      tabPress: (e: { preventDefault: () => void }) => {
+        if (!ready) {
+          e.preventDefault();
+          return;
+        }
+        if (!active) {
+          e.preventDefault();
+          Alert.alert(
+            'Consentimiento',
+            'Para usar Terapia, Plan o Historial necesitas un consentimiento activo. Puedes revisarlo en Perfil o aceptar de nuevo los documentos.',
+            [
+              { text: 'Entendido', style: 'cancel' },
+              {
+                text: 'Revisar y aceptar',
+                onPress: () => router.push(LEGAL_ACCEPT_HREF),
+              },
+            ],
+          );
+        }
+      },
+    }),
+    [active, ready, router],
+  );
+
   return (
     <Tabs
       screenOptions={{
@@ -118,6 +149,7 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="terapia"
+        listeners={protectedTabListeners}
         options={{
           title: 'Terapia',
           tabBarIcon: tabBarIconFor('square.grid.2x2.fill'),
@@ -125,6 +157,7 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="plan"
+        listeners={protectedTabListeners}
         options={{
           title: 'Plan',
           tabBarIcon: tabBarIconFor('calendar'),
@@ -146,6 +179,7 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="historial"
+        listeners={protectedTabListeners}
         options={{
           title: 'Historial',
           tabBarIcon: tabBarIconFor('clock.fill'),

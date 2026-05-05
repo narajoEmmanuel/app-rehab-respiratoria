@@ -4,7 +4,14 @@
  * Dependencies: history module screen
  * Notes: Thin routing layer only.
  */
+import { ConsentTabGuard } from '@/src/modules/legal/ConsentTabGuard';
 import { HistoryScreen } from '@/src/modules/history/screens/HistoryScreen';
 
-export default HistoryScreen;
+export default function HistorialTab() {
+  return (
+    <ConsentTabGuard>
+      <HistoryScreen />
+    </ConsentTabGuard>
+  );
+}
 

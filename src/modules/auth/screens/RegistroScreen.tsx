@@ -57,7 +57,7 @@ export function RegistroScreen() {
   async function onContinue() {
     if (!registered) return;
     await setSessionPatient(registered);
-    router.replace('/(tabs)');
+    router.replace('/');
   }
 
   if (registered) {

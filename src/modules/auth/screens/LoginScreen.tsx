@@ -46,7 +46,7 @@ export function LoginScreen() {
       const patient = await getPatientByClave(normalized);
       if (patient) {
         await setSessionPatient(patient);
-        router.replace('/(tabs)');
+        router.replace('/');
       } else {
         setNotFound(true);
       }

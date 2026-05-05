@@ -10,10 +10,12 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
+import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
+import { useConsentActive } from '@/src/modules/legal/use-consent-active';
 import { getCurrentActiveLevel, hasDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { updateDailyProgress } from '@/src/modules/session/session-progress-service';
@@ -41,6 +43,7 @@ export function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { patient, clearSession, hydrated } = usePatientSession();
+  const { ready: consentUiReady, active: consentActive } = useConsentActive();
   const [hasCompletedDiagnostic, setHasCompletedDiagnostic] = useState(false);
   const [currentLevelLabel, setCurrentLevelLabel] = useState('Nivel 1');
   const [todayCompletedSessions, setTodayCompletedSessions] = useState(0);
@@ -93,9 +96,16 @@ export function HomeScreen() {
   }, [router]);
 
   const goSensorConnection = useCallback(() => {
+    if (consentUiReady && !consentActive) {
+      Alert.alert(
+        'Consentimiento',
+        'Para usar la conexión del sensor necesitas un consentimiento activo. Puedes volver a aceptar los documentos desde esta pantalla o en Perfil.',
+      );
+      return;
+    }
     onShortcutPress();
     router.push('/sensor-connection');
-  }, [router]);
+  }, [consentActive, consentUiReady, router]);
 
   const goDiagnostico = useCallback(() => {
     onShortcutPress();
@@ -130,6 +140,23 @@ export function HomeScreen() {
         <Text style={styles.welcome}>
           Bienvenido a tu espacio de rehabilitación respiratoria. Aquí tienes lo esencial.
         </Text>
+
+        {consentUiReady && !consentActive ? (
+          <View style={styles.pendingCard} accessibilityRole="summary">
+            <Text style={styles.pendingTitle}>Consentimiento del prototipo</Text>
+            <Text style={styles.pendingDescription}>
+              Sin consentimiento activo no podrás usar Terapia, Plan, Historial ni la conexión del sensor. Puedes
+              consultar el documento legal en Perfil y volver a aceptar cuando estés listo.
+            </Text>
+            <Pressable
+              style={styles.pendingBtn}
+              onPress={() => router.push(LEGAL_ACCEPT_HREF)}
+              accessibilityRole="button"
+              accessibilityLabel="Revisar y aceptar documentos legales">
+              <Text style={styles.pendingBtnText}>Revisar y aceptar</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         <View style={styles.cardGlass}>
           <Text style={styles.cardTitle}>Tu clave de acceso</Text>
