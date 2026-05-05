@@ -73,7 +73,10 @@ export function HomeScreen() {
       setPatientSessions([]);
       return;
     }
-    const [exists, allSessions] = await Promise.all([hasDiagnostic(patient.paciente_id), readAllSessions()]);
+    const [exists, allSessions] = await Promise.all([
+      hasDiagnostic(patient.paciente_id),
+      readAllSessions(),
+    ]);
     const mine = allSessions.filter((s) => s.patient_id === patient.paciente_id);
     setPatientSessions(mine);
 
@@ -288,7 +291,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1A1A1A',
     letterSpacing: -0.4,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   tagline: {
     fontSize: 16,

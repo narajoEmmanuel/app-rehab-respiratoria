@@ -11,4 +11,5 @@ export const PATIENT_STORAGE_KEYS = {
   patientLevelsJson: '@rehab/patient_levels_v1',
   sessionsJson: '@rehab/sessions_v1',
   attemptsJson: '@rehab/attempts_v1',
+  profilePreferencesJson: '@rehab/profile_preferences_v1',
 } as const;

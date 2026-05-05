@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellness, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import { wellness } from '@/src/shared/theme/wellness-theme';
 
 type ProfileInfoCardProps = {
   title?: string;
@@ -26,11 +26,10 @@ export function ProfileInfoCard({ title, children }: ProfileInfoCardProps) {
 const styles = StyleSheet.create({
   card: {
     padding: spacing.lg,
-    borderRadius: wellnessRadii.card,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: wellness.border,
-    backgroundColor: wellness.card,
-    ...wellnessShadows.card,
+    borderColor: '#EBEBEB',
+    backgroundColor: '#FFFFFF',
     gap: spacing.sm,
   },
   cardTitle: {

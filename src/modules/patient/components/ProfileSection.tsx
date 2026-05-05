@@ -31,10 +31,10 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 0.6,
+    fontWeight: '700',
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
-    color: wellness.primaryDark,
+    color: '#111827',
   },
   subtitle: {
     fontSize: 14,

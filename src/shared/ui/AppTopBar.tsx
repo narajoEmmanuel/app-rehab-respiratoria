@@ -1,6 +1,11 @@
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
+import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+import { ProfileAvatarView } from '@/src/modules/patient/components/ProfileAvatarView';
+import { getProfilePreferences } from '@/src/modules/patient/storage/profile-preferences-repository';
 import { appBrand } from '@/src/shared/branding/app-brand';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
@@ -8,6 +13,26 @@ import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 const PRIMARY = appBrand.primaryColor;
 
 export function AppTopBar({ onPressProfile }: { onPressProfile?: () => void }) {
+  const { patient } = usePatientSession();
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      let mounted = true;
+      void (async () => {
+        if (!patient) {
+          if (mounted) setAvatarUri(null);
+          return;
+        }
+        const prefs = await getProfilePreferences(patient.paciente_id);
+        if (mounted) setAvatarUri(prefs.avatarUri);
+      })();
+      return () => {
+        mounted = false;
+      };
+    }, [patient]),
+  );
+
   return (
     <View style={styles.wrap}>
       <View style={styles.row}>
@@ -36,7 +61,15 @@ export function AppTopBar({ onPressProfile }: { onPressProfile?: () => void }) {
             accessibilityRole="button"
             accessibilityLabel="Perfil"
             style={({ pressed }) => [styles.avatarBtn, pressed && styles.actionBtnPressed]}>
-            <IconSymbol name="person.crop.circle" size={22} color={PRIMARY} />
+            {patient ? (
+              <ProfileAvatarView
+                displayName={patient.nombre_completo}
+                avatarUri={avatarUri}
+                size={36}
+              />
+            ) : (
+              <IconSymbol name="person.crop.circle" size={22} color={PRIMARY} />
+            )}
           </Pressable>
         </View>
       </View>
@@ -106,11 +139,11 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: wellnessRadii.full,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(52, 171, 165, 0.12)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(52, 171, 165, 0.2)',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
   },
   actionBtnPressed: { opacity: 0.88 },
 });
