@@ -5,17 +5,63 @@
  * Notes: Keep screens registered here thin; domain code lives under src/.
  */
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import { Text, TextInput, type TextInputProps, type TextProps } from 'react-native';
 import 'react-native-reanimated';
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
 
 import { PatientSessionProvider } from '@/src/modules/patient/context/PatientSessionContext';
+import { fontRegular } from '@/src/shared/theme/typography';
 
 export const unstable_settings = {
   initialRouteName: 'index',
 };
 
+void SplashScreen.preventAutoHideAsync();
+
+type TextComponentWithDefaults = typeof Text & {
+  defaultProps?: TextProps;
+};
+
+type TextInputComponentWithDefaults = typeof TextInput & {
+  defaultProps?: TextInputProps;
+};
+
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
+
+  useEffect(() => {
+    if (!fontsLoaded) return;
+    const TextWithDefaults = Text as TextComponentWithDefaults;
+    const TextInputWithDefaults = TextInput as TextInputComponentWithDefaults;
+    TextWithDefaults.defaultProps = TextWithDefaults.defaultProps ?? {};
+    TextWithDefaults.defaultProps.style = [{ fontFamily: fontRegular }, TextWithDefaults.defaultProps.style];
+    TextInputWithDefaults.defaultProps = TextInputWithDefaults.defaultProps ?? {};
+    TextInputWithDefaults.defaultProps.style = [
+      { fontFamily: fontRegular },
+      TextInputWithDefaults.defaultProps.style,
+    ];
+    void SplashScreen.hideAsync();
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
   return (
     <ThemeProvider value={DefaultTheme}>
       <PatientSessionProvider>

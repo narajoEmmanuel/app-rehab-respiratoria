@@ -10,6 +10,7 @@ import { getProfilePreferences } from '@/src/modules/patient/storage/profile-pre
 import { appBrand } from '@/src/shared/branding/app-brand';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+import { fontBold, fontRegular } from '@/src/shared/theme/typography';
 
 const PRIMARY = appBrand.primaryColor;
 const SLOT_WIDTH = 56;
@@ -197,13 +198,13 @@ const styles = StyleSheet.create({
   },
   brandWord: {
     fontSize: 22,
-    fontWeight: '700',
+    fontFamily: fontBold,
     color: wellness.text,
     letterSpacing: -0.4,
   },
   brandPlus: {
     fontSize: 24,
-    fontWeight: '300',
+    fontFamily: fontRegular,
     color: PRIMARY,
     letterSpacing: 0.5,
   },
