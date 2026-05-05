@@ -17,7 +17,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   LEVEL1_DAILY_GOAL,
@@ -45,7 +45,8 @@ import { usePatientSession } from '@/src/modules/patient/context/PatientSessionC
 import { readAllAttempts, readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellness, wellnessFloatingTabBarInset, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import { wellness } from '@/src/shared/theme/wellness-theme';
+import { dashboardScreen, dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { getLocalDateKey } from '@/src/shared/utils/local-date-key';
 
 const CAL_BG: Record<CalendarDayKind, string> = {
@@ -114,6 +115,7 @@ function AchievementRow({ item }: { item: AchievementDef }) {
 
 export function HistoryScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { patient } = usePatientSession();
   const [loading, setLoading] = useState(true);
   const [sessions, setSessions] = useState<Awaited<ReturnType<typeof readAllSessions>>>([]);
@@ -239,28 +241,32 @@ export function HistoryScreen() {
     setSelectedDay(attachBestHoldSeconds(base, attemptsBySession));
   };
 
+  const scrollBottom = dashboardScrollBottomPadding(insets.bottom);
+
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <AppTopBar onPressProfile={() => router.push('/profile')} />
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottom }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
         {!patient ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>Tu progreso</Text>
-            <Text style={styles.emptyText}>
+            <Text style={styles.screenTitle}>Tu historial</Text>
+            <Text style={styles.tagline}>
               Asocia un perfil de paciente para ver tu historial, calendario y logros.
             </Text>
           </View>
         ) : loading ? (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color={wellness.primary} />
-            <Text style={styles.loadingText}>Cargando tu historial…</Text>
+            <Text style={styles.screenTitle}>Tu historial</Text>
+            <Text style={styles.tagline}>Cargando tu historial…</Text>
+            <ActivityIndicator size="large" color={wellness.primary} style={styles.loadingSpinner} />
           </View>
         ) : (
           <>
-            <Text style={styles.subtitle}>
+            <Text style={styles.screenTitle}>Tu historial</Text>
+            <Text style={styles.tagline}>
               Cada sesión cuenta para fortalecer tu respiración.
             </Text>
             <Text style={styles.heroMotivation}>{heroMotivation}</Text>
@@ -374,9 +380,9 @@ export function HistoryScreen() {
             </View>
 
             {!hasAnyHistory ? (
-              <View style={styles.emptyCard}>
-                <Text style={styles.emptyTitle}>No hay sesiones registradas todavía.</Text>
-                <Text style={styles.emptyText}>
+              <View style={styles.inlineEmptyCard}>
+                <Text style={styles.inlineEmptyTitle}>No hay sesiones registradas todavía.</Text>
+                <Text style={styles.inlineEmptyText}>
                   Completa tu primera sesión para empezar tu progreso.
                 </Text>
               </View>
@@ -456,29 +462,36 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: wellness.screenBg,
+    backgroundColor: dashboardScreen.screenBg,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: wellnessFloatingTabBarInset + spacing.xl,
+    paddingHorizontal: dashboardScreen.screenPaddingHorizontal,
+    paddingTop: spacing.md,
   },
-  subtitle: {
-    fontSize: 20,
+  screenTitle: {
+    fontSize: 28,
     fontWeight: '700',
-    color: wellness.text,
-    marginTop: spacing.sm,
-    lineHeight: 28,
+    color: dashboardScreen.textPrimaryStrong,
+    letterSpacing: -0.4,
+    marginBottom: 2,
+  },
+  tagline: {
+    fontSize: 16,
+    lineHeight: 22,
+    color: dashboardScreen.textSecondary,
+    marginBottom: spacing.sm,
   },
   heroMotivation: {
-    marginTop: spacing.sm,
-    fontSize: 17,
-    color: wellness.primaryDark,
+    marginTop: spacing.xs,
+    fontSize: 15,
+    lineHeight: 21,
+    color: '#374151',
     fontWeight: '600',
-    lineHeight: 24,
+    marginBottom: spacing.sm,
   },
   summaryStack: {
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
     gap: spacing.md,
     width: '100%',
   },
@@ -486,13 +499,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.cardLarge,
-    paddingVertical: spacing.md + 2,
+    backgroundColor: dashboardScreen.cardBg,
+    borderRadius: dashboardScreen.cardRadius,
+    paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
     borderWidth: 1,
-    borderColor: wellness.border,
-    ...wellnessShadows.card,
+    borderColor: dashboardScreen.cardBorderColor,
   },
   summaryTextColumn: {
     flex: 1,
@@ -510,19 +522,19 @@ const styles = StyleSheet.create({
     backgroundColor: wellness.primary,
   },
   summaryLabel: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
-    color: wellness.text,
-    lineHeight: 24,
+    color: dashboardScreen.textPrimary,
+    lineHeight: 22,
     flex: 1,
   },
   summaryBadge: {
-    borderRadius: wellnessRadii.full,
+    borderRadius: 8,
     paddingHorizontal: spacing.sm + 2,
     paddingVertical: 4,
-    backgroundColor: wellness.softGreen,
+    backgroundColor: 'rgba(52, 171, 165, 0.1)',
     borderWidth: 1,
-    borderColor: wellness.borderStrong,
+    borderColor: 'rgba(52, 171, 165, 0.22)',
   },
   summaryBadgeText: {
     fontSize: 12,
@@ -531,50 +543,50 @@ const styles = StyleSheet.create({
   },
   summaryValue: {
     marginTop: 6,
-    fontSize: 30,
-    fontWeight: '800',
-    color: wellness.text,
-    lineHeight: 36,
+    fontSize: 24,
+    fontWeight: '700',
+    color: dashboardScreen.textPrimary,
+    lineHeight: 30,
   },
   summaryHint: {
     marginTop: 8,
     fontSize: 14,
     fontWeight: '500',
-    color: wellness.textSecondary,
+    color: dashboardScreen.textSecondary,
     lineHeight: 20,
   },
   progressTrack: {
     marginTop: spacing.sm,
     width: '100%',
-    height: 8,
-    borderRadius: wellnessRadii.full,
-    backgroundColor: '#E7EFE4',
+    height: 6,
+    borderRadius: 4,
+    backgroundColor: '#E8EDEA',
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    borderRadius: wellnessRadii.full,
+    borderRadius: 4,
     backgroundColor: wellness.primary,
   },
   sectionCard: {
     marginTop: spacing.lg,
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.cardLarge,
+    backgroundColor: dashboardScreen.cardBg,
+    borderRadius: dashboardScreen.cardRadius,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: wellness.border,
-    ...wellnessShadows.card,
+    borderColor: dashboardScreen.cardBorderColor,
   },
   sectionTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: wellness.text,
+    fontSize: 18,
+    fontWeight: '700',
+    color: dashboardScreen.textPrimary,
   },
   sectionHint: {
     marginTop: 6,
-    fontSize: 16,
-    color: wellness.textSecondary,
+    fontSize: 15,
+    color: dashboardScreen.textSecondary,
     marginBottom: spacing.md,
+    lineHeight: 21,
   },
   monthNav: {
     flexDirection: 'row',
@@ -583,21 +595,26 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   monthNavBtn: {
+    minWidth: dashboardScreen.primaryButtonMinHeight,
+    minHeight: dashboardScreen.primaryButtonMinHeight,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: wellnessRadii.pill,
-    backgroundColor: wellness.softGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: dashboardScreen.cardBg,
+    borderWidth: 1,
+    borderColor: dashboardScreen.cardBorderColor,
   },
   monthNavBtnText: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '700',
     color: wellness.primaryDark,
-    lineHeight: 32,
+    lineHeight: 26,
   },
   monthTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: wellness.text,
+    fontSize: 18,
+    fontWeight: '700',
+    color: dashboardScreen.textPrimary,
     textTransform: 'capitalize',
   },
   weekRow: {
@@ -610,7 +627,7 @@ const styles = StyleSheet.create({
   },
   weekCellText: {
     fontWeight: '700',
-    color: wellness.textSecondary,
+    color: dashboardScreen.textSecondary,
     fontSize: 14,
   },
   grid: {
@@ -622,7 +639,7 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 14,
+    borderRadius: 12,
     marginBottom: 6,
     padding: 4,
   },
@@ -632,12 +649,12 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   dayCellToday: {
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: wellness.primary,
   },
   dayCellNum: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 17,
+    fontWeight: '700',
     color: '#1B1B1B',
   },
   dayCellNumMuted: {
@@ -659,35 +676,43 @@ const styles = StyleSheet.create({
   },
   legendLabel: {
     fontSize: 15,
-    color: wellness.text,
+    color: dashboardScreen.textPrimary,
   },
   emptyCard: {
+    marginTop: spacing.md,
+    padding: spacing.lg,
+    borderRadius: dashboardScreen.cardRadius,
+    backgroundColor: dashboardScreen.cardBg,
+    borderWidth: 1,
+    borderColor: dashboardScreen.cardBorderColor,
+  },
+  inlineEmptyCard: {
     marginTop: spacing.lg,
     padding: spacing.lg,
-    borderRadius: wellnessRadii.card,
-    backgroundColor: wellness.softGreen,
+    borderRadius: dashboardScreen.cardRadius,
+    backgroundColor: dashboardScreen.cardBg,
     borderWidth: 1,
-    borderColor: wellness.border,
+    borderColor: dashboardScreen.cardBorderColor,
   },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: wellness.text,
-    textAlign: 'center',
-  },
-  emptyText: {
-    marginTop: spacing.sm,
+  inlineEmptyTitle: {
     fontSize: 17,
-    color: wellness.textSecondary,
+    fontWeight: '700',
+    color: dashboardScreen.textPrimary,
     textAlign: 'center',
-    lineHeight: 24,
+  },
+  inlineEmptyText: {
+    marginTop: spacing.sm,
+    fontSize: 15,
+    color: dashboardScreen.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
   },
   achievementRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: wellness.border,
+    borderBottomColor: dashboardScreen.cardBorderColor,
   },
   achievementRowLocked: {
     opacity: 0.45,
@@ -698,36 +723,36 @@ const styles = StyleSheet.create({
     color: '#F9A825',
   },
   achievementIconLocked: {
-    color: wellness.textSecondary,
+    color: dashboardScreen.textSecondary,
   },
   achievementTextWrap: {
     flex: 1,
   },
   achievementTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: wellness.text,
+    fontSize: 17,
+    fontWeight: '700',
+    color: dashboardScreen.textPrimary,
   },
   achievementTitleLocked: {
-    color: wellness.textSecondary,
+    color: dashboardScreen.textSecondary,
   },
   achievementDesc: {
     marginTop: 4,
-    fontSize: 16,
-    color: wellness.textSecondary,
+    fontSize: 15,
+    color: dashboardScreen.textSecondary,
     lineHeight: 22,
   },
   achievementDescLocked: {
-    color: wellness.textSecondary,
+    color: dashboardScreen.textSecondary,
   },
   loadingBox: {
-    paddingVertical: spacing.xl * 2,
-    alignItems: 'center',
+    paddingVertical: spacing.xl,
+    alignItems: 'flex-start',
+    width: '100%',
   },
-  loadingText: {
-    marginTop: spacing.md,
-    fontSize: 17,
-    color: wellness.textSecondary,
+  loadingSpinner: {
+    marginTop: spacing.lg,
+    alignSelf: 'center',
   },
   modalBackdrop: {
     flex: 1,
@@ -736,34 +761,34 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   modalCard: {
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.cardLarge,
+    backgroundColor: dashboardScreen.cardBg,
+    borderRadius: dashboardScreen.cardRadius,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: wellness.border,
+    borderColor: dashboardScreen.cardBorderColor,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: wellness.text,
+    fontWeight: '700',
+    color: dashboardScreen.textPrimary,
     textTransform: 'capitalize',
   },
   modalStatus: {
     marginTop: spacing.sm,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: wellness.primaryDark,
     marginBottom: spacing.md,
   },
   modalLine: {
-    fontSize: 17,
-    color: wellness.text,
+    fontSize: 16,
+    color: dashboardScreen.textPrimary,
     marginBottom: 8,
     lineHeight: 24,
   },
   modalMotivation: {
     marginTop: spacing.md,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '600',
     color: wellness.primaryDark,
     lineHeight: 24,
@@ -771,13 +796,15 @@ const styles = StyleSheet.create({
   modalClose: {
     marginTop: spacing.lg,
     backgroundColor: wellness.primary,
-    borderRadius: wellnessRadii.pill,
-    paddingVertical: 14,
+    borderRadius: dashboardScreen.primaryButtonRadius,
+    paddingVertical: dashboardScreen.primaryButtonPaddingVertical,
     alignItems: 'center',
+    minHeight: dashboardScreen.primaryButtonMinHeight,
+    justifyContent: 'center',
   },
   modalCloseText: {
     color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 17,
+    fontWeight: '700',
   },
 });

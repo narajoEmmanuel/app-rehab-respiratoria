@@ -24,7 +24,8 @@ import { updateDailyProgress } from '@/src/modules/session/session-progress-serv
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellness, wellnessFloatingTabBarInset } from '@/src/shared/theme/wellness-theme';
+import { wellness } from '@/src/shared/theme/wellness-theme';
+import { dashboardScreen, dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { addDaysLocal, getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 
 const ACCENT = '#34aba5';
@@ -63,7 +64,7 @@ export function HomeScreen() {
   const [todayCompletedSessions, setTodayCompletedSessions] = useState(0);
   const [patientSessions, setPatientSessions] = useState<SessionRecord[]>([]);
 
-  const bottomPad = insets.bottom + wellnessFloatingTabBarInset;
+  const bottomPad = dashboardScrollBottomPadding(insets.bottom);
 
   const loadProgress = useCallback(async () => {
     if (!patient) {
@@ -280,7 +281,7 @@ export function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F6F7F6' },
+  safe: { flex: 1, backgroundColor: dashboardScreen.screenBg },
   scroll: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,

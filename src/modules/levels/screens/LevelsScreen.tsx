@@ -8,18 +8,18 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
 import type { PatientLevelRecord } from '@/src/modules/diagnostics/types';
-import { LevelCard } from '@/src/modules/levels/components/LevelCard';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { listLevels } from '@/src/modules/session/registry/level-registry';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { TherapyLevelCard } from '@/src/shared/ui/therapy-level-card';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellness, wellnessFloatingTabBarInset, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+import { dashboardScreen, dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 
 export function LevelsScreen({
   headerSubtitle = 'Elige tu aventura respiratoria',
@@ -27,6 +27,7 @@ export function LevelsScreen({
   headerSubtitle?: string;
 } = {}) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { patient } = usePatientSession();
   const { progress, isLoading, selectLevel } = useLevelsProgress();
   const levels = listLevels();
@@ -68,22 +69,28 @@ export function LevelsScreen({
     router.push({ pathname: '/(tabs)/sesion', params: { levelId } });
   };
 
+  const scrollBottom = dashboardScrollBottomPadding(insets.bottom);
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
         <AppTopBar onPressProfile={() => router.push('/profile')} />
         <View style={styles.blockedContainer}>
-          <Text style={styles.subtitle}>Cargando niveles…</Text>
+          <Text style={styles.screenTitle}>Terapia</Text>
+          <Text style={styles.tagline}>Cargando niveles…</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <AppTopBar onPressProfile={() => router.push('/profile')} />
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <Text style={styles.subtitle}>{headerSubtitle}</Text>
+      <ScrollView
+        contentContainerStyle={[styles.container, { paddingBottom: scrollBottom }]}
+        showsVerticalScrollIndicator={false}>
+        <Text style={styles.screenTitle}>Terapia</Text>
+        <Text style={styles.tagline}>{headerSubtitle}</Text>
 
         {levels.map((level) => {
           const levelId = level.id as LevelId;
@@ -95,7 +102,7 @@ export function LevelsScreen({
           const perfectTowardUnlock = row?.perfect_sessions_completed ?? 0;
           const completedToday = row?.sessions_completed_today ?? 0;
           return (
-            <LevelCard
+            <TherapyLevelCard
               key={level.id}
               title={level.title}
               statusLabel={statusLabel}
@@ -128,47 +135,55 @@ export function LevelsScreen({
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: wellness.screenBg,
+    backgroundColor: dashboardScreen.screenBg,
   },
   container: {
     flexGrow: 1,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: wellnessFloatingTabBarInset + spacing.xl,
+    paddingHorizontal: dashboardScreen.screenPaddingHorizontal,
+    paddingTop: spacing.md,
   },
   blockedContainer: {
     flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: dashboardScreen.screenPaddingHorizontal,
+    paddingTop: spacing.md,
   },
-  subtitle: {
-    marginTop: spacing.xs,
-    marginBottom: spacing.lg,
+  screenTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: dashboardScreen.textPrimaryStrong,
+    letterSpacing: -0.4,
+    marginBottom: 2,
+  },
+  tagline: {
     fontSize: 16,
-    color: wellness.textSecondary,
+    lineHeight: 22,
+    color: dashboardScreen.textSecondary,
+    marginBottom: spacing.lg,
   },
   messageCard: {
     marginTop: spacing.xs,
-    borderRadius: wellnessRadii.card,
+    borderRadius: dashboardScreen.cardRadius,
     borderWidth: 1,
-    borderColor: wellness.border,
-    backgroundColor: wellness.card,
-    padding: spacing.md,
+    borderColor: dashboardScreen.cardBorderColor,
+    backgroundColor: dashboardScreen.cardBg,
+    padding: spacing.lg,
   },
   messageTitle: {
-    color: wellness.text,
+    color: dashboardScreen.textPrimary,
     fontWeight: '700',
-    fontSize: 16,
+    fontSize: 17,
   },
   messageText: {
-    marginTop: spacing.xs,
-    color: wellness.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
+    marginTop: spacing.sm,
+    color: dashboardScreen.textSecondary,
+    fontSize: 15,
+    lineHeight: 22,
   },
   warningText: {
-    marginTop: spacing.xs,
-    color: wellness.text,
+    marginTop: spacing.sm,
+    color: dashboardScreen.textPrimary,
     fontWeight: '700',
+    fontSize: 15,
+    lineHeight: 22,
   },
 });

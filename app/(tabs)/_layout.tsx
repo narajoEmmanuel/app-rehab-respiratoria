@@ -17,7 +17,8 @@ import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 
 const TAB_ACTIVE = wellness.primary;
 const TAB_INACTIVE = '#8E8E93';
-const TAB_BAR_TOP_BORDER = '#E8E8E8';
+/** Matches dashboard card borders — flat bar, no floating capsule */
+const TAB_BAR_TOP_BORDER = '#EBEBEB';
 
 const TAB_ICON_SIZE = 24;
 
