@@ -1,76 +1,31 @@
 /**
- * Purpose: Bottom tab navigator — floating wellness capsule with four primary tabs.
+ * Purpose: Bottom tab navigator — flat bar (Inicio, Terapia, Historial); Plan hidden from bar.
  * Module: app routing
- * Dependencies: expo-router, safe-area, shared theme & ui
- * Notes: Legacy tab routes stay hidden with href: null to preserve existing navigation.
- *        Tab bar always uses the light capsule (app forces light UI).
- *        Tabs are always navigable; the diagnostic exam is now optional from Inicio only.
+ * Dependencies: expo-router, shared theme & ui
+ * Notes: Legacy tab routes stay hidden with href: null. Consent gate uses tabPress listeners
+ *        (no custom tabBarButton for blocking). HapticTab is only for optional haptics.
  */
 import { Tabs, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
-import { Alert, Platform, StyleSheet, View } from 'react-native';
+import { Alert, Platform, StyleSheet } from 'react-native';
 
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { useConsentActive } from '@/src/modules/legal/use-consent-active';
-import { wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import { wellness } from '@/src/shared/theme/wellness-theme';
 import { HapticTab } from '@/src/shared/ui/haptic-tab';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 
-const TAB_ACCENT = '#34aba5';
-const TAB_ACCENT_SOFT = 'rgba(52, 171, 165, 0.14)';
-const TAB_ACCENT_BORDER = 'rgba(52, 171, 165, 0.4)';
-const TAB_INACTIVE_ICON = '#8A958F';
+const TAB_ACTIVE = wellness.primary;
+const TAB_INACTIVE = '#8E8E93';
+const TAB_BAR_TOP_BORDER = '#E8E8E8';
 
-/** Fixed slot so active bubble does not shift siblings; bubble fills slot when focused. */
-const ICON_SLOT = 54;
-const BUBBLE_SIZE_ACTIVE = 54;
-const BUBBLE_SIZE_INACTIVE = 48;
-const ICON_SIZE_ACTIVE = 28;
-const ICON_SIZE_INACTIVE = 24;
+const TAB_ICON_SIZE = 24;
 
-const tabBubbleStyles = StyleSheet.create({
-  iconSlot: {
-    width: ICON_SLOT,
-    height: ICON_SLOT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bubbleActive: {
-    width: BUBBLE_SIZE_ACTIVE,
-    height: BUBBLE_SIZE_ACTIVE,
-    borderRadius: 27,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 0,
-    transform: [],
-    backgroundColor: TAB_ACCENT_SOFT,
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    borderColor: TAB_ACCENT_BORDER,
-  },
-  bubbleInactive: {
-    width: BUBBLE_SIZE_INACTIVE,
-    height: BUBBLE_SIZE_INACTIVE,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
-
-type TabIconName = 'house.fill' | 'square.grid.2x2.fill' | 'calendar' | 'clock.fill';
+type TabIconName = 'house.fill' | 'square.grid.2x2.fill' | 'clock.fill';
 
 function tabBarIconFor(name: TabIconName) {
-  return function TabBarIcon({ focused }: { focused: boolean; color: string; size: number }) {
-    return (
-      <View style={tabBubbleStyles.iconSlot}>
-        <View style={focused ? tabBubbleStyles.bubbleActive : tabBubbleStyles.bubbleInactive}>
-          <IconSymbol
-            size={focused ? ICON_SIZE_ACTIVE : ICON_SIZE_INACTIVE}
-            name={name}
-            color={focused ? TAB_ACCENT : TAB_INACTIVE_ICON}
-          />
-        </View>
-      </View>
-    );
+  return function TabBarIcon({ color }: { color: string; focused: boolean; size: number }) {
+    return <IconSymbol name={name} size={TAB_ICON_SIZE} color={color} />;
   };
 }
 
@@ -89,7 +44,7 @@ export default function TabLayout() {
           e.preventDefault();
           Alert.alert(
             'Consentimiento',
-            'Para usar Terapia, Plan o Historial necesitas un consentimiento activo. Puedes revisarlo en Perfil o aceptar de nuevo los documentos.',
+            'Para usar Terapia e Historial necesitas un consentimiento activo. Puedes revisarlo en Perfil o aceptar de nuevo los documentos.',
             [
               { text: 'Entendido', style: 'cancel' },
               {
@@ -107,38 +62,15 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: TAB_ACCENT,
-        tabBarInactiveTintColor: TAB_INACTIVE_ICON,
+        tabBarActiveTintColor: TAB_ACTIVE,
+        tabBarInactiveTintColor: TAB_INACTIVE,
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarShowLabel: true,
         tabBarHideOnKeyboard: true,
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '700',
-          letterSpacing: 0.12,
-          marginTop: Platform.OS === 'ios' ? -2 : 0,
-        },
-        tabBarItemStyle: {
-          paddingTop: 2,
-          paddingBottom: 0,
-          justifyContent: 'flex-end',
-        },
-        tabBarStyle: {
-          position: 'absolute',
-          left: 6,
-          right: 6,
-          bottom: 16,
-          height: 76,
-          paddingHorizontal: 10,
-          paddingTop: 16,
-          paddingBottom: 8,
-          borderRadius: 40,
-          backgroundColor: 'rgba(255,255,255,0.96)',
-          borderWidth: 1,
-          borderColor: 'rgba(52,171,165,0.18)',
-          ...wellnessShadows.tabBar,
-        },
+        tabBarLabelStyle: styles.tabLabel,
+        tabBarItemStyle: styles.tabItem,
+        tabBarStyle: styles.tabBar,
       }}>
       <Tabs.Screen
         name="index"
@@ -157,10 +89,9 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="plan"
-        listeners={protectedTabListeners}
         options={{
           title: 'Plan',
-          tabBarIcon: tabBarIconFor('calendar'),
+          href: null,
         }}
       />
       <Tabs.Screen
@@ -215,3 +146,29 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBar: {
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: TAB_BAR_TOP_BORDER,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    borderBottomWidth: 0,
+    elevation: 0,
+    shadowOpacity: 0,
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 0,
+    paddingTop: Platform.OS === 'ios' ? 4 : 6,
+    ...(Platform.OS === 'android' ? { height: 56 } : {}),
+  },
+  tabItem: {
+    paddingTop: 0,
+  },
+  tabLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.02,
+    marginBottom: Platform.OS === 'ios' ? 2 : 4,
+  },
+});
