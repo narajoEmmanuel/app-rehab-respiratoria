@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 
 import {
   getSessionDetail,
@@ -90,6 +91,7 @@ export function SummaryScreen() {
   if (noParam) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
+        <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/niveles" />
         <View style={styles.centered}>
           <Text style={styles.title}>{getSummaryTitle(null)}</Text>
           <Text style={styles.detail}>
@@ -109,6 +111,7 @@ export function SummaryScreen() {
   if (invalidId) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
+        <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/niveles" />
         <View style={styles.centered}>
           <Text style={styles.title}>{getSummaryTitle(null)}</Text>
           <Text style={styles.detail}>Identificador de sesion no valido.</Text>
@@ -125,6 +128,7 @@ export function SummaryScreen() {
   if (errorMessage === 'not_found') {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
+        <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/niveles" />
         <View style={styles.centered}>
           <Text style={styles.title}>{getSummaryTitle(null)}</Text>
           <Text style={styles.detail}>No se encontro la sesion guardada.</Text>
@@ -141,6 +145,7 @@ export function SummaryScreen() {
   if (loading || sessionDetail == null) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
+        <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/niveles" />
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color="#9cff54" />
           <Text style={styles.loadingText}>Cargando resumen…</Text>
@@ -153,6 +158,7 @@ export function SummaryScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/niveles" />
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.screenTitle}>{getSummaryTitle(session)}</Text>
         <Text style={styles.screenSubtitle}>{getSummarySubtitle(session)}</Text>

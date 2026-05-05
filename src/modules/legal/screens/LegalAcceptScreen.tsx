@@ -5,6 +5,7 @@
 
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -23,9 +24,10 @@ import {
   LEGAL_STATEMENT_IDS,
   type LegalStatementId,
 } from '@/src/modules/legal/constants';
-import { acceptConsent } from '@/src/modules/legal/consent-service';
+import { acceptConsent, needsConsent } from '@/src/modules/legal/consent-service';
 import { openLegalDocument } from '@/src/modules/legal/open-legal-document';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessFloatingTabBarInset, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 
@@ -52,6 +54,7 @@ export function LegalAcceptScreen() {
   const { patient } = usePatientSession();
   const [boxes, setBoxes] = useState<boolean[]>(initialBoxes);
   const [busy, setBusy] = useState(false);
+  const [allowBack, setAllowBack] = useState(false);
 
   const allChecked = boxes.length > 0 && boxes.every(Boolean);
 
@@ -107,6 +110,19 @@ export function LegalAcceptScreen() {
     })();
   }, [allChecked, boxes, patient, router]);
 
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      void (async () => {
+        const required = await needsConsent();
+        if (active) setAllowBack(!required);
+      })();
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
+
   if (!patient) {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -125,6 +141,11 @@ export function LegalAcceptScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <AppTopBar
+        showBackButton={allowBack}
+        showProfileButton={false}
+        backFallbackHref="/(tabs)/index"
+      />
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: wellnessFloatingTabBarInset + spacing.lg }]}
         showsVerticalScrollIndicator={false}>

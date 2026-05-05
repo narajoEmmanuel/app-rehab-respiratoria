@@ -15,6 +15,7 @@ import { getPatientExportData } from '@/src/modules/export/services/session-expo
 import { downloadExportFile } from '@/src/modules/export/utils/download-export-file';
 import { isConsentActive } from '@/src/modules/legal/consent-service';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessFloatingTabBarInset, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
@@ -101,11 +102,11 @@ export function DataExportScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.topRow}>
-        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Volver">
-          <Text style={styles.back}>← Volver</Text>
-        </Pressable>
-      </View>
+      <AppTopBar
+        showBackButton
+        backFallbackHref="/(tabs)/index"
+        onPressProfile={() => router.push('/profile')}
+      />
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: wellnessFloatingTabBarInset + spacing.lg }]}
         showsVerticalScrollIndicator={false}>
@@ -188,16 +189,6 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: wellness.screenBg,
-  },
-  topRow: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  back: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: wellness.primaryDark,
   },
   scroll: {
     paddingHorizontal: spacing.lg,

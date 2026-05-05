@@ -4,7 +4,6 @@
  * Dependencies: expo-router, react-native, device mocks, wellness theme
  * Notes: UI state only; safe for Expo Go. Move route to (tabs) later without changing this file.
  */
-import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -22,6 +21,7 @@ import * as Haptics from 'expo-haptics';
 import { useEsp32WebSocketSensor } from '@/src/modules/device/adapters/use-esp32-websocket-sensor';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
+import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
 import {
   wellness,
@@ -55,7 +55,6 @@ function statusLabel(state: SensorConnectionStatus): string {
 }
 
 export function SensorConnectionScreen() {
-  const router = useRouter();
   const {
     status,
     mode,
@@ -112,19 +111,7 @@ export function SensorConnectionScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <View style={styles.topBar}>
-        <Pressable
-          onPress={() => {
-            hapticLight();
-            router.back();
-          }}
-          style={({ pressed }) => [styles.backBtn, pressed && styles.backBtnPressed]}
-          accessibilityRole="button"
-          accessibilityLabel="Volver">
-          <IconSymbol name="chevron.left" size={22} color={wellness.primaryDark} />
-          <Text style={styles.backLabel}>Volver</Text>
-        </Pressable>
-      </View>
+      <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/index" />
 
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -263,25 +250,6 @@ export function SensorConnectionScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: wellness.screenBg },
-  topBar: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-  },
-  backBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 4,
-    paddingVertical: spacing.sm,
-    paddingRight: spacing.md,
-  },
-  backBtnPressed: { opacity: 0.75 },
-  backLabel: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: wellness.primaryDark,
-  },
   scroll: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl * 2,

@@ -197,7 +197,7 @@ export function ProfileScreen() {
   if (!patient) {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <AppTopBar />
+        <AppTopBar showBackButton showProfileButton={false} />
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>No hay sesión de paciente activa.</Text>
         </View>
@@ -207,7 +207,7 @@ export function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <AppTopBar />
+      <AppTopBar showBackButton showProfileButton={false} />
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingBottom: wellnessFloatingTabBarInset + spacing.lg }]}
         showsVerticalScrollIndicator={false}>

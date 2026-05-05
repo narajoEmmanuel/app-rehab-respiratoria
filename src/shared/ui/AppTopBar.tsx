@@ -1,6 +1,7 @@
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter, type Href } from 'expo-router';
 
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
@@ -11,9 +12,26 @@ import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 const PRIMARY = appBrand.primaryColor;
+const SLOT_WIDTH = 56;
 
-export function AppTopBar({ onPressProfile }: { onPressProfile?: () => void }) {
+type AppTopBarProps = {
+  onPressProfile?: () => void;
+  showBackButton?: boolean;
+  onPressBack?: () => void;
+  backFallbackHref?: Href | string;
+  showProfileButton?: boolean;
+};
+
+export function AppTopBar({
+  onPressProfile,
+  showBackButton = false,
+  onPressBack,
+  backFallbackHref = '/(tabs)/index',
+  showProfileButton = true,
+}: AppTopBarProps) {
   const { patient } = usePatientSession();
+  const navigation = useNavigation();
+  const router = useRouter();
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
 
   useFocusEffect(
@@ -33,44 +51,75 @@ export function AppTopBar({ onPressProfile }: { onPressProfile?: () => void }) {
     }, [patient]),
   );
 
+  const handleBack = useCallback(() => {
+    if (onPressBack) {
+      onPressBack();
+      return;
+    }
+    if (navigation.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace(backFallbackHref as Href);
+  }, [backFallbackHref, navigation, onPressBack, router]);
+
   return (
     <View style={styles.wrap}>
       <View style={styles.row}>
-        <View
-          style={styles.leftBadge}
-          accessibilityRole="image"
-          accessibilityLabel={appBrand.name}>
-          <Image
-            source={appBrand.logo}
-            style={styles.logoImg}
-            resizeMode="contain"
-          />
+        <View style={styles.leftSlot}>
+          {showBackButton ? (
+            <Pressable
+              onPress={handleBack}
+              accessibilityRole="button"
+              accessibilityLabel="Regresar"
+              style={({ pressed }) => [styles.backBtn, pressed && styles.actionBtnPressed]}>
+              <IconSymbol name="chevron.left" size={20} color={PRIMARY} />
+            </Pressable>
+          ) : (
+            <View style={styles.slotPlaceholder} />
+          )}
         </View>
 
-        <View style={styles.brandBlock} accessibilityRole="header">
-          <Text style={styles.brandLine} accessibilityLabel="Respira+">
-            <Text style={styles.brandWord}>Respira</Text>
-            <Text style={styles.brandPlus}>+</Text>
-          </Text>
+        <View style={styles.centerSlot} accessibilityRole="header">
+          <View
+            style={styles.leftBadge}
+            accessibilityRole="image"
+            accessibilityLabel={appBrand.name}>
+            <Image
+              source={appBrand.logo}
+              style={styles.logoImg}
+              resizeMode="contain"
+            />
+          </View>
+          <View style={styles.brandBlock}>
+            <Text style={styles.brandLine} accessibilityLabel="Respira+">
+              <Text style={styles.brandWord}>Respira</Text>
+              <Text style={styles.brandPlus}>+</Text>
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.actions}>
-          <Pressable
-            onPress={onPressProfile}
-            disabled={!onPressProfile}
-            accessibilityRole="button"
-            accessibilityLabel="Perfil"
-            style={({ pressed }) => [styles.avatarBtn, pressed && styles.actionBtnPressed]}>
-            {patient ? (
-              <ProfileAvatarView
-                displayName={patient.nombre_completo}
-                avatarUri={avatarUri}
-                size={36}
-              />
-            ) : (
-              <IconSymbol name="person.crop.circle" size={22} color={PRIMARY} />
-            )}
-          </Pressable>
+        <View style={styles.rightSlot}>
+          {showProfileButton ? (
+            <Pressable
+              onPress={onPressProfile}
+              disabled={!onPressProfile}
+              accessibilityRole="button"
+              accessibilityLabel="Perfil"
+              style={({ pressed }) => [styles.avatarBtn, pressed && styles.actionBtnPressed]}>
+              {patient ? (
+                <ProfileAvatarView
+                  displayName={patient.nombre_completo}
+                  avatarUri={avatarUri}
+                  size={36}
+                />
+              ) : (
+                <IconSymbol name="person.crop.circle" size={22} color={PRIMARY} />
+              )}
+            </Pressable>
+          ) : (
+            <View style={styles.slotPlaceholder} />
+          )}
         </View>
       </View>
     </View>
@@ -87,8 +136,34 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    minHeight: 44,
+    minHeight: 46,
+  },
+  leftSlot: {
+    width: SLOT_WIDTH,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  centerSlot: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  rightSlot: {
+    width: SLOT_WIDTH,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: wellnessRadii.full,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.18)',
+    backgroundColor: wellness.card,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   leftBadge: {
     width: 56,
@@ -115,9 +190,7 @@ const styles = StyleSheet.create({
     height: 32,
   },
   brandBlock: {
-    flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: spacing.xs,
   },
   brandLine: {
     includeFontPadding: false,
@@ -134,7 +207,6 @@ const styles = StyleSheet.create({
     color: PRIMARY,
     letterSpacing: 0.5,
   },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   avatarBtn: {
     width: 40,
     height: 40,
@@ -144,6 +216,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'transparent',
     borderWidth: 0,
+  },
+  slotPlaceholder: {
+    width: 40,
+    height: 40,
   },
   actionBtnPressed: { opacity: 0.88 },
 });
