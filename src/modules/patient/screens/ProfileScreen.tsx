@@ -172,6 +172,20 @@ export function ProfileScreen() {
         </View>
 
         <View style={styles.item}>
+          <Text style={styles.itemTitle}>Datos y exportación</Text>
+          <Text style={styles.itemText}>
+            Exporta tus sesiones guardadas en JSON o CSV desde este dispositivo (solo cuando lo indiques).
+          </Text>
+          <Pressable
+            style={styles.linkRow}
+            onPress={() => router.push('/data-export')}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir datos y exportación">
+            <Text style={styles.linkText}>Abrir datos y exportación</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.item}>
           <Text style={styles.itemTitle}>Configuración</Text>
           <Text style={styles.itemText}>Opciones de cuenta y app (placeholder).</Text>
         </View>

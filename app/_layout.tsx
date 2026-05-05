@@ -26,6 +26,7 @@ export default function RootLayout() {
           <Stack.Screen name="legal/accept" options={{ headerShown: false, title: 'Consentimiento' }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="profile" options={{ headerShown: false }} />
+          <Stack.Screen name="data-export" options={{ headerShown: false, title: 'Datos y exportación' }} />
           <Stack.Screen name="sensor-connection" options={{ headerShown: false }} />
           <Stack.Screen name="diagnostico" options={{ headerShown: false }} />
           <Stack.Screen name="diagnostico-resumen" options={{ headerShown: false }} />
