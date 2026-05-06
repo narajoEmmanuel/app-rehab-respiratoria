@@ -17,12 +17,44 @@ import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { listLevels } from '@/src/modules/session/registry/level-registry';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import type { TherapyLevelStatusChip } from '@/src/shared/ui/therapy-level-card';
 import { TherapyLevelCard } from '@/src/shared/ui/therapy-level-card';
 import { spacing } from '@/src/shared/theme/spacing';
 import { dashboardScreen, dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
+import { getLevelVisualIdentity } from '@/src/theme/level-colors';
+
+function deriveTherapyLevelPresentation(params: {
+  status: PatientLevelRecord['level_status'] | undefined;
+  locked: boolean;
+  perfectTowardUnlock: number;
+}): { statusChip: TherapyLevelStatusChip; motivationalCopy: string } {
+  const { status, locked, perfectTowardUnlock } = params;
+  if (status === 'completed') {
+    return {
+      statusChip: 'completed',
+      motivationalCopy: 'Consolidas tu avance en este nivel.',
+    };
+  }
+  if (locked) {
+    return {
+      statusChip: 'locked',
+      motivationalCopy: 'Completa el nivel anterior para desbloquearlo.',
+    };
+  }
+  if (perfectTowardUnlock > 0) {
+    return {
+      statusChip: 'in_progress',
+      motivationalCopy: 'Vas avanzando — mantén la constancia.',
+    };
+  }
+  return {
+    statusChip: 'available',
+    motivationalCopy: 'Listo para iniciar.',
+  };
+}
 
 export function LevelsScreen({
-  headerSubtitle = 'Elige tu aventura respiratoria',
+  headerSubtitle = 'Completa sesiones guiadas y desbloquea nuevos retos respiratorios.',
 }: {
   headerSubtitle?: string;
 } = {}) {
@@ -76,7 +108,7 @@ export function LevelsScreen({
       <SafeAreaView style={styles.safe} edges={['top']}>
         <AppTopBar onPressProfile={() => router.push('/profile')} />
         <View style={styles.blockedContainer}>
-          <Text style={styles.screenTitle}>Terapia</Text>
+          <Text style={styles.screenTitle}>Avanza a tu ritmo</Text>
           <Text style={styles.tagline}>Cargando niveles…</Text>
         </View>
       </SafeAreaView>
@@ -89,7 +121,7 @@ export function LevelsScreen({
       <ScrollView
         contentContainerStyle={[styles.container, { paddingBottom: scrollBottom }]}
         showsVerticalScrollIndicator={false}>
-        <Text style={styles.screenTitle}>Terapia</Text>
+        <Text style={styles.screenTitle}>Avanza a tu ritmo</Text>
         <Text style={styles.tagline}>{headerSubtitle}</Text>
 
         {levels.map((level) => {
@@ -97,19 +129,31 @@ export function LevelsScreen({
           const row = patientLevels.find((item) => item.level_id === levelId);
           const status = row?.level_status ?? 'locked';
           const locked = status === 'locked' || !!level.comingSoon;
-          const statusLabel =
-            status === 'active' ? 'Disponible / Activo' : status === 'completed' ? 'Completado' : 'Bloqueado';
           const perfectTowardUnlock = row?.perfect_sessions_completed ?? 0;
           const completedToday = row?.sessions_completed_today ?? 0;
+          const visual = getLevelVisualIdentity(level.id);
+          const identityLine = `Nivel ${visual.levelNumber} · ${visual.semantic}`;
+          const { statusChip, motivationalCopy } = deriveTherapyLevelPresentation({
+            status,
+            locked,
+            perfectTowardUnlock,
+          });
           return (
             <TherapyLevelCard
               key={level.id}
               title={level.title}
-              statusLabel={statusLabel}
-              statusTone={status === 'completed' ? 'completed' : status === 'active' ? 'active' : 'locked'}
+              levelIdentityLine={identityLine}
+              accentColor={visual.accent}
+              identitySoftBg={visual.accentSoft}
+              statusChip={statusChip}
+              motivationalCopy={motivationalCopy}
               targetVolumeText={`Meta aprox: ${row?.target_volume ?? 0} mL`}
               sessionsText={`Sesiones perfectas: ${perfectTowardUnlock}/6 · Completadas hoy: ${completedToday}/6`}
-              helperText="Completa 6 sesiones perfectas para desbloquear el siguiente nivel"
+              helperText={
+                locked
+                  ? undefined
+                  : 'Completa 6 sesiones perfectas en el nivel activo para desbloquear el siguiente.'
+              }
               locked={locked}
               onPress={() => onLevelPress(levelId)}
             />
@@ -117,13 +161,14 @@ export function LevelsScreen({
         })}
 
         <View style={styles.messageCard}>
-          <Text style={styles.messageTitle}>Regla de desbloqueo del Nivel 2</Text>
+          <Text style={styles.messageTitle}>Desbloqueo del siguiente nivel</Text>
           <Text style={styles.messageText}>
-            Debes completar 6 sesiones del nivel activo con 10 repeticiones válidas cada una.
+            Completa 6 sesiones del nivel activo con 10 repeticiones válidas en cada una.
           </Text>
           {!isLoading && progress.levelOne.levelCompleted && !progress.levelOne.levelPerfect ? (
             <Text style={styles.warningText}>
-              Completaste las sesiones del Nivel 1, pero necesitas repetirlo correctamente para desbloquear el siguiente nivel.
+              Ya completaste las sesiones del Nivel 1. Para desbloquear el siguiente, alcanza 6 sesiones con 10
+              repeticiones válidas en cada una.
             </Text>
           ) : null}
         </View>
