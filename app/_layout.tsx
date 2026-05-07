@@ -87,6 +87,7 @@ export default function RootLayout() {
           <Stack.Screen name="sensor-connection" options={{ headerShown: false }} />
           <Stack.Screen name="diagnostico" options={{ headerShown: false }} />
           <Stack.Screen name="diagnostico-resumen" options={{ headerShown: false }} />
+          <Stack.Screen name="esp32-raw-test" options={{ headerShown: false, title: 'ESP32 Raw WS Test' }} />
         </Stack>
       </PatientSessionProvider>
       <StatusBar style="dark" />

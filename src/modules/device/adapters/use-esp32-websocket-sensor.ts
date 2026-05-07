@@ -15,17 +15,44 @@ import { Esp32WebSocketClient } from '@/src/modules/device/websocket/esp32-webso
 
 const DEFAULT_WS_URL = 'ws://192.168.4.1:81';
 const MOCK_INTERVAL_MS = 900;
+const MPS_WINDOW_MS = 5000;
 
 export function useEsp32WebSocketSensor() {
   const [status, setStatus] = useState<SensorConnectionStatus>('idle');
   const [mode, setMode] = useState<SensorSourceMode>('mock');
   const [lastReading, setLastReading] = useState<SensorReading | null>(null);
+  const [lastRawMessage, setLastRawMessage] = useState<string | null>(null);
+  const [messageCount, setMessageCount] = useState(0);
+  const [messagesPerSecond, setMessagesPerSecond] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [url, setUrl] = useState(DEFAULT_WS_URL);
 
   const mockIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mockIndexRef = useRef(0);
   const clientRef = useRef<Esp32WebSocketClient | null>(null);
+  const messageTimestampsRef = useRef<number[]>([]);
+
+  const resetMessageMetrics = useCallback(() => {
+    messageTimestampsRef.current = [];
+    setMessageCount(0);
+    setMessagesPerSecond(0);
+    setLastRawMessage(null);
+  }, []);
+
+  const recordIncomingMessage = useCallback((rawData: string | null) => {
+    const now = Date.now();
+    const buffer = messageTimestampsRef.current;
+    buffer.push(now);
+    while (buffer.length > 0 && now - buffer[0] > MPS_WINDOW_MS) {
+      buffer.shift();
+    }
+    setMessageCount((prev) => prev + 1);
+    const windowSeconds = MPS_WINDOW_MS / 1000;
+    setMessagesPerSecond(Number((buffer.length / windowSeconds).toFixed(1)));
+    if (rawData !== null) {
+      setLastRawMessage(rawData);
+    }
+  }, []);
 
   const stopMock = useCallback(() => {
     if (mockIntervalRef.current) {
@@ -48,6 +75,9 @@ export function useEsp32WebSocketSensor() {
           setStatus('connected');
           setErrorMessage(null);
         },
+        onRawMessage: (rawData) => {
+          recordIncomingMessage(rawData);
+        },
         onReading: (reading) => {
           setLastReading(reading);
           setStatus('receiving');
@@ -60,7 +90,7 @@ export function useEsp32WebSocketSensor() {
           setStatus((prev) => (prev === 'error' ? prev : 'disconnected'));
         },
       }),
-    []
+    [recordIncomingMessage]
   );
 
   useEffect(() => {
@@ -75,6 +105,7 @@ export function useEsp32WebSocketSensor() {
   const startMock = useCallback(() => {
     clientRef.current?.disconnect();
     stopMock();
+    resetMessageMetrics();
     setMode('mock');
     setErrorMessage(null);
     setStatus('receiving');
@@ -86,10 +117,11 @@ export function useEsp32WebSocketSensor() {
       setLastReading(getMockSensorReading(mockIndexRef.current));
       setStatus('receiving');
     }, MOCK_INTERVAL_MS);
-  }, [stopMock]);
+  }, [resetMessageMetrics, stopMock]);
 
   const connect = useCallback(() => {
     stopMock();
+    resetMessageMetrics();
     setMode('websocket');
     setStatus('connecting');
     setErrorMessage(null);
@@ -99,12 +131,15 @@ export function useEsp32WebSocketSensor() {
       setStatus('error');
       setErrorMessage('No se pudo iniciar la conexión WebSocket con el ESP32.');
     }
-  }, [stopMock, url]);
+  }, [resetMessageMetrics, stopMock, url]);
 
   return {
     status,
     mode,
     lastReading,
+    lastRawMessage,
+    messageCount,
+    messagesPerSecond,
     errorMessage,
     url,
     setUrl,

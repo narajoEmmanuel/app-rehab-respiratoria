@@ -17,6 +17,7 @@ type WebSocketLike = {
 export type Esp32WebSocketCallbacks = {
   onOpen?: () => void;
   onReading?: (reading: SensorReading) => void;
+  onRawMessage?: (rawData: string) => void;
   onError?: (errorMessage: string) => void;
   onClose?: () => void;
 };
@@ -47,6 +48,9 @@ export class Esp32WebSocketClient {
       };
 
       nextSocket.onmessage = (event) => {
+        if (typeof event.data === 'string') {
+          this.callbacks.onRawMessage?.(event.data);
+        }
         const reading = parseSensorMessage(event.data);
         if (!reading) {
           return;
