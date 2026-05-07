@@ -234,7 +234,7 @@ export function LevelOneGameView({
 
       <View style={styles.scene}>
         <Pressable style={styles.stopButton} onPress={onPressStop}>
-          <Text style={styles.stopButtonText}>STOP</Text>
+          <Text style={styles.stopButtonText}>PAUSAR</Text>
         </Pressable>
         <Animated.View style={[styles.sun, { transform: [{ scale: sunScale }] }]} />
         <Animated.View style={[styles.cloudGroup, { transform: [{ translateX: cloudOffset }] }]}>

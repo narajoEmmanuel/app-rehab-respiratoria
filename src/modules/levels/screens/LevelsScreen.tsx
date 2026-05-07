@@ -98,7 +98,13 @@ export function LevelsScreen({
 
   const onLevelPress = (levelId: LevelId) => {
     selectLevel(levelId);
-    router.push({ pathname: '/(tabs)/sesion', params: { levelId } });
+    router.push({
+      pathname: '/(tabs)/sesion',
+      params: {
+        levelId,
+        sessionRunId: `${levelId}-${Date.now()}`,
+      },
+    });
   };
 
   const scrollBottom = dashboardScrollBottomPadding(insets.bottom);

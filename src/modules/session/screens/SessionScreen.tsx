@@ -4,7 +4,8 @@
  * Dependencies: expo-router, levels persistence, game engine
  * Notes: Touch adapter is isolated so a WebSocket / WiFi-local sensor adapter can replace it later.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -30,8 +31,9 @@ function sessionSummaryModalTitle(kind: SessionSummaryKind, sessionNumber: numbe
 
 export function SessionScreen() {
   const router = useRouter();
+  const isFocused = useIsFocused();
   const { patient } = usePatientSession();
-  const { levelId } = useLocalSearchParams<{ levelId?: string }>();
+  const { levelId, sessionRunId } = useLocalSearchParams<{ levelId?: string; sessionRunId?: string }>();
   const {
     isLoading,
     progress,
@@ -62,6 +64,20 @@ export function SessionScreen() {
   >([]);
   const [savingSummary, setSavingSummary] = useState(false);
   const [savingInterrupt, setSavingInterrupt] = useState(false);
+  const [isExitingSession, setIsExitingSession] = useState(false);
+  const [showAutostartFallback, setShowAutostartFallback] = useState(false);
+  const hasAutoStartedRef = useRef(false);
+
+  const exitToTherapy = () => {
+    router.replace('/(tabs)/terapia');
+  };
+
+  const stopSessionRuntimeState = () => {
+    levelOneEngine.stopSession();
+    hasAutoStartedRef.current = false;
+    setSummaryDismissedKind(null);
+    setAttemptsRuntime([]);
+  };
 
   const persistInterruptedSessionToHistory = async (
     valid: number,
@@ -125,6 +141,58 @@ export function SessionScreen() {
       active = false;
     };
   }, [patient]);
+
+  useEffect(() => {
+    hasAutoStartedRef.current = false;
+    setIsExitingSession(false);
+    setShowAutostartFallback(false);
+    setSummaryDismissedKind(null);
+    setAttemptsRuntime([]);
+  }, [sessionRunId]);
+
+  useEffect(() => {
+    if (!isFocused) return;
+    if (!isLevelOne) return;
+    if (!activeLevelLoaded || isLoading) return;
+    if (isExitingSession || savingInterrupt) return;
+    if (levelOneEngine.phase !== 'not-started') return;
+    if (hasAutoStartedRef.current) return;
+
+    hasAutoStartedRef.current = true;
+    if (currentSessionData?.interrupted && !currentSessionData.completed) {
+      repeatCurrentLevelOneSession();
+    }
+    setAttemptsRuntime([]);
+    startSession();
+  }, [
+    activeLevelLoaded,
+    currentSessionData?.completed,
+    currentSessionData?.interrupted,
+    isLevelOne,
+    isLoading,
+    isExitingSession,
+    isFocused,
+    levelOneEngine.phase,
+    repeatCurrentLevelOneSession,
+    savingInterrupt,
+    sessionRunId,
+    startSession,
+  ]);
+
+  useEffect(() => {
+    if (!isFocused || !isLevelOne) {
+      setShowAutostartFallback(false);
+      return;
+    }
+    if (isExitingSession || savingInterrupt || levelOneEngine.phase !== 'not-started') {
+      setShowAutostartFallback(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setShowAutostartFallback(true);
+    }, 1800);
+    return () => clearTimeout(timer);
+  }, [isExitingSession, isFocused, isLevelOne, levelOneEngine.phase, savingInterrupt, sessionRunId]);
 
   if (isLoading || !activeLevelLoaded) {
     return (
@@ -200,52 +268,40 @@ export function SessionScreen() {
           onPressOut={inputPort.onInhaleEnd}
           onPressStop={() => {
             Alert.alert(
-              '¿Desea detener la sesión?',
-              'Elige una opción para detener la sesión actual.',
+              '¿Quieres pausar tu sesión?',
+              'Puedes continuar ahora o guardar tu avance parcial y volver a Terapia.',
               [
                 {
-                  text: 'Volver a Niveles',
-                  onPress: () => {
-                    const validSnap = currentSessionData?.validRepetitions ?? 0;
-                    const failedSnap = currentSessionData?.failedRepetitions ?? 0;
-                    const attemptsSnap = [...attemptsRuntime];
-                    interruptCurrentLevelOneSession();
-                    levelOneEngine.stopSession();
-                    setSummaryDismissedKind(null);
-                    setAttemptsRuntime([]);
-                    void (async () => {
-                      try {
-                        setSavingInterrupt(true);
-                        await persistInterruptedSessionToHistory(validSnap, failedSnap, attemptsSnap);
-                      } catch {
-                        /* historial opcional: no bloquear salida */
-                      } finally {
-                        setSavingInterrupt(false);
-                      }
-                      router.push('/(tabs)/niveles');
-                    })();
-                  },
+                  text: 'Continuar sesión',
+                  style: 'cancel',
                 },
                 {
-                  text: 'Detener sesión',
+                  text: 'Guardar avance y salir',
                   style: 'destructive',
                   onPress: () => {
                     const validSnap = currentSessionData?.validRepetitions ?? 0;
                     const failedSnap = currentSessionData?.failedRepetitions ?? 0;
                     const attemptsSnap = [...attemptsRuntime];
-                    interruptCurrentLevelOneSession();
-                    levelOneEngine.stopSession();
-                    setSummaryDismissedKind(null);
-                    setAttemptsRuntime([]);
+                    const totalAttemptsSnap = validSnap + failedSnap;
+                    const shouldPersistInterrupted = totalAttemptsSnap > 0;
+
+                    if (shouldPersistInterrupted) {
+                      interruptCurrentLevelOneSession();
+                      setSavingInterrupt(true);
+                    }
+                    setIsExitingSession(true);
+                    stopSessionRuntimeState();
                     void (async () => {
                       try {
-                        setSavingInterrupt(true);
-                        await persistInterruptedSessionToHistory(validSnap, failedSnap, attemptsSnap);
+                        if (shouldPersistInterrupted) {
+                          await persistInterruptedSessionToHistory(validSnap, failedSnap, attemptsSnap);
+                        }
                       } catch {
                         /* historial opcional: no bloquear salida */
                       } finally {
                         setSavingInterrupt(false);
                       }
+                      exitToTherapy();
                     })();
                   },
                 },
@@ -258,20 +314,14 @@ export function SessionScreen() {
         />
       ) : null}
       {levelOneEngine.phase === 'not-started' ? (
-        <View style={styles.startCard}>
-          <Text style={styles.startTitle}>Listo para jugar</Text>
-          <Text style={styles.startText}>Toca INICIAR para comenzar la sesion.</Text>
-          <Pressable
-            style={styles.startButton}
-            onPress={() => {
-              if (currentSessionData?.interrupted && !currentSessionData.completed) {
-                repeatCurrentLevelOneSession();
-              }
-              setAttemptsRuntime([]);
-              startSession();
-            }}>
-            <Text style={styles.startButtonText}>INICIAR</Text>
-          </Pressable>
+        <View style={styles.autostartContainer}>
+          <ActivityIndicator size="small" color="#9cff54" />
+          <Text style={styles.autostartText}>Preparando sesión…</Text>
+          {showAutostartFallback ? (
+            <Pressable style={styles.autostartExitButton} onPress={exitToTherapy}>
+              <Text style={styles.autostartExitText}>Volver a Terapia</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
       <Modal
@@ -389,40 +439,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 14,
   },
-  startCard: {
+  autostartContainer: {
     marginTop: 10,
     width: '100%',
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#9de765',
+    borderColor: '#4f7142',
     backgroundColor: '#234d16',
-    padding: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
   },
-  startTitle: {
-    color: '#ffffff',
-    fontSize: 22,
-    fontWeight: '800',
-  },
-  startText: {
-    marginTop: 8,
+  autostartText: {
     color: '#d7ffc4',
-    fontSize: 15,
-    textAlign: 'center',
-    marginBottom: 14,
+    fontSize: 14,
+    fontWeight: '600',
   },
-  startButton: {
-    width: '100%',
-    backgroundColor: '#9cff54',
-    borderRadius: 14,
-    paddingVertical: 16,
+  autostartExitButton: {
+    borderWidth: 1,
+    borderColor: '#b7f58f',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginLeft: 4,
   },
-  startButtonText: {
-    textAlign: 'center',
-    color: '#17300d',
-    fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: 1,
+  autostartExitText: {
+    color: '#e6ffd8',
+    fontSize: 13,
+    fontWeight: '700',
   },
   modalBackdrop: {
     flex: 1,
