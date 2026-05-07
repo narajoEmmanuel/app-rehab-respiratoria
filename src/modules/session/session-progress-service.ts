@@ -2,6 +2,7 @@ import { getCurrentActiveLevel, getPatientLevels, savePatientLevels } from '@/sr
 import type { PatientLevelRecord } from '@/src/modules/diagnostics/types';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { updatePatientCurrentLevel } from '@/src/modules/patient/patient-service';
+import { supabase } from '@/src/lib/supabase';
 import {
   readAllAttempts,
   readAllSessions,
@@ -115,6 +116,7 @@ export async function persistSessionResult(result: SessionResult): Promise<Sessi
     });
   }
   await updatePatientLevelProgress(result.patientId, result.patientLevelId);
+  await updateDailyProgress(result.patientId);
   await checkAndUnlockNextLevel(result.patientId);
   return savedSession;
 }
@@ -122,8 +124,26 @@ export async function persistSessionResult(result: SessionResult): Promise<Sessi
 export async function updateDailyProgress(patientId: number): Promise<{ completedToday: number; remainingToday: number }> {
   const active = await getCurrentActiveLevel(patientId);
   const levelId = active?.level_id ?? 'level-1';
+  const today = getLocalDateKey();
   const todaySessions = await getTodaySessions(patientId, levelId);
   const completedToday = todaySessions.filter((item) => item.completed && item.interrupted !== true).length;
+  if (supabase != null) {
+    const perfectSessionsCompleted = todaySessions.filter(
+      (item) => item.perfect && item.completed && item.interrupted !== true,
+    ).length;
+    const dailyGoalCompleted = completedToday >= TARGET_PERFECT_SESSIONS;
+    const { error } = await supabase.from('daily_progress').upsert(
+      {
+        patient_id: patientId,
+        progress_date: today,
+        sessions_completed: completedToday,
+        perfect_sessions_completed: perfectSessionsCompleted,
+        daily_goal_completed: dailyGoalCompleted,
+      },
+      { onConflict: 'patient_id,progress_date' },
+    );
+    if (error) throw error;
+  }
   return { completedToday, remainingToday: Math.max(0, TARGET_PERFECT_SESSIONS - completedToday) };
 }
 
