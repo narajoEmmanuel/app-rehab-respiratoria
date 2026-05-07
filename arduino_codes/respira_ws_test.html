@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>RESPIRA+ WebSocket Test</title>
+</head>
+<body>
+  <h1>RESPIRA+ WebSocket Test</h1>
+
+  <button onclick="connectWs()">Conectar</button>
+  <button onclick="disconnectWs()">Desconectar</button>
+
+  <p><strong>Estado:</strong> <span id="status">Desconectado</span></p>
+  <p><strong>Mensajes recibidos:</strong> <span id="count">0</span></p>
+  <p><strong>Frecuencia aproximada:</strong> <span id="hz">0</span> mensajes/s</p>
+
+  <h2>Último JSON recibido</h2>
+  <pre id="data">Sin datos</pre>
+
+  <script>
+    let ws = null;
+    let count = 0;
+    let lastSecondCount = 0;
+
+    function connectWs() {
+      ws = new WebSocket("ws://192.168.4.1:81");
+
+      ws.onopen = () => {
+        document.getElementById("status").textContent = "Conectado";
+      };
+
+      ws.onmessage = (event) => {
+        count++;
+        document.getElementById("count").textContent = count;
+        document.getElementById("data").textContent = event.data;
+      };
+
+      ws.onerror = () => {
+        document.getElementById("status").textContent = "Error";
+      };
+
+      ws.onclose = () => {
+        document.getElementById("status").textContent = "Desconectado";
+      };
+    }
+
+    function disconnectWs() {
+      if (ws) {
+        ws.close();
+      }
+    }
+
+    setInterval(() => {
+      const currentCount = count;
+      const messagesThisSecond = currentCount - lastSecondCount;
+      lastSecondCount = currentCount;
+      document.getElementById("hz").textContent = messagesThisSecond;
+    }, 1000);
+  </script>
+</body>
+</html>
