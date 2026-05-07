@@ -54,11 +54,30 @@ function statusLabel(state: SensorConnectionStatus): string {
   }
 }
 
+function formatBoolean(value: boolean | undefined): string {
+  if (value === undefined) return '—';
+  return value ? 'sí' : 'no';
+}
+
+function formatNumber(value: number | undefined, suffix = ''): string {
+  if (value === undefined || !Number.isFinite(value)) return '—';
+  return `${value}${suffix}`;
+}
+
+function truncateJson(raw: string | null, maxLength = 320): string {
+  if (!raw) return '—';
+  if (raw.length <= maxLength) return raw;
+  return `${raw.slice(0, maxLength)}…`;
+}
+
 export function SensorConnectionScreen() {
   const {
     status,
     mode,
     lastReading,
+    lastRawMessage,
+    messageCount,
+    messagesPerSecond,
     errorMessage,
     url,
     setUrl,
@@ -143,6 +162,58 @@ export function SensorConnectionScreen() {
             placeholderTextColor={wellness.textSecondary}
           />
           <Text style={styles.urlHint}>Usa WiFi local para conectarte al ESP32 por WebSocket.</Text>
+        </View>
+
+        <View style={styles.diagCard}>
+          <Text style={styles.statusLabel}>Diagnóstico ESP32</Text>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>Estado</Text>
+            <Text style={styles.diagValue}>{statusLabel(status)}</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>Modo</Text>
+            <Text style={styles.diagValue}>{modeLabel}</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>URL</Text>
+            <Text style={styles.diagValue} numberOfLines={1}>
+              {url || '—'}
+            </Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>source</Text>
+            <Text style={styles.diagValue}>{lastReading?.source ?? '—'}</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>distanceMm</Text>
+            <Text style={styles.diagValue}>{formatNumber(lastReading?.distanceMm, ' mm')}</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>rawDistanceMm</Text>
+            <Text style={styles.diagValue}>{formatNumber(lastReading?.rawDistanceMm, ' mm')}</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>distanceValid</Text>
+            <Text style={styles.diagValue}>{formatBoolean(lastReading?.distanceValid)}</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>timestamp</Text>
+            <Text style={styles.diagValue}>{formatNumber(lastReading?.timestamp)}</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>Mensajes</Text>
+            <Text style={styles.diagValue}>
+              {messageCount} ({messagesPerSecond.toFixed(1)} mps)
+            </Text>
+          </View>
+          <Text style={[styles.diagKey, styles.diagJsonLabel]}>Último JSON / Reading</Text>
+          <Text style={styles.diagJson} numberOfLines={6}>
+            {lastRawMessage
+              ? truncateJson(lastRawMessage)
+              : lastReading
+              ? truncateJson(JSON.stringify(lastReading))
+              : 'Sin mensajes recibidos aún.'}
+          </Text>
         </View>
 
         {(status === 'connected' || status === 'receiving' || mode === 'mock') && showReading ? (
@@ -312,6 +383,48 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: wellness.textSecondary,
     lineHeight: 18,
+  },
+  diagCard: {
+    backgroundColor: wellness.card,
+    borderRadius: wellnessRadii.card,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    marginBottom: spacing.md,
+  },
+  diagRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+    gap: spacing.sm,
+  },
+  diagKey: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+  },
+  diagValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: wellness.text,
+    flexShrink: 1,
+    textAlign: 'right',
+  },
+  diagJsonLabel: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  diagJson: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: wellness.text,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
+    backgroundColor: wellness.screenBg,
+    borderRadius: 10,
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: wellness.border,
   },
   bannerOk: {
     flexDirection: 'row',
