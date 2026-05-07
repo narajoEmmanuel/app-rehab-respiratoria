@@ -4,21 +4,21 @@
  * Dependencies: @react-navigation/native, expo-router, shared/utils
  * Notes: Keep screens registered here thin; domain code lives under src/.
  */
-import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as Notifications from 'expo-notifications';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import { Text, TextInput, type TextInputProps, type TextProps } from 'react-native';
-import 'react-native-reanimated';
 import {
   Inter_400Regular,
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
+import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { useFonts } from 'expo-font';
+import * as Notifications from 'expo-notifications';
+import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect, useState } from 'react';
+import { Text, TextInput, type TextInputProps, type TextProps } from 'react-native';
+import 'react-native-reanimated';
 
 import { PatientSessionProvider } from '@/src/modules/patient/context/PatientSessionContext';
 import { fontRegular } from '@/src/shared/theme/typography';
@@ -37,6 +37,8 @@ export const unstable_settings = {
 };
 
 void SplashScreen.preventAutoHideAsync();
+const SPLASH_MIN_DURATION_MS = 800;
+const appStartTime = Date.now();
 
 type TextComponentWithDefaults = typeof Text & {
   defaultProps?: TextProps;
@@ -47,28 +49,51 @@ type TextInputComponentWithDefaults = typeof TextInput & {
 };
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
   });
+  const [isAppReady, setIsAppReady] = useState(false);
 
   useEffect(() => {
-    if (!fontsLoaded) return;
-    const TextWithDefaults = Text as TextComponentWithDefaults;
-    const TextInputWithDefaults = TextInput as TextInputComponentWithDefaults;
-    TextWithDefaults.defaultProps = TextWithDefaults.defaultProps ?? {};
-    TextWithDefaults.defaultProps.style = [{ fontFamily: fontRegular }, TextWithDefaults.defaultProps.style];
-    TextInputWithDefaults.defaultProps = TextInputWithDefaults.defaultProps ?? {};
-    TextInputWithDefaults.defaultProps.style = [
-      { fontFamily: fontRegular },
-      TextInputWithDefaults.defaultProps.style,
-    ];
-    void SplashScreen.hideAsync();
-  }, [fontsLoaded]);
+    if (!fontsLoaded && !fontError) return;
 
-  if (!fontsLoaded) {
+    const prepareApp = async () => {
+      if (fontsLoaded) {
+        const TextWithDefaults = Text as TextComponentWithDefaults;
+        const TextInputWithDefaults = TextInput as TextInputComponentWithDefaults;
+        TextWithDefaults.defaultProps = TextWithDefaults.defaultProps ?? {};
+        TextWithDefaults.defaultProps.style = [{ fontFamily: fontRegular }, TextWithDefaults.defaultProps.style];
+        TextInputWithDefaults.defaultProps = TextInputWithDefaults.defaultProps ?? {};
+        TextInputWithDefaults.defaultProps.style = [
+          { fontFamily: fontRegular },
+          TextInputWithDefaults.defaultProps.style,
+        ];
+      } else if (fontError) {
+        console.warn('Inter fonts could not be loaded. Rendering with fallback fonts.', fontError);
+      }
+
+      const elapsedMs = Date.now() - appStartTime;
+      const remainingMs = Math.max(0, SPLASH_MIN_DURATION_MS - elapsedMs);
+      if (remainingMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remainingMs));
+      }
+
+      try {
+        await SplashScreen.hideAsync();
+      } catch (error) {
+        console.warn('Splash screen could not be hidden.', error);
+      } finally {
+        setIsAppReady(true);
+      }
+    };
+
+    void prepareApp();
+  }, [fontsLoaded, fontError]);
+
+  if (!isAppReady) {
     return null;
   }
 
