@@ -41,6 +41,10 @@ export async function getPatientByClave(clave: string): Promise<PatientRecord | 
   return found ?? null;
 }
 
+export async function getPatientByCode(code: string): Promise<PatientRecord | null> {
+  return getPatientByClave(code);
+}
+
 export async function createPatient(nombreCompleto: string, edad: number): Promise<PatientRecord> {
   const trimmedName = nombreCompleto.trim();
   const patients = await readAllPatients();

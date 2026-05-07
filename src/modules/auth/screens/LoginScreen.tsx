@@ -8,6 +8,7 @@ import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,6 +21,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
+import { normalizeDataErrorMessage } from '@/src/lib/supabase';
 import { getPatientByClave, normalizeClave } from '@/src/modules/patient/patient-service';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -50,6 +52,8 @@ export function LoginScreen() {
       } else {
         setNotFound(true);
       }
+    } catch (error) {
+      Alert.alert('Conexión', normalizeDataErrorMessage(error));
     } finally {
       setLoading(false);
     }

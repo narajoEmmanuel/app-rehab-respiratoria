@@ -35,14 +35,23 @@ export function PatientSessionProvider({ children }: { children: React.ReactNode
   const [hydrated, setHydrated] = useState(false);
 
   const refreshSession = useCallback(async () => {
-    const p = await loadCurrentPatientFromStorage();
-    setPatient(p);
+    try {
+      const p = await loadCurrentPatientFromStorage();
+      setPatient(p);
+    } catch {
+      setPatient(null);
+    }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const p = await loadCurrentPatientFromStorage();
+      let p: PatientRecord | null = null;
+      try {
+        p = await loadCurrentPatientFromStorage();
+      } catch {
+        p = null;
+      }
       if (!cancelled) {
         setPatient(p);
         setHydrated(true);

@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,6 +21,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
+import { normalizeDataErrorMessage } from '@/src/lib/supabase';
 import { createPatient } from '@/src/modules/patient/patient-service';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import type { PatientRecord } from '@/src/modules/patient/types';
@@ -49,6 +51,8 @@ export function RegistroScreen() {
     try {
       const patient = await createPatient(nombre, edadNum);
       setRegistered(patient);
+    } catch (error) {
+      Alert.alert('Conexión', normalizeDataErrorMessage(error));
     } finally {
       setLoading(false);
     }
