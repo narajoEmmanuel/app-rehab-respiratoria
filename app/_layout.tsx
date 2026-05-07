@@ -17,11 +17,12 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { Text, TextInput, type TextInputProps, type TextProps } from 'react-native';
+import { Platform, Text, TextInput, type TextInputProps, type TextProps } from 'react-native';
 import 'react-native-reanimated';
 
 import { PatientSessionProvider } from '@/src/modules/patient/context/PatientSessionContext';
 import { fontRegular } from '@/src/shared/theme/typography';
+import { WebStartupSplash } from '@/src/shared/ui/WebStartupSplash';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -56,6 +57,7 @@ export default function RootLayout() {
     Inter_700Bold,
   });
   const [isAppReady, setIsAppReady] = useState(false);
+  const [showWebStartupSplash, setShowWebStartupSplash] = useState(Platform.OS === 'web');
 
   useEffect(() => {
     if (!fontsLoaded && !fontError) return;
@@ -76,7 +78,8 @@ export default function RootLayout() {
       }
 
       const elapsedMs = Date.now() - appStartTime;
-      const remainingMs = Math.max(0, SPLASH_MIN_DURATION_MS - elapsedMs);
+      const targetMinDurationMs = Platform.OS === 'web' ? 0 : SPLASH_MIN_DURATION_MS;
+      const remainingMs = Math.max(0, targetMinDurationMs - elapsedMs);
       if (remainingMs > 0) {
         await new Promise((resolve) => setTimeout(resolve, remainingMs));
       }
@@ -93,8 +96,20 @@ export default function RootLayout() {
     void prepareApp();
   }, [fontsLoaded, fontError]);
 
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !isAppReady) return;
+    const timer = setTimeout(() => {
+      setShowWebStartupSplash(false);
+    }, SPLASH_MIN_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, [isAppReady]);
+
   if (!isAppReady) {
     return null;
+  }
+
+  if (Platform.OS === 'web' && showWebStartupSplash) {
+    return <WebStartupSplash />;
   }
 
   return (
