@@ -100,6 +100,7 @@ export default function TabLayout() {
         options={{
           title: 'Sesión',
           href: null,
+          tabBarStyle: { display: 'none' },
         }}
       />
       <Tabs.Screen
