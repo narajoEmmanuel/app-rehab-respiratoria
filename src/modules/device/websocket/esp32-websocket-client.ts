@@ -8,19 +8,24 @@ import type { SensorReading } from '@/src/modules/device/types/sensor-reading';
 
 type WebSocketLike = {
   close: () => void;
+  readyState?: number;
   onopen: ((event: unknown) => void) | null;
   onmessage: ((event: { data?: unknown }) => void) | null;
   onerror: ((event: unknown) => void) | null;
-  onclose: ((event: unknown) => void) | null;
+  onclose: ((event: { code?: unknown; reason?: unknown }) => void) | null;
 };
 
 export type Esp32WebSocketCallbacks = {
   onOpen?: () => void;
   onReading?: (reading: SensorReading) => void;
   onRawMessage?: (rawData: string) => void;
+  onParseError?: (errorMessage: string, rawData: string) => void;
   onError?: (errorMessage: string) => void;
-  onClose?: () => void;
+  onClose?: (details: { code: number | null; reason: string | null }) => void;
 };
+
+const READY_STATE_CONNECTING = 0;
+const READY_STATE_OPEN = 1;
 
 export class Esp32WebSocketClient {
   private socket: WebSocketLike | null = null;
@@ -37,7 +42,14 @@ export class Esp32WebSocketClient {
       return false;
     }
 
-    this.disconnect();
+    const existing = this.socket;
+    if (existing) {
+      const state = existing.readyState;
+      if (state === READY_STATE_CONNECTING || state === READY_STATE_OPEN) {
+        return true;
+      }
+      this.disconnect();
+    }
 
     try {
       const nextSocket = new WebSocket(url) as unknown as WebSocketLike;
@@ -53,6 +65,14 @@ export class Esp32WebSocketClient {
         }
         const reading = parseSensorMessage(event.data);
         if (!reading) {
+          if (typeof event.data === 'string') {
+            this.callbacks.onParseError?.('No se pudo parsear el JSON del sensor.', event.data);
+          } else {
+            this.callbacks.onParseError?.(
+              'El mensaje del WebSocket no es texto JSON parseable.',
+              String(event.data ?? '')
+            );
+          }
           return;
         }
         this.callbacks.onReading?.(reading);
@@ -62,8 +82,14 @@ export class Esp32WebSocketClient {
         this.callbacks.onError?.('No se pudo mantener la conexión WebSocket con el ESP32.');
       };
 
-      nextSocket.onclose = () => {
-        this.callbacks.onClose?.();
+      nextSocket.onclose = (event) => {
+        if (this.socket === nextSocket) {
+          this.socket = null;
+        }
+        this.callbacks.onClose?.({
+          code: typeof event.code === 'number' ? event.code : null,
+          reason: typeof event.reason === 'string' && event.reason.length > 0 ? event.reason : null,
+        });
       };
 
       // TODO (phase 3): add reconnect/backoff strategy when transport is stable.

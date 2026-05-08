@@ -19,6 +19,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
 import { useEsp32WebSocketSensor } from '@/src/modules/device/adapters/use-esp32-websocket-sensor';
+import {
+  OFFLINE_SENSOR_TEST_USER,
+  isOfflineSensorTestEnabled,
+} from '@/src/modules/device/offline-sensor-test';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
@@ -38,17 +42,17 @@ function hapticLight() {
 function statusLabel(state: SensorConnectionStatus): string {
   switch (state) {
     case 'idle':
-      return 'Inactivo';
+      return 'idle';
     case 'connecting':
-      return 'Conectando por WiFi local…';
+      return 'connecting';
     case 'connected':
-      return 'Conectado por WebSocket';
-    case 'receiving':
-      return 'Recibiendo datos';
+      return 'connected';
     case 'error':
-      return 'Error de conexión';
+      return 'error';
     case 'disconnected':
-      return 'Desconectado';
+      return 'disconnected';
+    case 'receiving':
+      return 'connected';
     default:
       return state;
   }
@@ -79,6 +83,8 @@ export function SensorConnectionScreen() {
     messageCount,
     messagesPerSecond,
     errorMessage,
+    closeCode,
+    closeReason,
     url,
     setUrl,
     connect,
@@ -126,7 +132,7 @@ export function SensorConnectionScreen() {
   const canCalibrate = status === 'connected' || status === 'receiving';
   const showReading = Boolean(lastReading);
   const sustainedSeconds = lastReading ? (lastReading.sustainedTimeMs / 1000).toFixed(1) : '0.0';
-  const modeLabel = mode === 'mock' ? 'Modo demostración' : 'WebSocket (ESP32)';
+  const modeLabel = mode === 'mock' ? 'simulado' : 'real';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -138,6 +144,18 @@ export function SensorConnectionScreen() {
         showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Conexión y calibración del sensor</Text>
 
+        {isOfflineSensorTestEnabled ? (
+          <View style={styles.offlineBanner}>
+            <Text style={styles.offlineBannerText}>
+              Modo offline de prueba de sensor, no sincronizado con la nube
+            </Text>
+            <Text style={styles.offlineBannerMeta}>
+              Usuario local: {OFFLINE_SENSOR_TEST_USER.name} ({OFFLINE_SENSOR_TEST_USER.id}) -{' '}
+              {OFFLINE_SENSOR_TEST_USER.source}
+            </Text>
+          </View>
+        ) : null}
+
         <View style={styles.statusCard}>
           <Text style={styles.statusLabel}>Estado</Text>
           <View style={styles.statusRow}>
@@ -146,7 +164,7 @@ export function SensorConnectionScreen() {
             ) : null}
             <Text style={styles.statusValue}>{statusLabel(status)}</Text>
           </View>
-          <Text style={styles.statusHint}>Modo actual: {modeLabel}</Text>
+          <Text style={styles.statusHint}>Modo activo: {modeLabel}</Text>
         </View>
 
         <View style={styles.urlCard}>
@@ -181,6 +199,18 @@ export function SensorConnectionScreen() {
             </Text>
           </View>
           <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>Último error</Text>
+            <Text style={styles.diagValue}>{errorMessage ?? '—'}</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>Close code</Text>
+            <Text style={styles.diagValue}>{closeCode === null ? '—' : String(closeCode)}</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>Close reason</Text>
+            <Text style={styles.diagValue}>{closeReason ?? '—'}</Text>
+          </View>
+          <View style={styles.diagRow}>
             <Text style={styles.diagKey}>source</Text>
             <Text style={styles.diagValue}>{lastReading?.source ?? '—'}</Text>
           </View>
@@ -206,13 +236,13 @@ export function SensorConnectionScreen() {
               {messageCount} ({messagesPerSecond.toFixed(1)} mps)
             </Text>
           </View>
-          <Text style={[styles.diagKey, styles.diagJsonLabel]}>Último JSON / Reading</Text>
+          <Text style={[styles.diagKey, styles.diagJsonLabel]}>Último JSON crudo</Text>
           <Text style={styles.diagJson} numberOfLines={6}>
-            {lastRawMessage
-              ? truncateJson(lastRawMessage)
-              : lastReading
-              ? truncateJson(JSON.stringify(lastReading))
-              : 'Sin mensajes recibidos aún.'}
+            {lastRawMessage ? truncateJson(lastRawMessage) : 'Sin mensajes recibidos aún.'}
+          </Text>
+          <Text style={[styles.diagKey, styles.diagJsonLabel]}>Último SensorReading parseado</Text>
+          <Text style={styles.diagJson} numberOfLines={6}>
+            {lastReading ? truncateJson(JSON.stringify(lastReading)) : 'Sin lectura parseada aún.'}
           </Text>
         </View>
 
@@ -470,6 +500,26 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: wellness.errorText,
     fontWeight: '600',
+  },
+  offlineBanner: {
+    backgroundColor: wellness.softGreen,
+    borderRadius: wellnessRadii.card,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: wellness.borderStrong,
+    marginBottom: spacing.md,
+  },
+  offlineBannerText: {
+    fontSize: 15,
+    lineHeight: 21,
+    color: wellness.text,
+    fontWeight: '700',
+  },
+  offlineBannerMeta: {
+    marginTop: spacing.xs,
+    fontSize: 12,
+    lineHeight: 18,
+    color: wellness.textSecondary,
   },
   readingCard: {
     backgroundColor: wellness.cardGlass,

@@ -30,7 +30,7 @@ export type SensorReading = {
   distanceValid?: boolean;
   flowState?: SensorFlowState;
   isValidAttempt?: boolean;
-  source: SensorSource;
+  source?: SensorSource;
 };
 
 export type SensorConnectionStatus =

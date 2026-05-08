@@ -3,7 +3,7 @@
  * Module: device
  * Dependencies: React, device websocket client, device mocks
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getMockSensorReading } from '@/src/modules/device/mocks/mock-sensor-readings';
 import type {
@@ -25,6 +25,8 @@ export function useEsp32WebSocketSensor() {
   const [messageCount, setMessageCount] = useState(0);
   const [messagesPerSecond, setMessagesPerSecond] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [closeCode, setCloseCode] = useState<number | null>(null);
+  const [closeReason, setCloseReason] = useState<string | null>(null);
   const [url, setUrl] = useState(DEFAULT_WS_URL);
 
   const mockIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -59,48 +61,49 @@ export function useEsp32WebSocketSensor() {
       clearInterval(mockIntervalRef.current);
       mockIntervalRef.current = null;
     }
-    setStatus((prev) => (prev === 'receiving' && mode === 'mock' ? 'disconnected' : prev));
-  }, [mode]);
+  }, []);
 
   const disconnect = useCallback(() => {
     stopMock();
     clientRef.current?.disconnect();
+    setCloseCode(1000);
+    setCloseReason('manual disconnect');
     setStatus('disconnected');
   }, [stopMock]);
 
-  const client = useMemo(
-    () =>
-      new Esp32WebSocketClient({
-        onOpen: () => {
-          setStatus('connected');
-          setErrorMessage(null);
-        },
-        onRawMessage: (rawData) => {
-          recordIncomingMessage(rawData);
-        },
-        onReading: (reading) => {
-          setLastReading(reading);
-          setStatus('receiving');
-        },
-        onError: (message) => {
-          setErrorMessage(message);
-          setStatus('error');
-        },
-        onClose: () => {
-          setStatus((prev) => (prev === 'error' ? prev : 'disconnected'));
-        },
-      }),
-    [recordIncomingMessage]
-  );
-
   useEffect(() => {
-    clientRef.current = client;
+    clientRef.current = new Esp32WebSocketClient({
+      onOpen: () => {
+        setStatus('connected');
+        setErrorMessage(null);
+      },
+      onRawMessage: (rawData) => {
+        recordIncomingMessage(rawData);
+      },
+      onParseError: (message) => {
+        setErrorMessage(message);
+        setStatus('error');
+      },
+      onReading: (reading) => {
+        setLastReading(reading);
+        setStatus('connected');
+      },
+      onError: (message) => {
+        setErrorMessage(message);
+        setStatus('error');
+      },
+      onClose: ({ code, reason }) => {
+        setCloseCode(code);
+        setCloseReason(reason);
+        setStatus((prev) => (prev === 'error' ? prev : 'disconnected'));
+      },
+    });
     return () => {
       stopMock();
-      client.disconnect();
+      clientRef.current?.disconnect();
       clientRef.current = null;
     };
-  }, [client, stopMock]);
+  }, [recordIncomingMessage, stopMock]);
 
   const startMock = useCallback(() => {
     clientRef.current?.disconnect();
@@ -108,25 +111,43 @@ export function useEsp32WebSocketSensor() {
     resetMessageMetrics();
     setMode('mock');
     setErrorMessage(null);
-    setStatus('receiving');
+    setCloseCode(null);
+    setCloseReason(null);
+    setStatus('connected');
     mockIndexRef.current = 0;
     setLastReading(getMockSensorReading(mockIndexRef.current));
 
     mockIntervalRef.current = setInterval(() => {
       mockIndexRef.current += 1;
       setLastReading(getMockSensorReading(mockIndexRef.current));
-      setStatus('receiving');
+      setStatus('connected');
     }, MOCK_INTERVAL_MS);
   }, [resetMessageMetrics, stopMock]);
 
   const connect = useCallback(() => {
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) {
+      setStatus('error');
+      setErrorMessage('La URL WebSocket no puede estar vacía.');
+      return;
+    }
+
+    const existingClient = clientRef.current;
+    if (!existingClient) {
+      setStatus('error');
+      setErrorMessage('El cliente WebSocket no está disponible.');
+      return;
+    }
+
     stopMock();
     resetMessageMetrics();
     setMode('websocket');
     setStatus('connecting');
     setErrorMessage(null);
+    setCloseCode(null);
+    setCloseReason(null);
 
-    const connected = clientRef.current?.connect(url.trim());
+    const connected = existingClient.connect(trimmedUrl);
     if (!connected) {
       setStatus('error');
       setErrorMessage('No se pudo iniciar la conexión WebSocket con el ESP32.');
@@ -141,6 +162,8 @@ export function useEsp32WebSocketSensor() {
     messageCount,
     messagesPerSecond,
     errorMessage,
+    closeCode,
+    closeReason,
     url,
     setUrl,
     connect,
