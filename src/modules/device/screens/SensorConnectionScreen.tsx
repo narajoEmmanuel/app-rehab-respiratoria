@@ -19,6 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
 import { useEsp32WebSocketSensor } from '@/src/modules/device/adapters/use-esp32-websocket-sensor';
+import { SensorLivePreview } from '@/src/modules/device/components/SensorLivePreview';
 import {
   OFFLINE_SENSOR_TEST_USER,
   isOfflineSensorTestEnabled,
@@ -245,6 +246,14 @@ export function SensorConnectionScreen() {
             {lastReading ? truncateJson(JSON.stringify(lastReading)) : 'Sin lectura parseada aún.'}
           </Text>
         </View>
+
+        <SensorLivePreview
+          distanceMm={lastReading?.distanceMm}
+          rawDistanceMm={lastReading?.rawDistanceMm}
+          distanceValid={lastReading?.distanceValid}
+          source={lastReading?.source}
+          timestamp={lastReading?.timestamp}
+        />
 
         {(status === 'connected' || status === 'receiving' || mode === 'mock') && showReading ? (
           <View style={styles.bannerOk}>
