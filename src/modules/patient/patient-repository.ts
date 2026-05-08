@@ -69,6 +69,32 @@ export async function writeAllPatients(patients: PatientRecord[]): Promise<void>
   await AsyncStorage.setItem(PATIENT_STORAGE_KEYS.patientsJson, JSON.stringify(patients));
 }
 
+export async function readPatientById(patientId: number): Promise<PatientRecord | null> {
+  if (supabase != null) {
+    const { data, error } = await supabase
+      .from('patients')
+      .select(
+        'patient_id, unique_code, name, age, current_level_id, streak_count, last_completed_date, registration_date',
+      )
+      .eq('patient_id', patientId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    return {
+      paciente_id: data.patient_id,
+      clave: data.unique_code,
+      nombre_completo: data.name,
+      edad: data.age,
+      current_level_id: data.current_level_id,
+      racha_actual: data.streak_count ?? 0,
+      ultima_fecha_cumplida: data.last_completed_date ?? null,
+      fecha_creacion: data.registration_date,
+    };
+  }
+  const all = await readAllPatients();
+  return all.find((item) => item.paciente_id === patientId) ?? null;
+}
+
 export async function findPatientByClave(clave: string): Promise<PatientRecord | undefined> {
   const key = normalizeClave(clave);
   if (supabase != null) {

@@ -332,9 +332,9 @@ export function ProfileScreen() {
               eliges tú.
             </Text>
             <ProfileActionRow
-              label="Ir a datos y exportación"
+              label="Exportar datos clínicos"
               onPress={() => router.push('/data-export')}
-              accessibilityLabel="Abrir datos y exportación"
+              accessibilityLabel="Exportar datos clínicos"
               variant="primary"
             />
           </ProfileInfoCard>

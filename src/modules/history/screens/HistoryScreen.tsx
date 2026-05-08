@@ -271,6 +271,14 @@ export function HistoryScreen() {
             </Text>
             <Text style={styles.heroMotivation}>{heroMotivation}</Text>
 
+            <Pressable
+              onPress={() => router.push('/data-export')}
+              style={({ pressed }) => [styles.exportClinicalRow, pressed && styles.exportClinicalRowPressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Exportar datos clínicos">
+              <Text style={styles.exportClinicalText}>Exportar datos clínicos</Text>
+            </Pressable>
+
             <View style={styles.summaryStack}>
               <SummaryCard
                 label="Racha actual"
@@ -489,6 +497,20 @@ const styles = StyleSheet.create({
     color: '#374151',
     fontWeight: '600',
     marginBottom: spacing.sm,
+  },
+  exportClinicalRow: {
+    alignSelf: 'flex-start',
+    marginBottom: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  exportClinicalRowPressed: {
+    opacity: 0.78,
+  },
+  exportClinicalText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: wellness.primaryDark,
+    textDecorationLine: 'underline',
   },
   summaryStack: {
     marginTop: spacing.md,
