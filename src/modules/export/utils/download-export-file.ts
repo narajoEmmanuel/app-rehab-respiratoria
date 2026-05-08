@@ -1,10 +1,32 @@
-import { File, Paths } from 'expo-file-system';
+/**
+ * Purpose: Write export to app documents directory and open share sheet (Expo Go / iOS compatible).
+ * Module: export
+ * Notes: Uses expo-file-system/legacy — documentDirectory + writeAsStringAsync (required in Expo SDK 54).
+ */
+
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 
 export type DownloadExportFileResult =
   | { ok: true; mode: 'web_download' | 'native_share' }
   | { ok: false; reason: 'sharing_unavailable' | 'write_failed'; message: string };
+
+const FIXED_CSV = 'respira_export.csv';
+const FIXED_JSON = 'respira_export.json';
+
+function resolveSafeFileName(mimeType: string): typeof FIXED_CSV | typeof FIXED_JSON {
+  if (mimeType.includes('json')) return FIXED_JSON;
+  return FIXED_CSV;
+}
+
+/** Solo nombres fijos ASCII; rechaza espacios, acentos u otros caracteres. */
+function assertValidExportFileName(name: string): void {
+  const ok = name === FIXED_CSV || name === FIXED_JSON;
+  if (!ok) {
+    throw new Error('Nombre de archivo no válido para exportación.');
+  }
+}
 
 function triggerWebDownload(content: string, filename: string, mimeType: string): boolean {
   if (typeof document === 'undefined') return false;
@@ -24,61 +46,73 @@ function triggerWebDownload(content: string, filename: string, mimeType: string)
   }
 }
 
-export async function downloadExportFile(
-  content: string,
-  filename: string,
-  mimeType: string,
-): Promise<DownloadExportFileResult> {
+export async function downloadExportFile(content: string, mimeType: string): Promise<DownloadExportFileResult> {
+  const fileName = resolveSafeFileName(mimeType);
+  assertValidExportFileName(fileName);
+
   if (Platform.OS === 'web') {
-    const ok = triggerWebDownload(content, filename, mimeType);
-    if (!ok) {
+    try {
+      if (!content.length) {
+        throw new Error('El contenido está vacío.');
+      }
+      const ok = triggerWebDownload(content, fileName, mimeType);
+      if (!ok) {
+        throw new Error('No se pudo iniciar la descarga en el navegador.');
+      }
+      return { ok: true, mode: 'web_download' };
+    } catch (error) {
+      console.error('EXPORT ERROR:', error);
+      Alert.alert('Error al exportar', String(error instanceof Error ? error.message : error));
       return {
         ok: false,
         reason: 'write_failed',
-        message: 'No se pudo iniciar la descarga en el navegador.',
+        message: error instanceof Error ? error.message : String(error),
       };
     }
-    return { ok: true, mode: 'web_download' };
-  }
-
-  let fileUri: string;
-  try {
-    const file = new File(Paths.cache, filename);
-    if (file.exists) {
-      file.delete();
-    }
-    file.create({ intermediates: true, overwrite: true });
-    file.write(content, { encoding: 'utf8' });
-    fileUri = file.uri;
-  } catch {
-    return {
-      ok: false,
-      reason: 'write_failed',
-      message: 'No se pudo guardar el archivo temporal.',
-    };
   }
 
   try {
-    const available = await Sharing.isAvailableAsync();
-    if (!available) {
-      return {
-        ok: false,
-        reason: 'sharing_unavailable',
-        message:
-          'Compartir archivos no está disponible en este dispositivo. Prueba otra versión de la app o exporta desde la versión web.',
-      };
+    if (!FileSystem.documentDirectory) {
+      throw new Error('documentDirectory no disponible en este entorno.');
     }
-    await Sharing.shareAsync(fileUri, {
-      mimeType,
-      dialogTitle: 'Exportar datos',
-      UTI: mimeType === 'text/csv' ? 'public.comma-separated-values-text' : 'public.json',
+    if (!content.length) {
+      throw new Error('El contenido está vacío.');
+    }
+
+    const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+    console.log('documentDirectory:', FileSystem.documentDirectory);
+    console.log('fileUri:', fileUri);
+    console.log('content length:', content.length);
+
+    await FileSystem.writeAsStringAsync(fileUri, content, {
+      encoding: FileSystem.EncodingType.UTF8,
     });
+
+    const info = await FileSystem.getInfoAsync(fileUri);
+    console.log('file info:', info);
+    if (!info.exists) {
+      throw new Error('El archivo no se creó');
+    }
+
+    const canShare = await Sharing.isAvailableAsync();
+    if (canShare) {
+      await Sharing.shareAsync(fileUri, {
+        mimeType: mimeType.includes('json') ? 'application/json' : 'text/csv',
+        dialogTitle: 'Exportar datos RESPIRA+',
+        UTI: mimeType.includes('json') ? 'public.json' : 'public.comma-separated-values-text',
+      });
+    } else {
+      Alert.alert('Archivo generado', fileUri);
+    }
     return { ok: true, mode: 'native_share' };
-  } catch {
+  } catch (error) {
+    console.error('EXPORT ERROR:', error);
+    const msg = String(error instanceof Error ? error.message : error);
+    Alert.alert('Error al exportar', msg);
     return {
       ok: false,
       reason: 'write_failed',
-      message: 'No se pudo abrir la hoja de compartir.',
+      message: msg,
     };
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Purpose: Manual export of stored respiratory sessions (JSON / CSV).
+ * Purpose: Manual export of clinical data (JSON / CSV) via local file + share sheet.
  * Module: export
  */
 
@@ -9,40 +9,47 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { buildSessionExportCsv } from '@/src/modules/export/formatters/session-csv-exporter';
-import { buildSessionExportJson } from '@/src/modules/export/formatters/session-json-exporter';
-import { getPatientExportData } from '@/src/modules/export/services/session-export-service';
-import { downloadExportFile } from '@/src/modules/export/utils/download-export-file';
+import { getClinicalExportSnapshot } from '@/src/modules/export/services/clinical-export-service';
+import { exportPatientCsv, exportPatientJson } from '@/src/modules/export/services/patient-clinical-export-service';
 import { isConsentActive } from '@/src/modules/legal/consent-service';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessFloatingTabBarInset, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
-function exportBasename(patientId: number): string {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
-  return `respira-sesiones-${patientId}-${stamp}`;
-}
+type SnapshotSummary = {
+  sessions: number;
+  diagnostics: number;
+  levels: number;
+  hasPatient: boolean;
+};
 
 export function DataExportScreen() {
   const router = useRouter();
   const { patient, hydrated } = usePatientSession();
   const [consentOk, setConsentOk] = useState<boolean | null>(null);
-  const [sessionCount, setSessionCount] = useState<number | null>(null);
+  const [summary, setSummary] = useState<SnapshotSummary | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successHint, setSuccessHint] = useState<string | null>(null);
 
   const refreshGate = useCallback(async () => {
     if (!patient) {
       setConsentOk(null);
-      setSessionCount(null);
+      setSummary(null);
       return;
     }
-    const [active, data] = await Promise.all([isConsentActive(), getPatientExportData(patient.paciente_id)]);
+    const [active, snapshot] = await Promise.all([
+      isConsentActive(),
+      getClinicalExportSnapshot(patient.paciente_id),
+    ]);
     setConsentOk(active);
-    setSessionCount(data.sessions.length);
+    setSummary({
+      sessions: snapshot.sessions.length,
+      diagnostics: snapshot.diagnostics.length,
+      levels: snapshot.patient_levels.length,
+      hasPatient: snapshot.patient != null,
+    });
   }, [patient]);
 
   useEffect(() => {
@@ -57,10 +64,17 @@ export function DataExportScreen() {
     }, [hydrated, refreshGate]),
   );
 
+  useEffect(() => {
+    if (!successHint) return;
+    const t = setTimeout(() => setSuccessHint(null), 4500);
+    return () => clearTimeout(t);
+  }, [successHint]);
+
   const runExport = useCallback(
     async (kind: 'json' | 'csv') => {
       if (!patient) return;
       setError(null);
+      setSuccessHint(null);
       const active = await isConsentActive();
       if (!active) {
         setConsentOk(false);
@@ -69,22 +83,20 @@ export function DataExportScreen() {
       }
       setBusy(true);
       try {
-        const data = await getPatientExportData(patient.paciente_id);
-        setSessionCount(data.sessions.length);
-        const base = exportBasename(patient.paciente_id);
-        if (kind === 'json') {
-          const body = buildSessionExportJson(data);
-          const result = await downloadExportFile(body, `${base}.json`, 'application/json');
-          if (!result.ok) {
-            setError(result.message);
-          }
-        } else {
-          const body = buildSessionExportCsv(data);
-          const result = await downloadExportFile(body, `${base}.csv`, 'text/csv');
-          if (!result.ok) {
-            setError(result.message);
-          }
+        const result =
+          kind === 'json'
+            ? await exportPatientJson(patient.paciente_id)
+            : await exportPatientCsv(patient.paciente_id);
+        if (!result.ok) {
+          setError(result.message);
+          return;
         }
+        await refreshGate();
+        setSuccessHint(
+          result.mode === 'web_download'
+            ? 'Descarga iniciada en el navegador.'
+            : 'Archivo generado. Usa el menú para guardar o compartir.',
+        );
       } catch (e) {
         const message = e instanceof Error ? e.message : 'No se pudo generar la exportación.';
         setError(message);
@@ -92,13 +104,12 @@ export function DataExportScreen() {
         setBusy(false);
       }
     },
-    [patient],
+    [patient, refreshGate],
   );
 
   const showConsentBlock = consentOk === false;
-  const noSessions = consentOk === true && sessionCount === 0;
   const canExport =
-    consentOk === true && sessionCount !== null && sessionCount > 0 && !busy && hydrated && patient != null;
+    consentOk === true && summary != null && !busy && hydrated && patient != null;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -112,42 +123,46 @@ export function DataExportScreen() {
         showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Datos y exportación</Text>
         <Text style={styles.lead}>
-          Puedes descargar o compartir un archivo con tus sesiones guardadas en este dispositivo. Los archivos pueden
-          incluir datos personales y de salud: trátalos con cuidado y compártelos solo si tú lo decides.
+          Exporta un archivo con tu ficha, diagnósticos, niveles, sesiones e intentos guardados en este dispositivo.
+          Los archivos pueden incluir datos personales y de salud: trátalos con cuidado y compártelos solo si tú lo
+          decides.
         </Text>
 
         {!hydrated || (patient != null && consentOk === null) ? (
           <View style={styles.centerRow}>
             <ActivityIndicator />
-            <Text style={styles.muted}>Comprobando permisos y sesiones…</Text>
+            <Text style={styles.muted}>Comprobando permisos y datos…</Text>
           </View>
         ) : null}
 
-        {patient == null ? (
-          <Text style={styles.warning}>Inicia sesión para exportar tus datos.</Text>
-        ) : null}
+        {patient == null ? <Text style={styles.warning}>Inicia sesión para exportar tus datos.</Text> : null}
 
         {patient && showConsentBlock ? (
           <View style={styles.blockCard}>
             <Text style={styles.blockTitle}>Exportación no disponible</Text>
             <Text style={styles.blockText}>
               El consentimiento digital no está activo. Reactiva el consentimiento en Perfil para poder exportar tus
-              sesiones.
+              datos clínicos.
             </Text>
           </View>
         ) : null}
 
-        {patient && consentOk === true && noSessions ? (
-          <Text style={styles.empty}>Aún no hay sesiones para exportar.</Text>
-        ) : null}
-
         {error ? <Text style={styles.error}>{error}</Text> : null}
+        {successHint ? <Text style={styles.success}>{successHint}</Text> : null}
 
-        {patient && consentOk === true && sessionCount !== null && sessionCount > 0 ? (
-          <Text style={styles.meta}>Sesiones incluidas: {sessionCount}</Text>
+        {patient && consentOk === true && summary != null ? (
+          <>
+            <Text style={styles.meta}>
+              Resumen: diagnósticos {summary.diagnostics}, niveles {summary.levels}, sesiones {summary.sessions}. Ficha
+              de paciente: {summary.hasPatient ? 'incluida' : 'no encontrada en almacenamiento local'}.
+            </Text>
+            <Text style={styles.emptyHint}>
+              Puedes exportar aunque algunas tablas estén vacías (por ejemplo, antes de la primera sesión).
+            </Text>
+          </>
         ) : null}
 
-        {patient && consentOk === true && sessionCount !== null && sessionCount > 0 ? (
+        {patient && consentOk === true && summary != null ? (
           busy ? (
             <View style={styles.busyRow}>
               <ActivityIndicator color={wellness.primaryDark} />
@@ -177,8 +192,9 @@ export function DataExportScreen() {
         ) : null}
 
         <Text style={styles.hint}>
-          En la web, el archivo se descarga con el navegador. En el iPhone, se abre la hoja de compartir para que elijas
-          dónde guardarlo. No enviamos datos automáticamente a correo, nube ni mensajería.
+          En la web, el archivo se descarga con el navegador. En el teléfono, se guarda un archivo temporal y se abre la
+          hoja de compartir para que elijas dónde guardarlo. No enviamos datos automáticamente a correo, nube ni
+          mensajería.
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -243,19 +259,26 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: wellness.textSecondary,
   },
-  empty: {
-    fontSize: 16,
-    color: wellness.text,
-    fontWeight: '600',
+  emptyHint: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: wellness.textSecondary,
   },
   error: {
     fontSize: 14,
     color: '#9a3b2f',
     lineHeight: 20,
   },
+  success: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#1B5E20',
+    fontWeight: '600',
+  },
   meta: {
     fontSize: 14,
     color: wellness.textSecondary,
+    lineHeight: 20,
   },
   primaryBtn: {
     paddingVertical: spacing.md,
