@@ -1,117 +1,192 @@
-# Rehab respiratoria (app móvil)
+# RESPIRA+
 
-Aplicación móvil para **rehabilitación pulmonar domiciliaria**, orientada a **adultos postoperatorios** que usan **espirómetro incentivador**. El flujo previsto incluye autenticación, inicio, selección de nivel, sesión terapéutica, resumen, historial, calendario y plan semanal. Los minijuegos finales aún no están definidos; el identificador `rocket-experimental` en el registro de niveles es solo un marcador de prueba futura, no el producto final obligatorio.
+Aplicación de apoyo para **ejercicios respiratorios con espirómetro incentivador**, orientada al **seguimiento de sesiones**, la **adherencia**, el **biofeedback** y el **registro de progreso** en contextos de rehabilitación (p. ej. adultos en proceso postoperatorio). RESPIRA+ organiza el flujo del paciente desde el acceso y el consentimiento hasta la terapia por niveles, el historial y la exportación de datos.
 
-## Stack tecnológico
+---
 
-- [Expo](https://expo.dev/) SDK ~54
-- [Expo Router](https://docs.expo.dev/router/introduction/) (rutas basadas en archivos)
-- React 19 / React Native 0.81
-- TypeScript
-- ESLint (`expo lint`)
+## Estado actual
 
-No se añadieron librerías extra en la migración modular; las dependencias coinciden con `package.json`.
+- **Prototipo académico** en evolución activa; no sustituye criterio clínico ni atención profesional (véase [Aviso académico](#aviso-académico)).
+- **Expo**, **React Native** y **TypeScript**, con rutas basadas en **Expo Router**.
+- **iPhone durante desarrollo**: compatible mediante **Expo Go** y el flujo estándar de `expo start`.
+- **Web / PWA**: objetivo razonable de despliegue; la app incluye ajustes de experiencia (p. ej. splash) pensados también para web.
+- **Sensor**: la línea prevista para el hardware es **ESP32** comunicándose por **WiFi** y **WebSocket** (no Bluetooth como estrategia principal actual). La integración completa con el dispositivo final puede estar en **pruebas o planificación** según la rama y el momento del repo; no se asume aquí que el sensor de producción ya está conectado de forma definitiva.
+- **Supabase**: integrado en **modo prototipo** para base de datos, persistencia y sincronización en desarrollo colaborativo. **No** está documentado ni garantizado como listo para producción. Ver [Notas de seguridad y privacidad](#notas-de-seguridad-y-privacidad) y [`docs/supabase-security-notes.md`](docs/supabase-security-notes.md).
 
-## Cómo correrlo en local
+---
+
+## Funcionalidades actuales
+
+- **Consentimiento digital** y documentación legal asociada.
+- **Bloqueo** de Terapia, Historial y rutas sensibles (p. ej. sensor) si **no** hay consentimiento activo.
+- **Perfil** con **avatar** por paciente.
+- **Inicio** tipo dashboard.
+- **Barra inferior** de navegación plana (tabs).
+- **Niveles de terapia** con identidad visual y **colores motivacionales**.
+- **Sesión guiada** con la **barra inferior oculta** durante el juego.
+- Flujo **PAUSAR**, **Continuar sesión** y **Guardar avance y salir**.
+- **Reentrada** a sesión con **`sessionRunId`** para evitar estados incoherentes.
+- **Resumen** al cerrar o completar sesión.
+- **Historial** de actividad y adherencia.
+- **Exportación manual** de datos de sesiones en **CSV** y **JSON**.
+- **Recordatorios locales** de terapia (notificaciones).
+- **Splash nativo** y **splash web/PWA** con logo de la marca.
+- **Supabase** en configuración de **prototipo** (ver nota de seguridad).
+
+---
+
+## Stack técnico
+
+| Tecnología | Uso |
+|------------|-----|
+| **Expo** | Toolchain y runtime del proyecto. |
+| **React Native** | UI multiplataforma. |
+| **TypeScript** | Tipado en código de aplicación. |
+| **Expo Router** | Navegación basada en archivos bajo `app/`. |
+| **AsyncStorage** | Persistencia local (p. ej. preferencias y rutas híbridas cuando Supabase no aplica). |
+| **Supabase** | Backend de datos en modo prototipo (`@supabase/supabase-js`). |
+| **expo-notifications** | Recordatorios locales. |
+| **expo-image-picker** | Selección de imágenes (p. ej. avatar). |
+| **expo-file-system** | Operaciones de archivos en exportación/descargas. |
+| **expo-sharing** | Compartir archivos exportados cuando la plataforma lo permite. |
+| **expo-splash-screen** | Control del splash nativo. |
+| **expo-linear-gradient** | Gradientes en UI. |
+| **@expo-google-fonts/inter** | Tipografía Inter. |
+
+La lista detallada de versiones está en `package.json` (no modificar desde la documentación).
+
+---
+
+## Instalación
 
 ```bash
 npm install
-npm run start
+npx expo start -c
 ```
 
-Atajos útiles:
+El flag `-c` limpia la caché de Metro; es útil tras actualizar dependencias o cuando el bundler se comporta de forma inconsistente.
 
-- `npm run android` — inicia con Android
-- `npm run ios` — inicia con iOS
-- `npm run web` — inicia con web
-- `npm run lint` — ESLint
+Atajos habituales del proyecto (según `package.json`):
 
-Si el puerto **8081** está ocupado, cierra el otro proceso de Metro/Expo o elige otro puerto cuando la CLI lo pregunte.
+- `npm run android` — abre en Android.
+- `npm run ios` — abre en iOS.
+- `npm run web` — abre en navegador.
+- `npm run lint` — ESLint vía Expo.
 
-## Estructura de carpetas (resumen)
+Si el puerto **8081** está ocupado, cierra otras instancias de Metro/Expo o acepta otro puerto cuando la CLI lo ofrezca.
 
-```
-app/                 # Solo capa de rutas (Expo Router)
-  _layout.tsx
-  auth/login.tsx, auth/registro.tsx
-  (tabs)/            # Tabs: inicio, niveles, sesión, resumen, historial, calendario, plan-semanal
+---
 
-src/
-  modules/           # Dominio por área (auth, home, levels, session, …)
-  shared/            # UI, tema, utils, tipos compartidos
-  data/              # Mocks y storage (evolución)
-  docs/              # Arquitectura y trabajo en equipo
+## Dependencias importantes
 
-assets/              # Imágenes y recursos estáticos
+Tras un `git pull`, en la mayoría de los casos basta con:
+
+```bash
+npm install
 ```
 
-Imports recomendados: `@/src/modules/...`, `@/src/shared/...`, `@/assets/...`. El alias `@/*` apunta a la **raíz** del repo (no a `src/` sola).
+**No ejecutes** `npm audit fix --force` de forma automática: puede subir paquetes a versiones **incompatibles** con el **SDK de Expo** fijado en el proyecto y dejar el entorno en un estado difícil de reproducir. Si aparecen avisos de auditoría, consúltalos con el equipo antes de forzar cambios mayores.
 
-## Flujo principal de la app (paciente)
+---
 
-1. **Auth** (rutas stack): login y registro (`app/auth/*` → pantallas en `src/modules/auth`).
-2. **Tabs**: inicio → niveles → sesión → resumen → historial → calendario → plan semanal.
-3. **Sesión**: configuración por **nivel** (dificultad) y **tipo de juego visual** separados; registro central en `src/modules/session/registry`.
+## Variables de entorno (Supabase)
 
-## Flujo de datos: dispositivo → reportes (diseño)
+Para activar el cliente de Supabase en desarrollo se utilizan variables públicas de Expo (nombres solamente; **sin** pegar valores reales en documentación ni en chats públicos):
 
-Objetivo para cuando exista hardware:
+- `EXPO_PUBLIC_SUPABASE_URL`
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 
-1. **WebSocket** sobre **WiFi local** recibe mensajes en tiempo real (`device/websocket`).
-2. **Ingestión** normaliza a modelos internos (`device/ingestion`).
-3. **Adaptadores** mapean protocolo concreto, p. ej. ESP32 (`device/adapters`).
-4. **Mocks** permiten desarrollo sin hardware (`device/mocks`).
-5. **Sesión** consume señal ya normalizada (sin acoplar UI al protocolo).
-6. **Resumen / historial** guardan o muestran resultados agregados.
-7. **Clínico** genera métricas, informes y exportación sin depender del componente visual del juego.
+Copia `.env.example` a `.env` en tu máquina y completa con los valores que el equipo comparta por un canal seguro. Los placeholders en `.env.example` tienen la forma `https://YOUR_PROJECT.supabase.co` y `YOUR_SUPABASE_ANON_KEY`.
 
-Detalle técnico: [src/docs/architecture.md](src/docs/architecture.md).
+**Seguridad y prototipo:** lee [`docs/supabase-security-notes.md`](docs/supabase-security-notes.md) antes de asumir que la configuración actual es apta para datos reales o para publicación.
 
-## Cómo trabajar en equipo
+---
 
-- Cada persona **prioriza su carpeta** de la tabla en [src/docs/team-ownership.md](src/docs/team-ownership.md).
-- Cambios en **`src/shared/`** afectan a todos: conviene PR pequeño y aviso en el canal del equipo.
-- **`app/`**: cambios coordinados (nombres de rutas, orden de tabs).
+## Comandos útiles
 
-## Convención de ramas (sugerida)
+| Comando | Descripción |
+|---------|-------------|
+| `npm install` | Instala dependencias. |
+| `npx expo start -c` | Inicia el bundler con caché limpia. |
+| `npx tsc --noEmit` | Comprobación de tipos sin emitir JS. |
+| `npx expo lint` | ESLint configurado para el proyecto. |
+| `git status` | Estado del árbol de trabajo. |
+| `git pull origin master` | Actualiza la rama local desde remoto (ajusta el nombre de rama si tu flujo usa otro default). |
 
-| Prefijo | Uso |
-|---------|-----|
-| `feat/` | Nueva funcionalidad (`feat/session-timer`) |
-| `fix/` | Corrección de bug |
-| `chore/` | Herramientas, config, refactor sin cambio de producto |
-| `docs/` | Solo documentación |
+---
 
-Opcional: sufijo con área (`feat/plans-calendario`).
+## Flujo recomendado para el equipo
 
-## Qué hace cada módulo (`src/modules`)
+1. `git checkout master` (o la rama acordada como base).
+2. `git pull origin master`
+3. `npm install`
+4. `npx expo start -c`
 
-| Módulo | Rol |
-|--------|-----|
-| `auth` | Login y registro (estructura ligera hasta backend). |
-| `home` | Pantalla de inicio del paciente. |
-| `levels` | Selección de nivel de dificultad (UI base). |
-| `session` | Sesión: core, juegos visuales, niveles, registro, pantalla. |
-| `summary` | Resumen post-sesión. |
-| `history` | Historial de actividad o sesiones. |
-| `plans` | Calendario y plan semanal (simple en esta fase). |
-| `patient` | Perfil y datos del paciente (reservado). |
-| `device` | WebSocket (WiFi local), ingestión, adaptadores, mocks. |
-| `clinician` | Dashboard, informes y exportación futuros. |
+Buenas prácticas:
 
-README específicos: `session`, `device`, `clinician` dentro de cada carpeta.
+- **No** uses `git push --force` en ramas compartidas sin consenso explícito.
+- **No** uses `git reset --hard` sin avisar si puede afectar el trabajo de otras personas.
+- Para cambios grandes o experimentales, trabaja en **ramas de feature** y abre revisiones (PR) antes de integrar a la rama principal.
 
-## Carpetas compartidas vs “tuyas”
+Convención de prefijos sugerida: `feat/`, `fix/`, `chore/`, `docs/`.
 
-- **Compartidas (cuidado):** `src/shared/`, `app/_layout.tsx`, `app/(tabs)/_layout.tsx`.
-- **Por feature:** la carpeta del módulo que te asignen (`src/modules/session`, etc.).
-- **Solo rutas:** archivos bajo `app/` que reexportan una pantalla desde `src/modules`.
+---
 
-## Script `reset-project`
+## Estructura del proyecto
 
-El script `npm run reset-project` viene del template de Expo y asume carpetas antiguas en la raíz. Este repo ya migró UI y tema a `src/shared/`. **No lo uses** para “resetear” sin leer `scripts/reset-project.js`: podría mover o borrar `app/` según confirmes en consola.
+| Ruta | Contenido |
+|------|-----------|
+| `app/` | Rutas Expo Router: stacks, tabs y pantallas que reexportan módulos en `src/`. |
+| `src/modules/` | Dominio por áreas: auth, legal, patient, levels, session, history, export, notifications, device, etc. |
+| `src/shared/` | UI reutilizable, tema parcial, utilidades y piezas transversales. |
+| `src/theme/` | Tokens y temas de pantalla (p. ej. dashboards, niveles). |
+| `assets/` | Imágenes, fuentes y recursos estáticos. |
+| `docs/` | Documentación en raíz del repo (p. ej. notas de Supabase). |
+| `supabase/` | Artefactos de esquema SQL de referencia para el proyecto Supabase. |
+
+Documentación histórica o de arquitectura adicional puede vivir en **`src/docs/`** (p. ej. `architecture.md`, `team-ownership.md`). El alias de imports `@/` apunta a la **raíz** del repositorio.
+
+---
+
+## Notas de seguridad y privacidad
+
+RESPIRA+ maneja flujos que, en un despliegue real, pueden implicar **datos personales o sensibles**. La integración actual con **Supabase** está pensada para **prototipo y desarrollo colaborativo**, con riesgos conocidos si se copia tal cual a producción (p. ej. políticas RLS permisivas, variables en repositorio, consultas sin filtrado estricto en servidor).
+
+**Lectura obligatoria antes de publicar o usar datos reales:** [`docs/supabase-security-notes.md`](docs/supabase-security-notes.md).
+
+---
+
+## Roadmap próximo (orientativo)
+
+- Unificar visualmente pantallas secundarias para una experiencia más cohesiva.
+- Mejorar el **biofeedback** y la claridad del juego durante la sesión.
+- Preparar **PWA** o enlace compartible estable para demos web.
+- **Conectar ESP32** por **WiFi / WebSocket** de forma robusta y documentada.
+- **Endurecer Supabase** (RLS, secretos, consultas) antes de cualquier producción.
+- **Validación técnica y clínica** en entornos controlados.
+
+---
+
+## Estado del sensor (hardware)
+
+El diseño previsto concentra la comunicación del **espirómetro incentivador** o módulo asociado en un **ESP32** accesible por **red local (WiFi)** y un canal **WebSocket**, no en Bluetooth como eje principal de la app en este repositorio.
+
+**Python** no es la interfaz principal de la app actual (Expo / React Native). Si el equipo usa scripts en Python, puede ser como **herramienta opcional** de análisis o prototipos externos, no como capa obligatoria del producto móvil descrito aquí.
+
+---
+
+## Aviso académico
+
+**RESPIRA+** es un **prototipo académico** de apoyo al ejercicio respiratorio. **No sustituye** la valoración médica, el diagnóstico profesional, el tratamiento prescrito ni la atención de urgencias. Ante síntomas graves o dudas clínicas, el usuario debe acudir a los servicios de salud correspondientes.
+
+---
 
 ## Documentación adicional
 
+- [Notas de seguridad Supabase (modo prototipo)](docs/supabase-security-notes.md)
 - [Arquitectura técnica](src/docs/architecture.md)
 - [Reparto de módulos en el equipo](src/docs/team-ownership.md)
+
+## Script `reset-project`
+
+El script `npm run reset-project` proviene del template de Expo. **No lo ejecutes** sin leer `scripts/reset-project.js`: puede alterar o mover rutas según las confirmaciones en consola.
