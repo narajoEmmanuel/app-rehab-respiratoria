@@ -9,6 +9,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { isCloudAuthEnabled } from '@/src/modules/app-mode/app-mode-config';
 import { getLatestDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
 import type { DiagnosticRecord } from '@/src/modules/diagnostics/types';
 import { formatDisplayDateEs } from '@/src/modules/history/services/history-aggregates';
@@ -206,6 +207,13 @@ export function ProfileScreen() {
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingBottom: wellnessFloatingTabBarInset + spacing.lg }]}
         showsVerticalScrollIndicator={false}>
+        {!isCloudAuthEnabled() ? (
+          <View style={styles.prototypeCloudHint} accessibilityRole="text">
+            <Text style={styles.prototypeCloudHintText}>
+              Modo prototipo local, datos no sincronizados con la nube
+            </Text>
+          </View>
+        ) : null}
         <View style={styles.profileHeader}>
           <ProfileAvatarPicker
             patientId={patient.paciente_id}
@@ -405,6 +413,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     gap: spacing.lg,
+  },
+  prototypeCloudHint: {
+    backgroundColor: '#EFFDF4',
+    borderRadius: wellnessRadii.card,
+    borderWidth: 1,
+    borderColor: '#D1FAE5',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  prototypeCloudHintText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: wellness.primaryDark,
+    textAlign: 'center',
+    lineHeight: 18,
   },
   profileHeader: {
     alignItems: 'center',

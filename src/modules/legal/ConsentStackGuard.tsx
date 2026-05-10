@@ -9,6 +9,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
+import { isCloudAuthEnabled } from '@/src/modules/app-mode/app-mode-config';
 import { useAppMode } from '@/src/modules/app-mode';
 import { isConsentActive } from '@/src/modules/legal/consent-service';
 import { wellness } from '@/src/shared/theme/wellness-theme';
@@ -26,6 +27,11 @@ export function ConsentStackGuard({ children, allowOfflineDevBypass = false }: P
 
   useFocusEffect(
     useCallback(() => {
+      if (!isCloudAuthEnabled()) {
+        setGate('ok');
+        return () => {};
+      }
+
       if (isOfflineSensorTestMode && offlineSensorTestEnabled) {
         setGate('ok');
         return () => {};
@@ -54,18 +60,17 @@ export function ConsentStackGuard({ children, allowOfflineDevBypass = false }: P
     return <Redirect href="/(tabs)" />;
   }
 
-  const showOfflineBanner = isOfflineSensorTestMode && offlineSensorTestEnabled;
+  const stackBannerText = !isCloudAuthEnabled()
+    ? 'Modo prototipo local, datos no sincronizados con la nube'
+    : isOfflineSensorTestMode && offlineSensorTestEnabled
+      ? 'Este modo es experimental, no clínico y no sincroniza datos.'
+      : null;
 
   return (
     <>
-      {showOfflineBanner ? (
-        <View
-          style={styles.offlineBanner}
-          accessibilityLabel="Este modo es experimental, no clínico y no sincroniza datos."
-        >
-          <Text style={styles.offlineBannerText}>
-            Este modo es experimental, no clínico y no sincroniza datos.
-          </Text>
+      {stackBannerText ? (
+        <View style={styles.offlineBanner} accessibilityLabel={stackBannerText}>
+          <Text style={styles.offlineBannerText}>{stackBannerText}</Text>
         </View>
       ) : null}
       {children}

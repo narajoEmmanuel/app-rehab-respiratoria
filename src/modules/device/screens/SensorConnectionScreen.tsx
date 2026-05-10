@@ -4,6 +4,7 @@
  * Dependencies: expo-router, react-native, device mocks, wellness theme
  * Notes: UI state only; safe for Expo Go. Move route to (tabs) later without changing this file.
  */
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -20,6 +21,7 @@ import * as Haptics from 'expo-haptics';
 
 import { useEsp32WebSocketSensor } from '@/src/modules/device/adapters/use-esp32-websocket-sensor';
 import { SensorLivePreview } from '@/src/modules/device/components/SensorLivePreview';
+import { isCloudAuthEnabled, isHardwareLabAccessible } from '@/src/modules/app-mode';
 import {
   OFFLINE_SENSOR_TEST_USER,
   isOfflineSensorTestEnabled,
@@ -76,6 +78,7 @@ function truncateJson(raw: string | null, maxLength = 320): string {
 }
 
 export function SensorConnectionScreen() {
+  const router = useRouter();
   const {
     status,
     mode,
@@ -134,6 +137,7 @@ export function SensorConnectionScreen() {
   const showReading = Boolean(lastReading);
   const sustainedSeconds = lastReading ? (lastReading.sustainedTimeMs / 1000).toFixed(1) : '0.0';
   const modeLabel = mode === 'mock' ? 'simulado' : 'real';
+  const showPrototypeOrDevBanner = !isCloudAuthEnabled() || isOfflineSensorTestEnabled;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -145,15 +149,19 @@ export function SensorConnectionScreen() {
         showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Conexión y calibración del sensor</Text>
 
-        {isOfflineSensorTestEnabled ? (
+        {showPrototypeOrDevBanner ? (
           <View style={styles.offlineBanner}>
             <Text style={styles.offlineBannerText}>
-              Modo offline de prueba de sensor, no sincronizado con la nube
+              {!isCloudAuthEnabled()
+                ? 'Modo prototipo local, datos no sincronizados con la nube'
+                : 'Modo offline de prueba de sensor, no sincronizado con la nube'}
             </Text>
-            <Text style={styles.offlineBannerMeta}>
-              Usuario local: {OFFLINE_SENSOR_TEST_USER.name} ({OFFLINE_SENSOR_TEST_USER.id}) -{' '}
-              {OFFLINE_SENSOR_TEST_USER.source}
-            </Text>
+            {isOfflineSensorTestEnabled ? (
+              <Text style={styles.offlineBannerMeta}>
+                Usuario local: {OFFLINE_SENSOR_TEST_USER.name} ({OFFLINE_SENSOR_TEST_USER.id}) -{' '}
+                {OFFLINE_SENSOR_TEST_USER.source}
+              </Text>
+            ) : null}
           </View>
         ) : null}
 
@@ -254,6 +262,35 @@ export function SensorConnectionScreen() {
           source={lastReading?.source}
           timestamp={lastReading?.timestamp}
         />
+
+        {isHardwareLabAccessible() ? (
+          <View style={styles.labCard}>
+            <Text style={styles.statusLabel}>Hardware Lab</Text>
+            <Text style={styles.labHint}>
+              Diagnóstico y rutas de prueba del ESP32 (WiFi local, sin Bluetooth).
+            </Text>
+            <Pressable
+              style={({ pressed }) => [styles.labLink, pressed && styles.labLinkPressed]}
+              onPress={() => {
+                hapticLight();
+                router.push('/hardware-lab');
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Abrir Hardware Lab">
+              <Text style={styles.labLinkText}>Abrir Hardware Lab</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.labLinkSecondary, pressed && styles.labLinkPressed]}
+              onPress={() => {
+                hapticLight();
+                router.push('/esp32-raw-test');
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Prueba raw WebSocket avanzada">
+              <Text style={styles.labLinkSecondaryText}>Prueba raw WebSocket (avanzado)</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {(status === 'connected' || status === 'receiving' || mode === 'mock') && showReading ? (
           <View style={styles.bannerOk}>
@@ -529,6 +566,41 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: wellness.textSecondary,
+  },
+  labCard: {
+    backgroundColor: wellness.card,
+    borderRadius: wellnessRadii.card,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    marginBottom: spacing.md,
+  },
+  labHint: {
+    fontSize: 14,
+    color: wellness.textSecondary,
+    lineHeight: 20,
+    marginBottom: spacing.md,
+  },
+  labLink: {
+    backgroundColor: wellness.primary,
+    borderRadius: wellnessRadii.pill,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: wellness.borderStrong,
+  },
+  labLinkPressed: { opacity: 0.92 },
+  labLinkText: { fontSize: 16, fontWeight: '800', color: wellness.primaryDark },
+  labLinkSecondary: {
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  labLinkSecondaryText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: wellness.link,
+    textDecorationLine: 'underline',
   },
   readingCard: {
     backgroundColor: wellness.cardGlass,

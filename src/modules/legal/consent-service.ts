@@ -6,7 +6,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { supabase } from '@/src/lib/supabase';
-import { LEGAL_DOCUMENT_VERSION, LEGAL_STORAGE_KEY } from '@/src/modules/legal/constants';
+import { isCloudAuthEnabled } from '@/src/modules/app-mode/app-mode-config';
+import {
+  LEGAL_DOCUMENT_TITLE,
+  LEGAL_DOCUMENT_VERSION,
+  LEGAL_STATEMENT_IDS,
+  LEGAL_STORAGE_KEY,
+} from '@/src/modules/legal/constants';
 import { getCurrentPatient } from '@/src/modules/patient/patient-service';
 import type { AcceptedConsentRecord, ConsentStatus } from '@/src/modules/legal/types';
 
@@ -22,7 +28,7 @@ function parseRecord(raw: string | null): AcceptedConsentRecord | null {
 }
 
 export async function getAcceptedConsentRecord(): Promise<AcceptedConsentRecord | null> {
-  if (supabase != null) {
+  if (supabase != null && isCloudAuthEnabled()) {
     const currentPatient = await getCurrentPatient();
     if (!currentPatient) return null;
     const { data, error } = await supabase
@@ -86,7 +92,7 @@ export type AcceptConsentInput = Omit<AcceptedConsentRecord, 'withdrawnAt' | 'co
 
 export async function acceptConsent(record: AcceptConsentInput): Promise<void> {
   const full: AcceptedConsentRecord = { ...record, withdrawnAt: null };
-  if (supabase != null) {
+  if (supabase != null && isCloudAuthEnabled()) {
     const patientId = Number(record.userId);
     const { error } = await supabase.from('consent_records').insert({
       patient_id: Number.isFinite(patientId) ? patientId : null,
@@ -119,7 +125,7 @@ export async function withdrawConsent(): Promise<void> {
     consentStatus: 'withdrawn',
     withdrawnAt: now,
   };
-  if (supabase != null) {
+  if (supabase != null && isCloudAuthEnabled()) {
     const patientId = Number(r.userId);
     const { error } = await supabase
       .from('consent_records')
@@ -129,6 +135,41 @@ export async function withdrawConsent(): Promise<void> {
     if (error) throw error;
   }
   await AsyncStorage.setItem(LEGAL_STORAGE_KEY, JSON.stringify(updated));
+}
+
+/**
+ * Seeds a minimal active consent record locally when cloud auth is frozen off, so Terapia/tabs can load offline.
+ * Does not write to Supabase.
+ */
+export async function seedLocalPrototypeConsentForPatient(patientId: number): Promise<void> {
+  if (isCloudAuthEnabled()) return;
+  const raw = await AsyncStorage.getItem(LEGAL_STORAGE_KEY);
+  const existing = parseRecord(raw);
+  if (
+    existing != null &&
+    existing.documentVersion === LEGAL_DOCUMENT_VERSION &&
+    existing.consentStatus === 'active'
+  ) {
+    return;
+  }
+  const now = new Date().toISOString();
+  const full: AcceptedConsentRecord = {
+    userId: String(patientId),
+    acceptedTerms: true,
+    acceptedConsent: true,
+    acceptedPrivacy: true,
+    acceptedClinicalDisclaimer: true,
+    acceptedSupportIndicatorsDisclaimer: true,
+    documentVersion: LEGAL_DOCUMENT_VERSION,
+    documentTitle: LEGAL_DOCUMENT_TITLE,
+    appVersion: null,
+    acceptedAt: now,
+    consentStatus: 'active',
+    acceptanceMethod: 'digital_in_app',
+    acceptedStatements: [...LEGAL_STATEMENT_IDS],
+    withdrawnAt: null,
+  };
+  await AsyncStorage.setItem(LEGAL_STORAGE_KEY, JSON.stringify(full));
 }
 
 export async function saveConsentRecord(record: AcceptConsentInput): Promise<void> {

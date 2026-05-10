@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { isOfflineSensorTestEnabled, useAppMode } from '@/src/modules/app-mode';
+import { isHardwareLabAccessible, isOfflineSensorTestEnabled, useAppMode } from '@/src/modules/app-mode';
 import { spacing } from '@/src/shared/theme/spacing';
 import {
   wellness,
@@ -25,14 +25,14 @@ import {
 export function HardwareLabScreen() {
   const router = useRouter();
   const { setMode } = useAppMode();
-  const labEnabled = isOfflineSensorTestEnabled();
+  const labEnabled = isHardwareLabAccessible();
 
   useFocusEffect(
     useCallback(() => {
-      if (labEnabled) {
+      if (isOfflineSensorTestEnabled()) {
         setMode('offline_sensor_test');
       }
-    }, [labEnabled, setMode]),
+    }, [setMode]),
   );
 
   const goHome = () => {
@@ -45,7 +45,8 @@ export function HardwareLabScreen() {
         <View style={styles.blockedInner}>
           <Text style={styles.blockedTitle}>Hardware Lab no disponible</Text>
           <Text style={styles.blockedBody}>
-            Activa EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST=true en desarrollo para usarlo.
+            En prototipo local (EXPO_PUBLIC_ENABLE_CLOUD_AUTH distinto de true) el lab está disponible. En
+            desarrollo con nube activada, define también EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST=true.
           </Text>
           <Pressable
             style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}

@@ -4,6 +4,8 @@ Aplicación de apoyo para **ejercicios respiratorios con espirómetro incentivad
 
 El proyecto se desarrolla con **Expo**, **React Native** y **TypeScript**, y la navegación sigue **Expo Router** (rutas bajo `app/`). **Python** no es la interfaz principal de la app móvil; si el equipo usa scripts en Python, son **herramientas opcionales** externas (análisis o prototipos), no una capa obligatoria del producto descrito aquí.
 
+**Nube y modo local (decisión temporal):** la integración cloud/auth puede estar **congelada** para desarrollo del ESP32 sin internet; motivos, variable `EXPO_PUBLIC_ENABLE_CLOUD_AUTH` y cómo reactivar el flujo online: **[README_CLOUD_FREEZE.md](README_CLOUD_FREEZE.md)**.
+
 ---
 
 ## Estado actual

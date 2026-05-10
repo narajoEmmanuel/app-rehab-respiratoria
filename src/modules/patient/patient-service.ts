@@ -82,6 +82,20 @@ export async function logoutPatient(): Promise<void> {
   await clearCurrentClave();
 }
 
+const LOCAL_PROTOTYPE_AGE = 30;
+
+/**
+ * Ensures a persisted local patient session for local-first prototype builds (cloud auth off).
+ * Creates one PAC record and sets it as current when none exists.
+ */
+export async function ensureLocalPrototypePatientRecord(): Promise<PatientRecord> {
+  const current = await getCurrentPatient();
+  if (current) return current;
+  const row = await createPatient('Prototipo local (desarrollo)', LOCAL_PROTOTYPE_AGE);
+  await saveCurrentPatient(row);
+  return row;
+}
+
 export async function updatePatientCurrentLevel(patientId: number, levelId: LevelId): Promise<PatientRecord | null> {
   return updatePatient(patientId, (prev) => ({ ...prev, current_level_id: levelId }));
 }
