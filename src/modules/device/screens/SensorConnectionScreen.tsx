@@ -145,12 +145,6 @@ export function SensorConnectionScreen() {
         showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Conexión y calibración del sensor</Text>
 
-        <View style={styles.experimentalBanner}>
-          <Text style={styles.experimentalBannerText}>
-            Datos experimentales de sensor, no clínicos.
-          </Text>
-        </View>
-
         {isOfflineSensorTestEnabled ? (
           <View style={styles.offlineBanner}>
             <Text style={styles.offlineBannerText}>
@@ -192,14 +186,30 @@ export function SensorConnectionScreen() {
         <View style={styles.diagCard}>
           <Text style={styles.statusLabel}>Diagnóstico ESP32</Text>
           <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>status</Text>
+            <Text style={styles.diagKey}>Estado</Text>
             <Text style={styles.diagValue}>{statusLabel(status)}</Text>
           </View>
           <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>url</Text>
-            <Text style={styles.diagValue} numberOfLines={2} selectable>
+            <Text style={styles.diagKey}>Modo</Text>
+            <Text style={styles.diagValue}>{modeLabel}</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>URL</Text>
+            <Text style={styles.diagValue} numberOfLines={1}>
               {url || '—'}
             </Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>Último error</Text>
+            <Text style={styles.diagValue}>{errorMessage ?? '—'}</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>Close code</Text>
+            <Text style={styles.diagValue}>{closeCode === null ? '—' : String(closeCode)}</Text>
+          </View>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagKey}>Close reason</Text>
+            <Text style={styles.diagValue}>{closeReason ?? '—'}</Text>
           </View>
           <View style={styles.diagRow}>
             <Text style={styles.diagKey}>source</Text>
@@ -222,35 +232,17 @@ export function SensorConnectionScreen() {
             <Text style={styles.diagValue}>{formatNumber(lastReading?.timestamp)}</Text>
           </View>
           <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>messageCount</Text>
-            <Text style={styles.diagValue}>{String(messageCount)}</Text>
+            <Text style={styles.diagKey}>Mensajes</Text>
+            <Text style={styles.diagValue}>
+              {messageCount} ({messagesPerSecond.toFixed(1)} mps)
+            </Text>
           </View>
-          <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>messagesPerSecond</Text>
-            <Text style={styles.diagValue}>{messagesPerSecond.toFixed(1)}</Text>
-          </View>
-          <Text style={[styles.diagKey, styles.diagJsonLabel]}>lastRawMessage</Text>
-          <Text style={styles.diagJson} numberOfLines={6} selectable>
+          <Text style={[styles.diagKey, styles.diagJsonLabel]}>Último JSON crudo</Text>
+          <Text style={styles.diagJson} numberOfLines={6}>
             {lastRawMessage ? truncateJson(lastRawMessage) : 'Sin mensajes recibidos aún.'}
           </Text>
-          <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>errorMessage</Text>
-            <Text style={styles.diagValue}>{errorMessage ?? '—'}</Text>
-          </View>
-          <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>closeCode</Text>
-            <Text style={styles.diagValue}>{closeCode === null ? '—' : String(closeCode)}</Text>
-          </View>
-          <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>closeReason</Text>
-            <Text style={styles.diagValue}>{closeReason ?? '—'}</Text>
-          </View>
-          <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>Modo fuente</Text>
-            <Text style={styles.diagValue}>{modeLabel}</Text>
-          </View>
           <Text style={[styles.diagKey, styles.diagJsonLabel]}>Último SensorReading parseado</Text>
-          <Text style={styles.diagJson} numberOfLines={6} selectable>
+          <Text style={styles.diagJson} numberOfLines={6}>
             {lastReading ? truncateJson(JSON.stringify(lastReading)) : 'Sin lectura parseada aún.'}
           </Text>
         </View>
@@ -377,22 +369,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: wellness.text,
     letterSpacing: -0.3,
-    marginBottom: spacing.md,
-  },
-  experimentalBanner: {
-    backgroundColor: wellness.softGreen,
-    borderRadius: wellnessRadii.card,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: wellness.borderStrong,
-    marginBottom: spacing.md,
-  },
-  experimentalBannerText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: wellness.primaryDark,
-    textAlign: 'center',
-    lineHeight: 20,
+    marginBottom: spacing.lg,
   },
   statusCard: {
     backgroundColor: wellness.card,

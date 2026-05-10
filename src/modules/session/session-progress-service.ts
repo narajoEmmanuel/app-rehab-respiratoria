@@ -3,7 +3,6 @@ import type { PatientLevelRecord } from '@/src/modules/diagnostics/types';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { updatePatientCurrentLevel } from '@/src/modules/patient/patient-service';
 import { supabase } from '@/src/lib/supabase';
-import { shouldUseCloudData } from '@/src/modules/app-mode/should-use-cloud-data';
 import {
   readAllAttempts,
   readAllSessions,
@@ -128,7 +127,7 @@ export async function updateDailyProgress(patientId: number): Promise<{ complete
   const today = getLocalDateKey();
   const todaySessions = await getTodaySessions(patientId, levelId);
   const completedToday = todaySessions.filter((item) => item.completed && item.interrupted !== true).length;
-  if ((await shouldUseCloudData()) && supabase != null) {
+  if (supabase != null) {
     const perfectSessionsCompleted = todaySessions.filter(
       (item) => item.perfect && item.completed && item.interrupted !== true,
     ).length;

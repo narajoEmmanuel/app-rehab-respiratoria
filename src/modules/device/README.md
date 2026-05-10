@@ -13,21 +13,20 @@ Este módulo concentra el **transporte WebSocket**, la **ingestión de mensajes*
 | `adapters/` | Hooks y piezas que unen transporte + estado con la UI (`useEsp32WebSocketSensor`, placeholders). |
 | `mocks/` | Datos y lecturas simuladas para desarrollo sin hardware. |
 | `components/` | UI reutilizable (p. ej. preview en vivo de distancia). |
-| `screens/` | Pantallas del dominio dispositivo (p. ej. conexión integrada del sensor y estado). |
+| `screens/` | Pantallas del dominio dispositivo (p. ej. conexión, **Hardware Lab** y estado). |
 | `types/` | Contratos de lectura y estados de conexión. |
 
 Las rutas de Expo Router en `app/` reexportan o componen estas piezas; la lógica de dominio del sensor debe seguir viviendo bajo `src/modules/device/`.
 
-### Modo `offline_sensor_test` y rutas de dispositivo
-
-El modo global **`offline_sensor_test`** (activable desde login cuando `EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST=true`) significa **usar la app completa (tabs, terapia, niveles, historial) sin Supabase**: los repositorios consultan `shouldUseCloudData()` y en ese modo solo usan **AsyncStorage**. El paciente activo es un **paciente local de prueba** (`ensureOfflineSensorTestPatient`, clave `LOCAL_SENSOR_TEST`), separado de pacientes reales en nube.
+### Rutas de desarrollo y Hardware Lab
 
 | Ruta | Rol |
 |------|-----|
-| **`/sensor-connection`** | Pantalla **integrada** de conexión: estado del WebSocket, diagnóstico y vista previa basada en `distanceMm` (pipeline completo de la app). Accesible desde la app normal en modo offline. |
+| **`/hardware-lab`** | Panel de **desarrollo** (`HardwareLabScreen`): agrupa enlaces a pruebas de hardware cuando `EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST` está activo en desarrollo. No sustituye flujo clínico ni nube. |
 | **`/esp32-raw-test`** | Prueba **mínima de respaldo**: WebSocket directo al ESP32, sin el pipeline de ingestión de la app. |
+| **`/sensor-connection`** | Pantalla **integrada**: conexión, estado y vista previa basada en `distanceMm` (cliente WebSocket + `parseSensorMessage` + UI). |
 
-**Pendientes:** calibración experimental, biofeedback experimental y niveles con sensor (requieren diseño y, donde aplique, `estimatedVolumeMl` y adaptador de entrada sensor → sesión).
+**Pendientes (sin ruta aún):** calibración experimental y biofeedback experimental; el Hardware Lab muestra tarjetas deshabilitadas como marcadores de fase.
 
 ---
 
@@ -43,12 +42,6 @@ Cadena principal cuando la app habla con el ESP32 en modo Access Point (WebSocke
 6. **`SensorLivePreview`** (`components/SensorLivePreview.tsx`) muestra una **barra visual provisional** a partir de `distanceMm` (mapeo 0–100 % con rangos configurables; **no** es volumen espiratorio clínico).
 
 Si `WebSocket` no está disponible en el entorno, el cliente notifica error sin bloquear el resto de la app.
-
-### Diagnóstico en pantalla integrada (`SensorConnectionScreen`)
-
-La pantalla **`/sensor-connection`** muestra un bloque de diagnóstico alineado con el hook **`useEsp32WebSocketSensor`**: `status`, `url`, `source`, `distanceMm`, `rawDistanceMm`, `distanceValid`, `timestamp`, `messageCount`, `messagesPerSecond`, vista previa de `lastRawMessage`, `errorMessage`, `closeCode`, `closeReason`, más el JSON del último `SensorReading` parseado. Incluye aviso visible de que los datos del sensor son **experimentales y no clínicos**.
-
-Un mensaje que **no parsea** como `SensorReading` deja constancia en `errorMessage` pero **no** fuerza `status === 'error'` mientras el socket siga abierto, para no ocultar el estado conectado durante depuración; los fallos de **transporte** siguen marcando `error`.
 
 ---
 
@@ -75,13 +68,13 @@ El módulo **`device`** debe **permanecer acotado** respecto a:
 - **Historial** y métricas clínicas agregadas,
 - **Sesión terapéutica** real (flujos de juego, guardado de avance, etc.),
 
-hasta que el flujo de sensor esté **estable** y exista un diseño acordado de integración. En modo offline la app usa datos locales; **`/sensor-connection`** y **`/esp32-raw-test`** cubren integración y respaldo mínimo para el ESP32. Integrar lecturas del sensor con sesiones de terapia es trabajo **posterior** y deliberado.
+hasta que el flujo de sensor esté **estable** y exista un diseño acordado de integración. Hoy la conexión real se valida desde **`/hardware-lab`** (hub), **`/esp32-raw-test`** (respaldo mínimo) y **`/sensor-connection`** (integrada); enlazar eso con terapia e historial es trabajo **posterior** y deliberado.
 
 ---
 
-## Entrada sin nube en desarrollo
+## Prueba offline en desarrollo
 
-La variable `EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST` (ver `.env.example`) permite en **desarrollo** el botón **«Entrar sin nube para probar con ESP32»** en login: pasa a **`offline_sensor_test`**, crea/carga el paciente local y entra a **`/(tabs)`** como la app completa, sin llamadas a Supabase (`shouldUseCloudData()` → false). La bandera en `offline-sensor-test.ts` sigue usándose para UX condicional (p. ej. banners en pantalla de sensor).
+La variable `EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST` (ver `.env.example` en la raíz del repo) activa en **desarrollo** un camino de prueba de sensor sin hardware, según `offline-sensor-test.ts`. Esto **no** equivale al modo producto **offline_sensor_test** global descrito en el README principal; sirve para no bloquear el desarrollo de UI mientras se formaliza el producto.
 
 ---
 

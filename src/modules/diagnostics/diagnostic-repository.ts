@@ -1,13 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { supabase } from '@/src/lib/supabase';
-import { shouldUseCloudData } from '@/src/modules/app-mode/should-use-cloud-data';
 import { PATIENT_STORAGE_KEYS } from '@/src/modules/patient/storage-keys';
 
 import type { DiagnosticRecord, PatientLevelRecord } from './types';
 
 export async function readAllDiagnostics(): Promise<DiagnosticRecord[]> {
-  if ((await shouldUseCloudData()) && supabase != null) {
+  if (supabase != null) {
     const { data, error } = await supabase
       .from('diagnostics')
       .select('diagnostic_id, patient_id, diagnostic_number, diagnostic_date, max_inspiratory_volume')
@@ -26,7 +25,7 @@ export async function readAllDiagnostics(): Promise<DiagnosticRecord[]> {
 }
 
 export async function writeAllDiagnostics(rows: DiagnosticRecord[]): Promise<void> {
-  if ((await shouldUseCloudData()) && supabase != null) {
+  if (supabase != null) {
     const { error } = await supabase.from('diagnostics').upsert(rows, { onConflict: 'diagnostic_id' });
     if (error) throw error;
     return;
@@ -35,7 +34,7 @@ export async function writeAllDiagnostics(rows: DiagnosticRecord[]): Promise<voi
 }
 
 export async function readAllPatientLevels(): Promise<PatientLevelRecord[]> {
-  if ((await shouldUseCloudData()) && supabase != null) {
+  if (supabase != null) {
     const { data, error } = await supabase
       .from('patient_levels')
       .select(
@@ -56,7 +55,7 @@ export async function readAllPatientLevels(): Promise<PatientLevelRecord[]> {
 }
 
 export async function writeAllPatientLevels(rows: PatientLevelRecord[]): Promise<void> {
-  if ((await shouldUseCloudData()) && supabase != null) {
+  if (supabase != null) {
     const patientIds = [...new Set(rows.map((item) => item.patient_id))];
     for (const patientId of patientIds) {
       const { error: deleteError } = await supabase.from('patient_levels').delete().eq('patient_id', patientId);

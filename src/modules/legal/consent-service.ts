@@ -6,7 +6,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { supabase } from '@/src/lib/supabase';
-import { shouldUseCloudData } from '@/src/modules/app-mode/should-use-cloud-data';
 import { LEGAL_DOCUMENT_VERSION, LEGAL_STORAGE_KEY } from '@/src/modules/legal/constants';
 import { getCurrentPatient } from '@/src/modules/patient/patient-service';
 import type { AcceptedConsentRecord, ConsentStatus } from '@/src/modules/legal/types';
@@ -23,7 +22,7 @@ function parseRecord(raw: string | null): AcceptedConsentRecord | null {
 }
 
 export async function getAcceptedConsentRecord(): Promise<AcceptedConsentRecord | null> {
-  if ((await shouldUseCloudData()) && supabase != null) {
+  if (supabase != null) {
     const currentPatient = await getCurrentPatient();
     if (!currentPatient) return null;
     const { data, error } = await supabase
@@ -87,7 +86,7 @@ export type AcceptConsentInput = Omit<AcceptedConsentRecord, 'withdrawnAt' | 'co
 
 export async function acceptConsent(record: AcceptConsentInput): Promise<void> {
   const full: AcceptedConsentRecord = { ...record, withdrawnAt: null };
-  if ((await shouldUseCloudData()) && supabase != null) {
+  if (supabase != null) {
     const patientId = Number(record.userId);
     const { error } = await supabase.from('consent_records').insert({
       patient_id: Number.isFinite(patientId) ? patientId : null,
@@ -120,7 +119,7 @@ export async function withdrawConsent(): Promise<void> {
     consentStatus: 'withdrawn',
     withdrawnAt: now,
   };
-  if ((await shouldUseCloudData()) && supabase != null) {
+  if (supabase != null) {
     const patientId = Number(r.userId);
     const { error } = await supabase
       .from('consent_records')

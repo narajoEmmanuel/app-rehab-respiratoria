@@ -5,7 +5,7 @@
  */
 
 import { Link, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -20,9 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { isOfflineSensorTestEnabled, useAppMode } from '@/src/modules/app-mode';
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
-import { ensureOfflineSensorTestPatient } from '@/src/modules/patient/offline-test-patient-service';
 import { normalizeDataErrorMessage } from '@/src/lib/supabase';
 import { getPatientByClave, normalizeClave } from '@/src/modules/patient/patient-service';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
@@ -37,19 +35,9 @@ const BTN = 19;
 export function LoginScreen() {
   const router = useRouter();
   const { setSessionPatient } = usePatientSession();
-  const { setMode, resetMode } = useAppMode();
   const [clave, setClave] = useState('');
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
-
-  const showLocalSensorDev = isOfflineSensorTestEnabled();
-
-  const enterOfflineNoCloud = useCallback(async () => {
-    await setMode('offline_sensor_test');
-    const patient = await ensureOfflineSensorTestPatient();
-    await setSessionPatient(patient);
-    router.replace('/');
-  }, [router, setMode, setSessionPatient]);
 
   async function onLogin() {
     setNotFound(false);
@@ -59,7 +47,6 @@ export function LoginScreen() {
     try {
       const patient = await getPatientByClave(normalized);
       if (patient) {
-        await resetMode();
         await setSessionPatient(patient);
         router.replace('/');
       } else {
@@ -133,26 +120,6 @@ export function LoginScreen() {
               )}
             </Pressable>
           </View>
-
-          {showLocalSensorDev ? (
-            <View style={styles.devLabCard} accessibilityRole="summary">
-              <Text style={styles.devLabTitle}>Probar RESPIRA+ sin internet</Text>
-              <Text style={styles.devLabLine}>No clínico</Text>
-              <Text style={styles.devLabLine}>No sincronizado</Text>
-              <Text style={styles.devLabLine}>Solo disponible en desarrollo</Text>
-              <Text style={styles.devLabExperimental}>
-                Este modo es experimental, no clínico y no sincroniza datos.
-              </Text>
-              <Pressable
-                style={({ pressed }) => [styles.devLabBtn, pressed && styles.devLabBtnPressed]}
-                onPress={() => void enterOfflineNoCloud()}
-                accessibilityRole="button"
-                accessibilityLabel="Entrar sin nube para probar con ESP32"
-              >
-                <Text style={styles.devLabBtnText}>Entrar sin nube para probar con ESP32</Text>
-              </Pressable>
-            </View>
-          ) : null}
 
           <View style={styles.footer}>
             <Text style={styles.footerHint}>¿Primera vez en la app?</Text>
@@ -261,47 +228,6 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   primaryBtnDisabled: { opacity: 0.65 },
-  devLabCard: {
-    marginTop: spacing.xl,
-    backgroundColor: authPalette.screenBg,
-    borderRadius: wellnessRadii.card,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: authPalette.borderStrong,
-  },
-  devLabTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: authPalette.text,
-    marginBottom: spacing.sm,
-  },
-  devLabLine: {
-    fontSize: 14,
-    color: authPalette.textMuted,
-    marginBottom: 4,
-  },
-  devLabExperimental: {
-    marginTop: spacing.sm,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '600',
-    color: authPalette.primaryDark,
-  },
-  devLabBtn: {
-    marginTop: spacing.md,
-    paddingVertical: spacing.md,
-    borderRadius: wellnessRadii.card,
-    borderWidth: 1,
-    borderColor: authPalette.borderStrong,
-    alignItems: 'center',
-    backgroundColor: authPalette.card,
-  },
-  devLabBtnPressed: { opacity: 0.88 },
-  devLabBtnText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: authPalette.primaryDark,
-  },
   primaryBtnText: {
     color: authPalette.primaryOnBrand,
     fontSize: BTN,

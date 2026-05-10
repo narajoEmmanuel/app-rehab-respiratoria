@@ -82,12 +82,10 @@ export function useEsp32WebSocketSensor() {
       },
       onParseError: (message) => {
         setErrorMessage(message);
-        // Transporte sigue abierto: mantener estado conectado para depuración estable.
-        setStatus('connected');
+        setStatus('error');
       },
       onReading: (reading) => {
         setLastReading(reading);
-        setErrorMessage(null);
         setStatus('connected');
       },
       onError: (message) => {

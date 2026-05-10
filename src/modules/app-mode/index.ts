@@ -5,7 +5,5 @@
 
 export type { AppMode } from '@/src/modules/app-mode/app-mode-types';
 export { isOfflineSensorTestEnabled } from '@/src/modules/app-mode/app-mode-config';
-export { getPersistedAppMode, persistAppMode } from '@/src/modules/app-mode/app-mode-storage';
-export { shouldUseCloudData } from '@/src/modules/app-mode/should-use-cloud-data';
 export { AppModeProvider, useAppMode } from '@/src/modules/app-mode/app-mode-context';
 export type { AppModeContextValue } from '@/src/modules/app-mode/app-mode-context';

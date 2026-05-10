@@ -1,12 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { supabase } from '@/src/lib/supabase';
-import { shouldUseCloudData } from '@/src/modules/app-mode/should-use-cloud-data';
 import { PATIENT_STORAGE_KEYS } from '@/src/modules/patient/storage-keys';
 import type { AttemptRecord, SessionRecord } from '@/src/modules/session/types/session-progress';
 
 export async function readAllSessions(): Promise<SessionRecord[]> {
-  if ((await shouldUseCloudData()) && supabase != null) {
+  if (supabase != null) {
     const { data, error } = await supabase
       .from('sessions')
       .select(
@@ -27,7 +26,7 @@ export async function readAllSessions(): Promise<SessionRecord[]> {
 }
 
 export async function writeAllSessions(rows: SessionRecord[]): Promise<void> {
-  if ((await shouldUseCloudData()) && supabase != null) {
+  if (supabase != null) {
     const { error } = await supabase.from('sessions').upsert(rows, { onConflict: 'session_id' });
     if (error) throw error;
     return;
@@ -36,7 +35,7 @@ export async function writeAllSessions(rows: SessionRecord[]): Promise<void> {
 }
 
 export async function readAllAttempts(): Promise<AttemptRecord[]> {
-  if ((await shouldUseCloudData()) && supabase != null) {
+  if (supabase != null) {
     const { data, error } = await supabase
       .from('attempts')
       .select('attempt_id, session_id, hold_ms, peak_volume, valid, created_at')
@@ -55,7 +54,7 @@ export async function readAllAttempts(): Promise<AttemptRecord[]> {
 }
 
 export async function writeAllAttempts(rows: AttemptRecord[]): Promise<void> {
-  if ((await shouldUseCloudData()) && supabase != null) {
+  if (supabase != null) {
     const { error } = await supabase.from('attempts').upsert(rows, { onConflict: 'attempt_id' });
     if (error) throw error;
     return;
