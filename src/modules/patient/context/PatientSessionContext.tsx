@@ -13,6 +13,7 @@ import React, {
   useState,
 } from 'react';
 
+import { useAppMode } from '@/src/modules/app-mode';
 import {
   getCurrentPatient as loadCurrentPatientFromStorage,
   logoutPatient as clearSessionStorage,
@@ -31,6 +32,7 @@ type PatientSessionContextValue = {
 const PatientSessionContext = createContext<PatientSessionContextValue | undefined>(undefined);
 
 export function PatientSessionProvider({ children }: { children: React.ReactNode }) {
+  const { resetMode } = useAppMode();
   const [patient, setPatient] = useState<PatientRecord | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
@@ -68,9 +70,10 @@ export function PatientSessionProvider({ children }: { children: React.ReactNode
   }, []);
 
   const clearSession = useCallback(async () => {
+    await resetMode();
     await clearSessionStorage();
     setPatient(null);
-  }, []);
+  }, [resetMode]);
 
   const value = useMemo(
     () => ({

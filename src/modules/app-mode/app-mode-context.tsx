@@ -1,16 +1,25 @@
 /**
- * Purpose: React context for global AppMode (online vs offline sensor test).
+ * Purpose: React context for global AppMode (online vs offline without cloud).
  * Module: app-mode
  */
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { isOfflineSensorTestEnabled } from '@/src/modules/app-mode/app-mode-config';
+import { getPersistedAppMode, persistAppMode } from '@/src/modules/app-mode/app-mode-storage';
 import type { AppMode } from '@/src/modules/app-mode/app-mode-types';
 
 export type AppModeContextValue = {
   mode: AppMode;
-  setMode: (mode: AppMode) => void;
-  resetMode: () => void;
+  setMode: (mode: AppMode) => Promise<void>;
+  resetMode: () => Promise<void>;
   isOnlineMode: boolean;
   isOfflineSensorTestMode: boolean;
   offlineSensorTestEnabled: boolean;
@@ -22,14 +31,33 @@ export function AppModeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<AppMode>('online');
   const offlineSensorTestEnabled = isOfflineSensorTestEnabled();
 
-  const setMode = useCallback((next: AppMode) => {
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      let next = await getPersistedAppMode();
+      if (next === 'offline_sensor_test' && !isOfflineSensorTestEnabled()) {
+        await persistAppMode('online');
+        next = 'online';
+      }
+      if (!cancelled) {
+        setModeState(next);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const setMode = useCallback(async (next: AppMode) => {
     if (next === 'offline_sensor_test' && !isOfflineSensorTestEnabled()) {
       return;
     }
+    await persistAppMode(next);
     setModeState(next);
   }, []);
 
-  const resetMode = useCallback(() => {
+  const resetMode = useCallback(async () => {
+    await persistAppMode('online');
     setModeState('online');
   }, []);
 
