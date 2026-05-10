@@ -267,6 +267,16 @@ export function SensorConnectionScreen() {
               accessibilityLabel="Prueba raw WebSocket avanzada">
               <Text style={styles.labLinkSecondaryText}>Prueba raw WebSocket (avanzado)</Text>
             </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.labLinkSecondary, pressed && styles.labLinkPressed]}
+              onPress={() => {
+                hapticLight();
+                router.push('/sensor-calibration');
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Calibración local experimental">
+              <Text style={styles.labLinkSecondaryText}>Calibración local (experimental)</Text>
+            </Pressable>
           </View>
         ) : null}
 
