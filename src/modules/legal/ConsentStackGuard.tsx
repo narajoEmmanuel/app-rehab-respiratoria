@@ -9,21 +9,24 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
-import { isOfflineSensorTestEnabled } from '@/src/modules/device/offline-sensor-test';
+import { useAppMode } from '@/src/modules/app-mode';
 import { isConsentActive } from '@/src/modules/legal/consent-service';
 import { wellness } from '@/src/shared/theme/wellness-theme';
 
 type Props = {
   children: ReactNode;
+  /** Kept for route wrappers; consent bypass only applies in `offline_sensor_test` + enabled flag. */
   allowOfflineDevBypass?: boolean;
 };
 
 export function ConsentStackGuard({ children, allowOfflineDevBypass = false }: Props) {
+  void allowOfflineDevBypass;
   const [gate, setGate] = useState<'loading' | 'ok' | 'blocked'>('loading');
+  const { isOfflineSensorTestMode, offlineSensorTestEnabled } = useAppMode();
 
   useFocusEffect(
     useCallback(() => {
-      if (allowOfflineDevBypass && isOfflineSensorTestEnabled) {
+      if (isOfflineSensorTestMode && offlineSensorTestEnabled) {
         setGate('ok');
         return () => {};
       }
@@ -36,7 +39,7 @@ export function ConsentStackGuard({ children, allowOfflineDevBypass = false }: P
       return () => {
         cancelled = true;
       };
-    }, [allowOfflineDevBypass]),
+    }, [isOfflineSensorTestMode, offlineSensorTestEnabled]),
   );
 
   if (gate === 'loading') {
