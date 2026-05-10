@@ -2,16 +2,70 @@
 
 Aplicación de apoyo para **ejercicios respiratorios con espirómetro incentivador**, orientada al **seguimiento de sesiones**, la **adherencia**, el **biofeedback** y el **registro de progreso** en contextos de rehabilitación (p. ej. adultos en proceso postoperatorio). RESPIRA+ organiza el flujo del paciente desde el acceso y el consentimiento hasta la terapia por niveles, el historial y la exportación de datos.
 
+El proyecto se desarrolla con **Expo**, **React Native** y **TypeScript**, y la navegación sigue **Expo Router** (rutas bajo `app/`). **Python** no es la interfaz principal de la app móvil; si el equipo usa scripts en Python, son **herramientas opcionales** externas (análisis o prototipos), no una capa obligatoria del producto descrito aquí.
+
 ---
 
 ## Estado actual
 
-- **Prototipo académico** en evolución activa; no sustituye criterio clínico ni atención profesional (véase [Aviso académico](#aviso-académico)).
+- **Prototipo académico** en evolución activa; **no sustituye** criterio clínico ni atención profesional (véase [Aviso académico](#aviso-académico)). **No** se declara aquí validación clínica del sistema como producto sanitario.
+- **Baseline de equipo:** la versión de código acordada como referencia oficial del equipo está en **GitHub**; úsala como punto de partida para contribuciones y revisiones.
 - **Expo**, **React Native** y **TypeScript**, con rutas basadas en **Expo Router**.
 - **iPhone durante desarrollo**: compatible mediante **Expo Go** y el flujo estándar de `expo start`.
 - **Web / PWA**: objetivo razonable de despliegue; la app incluye ajustes de experiencia (p. ej. splash) pensados también para web.
-- **Sensor**: la línea prevista para el hardware es **ESP32** comunicándose por **WiFi** y **WebSocket** (no Bluetooth como estrategia principal actual). La integración completa con el dispositivo final puede estar en **pruebas o planificación** según la rama y el momento del repo; no se asume aquí que el sensor de producción ya está conectado de forma definitiva.
-- **Supabase**: integrado en **modo prototipo** para base de datos, persistencia y sincronización en desarrollo colaborativo. **No** está documentado ni garantizado como listo para producción. Ver [Notas de seguridad y privacidad](#notas-de-seguridad-y-privacidad) y [`docs/supabase-security-notes.md`](docs/supabase-security-notes.md).
+- **Nube, usuarios y base de datos:** la app incluye integración con **Supabase** y flujos de sesión e historial en modo **prototipo**. El trabajo con **hardware en red local** (ESP32) debe mantenerse **conceptual y técnicamente separado** de ese modo online hasta que el flujo de sensor esté estabilizado y acordado con el equipo.
+- **Hardware ESP32 (validado en laboratorio de desarrollo):** el firmware en un **ESP32-WROOM-32** programado desde **Arduino IDE** puede operar como **punto de acceso WiFi** `RESPIRA_ESP32`, con IP **`192.168.4.1`**, página de diagnóstico en **`http://192.168.4.1`** y **WebSocket** en **`ws://192.168.4.1:81`**. El sensor **GY-530 (VL53L0X)** ha sido comprobado por **I2C** en la dirección **`0x29`**. El firmware envía por WebSocket mensajes JSON con al menos: `source`, `distanceMm`, `rawDistanceMm`, `distanceValid`, `timestamp`. La app **RESPIRA+** ya ha podido conectarse desde las rutas de prueba documentadas abajo y muestra una **barra visual provisional** basada en `distanceMm` (no volumen clínico estimado ni un campo `estimatedVolumeMl` en el contrato actual).
+- **Supabase:** integrado en **modo prototipo** para base de datos y desarrollo colaborativo. **No** está documentado ni garantizado como listo para producción. Ver [Notas de seguridad y privacidad](#notas-de-seguridad-y-privacidad) y [`docs/supabase-security-notes.md`](docs/supabase-security-notes.md).
+
+---
+
+## Modos previstos (visión de producto)
+
+El equipo distingue dos líneas de uso; la nomenclatura y el conmutador global de producto para el segundo **aún están por formalizar** en la UX y en la documentación interna.
+
+| Modo | Descripción |
+|------|-------------|
+| **online** | Flujo principal con identidad, consentimiento, terapia, historial y persistencia en **Supabase** (y resto de integraciones en evolución), según las pantallas y políticas del repo. |
+| **offline_sensor_test** | Enfoque centrado en **prueba de hardware** y visualización local, **sin** mezclar de forma prematura calibraciones experimentales ni telemetría del sensor con el historial clínico en nube. Hoy existe una **bandera de entorno** `EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST` (véase [Variables de entorno](#variables-de-entorno-supabase-y-hardware)) que habilita piezas de prueba en desarrollo; el **modo offline global** unificado bajo este nombre **no** está todavía cerrado como producto. |
+
+**Calibraciones:** cualquier calibración experimental del sensor debe tratarse como **local y provisional**. **No** debe enviarse a la nube ni mezclarse con datos de sesión clínica hasta criterio explícito del equipo y diseño revisado.
+
+---
+
+## Hardware ESP32 (referencia validada en el equipo)
+
+| Elemento | Valor o nota |
+|----------|----------------|
+| Placa programada | **ESP32-WROOM-32** (Arduino IDE) |
+| Modo WiFi | **Access Point**, SSID **`RESPIRA_ESP32`** |
+| IP del AP | **`192.168.4.1`** |
+| Diagnóstico HTTP | **`http://192.168.4.1`** |
+| WebSocket | **`ws://192.168.4.1:81`** |
+| Sensor | **GY-530 VL53L0X** |
+| Dirección I2C | **`0x29`** |
+| Payload WebSocket (campos ya vistos en firmware) | `source`, `distanceMm`, `rawDistanceMm`, `distanceValid`, `timestamp` |
+
+Los **códigos Arduino** que acompañan al firmware de referencia forman **parte del repositorio** y deben conservarse; **no** se consideran archivos prescindibles. Ver [Código Arduino en el repositorio](#código-arduino-en-el-repositorio).
+
+---
+
+## Rutas de prueba de hardware (Expo Router)
+
+- **`/esp32-raw-test`** — Prueba **mínima de respaldo** para validar conectividad WebSocket y mensajes crudos frente al ESP32, sin el resto del flujo de la pantalla integrada.
+- **`/sensor-connection`** — Pantalla **integrada** de conexión, estado y **visualización** (incluye preview en vivo con barra basada en `distanceMm` de forma **provisional**).
+
+Ambas rutas han sido usadas en desarrollo para conectar la app al ESP32 en la configuración AP descrita arriba.
+
+---
+
+## Código Arduino en el repositorio
+
+| Ruta | Rol |
+|------|-----|
+| `RESPIRA_WebSocket/RESPIRA_WebSocket.ino` | Sketch de firmware de referencia para ESP32 (WebSocket, sensor, etc., según el propio archivo). |
+| `arduino_codes/respira_ws_test.html` | Página local de apoyo / diagnóstico para pruebas en navegador contra el mismo esquema de red. |
+
+Mantener estos artefactos versionados facilita reproducibilidad y revisiones entre firmware y app.
 
 ---
 
@@ -31,6 +85,7 @@ Aplicación de apoyo para **ejercicios respiratorios con espirómetro incentivad
 - **Exportación manual** de datos de sesiones en **CSV** y **JSON**.
 - **Recordatorios locales** de terapia (notificaciones).
 - **Splash nativo** y **splash web/PWA** con logo de la marca.
+- **Conexión real al ESP32** por WebSocket desde las rutas de prueba anteriores, con visualización provisional de distancia.
 - **Supabase** en configuración de **prototipo** (ver nota de seguridad).
 
 ---
@@ -89,14 +144,20 @@ npm install
 
 ---
 
-## Variables de entorno (Supabase)
+## Variables de entorno (Supabase y hardware)
 
 Para activar el cliente de Supabase en desarrollo se utilizan variables públicas de Expo (nombres solamente; **sin** pegar valores reales en documentación ni en chats públicos):
 
 - `EXPO_PUBLIC_SUPABASE_URL`
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 
-Copia `.env.example` a `.env` en tu máquina y completa con los valores que el equipo comparta por un canal seguro. Los placeholders en `.env.example` tienen la forma `https://YOUR_PROJECT.supabase.co` y `YOUR_SUPABASE_ANON_KEY`.
+Para pruebas de hardware en desarrollo (no sustituye el modo producto **offline_sensor_test** formalizado):
+
+- `EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST` — con valor `true` activa el camino de prueba offline del sensor descrito en el código; el valor por defecto en `.env.example` es `false`.
+
+Copia `.env.example` a **`.env`** en tu máquina y completa con los valores que el equipo comparta por un canal seguro. Los placeholders en `.env.example` tienen la forma `https://YOUR_PROJECT.supabase.co` y `YOUR_SUPABASE_ANON_KEY`.
+
+**El archivo `.env` no debe subirse a Git** (debe permanecer fuera del control de versiones; el repo solo documenta el ejemplo).
 
 **Seguridad y prototipo:** lee [`docs/supabase-security-notes.md`](docs/supabase-security-notes.md) antes de asumir que la configuración actual es apta para datos reales o para publicación.
 
@@ -137,12 +198,15 @@ Convención de prefijos sugerida: `feat/`, `fix/`, `chore/`, `docs/`.
 | Ruta | Contenido |
 |------|-----------|
 | `app/` | Rutas Expo Router: stacks, tabs y pantallas que reexportan módulos en `src/`. |
-| `src/modules/` | Dominio por áreas: auth, legal, patient, levels, session, history, export, notifications, device, etc. |
+| `src/modules/` | Dominio por áreas: auth, legal, patient, levels, session, history, export, notifications, **device** (sensor / WebSocket), etc. |
+| `src/modules/device/` | Módulo de dispositivo: cliente WebSocket, ingestión, adaptadores, mocks, componentes y pantallas. Ver [`src/modules/device/README.md`](src/modules/device/README.md). |
 | `src/shared/` | UI reutilizable, tema parcial, utilidades y piezas transversales. |
 | `src/theme/` | Tokens y temas de pantalla (p. ej. dashboards, niveles). |
 | `assets/` | Imágenes, fuentes y recursos estáticos. |
 | `docs/` | Documentación en raíz del repo (p. ej. notas de Supabase). |
 | `supabase/` | Artefactos de esquema SQL de referencia para el proyecto Supabase. |
+| `RESPIRA_WebSocket/` | Firmware Arduino de referencia para ESP32. |
+| `arduino_codes/` | Recursos HTML/Arduino auxiliares para pruebas. |
 
 Documentación histórica o de arquitectura adicional puede vivir en **`src/docs/`** (p. ej. `architecture.md`, `team-ownership.md`). El alias de imports `@/` apunta a la **raíz** del repositorio.
 
@@ -156,22 +220,14 @@ RESPIRA+ maneja flujos que, en un despliegue real, pueden implicar **datos perso
 
 ---
 
-## Roadmap próximo (orientativo)
+## Roadmap por fases (orientativo)
 
-- Unificar visualmente pantallas secundarias para una experiencia más cohesiva.
-- Mejorar el **biofeedback** y la claridad del juego durante la sesión.
-- Preparar **PWA** o enlace compartible estable para demos web.
-- **Conectar ESP32** por **WiFi / WebSocket** de forma robusta y documentada.
-- **Endurecer Supabase** (RLS, secretos, consultas) antes de cualquier producción.
-- **Validación técnica y clínica** en entornos controlados.
-
----
-
-## Estado del sensor (hardware)
-
-El diseño previsto concentra la comunicación del **espirómetro incentivador** o módulo asociado en un **ESP32** accesible por **red local (WiFi)** y un canal **WebSocket**, no en Bluetooth como eje principal de la app en este repositorio.
-
-**Python** no es la interfaz principal de la app actual (Expo / React Native). Si el equipo usa scripts en Python, puede ser como **herramienta opcional** de análisis o prototipos externos, no como capa obligatoria del producto móvil descrito aquí.
+1. **Fase actual — Baseline y hardware de desarrollo:** firmware ESP32 en repo, AP y WebSocket documentados, app conectando desde `/esp32-raw-test` y `/sensor-connection`, barra provisional con `distanceMm`; módulo `device` acotado del resto de dominio clínico en nube.
+2. **Estabilización del sensor:** repetibilidad, manejo de errores de red, UX de conexión y criterios de calidad de señal; seguir sin subir calibraciones experimentales a Supabase hasta acuerdo explícito.
+3. **Formalizar modo offline_sensor_test:** conmutación clara respecto a **online**, documentación de usuario y pruebas; sin afirmar hoy un producto cerrado en este punto.
+4. **Integración con sesión e historial:** solo cuando el sensor y cualquier calibración estén definidos con criterios de equipo; volumen clínico u otros estimadores deben introducirse con diseño explícito (no se documenta aquí un campo `estimatedVolumeMl` ni una ruta `sensor-calibration` como existentes).
+5. **Endurecer Supabase** (RLS, secretos, consultas) antes de cualquier entorno que trate datos reales de pacientes.
+6. **Evaluaciones técnicas y de usabilidad** en entornos controlados; **no** confundir con validación clínica del sistema como dispositivo médico.
 
 ---
 
@@ -186,6 +242,7 @@ El diseño previsto concentra la comunicación del **espirómetro incentivador**
 - [Notas de seguridad Supabase (modo prototipo)](docs/supabase-security-notes.md)
 - [Arquitectura técnica](src/docs/architecture.md)
 - [Reparto de módulos en el equipo](src/docs/team-ownership.md)
+- [Módulo device (sensor / WebSocket)](src/modules/device/README.md)
 
 ## Script `reset-project`
 
