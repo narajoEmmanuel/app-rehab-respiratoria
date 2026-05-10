@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import { Redirect } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { useAppMode } from '@/src/modules/app-mode';
 import { isConsentActive } from '@/src/modules/legal/consent-service';
@@ -54,9 +54,39 @@ export function ConsentStackGuard({ children, allowOfflineDevBypass = false }: P
     return <Redirect href="/(tabs)" />;
   }
 
-  return <>{children}</>;
+  const showOfflineBanner = isOfflineSensorTestMode && offlineSensorTestEnabled;
+
+  return (
+    <>
+      {showOfflineBanner ? (
+        <View
+          style={styles.offlineBanner}
+          accessibilityLabel="Este modo es experimental, no clínico y no sincroniza datos."
+        >
+          <Text style={styles.offlineBannerText}>
+            Este modo es experimental, no clínico y no sincroniza datos.
+          </Text>
+        </View>
+      ) : null}
+      {children}
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: wellness.screenBg },
+  offlineBanner: {
+    backgroundColor: wellness.softGreen,
+    borderBottomWidth: 1,
+    borderBottomColor: wellness.borderStrong,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  offlineBannerText: {
+    color: wellness.primaryDark,
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
 });

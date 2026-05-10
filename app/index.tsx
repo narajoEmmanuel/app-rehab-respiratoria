@@ -1,5 +1,5 @@
 /**
- * Purpose: Entry gate — session present goes to tabs, else auth login.
+ * Purpose: Entry gate — optional local sensor bootstrap, else session → tabs or auth.
  * Module: app routing
  * Dependencies: expo-router, patient session, app-mode
  */
@@ -20,47 +20,70 @@ import { needsConsent } from '@/src/modules/legal/consent-service';
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 
-function OfflineSensorTestEntryPanel() {
-  const router = useRouter();
-  const { setMode, resetMode } = useAppMode();
+const OFFLINE_EXPERIMENTAL_NOTICE =
+  'Este modo es experimental, no clínico y no sincroniza datos.';
 
-  const goNormalApp = () => {
-    resetMode();
-    router.replace('/(tabs)');
-  };
+/**
+ * Pantalla inicial cuando la bandera de prueba local está activa: no exige login,
+ * Supabase ni consentimiento para el camino de hardware local.
+ */
+function AppBootstrapWithOfflineOption() {
+  const router = useRouter();
+  const { patient } = usePatientSession();
+  const { setMode, resetMode } = useAppMode();
 
   const goOfflineSensorTest = () => {
     setMode('offline_sensor_test');
     router.replace('/sensor-connection');
   };
 
+  const goOnlineFlow = () => {
+    resetMode();
+    if (!patient) {
+      router.replace('/auth/login');
+      return;
+    }
+    void needsConsent().then((need) => {
+      if (need) {
+        router.replace(LEGAL_ACCEPT_HREF);
+      } else {
+        router.replace('/(tabs)');
+      }
+    });
+  };
+
   return (
     <View style={styles.center}>
       <View style={styles.card}>
         <Text style={styles.headline}>RESPIRA+</Text>
-        <Pressable
-          style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
-          onPress={goNormalApp}
-          accessibilityRole="button"
-          accessibilityLabel="Entrar a la app en modo normal"
-        >
-          <Text style={styles.primaryButtonLabel}>Entrar a la app</Text>
-        </Pressable>
 
-        <View style={styles.devSection}>
-          <Text style={styles.devTitle}>Modo local de prueba de sensor</Text>
-          <Text style={styles.devLine}>No clínico</Text>
-          <Text style={styles.devLine}>No sincronizado</Text>
-          <Text style={styles.devLine}>Solo disponible en desarrollo</Text>
+        <View style={styles.localSection}>
+          <Text style={styles.localTitle}>Modo local de prueba de sensor</Text>
+          <Text style={styles.localLine}>No clínico</Text>
+          <Text style={styles.localLine}>No sincronizado</Text>
+          <Text style={styles.localLine}>Solo disponible en desarrollo</Text>
+          <Text style={styles.experimentalBlock}>{OFFLINE_EXPERIMENTAL_NOTICE}</Text>
           <Pressable
-            style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryButtonPressed]}
+            style={({ pressed }) => [styles.localCta, pressed && styles.localCtaPressed]}
             onPress={goOfflineSensorTest}
             accessibilityRole="button"
             accessibilityLabel="Abrir modo local de prueba de sensor"
           >
-            <Text style={styles.secondaryButtonLabel}>Abrir prueba de sensor</Text>
+            <Text style={styles.localCtaLabel}>Abrir prueba de sensor</Text>
           </Pressable>
         </View>
+
+        <View style={styles.divider} />
+
+        <Text style={styles.onlineHint}>Flujo online: cuenta real, consentimiento y sincronización.</Text>
+        <Pressable
+          style={({ pressed }) => [styles.onlineButton, pressed && styles.onlineButtonPressed]}
+          onPress={goOnlineFlow}
+          accessibilityRole="button"
+          accessibilityLabel="Iniciar sesión o continuar con cuenta"
+        >
+          <Text style={styles.onlineButtonLabel}>Iniciar sesión o continuar con cuenta</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -73,6 +96,11 @@ export default function IndexGate() {
 
   useEffect(() => {
     if (!hydrated) return;
+    if (isOfflineSensorTestEnabled()) {
+      setConsentLoading(false);
+      setMustAcceptLegal(false);
+      return;
+    }
     if (!patient) {
       setConsentLoading(false);
       setMustAcceptLegal(false);
@@ -99,6 +127,10 @@ export default function IndexGate() {
     );
   }
 
+  if (isOfflineSensorTestEnabled()) {
+    return <AppBootstrapWithOfflineOption />;
+  }
+
   if (!patient) {
     return <Redirect href="/auth/login" />;
   }
@@ -113,10 +145,6 @@ export default function IndexGate() {
 
   if (mustAcceptLegal) {
     return <Redirect href={LEGAL_ACCEPT_HREF} />;
-  }
-
-  if (isOfflineSensorTestEnabled()) {
-    return <OfflineSensorTestEntryPanel />;
   }
 
   return <Redirect href="/(tabs)" />;
@@ -146,38 +174,28 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
   },
-  primaryButton: {
-    backgroundColor: authPalette.primary,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
+  localSection: {
+    marginBottom: 8,
   },
-  primaryButtonPressed: {
-    backgroundColor: authPalette.primaryPressed,
-  },
-  primaryButtonLabel: {
-    color: authPalette.primaryOnBrand,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  devSection: {
-    marginTop: 28,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: authPalette.border,
-  },
-  devTitle: {
+  localTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: authPalette.text,
     marginBottom: 10,
   },
-  devLine: {
+  localLine: {
     fontSize: 14,
     color: authPalette.textMuted,
     marginBottom: 4,
   },
-  secondaryButton: {
+  experimentalBlock: {
+    marginTop: 12,
+    fontSize: 13,
+    lineHeight: 18,
+    color: authPalette.primaryDark,
+    fontWeight: '500',
+  },
+  localCta: {
     marginTop: 16,
     paddingVertical: 12,
     borderRadius: 12,
@@ -186,12 +204,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: authPalette.screenBg,
   },
-  secondaryButtonPressed: {
-    opacity: 0.85,
+  localCtaPressed: {
+    opacity: 0.88,
   },
-  secondaryButtonLabel: {
+  localCtaLabel: {
     fontSize: 15,
     fontWeight: '600',
     color: authPalette.primaryDark,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: authPalette.border,
+    marginVertical: 20,
+  },
+  onlineHint: {
+    fontSize: 13,
+    color: authPalette.textMuted,
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  onlineButton: {
+    backgroundColor: authPalette.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  onlineButtonPressed: {
+    backgroundColor: authPalette.primaryPressed,
+  },
+  onlineButtonLabel: {
+    color: authPalette.primaryOnBrand,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
