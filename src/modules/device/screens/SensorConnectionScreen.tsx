@@ -1,11 +1,5 @@
-/**
- * Purpose: Simulated sensor discovery, connection, and calibration (WiFi/WebSocket real en fases posteriores; ahora mock / modo demostración).
- * Module: device
- * Dependencies: expo-router, react-native, device mocks, wellness theme
- * Notes: UI state only; safe for Expo Go. Move route to (tabs) later without changing this file.
- */
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -96,23 +90,14 @@ export function SensorConnectionScreen() {
     startMock,
     stopMock,
   } = useEsp32WebSocketSensor();
-  const [isCalibrated, setIsCalibrated] = useState(false);
 
   const onConnect = useCallback(() => {
     hapticLight();
-    setIsCalibrated(false);
     connect();
   }, [connect]);
 
-  const onCalibrate = useCallback(() => {
-    if (status !== 'connected' && status !== 'receiving') return;
-    hapticLight();
-    setIsCalibrated(true);
-  }, [status]);
-
   const onStartMock = useCallback(() => {
     hapticLight();
-    setIsCalibrated(false);
     startMock();
   }, [startMock]);
 
@@ -126,14 +111,7 @@ export function SensorConnectionScreen() {
     disconnect();
   }, [disconnect]);
 
-  useEffect(() => {
-    if (status === 'disconnected' || status === 'error') {
-      setIsCalibrated(false);
-    }
-  }, [status]);
-
   const isConnecting = status === 'connecting';
-  const canCalibrate = status === 'connected' || status === 'receiving';
   const showReading = Boolean(lastReading);
   const sustainedSeconds = lastReading ? (lastReading.sustainedTimeMs / 1000).toFixed(1) : '0.0';
   const modeLabel = mode === 'mock' ? 'simulado' : 'real';
@@ -147,7 +125,7 @@ export function SensorConnectionScreen() {
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Conexión y calibración del sensor</Text>
+        <Text style={styles.title}>Conexión del sensor</Text>
 
         {showPrototypeOrDevBanner ? (
           <View style={styles.offlineBanner}>
@@ -303,14 +281,6 @@ export function SensorConnectionScreen() {
           </View>
         ) : null}
 
-        {isCalibrated ? (
-          <View style={styles.bannerCal}>
-            <Text style={styles.bannerCalText}>
-              Calibración de sensor completada en esta pantalla.
-            </Text>
-          </View>
-        ) : null}
-
         {status === 'error' && errorMessage ? (
           <View style={styles.bannerErr}>
             <Text style={styles.bannerErrText}>{errorMessage}</Text>
@@ -360,21 +330,6 @@ export function SensorConnectionScreen() {
           onPress={onDisconnect}
           accessibilityRole="button">
           <Text style={styles.secondaryBtnText}>Desconectar</Text>
-        </Pressable>
-
-        <Pressable
-          style={({ pressed }) => [
-            styles.secondaryBtn,
-            !canCalibrate && styles.btnDisabled,
-            pressed && canCalibrate && styles.secondaryBtnPressed,
-          ]}
-          onPress={onCalibrate}
-          disabled={!canCalibrate}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: !canCalibrate }}>
-          <Text style={[styles.secondaryBtnText, !canCalibrate && styles.btnTextDisabled]}>
-            Calibrar sensor
-          </Text>
         </Pressable>
 
         <Pressable
@@ -519,19 +474,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: wellness.primaryDark,
     fontWeight: '600',
-  },
-  bannerCal: {
-    backgroundColor: wellness.softGreen,
-    borderRadius: wellnessRadii.card,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    marginBottom: spacing.lg,
-  },
-  bannerCalText: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: wellness.text,
   },
   bannerErr: {
     backgroundColor: wellness.errorBg,

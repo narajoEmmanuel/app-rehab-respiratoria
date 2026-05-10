@@ -1,9 +1,3 @@
-/**
- * Purpose: Mock sample stream for local development.
- * Module: device
- * Dependencies: device/types
- * Notes: Used while hardware integration is unavailable.
- */
 import type { RespiratorySample } from '@/src/modules/device/types';
 
 export const mockRespiratorySamples: RespiratorySample[] = [

@@ -1,8 +1,3 @@
-/**
- * Purpose: Development-only offline bypass config for ESP32 hardware tests.
- * Module: device
- */
-
 export type OfflineSensorTestUser = {
   id: 'local-sensor-test-user';
   name: 'Sensor Test User';

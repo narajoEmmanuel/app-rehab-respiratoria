@@ -1,12 +1,6 @@
 /**
- * Purpose: Aislar la conexión real al ESP32 vía WebSocket sin pasar por
- *   useEsp32WebSocketSensor, Esp32WebSocketClient, parseSensorMessage ni mocks.
- * Module: app routing (debug only)
- * Dependencies: react, react-native, react-native-safe-area-context
- * Notes: Esta ruta no se enlaza desde la app principal. Acceso directo:
- *   - Web: http://localhost:8081/esp32-raw-test
- *   - Native: navega manualmente a /esp32-raw-test
- *   No autoconecta, no reconecta, no usa fetch ni BLE.
+ * Diagnóstico: WebSocket crudo al ESP32 sin `useEsp32WebSocketSensor` ni `parseSensorMessage`.
+ * No autoconecta ni reconecta; acceso por ruta `/esp32-raw-test`.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {

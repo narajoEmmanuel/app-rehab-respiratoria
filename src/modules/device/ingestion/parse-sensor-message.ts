@@ -1,8 +1,3 @@
-/**
- * Purpose: Parse raw websocket payloads into a safe SensorReading.
- * Module: device
- * Dependencies: device/types/sensor-reading
- */
 import type {
   SensorFlowState,
   SensorMessageParseResult,

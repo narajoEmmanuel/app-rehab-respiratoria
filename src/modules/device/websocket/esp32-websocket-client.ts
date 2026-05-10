@@ -1,8 +1,3 @@
-/**
- * Purpose: Minimal ESP32 websocket transport with callback events.
- * Module: device
- * Dependencies: device/ingestion/parse-sensor-message
- */
 import { parseSensorMessage } from '@/src/modules/device/ingestion/parse-sensor-message';
 import type { SensorReading } from '@/src/modules/device/types/sensor-reading';
 

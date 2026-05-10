@@ -1,7 +1,3 @@
-/**
- * Purpose: Dev-only hub for hardware test routes (raw WS, integrated sensor).
- * Module: device
- */
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback } from 'react';
@@ -78,6 +74,18 @@ export function HardwareLabScreen() {
 
         <Pressable
           style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+          onPress={() => router.push('/sensor-connection')}
+          accessibilityRole="button"
+          accessibilityLabel="Conexión del sensor"
+        >
+          <Text style={styles.cardTitle}>Conexión del sensor</Text>
+          <Text style={styles.cardDesc}>
+            Estado WebSocket, diagnóstico ESP32 y vista previa en vivo (distanceMm).
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [styles.card, pressed && styles.pressed]}
           onPress={() => router.push('/esp32-raw-test')}
           accessibilityRole="button"
           accessibilityLabel="Prueba raw WebSocket"
@@ -88,27 +96,9 @@ export function HardwareLabScreen() {
           </Text>
         </Pressable>
 
-        <Pressable
-          style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-          onPress={() => router.push('/sensor-connection')}
-          accessibilityRole="button"
-          accessibilityLabel="Conexión integrada del sensor"
-        >
-          <Text style={styles.cardTitle}>Conexión integrada del sensor</Text>
-          <Text style={styles.cardDesc}>
-            Pantalla integrada con estado de conexión y vista previa basada en distanceMm.
-          </Text>
-        </Pressable>
-
-        <View style={[styles.card, styles.cardDisabled]} accessibilityState={{ disabled: true }}>
-          <Text style={styles.cardTitleMuted}>Calibración experimental</Text>
-          <Text style={styles.cardDescMuted}>Pendiente, se implementará en la siguiente fase.</Text>
-        </View>
-
-        <View style={[styles.card, styles.cardDisabled]} accessibilityState={{ disabled: true }}>
-          <Text style={styles.cardTitleMuted}>Biofeedback experimental</Text>
-          <Text style={styles.cardDescMuted}>Pendiente, se implementará después de calibración.</Text>
-        </View>
+        <Text style={styles.upcomingNote}>
+          Más herramientas de laboratorio se enlazarán aquí cuando el protocolo lo defina.
+        </Text>
 
         <Pressable
           style={({ pressed }) => [styles.ghostBtn, pressed && styles.pressed]}
@@ -187,19 +177,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: wellness.border,
   },
-  cardDisabled: {
-    opacity: 0.72,
-  },
   cardTitle: {
     fontSize: 17,
     fontWeight: '700',
     color: wellness.text,
-    marginBottom: spacing.xs,
-  },
-  cardTitleMuted: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: wellness.textSecondary,
     marginBottom: spacing.xs,
   },
   cardDesc: {
@@ -207,10 +188,13 @@ const styles = StyleSheet.create({
     color: wellness.textSecondary,
     lineHeight: 20,
   },
-  cardDescMuted: {
-    fontSize: 14,
+  upcomingNote: {
+    fontSize: 13,
+    lineHeight: 18,
     color: wellness.textSecondary,
-    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.sm,
   },
   primaryBtn: {
     alignSelf: 'center',

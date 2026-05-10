@@ -1,8 +1,3 @@
-/**
- * Purpose: UI adapter hook for ESP32 websocket data and demo mode.
- * Module: device
- * Dependencies: React, device websocket client, device mocks
- */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getMockSensorReading } from '@/src/modules/device/mocks/mock-sensor-readings';

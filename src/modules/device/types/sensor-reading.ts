@@ -1,8 +1,3 @@
-/**
- * Purpose: Shared sensor contracts for mock and ESP32 websocket ingestion.
- * Module: device
- * Dependencies: none
- */
 export type SensorFlowState = 'idle' | 'inhaling' | 'holding' | 'exhaling';
 
 /**

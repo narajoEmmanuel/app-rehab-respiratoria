@@ -1,8 +1,3 @@
-/**
- * Purpose: Demo sequence for sensor data when ESP32 is unavailable.
- * Module: device
- * Dependencies: device/types/sensor-reading
- */
 import type { SensorReading } from '@/src/modules/device/types/sensor-reading';
 
 export const mockSensorReadings: SensorReading[] = [

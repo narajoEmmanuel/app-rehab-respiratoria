@@ -8,12 +8,12 @@ Este módulo concentra el **transporte WebSocket**, la **ingestión de mensajes*
 
 | Carpeta | Rol |
 |---------|-----|
-| `websocket/` | Cliente WebSocket real (`Esp32WebSocketClient`) y artefactos de encaje histórico (`websocket-placeholder.ts`). |
+| `websocket/` | Cliente WebSocket (`Esp32WebSocketClient`). |
 | `ingestion/` | Parseo de payloads JSON del ESP32 hacia tipos seguros (`parseSensorMessage`, etc.). |
-| `adapters/` | Hooks y piezas que unen transporte + estado con la UI (`useEsp32WebSocketSensor`, placeholders). |
+| `adapters/` | Hooks que unen transporte + estado con la UI (`useEsp32WebSocketSensor`). |
 | `mocks/` | Datos y lecturas simuladas para desarrollo sin hardware. |
 | `components/` | UI reutilizable (p. ej. preview en vivo de distancia). |
-| `screens/` | Pantallas del dominio dispositivo (p. ej. conexión, **Hardware Lab** y estado). |
+| `screens/` | Pantallas del dominio dispositivo (conexión, **Hardware Lab**). |
 | `types/` | Contratos de lectura y estados de conexión. |
 
 Las rutas de Expo Router en `app/` reexportan o componen estas piezas; la lógica de dominio del sensor debe seguir viviendo bajo `src/modules/device/`.
@@ -22,11 +22,9 @@ Las rutas de Expo Router en `app/` reexportan o componen estas piezas; la lógic
 
 | Ruta | Rol |
 |------|-----|
-| **`/hardware-lab`** | Panel de **desarrollo** (`HardwareLabScreen`): agrupa enlaces a pruebas de hardware cuando `EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST` está activo en desarrollo. No sustituye flujo clínico ni nube. |
+| **`/hardware-lab`** | Hub de **desarrollo** (`HardwareLabScreen`): enlaces a pruebas de hardware cuando el modo lo permite. No sustituye flujo clínico ni nube. |
 | **`/esp32-raw-test`** | Prueba **mínima de respaldo**: WebSocket directo al ESP32, sin el pipeline de ingestión de la app. |
 | **`/sensor-connection`** | Pantalla **integrada**: conexión, estado y vista previa basada en `distanceMm` (cliente WebSocket + `parseSensorMessage` + UI). |
-
-**Pendientes (sin ruta aún):** calibración experimental y biofeedback experimental; el Hardware Lab muestra tarjetas deshabilitadas como marcadores de fase.
 
 ---
 
@@ -38,8 +36,8 @@ Cadena principal cuando la app habla con el ESP32 en modo Access Point (WebSocke
 2. **`Esp32WebSocketClient`** (`websocket/esp32-websocket-client.ts`) abre el socket, recibe texto y delega el parseo en cada mensaje.
 3. **`parseSensorMessage`** (`ingestion/parse-sensor-message.ts`) convierte el JSON crudo en un **`SensorReading`** tipado (tolera campos opcionales y rellena numéricos faltantes donde aplica).
 4. **`useEsp32WebSocketSensor`** (`adapters/use-esp32-websocket-sensor.ts`) mantiene estado de conexión, URL, métricas básicas y alterna entre modo **mock** y **websocket** para la UI.
-5. **`SensorConnectionScreen`** (`screens/SensorConnectionScreen.tsx`) orquesta la pantalla integrada de conexión y feedback.
-6. **`SensorLivePreview`** (`components/SensorLivePreview.tsx`) muestra una **barra visual provisional** a partir de `distanceMm` (mapeo 0–100 % con rangos configurables; **no** es volumen espiratorio clínico).
+5. **`SensorConnectionScreen`** (`screens/SensorConnectionScreen.tsx`) orquesta la pantalla integrada de conexión y diagnóstico.
+6. **`SensorLivePreview`** (`components/SensorLivePreview.tsx`) muestra una **barra visual** a partir de `distanceMm` (mapeo 0–100 % con rangos configurables; **no** es volumen espiratorio clínico).
 
 Si `WebSocket` no está disponible en el entorno, el cliente notifica error sin bloquear el resto de la app.
 
@@ -47,7 +45,7 @@ Si `WebSocket` no está disponible en el entorno, el cliente notifica error sin 
 
 ## Cliente WebSocket
 
-**Sí existe un cliente WebSocket real** en `websocket/esp32-websocket-client.ts`: encapsula conexión, desconexión, callbacks (`onOpen`, `onReading`, `onRawMessage`, errores y cierre) y usa `parseSensorMessage` para no propagar JSON inválido como lecturas.
+El cliente está en `websocket/esp32-websocket-client.ts`: encapsula conexión, desconexión, callbacks (`onOpen`, `onReading`, `onRawMessage`, errores y cierre) y usa `parseSensorMessage` para no propagar JSON inválido como lecturas.
 
 Los **mocks** siguen siendo necesarios para desarrollo sin ESP32 y para el modo simulado en el hook.
 
@@ -55,7 +53,7 @@ Los **mocks** siguen siendo necesarios para desarrollo sin ESP32 y para el modo 
 
 ## Calibración y límites actuales
 
-- La **calibración experimental** del sensor (mapeo distancia → esfuerzo/volumen, compensaciones, etc.) está **pendiente de definición** y no debe documentarse como flujo cerrado.
+- La **calibración** del sensor (mapeo distancia → esfuerzo/volumen, compensaciones, etc.) será una **fase aparte**; no debe documentarse aquí como flujo cerrado.
 - Cualquier calibración futura debe tratarse primero en **ámbito local / de laboratorio**; **no** integrarla a **Supabase**, historial clínico ni sesión real hasta que el hardware y el protocolo estén **estables** y el equipo lo apruebe explícitamente.
 
 ---

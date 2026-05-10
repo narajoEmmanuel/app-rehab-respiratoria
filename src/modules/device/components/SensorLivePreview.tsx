@@ -1,8 +1,4 @@
-/**
- * Purpose: Provisional live preview of VL53L0X distance as a 0–100 % bar (not clinical volume).
- * Module: device
- * Dependencies: react-native, wellness theme
- */
+/** Vista previa de distancia (barra 0–100 %); no representa volumen clínico. */
 import { useEffect, useMemo, useRef } from 'react';
 import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
 
