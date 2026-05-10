@@ -34,7 +34,7 @@ function AppBootstrapWithOfflineOption() {
 
   const goOfflineSensorTest = () => {
     setMode('offline_sensor_test');
-    router.replace('/sensor-connection');
+    router.replace('/hardware-lab');
   };
 
   const goOnlineFlow = () => {
@@ -67,9 +67,9 @@ function AppBootstrapWithOfflineOption() {
             style={({ pressed }) => [styles.localCta, pressed && styles.localCtaPressed]}
             onPress={goOfflineSensorTest}
             accessibilityRole="button"
-            accessibilityLabel="Abrir modo local de prueba de sensor"
+            accessibilityLabel="Abrir Hardware Lab"
           >
-            <Text style={styles.localCtaLabel}>Abrir prueba de sensor</Text>
+            <Text style={styles.localCtaLabel}>Abrir Hardware Lab</Text>
           </Pressable>
         </View>
 

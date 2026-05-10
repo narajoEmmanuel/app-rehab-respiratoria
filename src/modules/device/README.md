@@ -13,10 +13,20 @@ Este módulo concentra el **transporte WebSocket**, la **ingestión de mensajes*
 | `adapters/` | Hooks y piezas que unen transporte + estado con la UI (`useEsp32WebSocketSensor`, placeholders). |
 | `mocks/` | Datos y lecturas simuladas para desarrollo sin hardware. |
 | `components/` | UI reutilizable (p. ej. preview en vivo de distancia). |
-| `screens/` | Pantallas del dominio dispositivo (p. ej. conexión y estado). |
+| `screens/` | Pantallas del dominio dispositivo (p. ej. conexión, **Hardware Lab** y estado). |
 | `types/` | Contratos de lectura y estados de conexión. |
 
-Las rutas de Expo Router en `app/` (p. ej. `sensor-connection.tsx`, `esp32-raw-test.tsx`) reexportan o componen estas piezas; la lógica de dominio del sensor debe seguir viviendo bajo `src/modules/device/`.
+Las rutas de Expo Router en `app/` reexportan o componen estas piezas; la lógica de dominio del sensor debe seguir viviendo bajo `src/modules/device/`.
+
+### Rutas de desarrollo y Hardware Lab
+
+| Ruta | Rol |
+|------|-----|
+| **`/hardware-lab`** | Panel de **desarrollo** (`HardwareLabScreen`): agrupa enlaces a pruebas de hardware cuando `EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST` está activo en desarrollo. No sustituye flujo clínico ni nube. |
+| **`/esp32-raw-test`** | Prueba **mínima de respaldo**: WebSocket directo al ESP32, sin el pipeline de ingestión de la app. |
+| **`/sensor-connection`** | Pantalla **integrada**: conexión, estado y vista previa basada en `distanceMm` (cliente WebSocket + `parseSensorMessage` + UI). |
+
+**Pendientes (sin ruta aún):** calibración experimental y biofeedback experimental; el Hardware Lab muestra tarjetas deshabilitadas como marcadores de fase.
 
 ---
 
@@ -58,7 +68,7 @@ El módulo **`device`** debe **permanecer acotado** respecto a:
 - **Historial** y métricas clínicas agregadas,
 - **Sesión terapéutica** real (flujos de juego, guardado de avance, etc.),
 
-hasta que el flujo de sensor esté **estable** y exista un diseño acordado de integración. Hoy la conexión real se valida sobre todo desde rutas de **prueba** (`/esp32-raw-test` como respaldo mínimo, `/sensor-connection` como pantalla integrada); enlazar eso con terapia e historial es trabajo **posterior** y deliberado.
+hasta que el flujo de sensor esté **estable** y exista un diseño acordado de integración. Hoy la conexión real se valida desde **`/hardware-lab`** (hub), **`/esp32-raw-test`** (respaldo mínimo) y **`/sensor-connection`** (integrada); enlazar eso con terapia e historial es trabajo **posterior** y deliberado.
 
 ---
 
