@@ -43,6 +43,12 @@ Cadena principal cuando la app habla con el ESP32 en modo Access Point (WebSocke
 
 Si `WebSocket` no está disponible en el entorno, el cliente notifica error sin bloquear el resto de la app.
 
+### Diagnóstico en pantalla integrada (`SensorConnectionScreen`)
+
+La pantalla **`/sensor-connection`** muestra un bloque de diagnóstico alineado con el hook **`useEsp32WebSocketSensor`**: `status`, `url`, `source`, `distanceMm`, `rawDistanceMm`, `distanceValid`, `timestamp`, `messageCount`, `messagesPerSecond`, vista previa de `lastRawMessage`, `errorMessage`, `closeCode`, `closeReason`, más el JSON del último `SensorReading` parseado. Incluye aviso visible de que los datos del sensor son **experimentales y no clínicos**.
+
+Un mensaje que **no parsea** como `SensorReading` deja constancia en `errorMessage` pero **no** fuerza `status === 'error'` mientras el socket siga abierto, para no ocultar el estado conectado durante depuración; los fallos de **transporte** siguen marcando `error`.
+
 ---
 
 ## Cliente WebSocket
