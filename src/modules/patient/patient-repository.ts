@@ -8,6 +8,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { supabase } from '@/src/lib/supabase';
+import { shouldUseCloudData } from '@/src/modules/app-mode/should-use-cloud-data';
 import { PATIENT_STORAGE_KEYS } from '@/src/modules/patient/storage-keys';
 import type { PatientRecord } from '@/src/modules/patient/types';
 
@@ -16,7 +17,7 @@ function normalizeClave(clave: string): string {
 }
 
 export async function readAllPatients(): Promise<PatientRecord[]> {
-  if (supabase != null) {
+  if ((await shouldUseCloudData()) && supabase != null) {
     const { data, error } = await supabase
       .from('patients')
       .select(
@@ -50,7 +51,7 @@ export async function readAllPatients(): Promise<PatientRecord[]> {
 }
 
 export async function writeAllPatients(patients: PatientRecord[]): Promise<void> {
-  if (supabase != null) {
+  if ((await shouldUseCloudData()) && supabase != null) {
     const payload = patients.map((item) => ({
       patient_id: item.paciente_id,
       unique_code: item.clave,
@@ -70,7 +71,7 @@ export async function writeAllPatients(patients: PatientRecord[]): Promise<void>
 }
 
 export async function readPatientById(patientId: number): Promise<PatientRecord | null> {
-  if (supabase != null) {
+  if ((await shouldUseCloudData()) && supabase != null) {
     const { data, error } = await supabase
       .from('patients')
       .select(
@@ -97,7 +98,7 @@ export async function readPatientById(patientId: number): Promise<PatientRecord 
 
 export async function findPatientByClave(clave: string): Promise<PatientRecord | undefined> {
   const key = normalizeClave(clave);
-  if (supabase != null) {
+  if ((await shouldUseCloudData()) && supabase != null) {
     const { data, error } = await supabase
       .from('patients')
       .select(
@@ -123,7 +124,7 @@ export async function findPatientByClave(clave: string): Promise<PatientRecord |
 }
 
 export async function appendPatient(patient: PatientRecord): Promise<void> {
-  if (supabase != null) {
+  if ((await shouldUseCloudData()) && supabase != null) {
     const { error } = await supabase.from('patients').insert({
       patient_id: patient.paciente_id,
       unique_code: patient.clave,
@@ -144,7 +145,7 @@ export async function appendPatient(patient: PatientRecord): Promise<void> {
 }
 
 export async function updatePatient(patientId: number, updater: (prev: PatientRecord) => PatientRecord): Promise<PatientRecord | null> {
-  if (supabase != null) {
+  if ((await shouldUseCloudData()) && supabase != null) {
     const { data, error } = await supabase
       .from('patients')
       .select(
