@@ -13,6 +13,7 @@ import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from '
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
+import { useCalibrationSnapshot } from '@/src/modules/device/state/use-calibration-snapshot';
 import { getCurrentActiveLevel, hasDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
 import { HomeLastSessionCard } from '@/src/modules/home/components/HomeLastSessionCard';
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
@@ -24,7 +25,6 @@ import { updateDailyProgress } from '@/src/modules/session/session-progress-serv
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellness } from '@/src/shared/theme/wellness-theme';
 import { dashboardScreen, dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { addDaysLocal, getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 
@@ -59,6 +59,7 @@ export function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { patient, hydrated } = usePatientSession();
   const { ready: consentUiReady, active: consentActive } = useConsentActive();
+  const { snapshot: calibrationSnapshot } = useCalibrationSnapshot();
   const [hasCompletedDiagnostic, setHasCompletedDiagnostic] = useState(false);
   const [currentLevelLabel, setCurrentLevelLabel] = useState('Nivel 1');
   const [todayCompletedSessions, setTodayCompletedSessions] = useState(0);
@@ -249,20 +250,10 @@ export function HomeScreen() {
           </View>
         ) : null}
 
-        <Pressable
-          style={({ pressed }) => [styles.secondaryRow, pressed && styles.secondaryRowPressed]}
+        <DeviceCard
+          calibrationSnapshot={calibrationSnapshot}
           onPress={goSensorConnection}
-          accessibilityRole="button"
-          accessibilityLabel="Conexión del sensor">
-          <View style={styles.secondaryIcon}>
-            <IconSymbol name="dot.radiowaves.left.and.right" size={22} color={ACCENT} />
-          </View>
-          <View style={styles.secondaryTextCol}>
-            <Text style={styles.secondaryTitle}>Sensor</Text>
-            <Text style={styles.secondarySubtitle}>Conexión y calibración antes de entrenar</Text>
-          </View>
-          <IconSymbol name="chevron.right" size={18} color={wellness.textSecondary} />
-        </Pressable>
+        />
 
         <Pressable style={styles.evalLink} onPress={goDiagnostico} accessibilityRole="button">
           <Text style={styles.evalLinkText}>
@@ -277,6 +268,116 @@ export function HomeScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+type CalibrationSnapshot = ReturnType<typeof useCalibrationSnapshot>['snapshot'];
+
+function formatShortDate(ts: number): string {
+  try {
+    return new Date(ts).toLocaleDateString(undefined, {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return new Date(ts).toISOString().slice(0, 10);
+  }
+}
+
+function describeDeviceState(snapshot: CalibrationSnapshot): {
+  badge: string;
+  title: string;
+  subtitle: string;
+  ctaLabel: string;
+  variant: 'ready' | 'pending' | 'warn' | 'loading';
+} {
+  if (snapshot.kind === 'loading') {
+    return {
+      badge: 'Cargando',
+      title: 'Dispositivo RESPIRA+',
+      subtitle: 'Revisando estado del sensor…',
+      ctaLabel: 'Preparar dispositivo',
+      variant: 'loading',
+    };
+  }
+  if (snapshot.kind === 'ready') {
+    const { profile } = snapshot;
+    return {
+      badge: 'Calibración guardada',
+      title: 'Dispositivo RESPIRA+',
+      subtitle: `${profile.points.length} ${profile.points.length === 1 ? 'punto' : 'puntos'} · ${formatShortDate(profile.updatedAt)}`,
+      ctaLabel: 'Revisar dispositivo',
+      variant: 'ready',
+    };
+  }
+  if (snapshot.kind === 'corrupt') {
+    return {
+      badge: 'Revisar dispositivo',
+      title: 'Dispositivo RESPIRA+',
+      subtitle: 'La calibración guardada no se pudo leer.',
+      ctaLabel: 'Revisar dispositivo',
+      variant: 'warn',
+    };
+  }
+  return {
+    badge: 'Sin preparar',
+    title: 'Dispositivo RESPIRA+',
+    subtitle: 'Conecta y calibra para usar lectura confiable.',
+    ctaLabel: 'Preparar dispositivo',
+    variant: 'pending',
+  };
+}
+
+function DeviceCard({
+  calibrationSnapshot,
+  onPress,
+}: {
+  calibrationSnapshot: CalibrationSnapshot;
+  onPress: () => void;
+}) {
+  const state = describeDeviceState(calibrationSnapshot);
+  const isReady = state.variant === 'ready';
+  const isWarn = state.variant === 'warn';
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.deviceCard, pressed && styles.deviceCardPressed]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${state.title}. ${state.badge}. ${state.subtitle}`}>
+      <View style={styles.deviceTopRow}>
+        <View style={styles.deviceIconWrap}>
+          <View style={styles.deviceIcon}>
+            <IconSymbol name="dot.radiowaves.left.and.right" size={34} color={ACCENT} />
+          </View>
+        </View>
+        <View style={styles.deviceContent}>
+          <View
+            style={[
+              styles.deviceBadge,
+              isReady ? styles.deviceBadgeReady : isWarn ? styles.deviceBadgeWarn : styles.deviceBadgePending,
+            ]}>
+            <Text
+              style={[
+                styles.deviceBadgeText,
+                isReady
+                  ? styles.deviceBadgeTextReady
+                  : isWarn
+                    ? styles.deviceBadgeTextWarn
+                    : styles.deviceBadgeTextPending,
+              ]}>
+              {state.badge}
+            </Text>
+          </View>
+          <Text style={styles.deviceTitle}>{state.title}</Text>
+          <Text style={styles.deviceSubtitle}>{state.subtitle}</Text>
+          <View style={styles.deviceCtaRow}>
+            <Text style={styles.deviceCtaLabel}>{state.ctaLabel}</Text>
+            <IconSymbol name="chevron.right" size={18} color={ACCENT} />
+          </View>
+        </View>
+      </View>
+    </Pressable>
   );
 }
 
@@ -443,40 +544,62 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     lineHeight: 18,
   },
-  secondaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  deviceCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#EBEBEB',
-    paddingVertical: 14,
-    paddingHorizontal: spacing.md,
+    padding: spacing.lg,
     marginBottom: spacing.md,
+  },
+  deviceCardPressed: { opacity: 0.94 },
+  deviceTopRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
     gap: spacing.md,
   },
-  secondaryRowPressed: {
-    opacity: 0.92,
+  deviceIconWrap: {
+    justifyContent: 'center',
   },
-  secondaryIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: 'rgba(52, 171, 165, 0.1)',
+  deviceIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    backgroundColor: 'rgba(52, 171, 165, 0.14)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  secondaryTextCol: { flex: 1 },
-  secondaryTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
+  deviceContent: { flex: 1 },
+  deviceBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
   },
-  secondarySubtitle: {
+  deviceBadgeReady: { backgroundColor: 'rgba(52, 171, 165, 0.12)', borderColor: 'rgba(52, 171, 165, 0.32)' },
+  deviceBadgePending: { backgroundColor: '#F4F6F5', borderColor: '#E5E7EB' },
+  deviceBadgeWarn: { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
+  deviceBadgeText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
+  deviceBadgeTextReady: { color: '#1F7A75' },
+  deviceBadgeTextPending: { color: '#6B7280' },
+  deviceBadgeTextWarn: { color: '#B91C1C' },
+  deviceTitle: { fontSize: 20, fontWeight: '800', color: '#111827', marginTop: 8 },
+  deviceSubtitle: {
+    marginTop: 6,
     fontSize: 14,
+    lineHeight: 20,
     color: '#6B7280',
-    marginTop: 2,
   },
+  deviceCtaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F3F5',
+  },
+  deviceCtaLabel: { fontSize: 15, fontWeight: '700', color: ACCENT },
   evalLink: {
     alignSelf: 'flex-start',
     paddingVertical: spacing.sm,

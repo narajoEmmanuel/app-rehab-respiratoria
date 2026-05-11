@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -13,16 +13,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
-import { useEsp32WebSocketSensor } from '@/src/modules/device/adapters/use-esp32-websocket-sensor';
+import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 import { SensorLivePreview } from '@/src/modules/device/components/SensorLivePreview';
-import { isCloudAuthEnabled, isHardwareLabAccessible } from '@/src/modules/app-mode';
-import {
-  OFFLINE_SENSOR_TEST_USER,
-  isOfflineSensorTestEnabled,
-} from '@/src/modules/device/offline-sensor-test';
+import { useCalibrationSnapshot } from '@/src/modules/device/state/use-calibration-snapshot';
+import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
-import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { spacing } from '@/src/shared/theme/spacing';
 import {
   wellness,
@@ -39,40 +36,50 @@ function hapticLight() {
 function statusLabel(state: SensorConnectionStatus): string {
   switch (state) {
     case 'idle':
-      return 'idle';
+      return 'Sin conectar';
     case 'connecting':
-      return 'connecting';
+      return 'Conectando…';
     case 'connected':
-      return 'connected';
-    case 'error':
-      return 'error';
-    case 'disconnected':
-      return 'disconnected';
     case 'receiving':
-      return 'connected';
+      return 'Conectado';
+    case 'error':
+      return 'Error de conexión';
+    case 'disconnected':
+      return 'Desconectado';
     default:
       return state;
   }
 }
 
-function formatBoolean(value: boolean | undefined): string {
-  if (value === undefined) return '—';
-  return value ? 'sí' : 'no';
+function formatScalar(value: string | number | boolean | null | undefined): string {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'boolean') return value ? 'sí' : 'no';
+  if (typeof value === 'number' && !Number.isFinite(value)) return '—';
+  return String(value);
 }
 
-function formatNumber(value: number | undefined, suffix = ''): string {
-  if (value === undefined || !Number.isFinite(value)) return '—';
-  return `${value}${suffix}`;
-}
-
-function truncateJson(raw: string | null, maxLength = 320): string {
+function truncateJson(raw: string | null, maxLength = 280): string {
   if (!raw) return '—';
   if (raw.length <= maxLength) return raw;
   return `${raw.slice(0, maxLength)}…`;
 }
 
+function formatShortDate(ts: number): string {
+  try {
+    return new Date(ts).toLocaleDateString(undefined, {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return new Date(ts).toISOString().slice(0, 10);
+  }
+}
+
 export function SensorConnectionScreen() {
   const router = useRouter();
+  const debug = isSensorDebugEnabled();
+
   const {
     status,
     mode,
@@ -87,35 +94,76 @@ export function SensorConnectionScreen() {
     setUrl,
     connect,
     disconnect,
+    resetConnection,
     startMock,
     stopMock,
-  } = useEsp32WebSocketSensor();
+  } = useSensorConnection();
+
+  const { snapshot: calibrationSnapshot } = useCalibrationSnapshot();
+  const [techExpanded, setTechExpanded] = useState(false);
+
+  const isConnecting = status === 'connecting';
+  const isOnline = status === 'connected' || status === 'receiving';
+  const signalValid =
+    Boolean(lastReading) &&
+    lastReading?.distanceValid === true &&
+    typeof lastReading?.distanceMm === 'number' &&
+    Number.isFinite(lastReading?.distanceMm ?? NaN);
+  const isMock = mode === 'mock' && isOnline;
+  const liveReady = isOnline && signalValid;
+  const hasCalibration = calibrationSnapshot.kind === 'ready';
+  const readyForTherapy = liveReady && hasCalibration;
 
   const onConnect = useCallback(() => {
     hapticLight();
     connect();
   }, [connect]);
 
-  const onStartMock = useCallback(() => {
-    hapticLight();
-    startMock();
-  }, [startMock]);
-
-  const onStopMock = useCallback(() => {
-    hapticLight();
-    stopMock();
-  }, [stopMock]);
-
   const onDisconnect = useCallback(() => {
     hapticLight();
     disconnect();
   }, [disconnect]);
 
-  const isConnecting = status === 'connecting';
-  const showReading = Boolean(lastReading);
-  const sustainedSeconds = lastReading ? (lastReading.sustainedTimeMs / 1000).toFixed(1) : '0.0';
-  const modeLabel = mode === 'mock' ? 'simulado' : 'real';
-  const showPrototypeOrDevBanner = !isCloudAuthEnabled() || isOfflineSensorTestEnabled;
+  const onResetConnection = useCallback(() => {
+    hapticLight();
+    resetConnection();
+  }, [resetConnection]);
+
+  const onOpenCalibration = useCallback(() => {
+    hapticLight();
+    router.push('/sensor-calibration');
+  }, [router]);
+
+  const heroBadge = useMemo<{ label: string; tone: 'ok' | 'pending' | 'warn' | 'neutral' }>(() => {
+    if (status === 'error') return { label: 'Error de conexión', tone: 'warn' };
+    if (isConnecting) return { label: 'Conectando…', tone: 'neutral' };
+    if (readyForTherapy) return { label: 'Dispositivo listo', tone: 'ok' };
+    if (liveReady && !hasCalibration) return { label: 'Falta calibración', tone: 'pending' };
+    if (isOnline) return { label: 'Sin señal válida', tone: 'pending' };
+    return { label: 'No conectado', tone: 'neutral' };
+  }, [hasCalibration, isConnecting, isOnline, liveReady, readyForTherapy, status]);
+
+  const primaryAction = useMemo(() => {
+    if (!isOnline) {
+      return {
+        label: isConnecting ? 'Conectando…' : 'Conectar dispositivo',
+        onPress: onConnect,
+        disabled: isConnecting,
+      };
+    }
+    if (!hasCalibration) {
+      return {
+        label: liveReady ? 'Calibrar dispositivo' : 'Esperando señal válida…',
+        onPress: onOpenCalibration,
+        disabled: !liveReady,
+      };
+    }
+    return {
+      label: 'Actualizar calibración',
+      onPress: onOpenCalibration,
+      disabled: false,
+    };
+  }, [hasCalibration, isConnecting, isOnline, liveReady, onConnect, onOpenCalibration]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -125,238 +173,320 @@ export function SensorConnectionScreen() {
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Conexión del sensor</Text>
+        <Text style={styles.eyebrow}>Preparar dispositivo</Text>
+        <Text style={styles.title}>Conecta y calibra antes de empezar</Text>
+        <Text style={styles.subtitle}>
+          Sigue dos pasos: conecta el ESP32 por WiFi y revisa la calibración local.
+        </Text>
 
-        {showPrototypeOrDevBanner ? (
-          <View style={styles.offlineBanner}>
-            <Text style={styles.offlineBannerText}>
-              {!isCloudAuthEnabled()
-                ? 'Modo prototipo local, datos no sincronizados con la nube'
-                : 'Modo offline de prueba de sensor, no sincronizado con la nube'}
-            </Text>
-            {isOfflineSensorTestEnabled ? (
-              <Text style={styles.offlineBannerMeta}>
-                Usuario local: {OFFLINE_SENSOR_TEST_USER.name} ({OFFLINE_SENSOR_TEST_USER.id}) -{' '}
-                {OFFLINE_SENSOR_TEST_USER.source}
+        {/* Zone A — Estado del dispositivo */}
+        <View style={styles.heroCard}>
+          <View style={styles.heroTopRow}>
+            <View style={styles.heroIcon}>
+              <IconSymbol name="dot.radiowaves.left.and.right" size={40} color={wellness.primaryDark} />
+            </View>
+            <View
+              style={[
+                styles.heroBadge,
+                heroBadge.tone === 'ok' && styles.heroBadgeOk,
+                heroBadge.tone === 'pending' && styles.heroBadgePending,
+                heroBadge.tone === 'warn' && styles.heroBadgeWarn,
+              ]}>
+              {isConnecting ? (
+                <ActivityIndicator size="small" color={wellness.primaryDark} />
+              ) : null}
+              <Text
+                style={[
+                  styles.heroBadgeText,
+                  heroBadge.tone === 'ok' && styles.heroBadgeTextOk,
+                  heroBadge.tone === 'pending' && styles.heroBadgeTextPending,
+                  heroBadge.tone === 'warn' && styles.heroBadgeTextWarn,
+                ]}>
+                {heroBadge.label}
               </Text>
-            ) : null}
+            </View>
           </View>
-        ) : null}
 
-        <View style={styles.statusCard}>
-          <Text style={styles.statusLabel}>Estado</Text>
-          <View style={styles.statusRow}>
-            {isConnecting ? (
-              <ActivityIndicator size="small" color={wellness.primaryDark} />
-            ) : null}
-            <Text style={styles.statusValue}>{statusLabel(status)}</Text>
-          </View>
-          <Text style={styles.statusHint}>Modo activo: {modeLabel}</Text>
-        </View>
-
-        <View style={styles.urlCard}>
-          <Text style={styles.statusLabel}>URL WebSocket del ESP32</Text>
-          <TextInput
-            value={url}
-            onChangeText={setUrl}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            style={styles.urlInput}
-            placeholder="ws://192.168.4.1:81"
-            placeholderTextColor={wellness.textSecondary}
-          />
-          <Text style={styles.urlHint}>Usa WiFi local para conectarte al ESP32 por WebSocket.</Text>
-        </View>
-
-        <View style={styles.diagCard}>
-          <Text style={styles.statusLabel}>Diagnóstico ESP32</Text>
-          <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>Estado</Text>
-            <Text style={styles.diagValue}>{statusLabel(status)}</Text>
-          </View>
-          <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>Modo</Text>
-            <Text style={styles.diagValue}>{modeLabel}</Text>
-          </View>
-          <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>URL</Text>
-            <Text style={styles.diagValue} numberOfLines={1}>
-              {url || '—'}
-            </Text>
-          </View>
-          <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>Último error</Text>
-            <Text style={styles.diagValue}>{errorMessage ?? '—'}</Text>
-          </View>
-          <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>Close code</Text>
-            <Text style={styles.diagValue}>{closeCode === null ? '—' : String(closeCode)}</Text>
-          </View>
-          <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>Close reason</Text>
-            <Text style={styles.diagValue}>{closeReason ?? '—'}</Text>
-          </View>
-          <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>source</Text>
-            <Text style={styles.diagValue}>{lastReading?.source ?? '—'}</Text>
-          </View>
-          <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>distanceMm</Text>
-            <Text style={styles.diagValue}>{formatNumber(lastReading?.distanceMm, ' mm')}</Text>
-          </View>
-          <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>rawDistanceMm</Text>
-            <Text style={styles.diagValue}>{formatNumber(lastReading?.rawDistanceMm, ' mm')}</Text>
-          </View>
-          <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>distanceValid</Text>
-            <Text style={styles.diagValue}>{formatBoolean(lastReading?.distanceValid)}</Text>
-          </View>
-          <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>timestamp</Text>
-            <Text style={styles.diagValue}>{formatNumber(lastReading?.timestamp)}</Text>
-          </View>
-          <View style={styles.diagRow}>
-            <Text style={styles.diagKey}>Mensajes</Text>
-            <Text style={styles.diagValue}>
-              {messageCount} ({messagesPerSecond.toFixed(1)} mps)
-            </Text>
-          </View>
-          <Text style={[styles.diagKey, styles.diagJsonLabel]}>Último JSON crudo</Text>
-          <Text style={styles.diagJson} numberOfLines={6}>
-            {lastRawMessage ? truncateJson(lastRawMessage) : 'Sin mensajes recibidos aún.'}
+          <Text style={styles.heroStatus}>{statusLabel(status)}</Text>
+          <Text style={styles.heroHint}>
+            {readyForTherapy
+              ? 'Conexión activa y calibración guardada. El dispositivo está listo.'
+              : isOnline
+                ? hasCalibration
+                  ? 'Sensor conectado. Revisa la señal o actualiza la calibración si lo necesitas.'
+                  : 'Sensor conectado. Falta registrar la calibración local.'
+                : 'Conéctate por WiFi local al ESP32 para revisar el dispositivo.'}
           </Text>
-          <Text style={[styles.diagKey, styles.diagJsonLabel]}>Último SensorReading parseado</Text>
-          <Text style={styles.diagJson} numberOfLines={6}>
-            {lastReading ? truncateJson(JSON.stringify(lastReading)) : 'Sin lectura parseada aún.'}
-          </Text>
+
+          <View style={styles.statusPillRow}>
+            <StatusPill
+              label="Conexión"
+              value={isOnline ? 'Activa' : 'Inactiva'}
+              tone={isOnline ? 'ok' : 'neutral'}
+            />
+            <StatusPill
+              label="Señal"
+              value={signalValid ? 'Válida' : 'Sin lectura'}
+              tone={signalValid ? 'ok' : isOnline ? 'pending' : 'neutral'}
+            />
+            <StatusPill
+              label="Calibración"
+              value={
+                calibrationSnapshot.kind === 'loading'
+                  ? '…'
+                  : hasCalibration
+                    ? 'Guardada'
+                    : calibrationSnapshot.kind === 'corrupt'
+                      ? 'Revisar'
+                      : 'Pendiente'
+              }
+              tone={
+                hasCalibration
+                  ? 'ok'
+                  : calibrationSnapshot.kind === 'corrupt'
+                    ? 'warn'
+                    : 'pending'
+              }
+            />
+          </View>
+
+          {status === 'error' && errorMessage ? (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorBoxText}>{errorMessage}</Text>
+              <Pressable
+                onPress={onResetConnection}
+                style={({ pressed }) => [styles.errorBtn, pressed && styles.errorBtnPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Limpiar conexión y reintentar">
+                <Text style={styles.errorBtnText}>Limpiar conexión</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
         </View>
 
-        <SensorLivePreview
-          distanceMm={lastReading?.distanceMm}
-          rawDistanceMm={lastReading?.rawDistanceMm}
-          distanceValid={lastReading?.distanceValid}
-          source={lastReading?.source}
-          timestamp={lastReading?.timestamp}
-        />
-
-        {isHardwareLabAccessible() ? (
-          <View style={styles.labCard}>
-            <Text style={styles.statusLabel}>Hardware Lab</Text>
-            <Text style={styles.labHint}>
-              Diagnóstico y rutas de prueba del ESP32 (WiFi local, sin Bluetooth).
-            </Text>
-            <Pressable
-              style={({ pressed }) => [styles.labLink, pressed && styles.labLinkPressed]}
-              onPress={() => {
-                hapticLight();
-                router.push('/hardware-lab');
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Abrir Hardware Lab">
-              <Text style={styles.labLinkText}>Abrir Hardware Lab</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.labLinkSecondary, pressed && styles.labLinkPressed]}
-              onPress={() => {
-                hapticLight();
-                router.push('/esp32-raw-test');
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Prueba raw WebSocket avanzada">
-              <Text style={styles.labLinkSecondaryText}>Prueba raw WebSocket (avanzado)</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.labLinkSecondary, pressed && styles.labLinkPressed]}
-              onPress={() => {
-                hapticLight();
-                router.push('/sensor-calibration');
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Calibración local experimental">
-              <Text style={styles.labLinkSecondaryText}>Calibración local (experimental)</Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        {(status === 'connected' || status === 'receiving' || mode === 'mock') && showReading ? (
-          <View style={styles.bannerOk}>
-            <IconSymbol name="checkmark.circle.fill" size={22} color={wellness.primaryDark} />
-            <Text style={styles.bannerOkText}>
-              {mode === 'mock'
-                ? 'Modo demostración activo. Puedes usar la app sin hardware.'
-                : 'Conexión ESP32 activa por WiFi local y WebSocket.'}
-            </Text>
-          </View>
-        ) : null}
-
-        {status === 'error' && errorMessage ? (
-          <View style={styles.bannerErr}>
-            <Text style={styles.bannerErrText}>{errorMessage}</Text>
-          </View>
-        ) : null}
-
-        {showReading ? (
-          <View style={styles.readingCard}>
-            <Text style={styles.readingLabel}>Última lectura recibida</Text>
-            <Text style={styles.readingValue}>Volumen: {lastReading?.volumeMl ?? 0} mL</Text>
-            <Text style={styles.readingHint}>Tiempo sostenido: {sustainedSeconds} s</Text>
-            <Text style={styles.readingHint}>
-              Repeticiones válidas: {lastReading?.validRepetitions ?? 0}
-            </Text>
-            <Text style={styles.readingHint}>
-              Estado de flujo: {lastReading?.flowState ?? 'idle'} ({lastReading?.source ?? mode})
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.readingCardMuted}>
-            <Text style={styles.readingMuted}>
-              Conecta por WiFi local o activa el modo demostración para ver lecturas.
-            </Text>
-          </View>
-        )}
-
+        {/* Zone B — Acciones principales */}
         <Pressable
           style={({ pressed }) => [
             styles.primaryBtn,
-            isConnecting && styles.btnDisabled,
-            pressed && !isConnecting && styles.primaryBtnPressed,
+            primaryAction.disabled && styles.btnDisabled,
+            pressed && !primaryAction.disabled && styles.primaryBtnPressed,
           ]}
-          onPress={onConnect}
-          disabled={isConnecting}
+          onPress={primaryAction.onPress}
+          disabled={primaryAction.disabled}
           accessibilityRole="button"
-          accessibilityState={{ disabled: isConnecting }}>
-          <Text style={[styles.primaryBtnText, isConnecting && styles.btnTextDisabled]}>
-            Conectar por WiFi
+          accessibilityState={{ disabled: primaryAction.disabled }}>
+          <Text style={[styles.primaryBtnText, primaryAction.disabled && styles.btnTextDisabled]}>
+            {primaryAction.label}
           </Text>
         </Pressable>
 
+        {/* Calibración guardada */}
+        {calibrationSnapshot.kind === 'ready' ? (
+          <Pressable
+            onPress={onOpenCalibration}
+            style={({ pressed }) => [styles.savedCalibCard, pressed && styles.savedCalibCardPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir calibración local">
+            <View style={styles.savedCalibIconWrap}>
+              <IconSymbol name="checkmark.circle.fill" size={24} color={wellness.primaryDark} />
+            </View>
+            <View style={styles.savedCalibTextCol}>
+              <Text style={styles.savedCalibTitle}>Calibración guardada</Text>
+              <Text style={styles.savedCalibMeta}>
+                {calibrationSnapshot.profile.points.length}{' '}
+                {calibrationSnapshot.profile.points.length === 1 ? 'punto' : 'puntos'} ·{' '}
+                {formatShortDate(calibrationSnapshot.profile.updatedAt)}
+              </Text>
+              <Text style={styles.savedCalibCta}>Revisar o recalibrar</Text>
+            </View>
+            <IconSymbol name="chevron.right" size={18} color={wellness.textSecondary} />
+          </Pressable>
+        ) : calibrationSnapshot.kind === 'corrupt' ? (
+          <Pressable
+            onPress={onOpenCalibration}
+            style={({ pressed }) => [styles.savedCalibCardWarn, pressed && styles.savedCalibCardPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Revisar calibración guardada">
+            <View style={styles.savedCalibIconWarnWrap}>
+              <IconSymbol name="gearshape.fill" size={24} color={wellness.errorText} />
+            </View>
+            <View style={styles.savedCalibTextCol}>
+              <Text style={styles.savedCalibTitleWarn}>Calibración guardada corrupta</Text>
+              <Text style={styles.savedCalibMeta}>
+                Borra el perfil dañado desde Calibración local y vuelve a registrar.
+              </Text>
+            </View>
+            <IconSymbol name="chevron.right" size={18} color={wellness.textSecondary} />
+          </Pressable>
+        ) : null}
+
+        {/* Secondary action — disconnect (solo si está conectado o conectando) */}
+        {isOnline || isConnecting ? (
+          <Pressable
+            style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
+            onPress={onDisconnect}
+            accessibilityRole="button"
+            accessibilityLabel="Desconectar dispositivo">
+            <Text style={styles.secondaryBtnText}>Desconectar</Text>
+          </Pressable>
+        ) : null}
+
+        {/* SensorLivePreview siempre visible cuando hay lectura — feedback emocional inmediato */}
+        {lastReading ? (
+          <SensorLivePreview
+            distanceMm={lastReading.distanceMm}
+            rawDistanceMm={lastReading.rawDistanceMm}
+            distanceValid={lastReading.distanceValid}
+            source={lastReading.source}
+            timestamp={lastReading.timestamp}
+          />
+        ) : null}
+
+        {/* Zone C — Detalles técnicos expandibles */}
         <Pressable
-          style={({ pressed }) => [
-            styles.secondaryBtn,
-            pressed && styles.secondaryBtnPressed,
-          ]}
-          onPress={onDisconnect}
-          accessibilityRole="button">
-          <Text style={styles.secondaryBtnText}>Desconectar</Text>
+          onPress={() => {
+            hapticLight();
+            setTechExpanded((prev) => !prev);
+          }}
+          style={({ pressed }) => [styles.accordionHeader, pressed && styles.accordionHeaderPressed]}
+          accessibilityRole="button"
+          accessibilityLabel={techExpanded ? 'Ocultar detalles técnicos' : 'Mostrar detalles técnicos'}>
+          <Text style={styles.accordionTitle}>Detalles técnicos</Text>
+          <Text style={styles.accordionChevron}>{techExpanded ? '▾' : '▸'}</Text>
         </Pressable>
 
-        <Pressable
-          style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
-          onPress={onStartMock}
-          accessibilityRole="button">
-          <Text style={styles.ghostBtnText}>Usar modo demostración</Text>
-        </Pressable>
+        {techExpanded ? (
+          <View style={styles.techCard}>
+            <View style={styles.techHeaderRow}>
+              <View style={styles.techHeaderIcon}>
+                <IconSymbol name="gearshape.fill" size={16} color={wellness.textSecondary} />
+              </View>
+              <Text style={styles.techSection}>Conexión y diagnóstico</Text>
+            </View>
+            <TextInput
+              value={url}
+              onChangeText={setUrl}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              style={styles.urlInput}
+              placeholder="ws://192.168.4.1:81"
+              placeholderTextColor={wellness.textSecondary}
+            />
+            <Text style={styles.urlHint}>
+              URL del WebSocket del ESP32. Cambia solo si tu firmware usa otra dirección.
+            </Text>
 
-        <Pressable
-          style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
-          onPress={onStopMock}
-          accessibilityRole="button">
-          <Text style={styles.ghostBtnText}>Detener demostración</Text>
-        </Pressable>
+            <View style={styles.techDivider} />
+            <Text style={styles.techSection}>Telemetría</Text>
+            <DiagRow label="status" value={statusLabel(status)} />
+            <DiagRow label="source" value={formatScalar(lastReading?.source)} />
+            <DiagRow label="distanceMm" value={formatScalar(lastReading?.distanceMm)} />
+            <DiagRow label="rawDistanceMm" value={formatScalar(lastReading?.rawDistanceMm)} />
+            <DiagRow label="distanceValid" value={formatScalar(lastReading?.distanceValid)} />
+            <DiagRow label="timestamp" value={formatScalar(lastReading?.timestamp)} />
+            <DiagRow
+              label="mensajes"
+              value={`${messageCount} (${messagesPerSecond.toFixed(1)} mps)`}
+            />
+            <DiagRow label="closeCode" value={closeCode === null ? '—' : String(closeCode)} />
+            <DiagRow label="closeReason" value={closeReason ?? '—'} />
+            <DiagRow label="errorMessage" value={errorMessage ?? '—'} />
+
+            <Text style={styles.techJsonLabel}>Último JSON crudo</Text>
+            <Text style={styles.techJson} numberOfLines={6}>
+              {lastRawMessage ? truncateJson(lastRawMessage) : 'Sin mensajes recibidos aún.'}
+            </Text>
+
+            {debug ? (
+              <>
+                <View style={styles.techDivider} />
+                <Text style={styles.techSection}>Herramientas de desarrollo</Text>
+                <Text style={styles.techDebugHint}>
+                  Solo visibles en desarrollo con EXPO_PUBLIC_ENABLE_SENSOR_DEBUG=true.
+                </Text>
+                <Pressable
+                  style={({ pressed }) => [styles.debugBtn, pressed && styles.debugBtnPressed]}
+                  onPress={() => {
+                    hapticLight();
+                    if (isMock) stopMock();
+                    else startMock();
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={isMock ? 'Detener modo simulado' : 'Iniciar modo simulado'}>
+                  <Text style={styles.debugBtnText}>
+                    {isMock ? 'Detener modo simulado' : 'Iniciar modo simulado'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [styles.debugBtn, pressed && styles.debugBtnPressed]}
+                  onPress={() => {
+                    hapticLight();
+                    router.push('/hardware-lab');
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Abrir Hardware Lab">
+                  <Text style={styles.debugBtnText}>Abrir Hardware Lab</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [styles.debugBtn, pressed && styles.debugBtnPressed]}
+                  onPress={() => {
+                    hapticLight();
+                    router.push('/esp32-raw-test');
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Prueba raw WebSocket">
+                  <Text style={styles.debugBtnText}>Prueba raw WebSocket</Text>
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function StatusPill({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: 'ok' | 'pending' | 'warn' | 'neutral';
+}) {
+  return (
+    <View
+      style={[
+        styles.statusPill,
+        tone === 'ok' && styles.statusPillOk,
+        tone === 'pending' && styles.statusPillPending,
+        tone === 'warn' && styles.statusPillWarn,
+      ]}>
+      <Text style={styles.statusPillLabel}>{label}</Text>
+      <Text
+        style={[
+          styles.statusPillValue,
+          tone === 'ok' && styles.statusPillValueOk,
+          tone === 'pending' && styles.statusPillValuePending,
+          tone === 'warn' && styles.statusPillValueWarn,
+        ]}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function DiagRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.diagRow}>
+      <Text style={styles.diagKey}>{label}</Text>
+      <Text style={styles.diagValue} numberOfLines={2}>
+        {value}
+      </Text>
+    </View>
   );
 }
 
@@ -366,48 +496,258 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl * 2,
   },
+  eyebrow: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: wellness.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: spacing.xs,
+  },
   title: {
     fontSize: 26,
     fontWeight: '800',
     color: wellness.text,
     letterSpacing: -0.3,
+    marginBottom: spacing.xs,
+  },
+  subtitle: {
+    fontSize: 15,
+    lineHeight: 21,
+    color: wellness.textSecondary,
     marginBottom: spacing.lg,
   },
-  statusCard: {
+  heroCard: {
+    backgroundColor: wellness.card,
+    borderRadius: wellnessRadii.cardLarge,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    ...wellnessShadows.card,
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  heroIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    backgroundColor: wellness.successBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: wellness.border,
+  },
+  heroBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: wellnessRadii.pill,
+    backgroundColor: wellness.screenBg,
+    borderWidth: 1,
+    borderColor: wellness.border,
+  },
+  heroBadgeOk: { backgroundColor: wellness.successBg, borderColor: wellness.border },
+  heroBadgePending: { backgroundColor: wellness.softGreen, borderColor: wellness.border },
+  heroBadgeWarn: { backgroundColor: wellness.errorBg, borderColor: wellness.borderStrong },
+  heroBadgeText: { fontSize: 12, fontWeight: '800', color: wellness.textSecondary, letterSpacing: 0.2 },
+  heroBadgeTextOk: { color: wellness.primaryDark },
+  heroBadgeTextPending: { color: wellness.text },
+  heroBadgeTextWarn: { color: wellness.errorText },
+  heroStatus: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+    letterSpacing: -0.3,
+  },
+  heroHint: {
+    marginTop: 4,
+    fontSize: 14,
+    lineHeight: 20,
+    color: wellness.textSecondary,
+  },
+  statusPillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  statusPill: {
+    flexGrow: 1,
+    flexBasis: '30%',
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.sm,
+    borderRadius: 14,
+    backgroundColor: wellness.screenBg,
+    borderWidth: 1,
+    borderColor: wellness.border,
+  },
+  statusPillOk: { backgroundColor: wellness.successBg, borderColor: wellness.border },
+  statusPillPending: { backgroundColor: wellness.softGreen, borderColor: wellness.border },
+  statusPillWarn: { backgroundColor: wellness.errorBg, borderColor: wellness.borderStrong },
+  statusPillLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: wellness.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  statusPillValue: { fontSize: 15, fontWeight: '800', color: wellness.text, marginTop: 2 },
+  statusPillValueOk: { color: wellness.primaryDark },
+  statusPillValuePending: { color: wellness.text },
+  statusPillValueWarn: { color: wellness.errorText },
+  errorBox: {
+    marginTop: spacing.md,
+    backgroundColor: wellness.errorBg,
+    borderRadius: wellnessRadii.card,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: wellness.borderStrong,
+    gap: spacing.sm,
+  },
+  errorBoxText: { fontSize: 14, lineHeight: 20, color: wellness.errorText, fontWeight: '600' },
+  errorBtn: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: wellnessRadii.pill,
+    backgroundColor: wellness.screenBg,
+    borderWidth: 1,
+    borderColor: wellness.borderStrong,
+  },
+  errorBtnPressed: { opacity: 0.9 },
+  errorBtnText: { fontSize: 13, fontWeight: '800', color: wellness.errorText },
+  primaryBtn: {
+    backgroundColor: wellness.primary,
+    borderRadius: wellnessRadii.pill,
+    paddingVertical: spacing.md + 4,
+    alignItems: 'center',
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: wellness.borderStrong,
+    ...wellnessShadows.cardPress,
+  },
+  primaryBtnPressed: { opacity: 0.92 },
+  primaryBtnText: { fontSize: 17, fontWeight: '800', color: wellness.primaryDark },
+  secondaryBtn: {
+    backgroundColor: wellness.card,
+    borderRadius: wellnessRadii.pill,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: wellness.borderStrong,
+  },
+  secondaryBtnPressed: { opacity: 0.92 },
+  secondaryBtnText: { fontSize: 16, fontWeight: '700', color: wellness.primaryDark },
+  btnDisabled: { opacity: 0.45 },
+  btnTextDisabled: { color: wellness.textSecondary },
+  savedCalibCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: wellness.card,
+    borderRadius: wellnessRadii.cardLarge,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    gap: spacing.md,
+    ...wellnessShadows.card,
+  },
+  savedCalibCardWarn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: wellness.errorBg,
+    borderRadius: wellnessRadii.cardLarge,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: wellness.borderStrong,
+    gap: spacing.md,
+  },
+  savedCalibCardPressed: { opacity: 0.94 },
+  savedCalibIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: wellness.successBg,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  savedCalibIconWarnWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: wellness.errorBg,
+    borderWidth: 1,
+    borderColor: wellness.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  savedCalibTextCol: { flex: 1 },
+  savedCalibTitle: { fontSize: 16, fontWeight: '800', color: wellness.text },
+  savedCalibTitleWarn: { fontSize: 16, fontWeight: '800', color: wellness.errorText },
+  savedCalibMeta: { fontSize: 13, color: wellness.textSecondary, marginTop: 2, lineHeight: 18 },
+  savedCalibCta: { marginTop: 6, fontSize: 14, fontWeight: '700', color: wellness.link },
+  accordionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    backgroundColor: wellness.card,
+    borderRadius: wellnessRadii.card,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    marginBottom: spacing.sm,
+  },
+  accordionHeaderPressed: { opacity: 0.94 },
+  accordionTitle: { fontSize: 14, fontWeight: '800', color: wellness.text, letterSpacing: 0.1 },
+  accordionChevron: { fontSize: 16, fontWeight: '800', color: wellness.textSecondary },
+  techCard: {
     backgroundColor: wellness.card,
     borderRadius: wellnessRadii.card,
     padding: spacing.lg,
     borderWidth: 1,
     borderColor: wellness.border,
     marginBottom: spacing.md,
-    ...wellnessShadows.cardPress,
   },
-  statusLabel: {
-    fontSize: 13,
-    fontWeight: '700',
+  techHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  techHeaderIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: wellness.screenBg,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  techSection: {
+    fontSize: 12,
+    fontWeight: '800',
     color: wellness.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: spacing.sm,
   },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  statusValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: wellness.primaryDark,
-  },
-  statusHint: {
-    marginTop: spacing.sm,
-    fontSize: 14,
-    color: wellness.textSecondary,
-  },
-  urlCard: {
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.card,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    marginBottom: spacing.md,
+  techDivider: {
+    height: 1,
+    backgroundColor: wellness.border,
+    marginVertical: spacing.md,
   },
   urlInput: {
     borderWidth: 1,
@@ -420,19 +760,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginBottom: spacing.sm,
   },
-  urlHint: {
-    fontSize: 13,
-    color: wellness.textSecondary,
-    lineHeight: 18,
-  },
-  diagCard: {
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.card,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    marginBottom: spacing.md,
-  },
+  urlHint: { fontSize: 12, color: wellness.textSecondary, lineHeight: 16 },
   diagRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -440,23 +768,24 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     gap: spacing.sm,
   },
-  diagKey: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: wellness.textSecondary,
-  },
+  diagKey: { fontSize: 13, fontWeight: '600', color: wellness.textSecondary },
   diagValue: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: wellness.text,
     flexShrink: 1,
     textAlign: 'right',
   },
-  diagJsonLabel: {
-    marginTop: spacing.sm,
+  techJsonLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: wellness.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginTop: spacing.md,
     marginBottom: spacing.xs,
   },
-  diagJson: {
+  techJson: {
     fontSize: 12,
     lineHeight: 16,
     color: wellness.text,
@@ -467,159 +796,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: wellness.border,
   },
-  bannerOk: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
-    backgroundColor: wellness.successBg,
-    borderRadius: wellnessRadii.card,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    marginBottom: spacing.sm,
-  },
-  bannerOkText: {
-    flex: 1,
-    fontSize: 16,
-    lineHeight: 22,
-    color: wellness.primaryDark,
-    fontWeight: '600',
-  },
-  bannerErr: {
-    backgroundColor: wellness.errorBg,
-    borderRadius: wellnessRadii.card,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: wellness.borderStrong,
-    marginBottom: spacing.lg,
-  },
-  bannerErrText: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: wellness.errorText,
-    fontWeight: '600',
-  },
-  offlineBanner: {
-    backgroundColor: wellness.softGreen,
-    borderRadius: wellnessRadii.card,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: wellness.borderStrong,
-    marginBottom: spacing.md,
-  },
-  offlineBannerText: {
-    fontSize: 15,
-    lineHeight: 21,
-    color: wellness.text,
-    fontWeight: '700',
-  },
-  offlineBannerMeta: {
-    marginTop: spacing.xs,
+  techDebugHint: {
     fontSize: 12,
-    lineHeight: 18,
     color: wellness.textSecondary,
-  },
-  labCard: {
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.card,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    marginBottom: spacing.md,
-  },
-  labHint: {
-    fontSize: 14,
-    color: wellness.textSecondary,
-    lineHeight: 20,
-    marginBottom: spacing.md,
-  },
-  labLink: {
-    backgroundColor: wellness.primary,
-    borderRadius: wellnessRadii.pill,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
+    lineHeight: 16,
     marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: wellness.borderStrong,
+    fontStyle: 'italic',
   },
-  labLinkPressed: { opacity: 0.92 },
-  labLinkText: { fontSize: 16, fontWeight: '800', color: wellness.primaryDark },
-  labLinkSecondary: {
-    paddingVertical: spacing.sm,
+  debugBtn: {
+    backgroundColor: wellness.screenBg,
+    borderRadius: wellnessRadii.pill,
+    paddingVertical: spacing.sm + 2,
     alignItems: 'center',
-  },
-  labLinkSecondaryText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: wellness.link,
-    textDecorationLine: 'underline',
-  },
-  readingCard: {
-    backgroundColor: wellness.cardGlass,
-    borderRadius: wellnessRadii.cardLarge,
-    padding: spacing.lg,
     borderWidth: 1,
     borderColor: wellness.border,
-    marginBottom: spacing.lg,
-    ...wellnessShadows.card,
-  },
-  readingCardMuted: {
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.cardLarge,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    marginBottom: spacing.lg,
-  },
-  readingLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: wellness.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  readingValue: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: wellness.primaryDark,
     marginBottom: spacing.sm,
   },
-  readingHint: { fontSize: 14, lineHeight: 20, color: wellness.textSecondary },
-  readingMuted: { fontSize: 15, lineHeight: 22, color: wellness.textSecondary },
-  primaryBtn: {
-    backgroundColor: wellness.primary,
-    borderRadius: wellnessRadii.pill,
-    paddingVertical: spacing.md + 2,
-    alignItems: 'center',
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: wellness.borderStrong,
-    ...wellnessShadows.cardPress,
-  },
-  primaryBtnPressed: { opacity: 0.92 },
-  primaryBtnText: { fontSize: 17, fontWeight: '800', color: wellness.primaryDark },
-  secondaryBtn: {
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.pill,
-    paddingVertical: spacing.md + 2,
-    alignItems: 'center',
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: wellness.borderStrong,
-  },
-  secondaryBtnPressed: { opacity: 0.92 },
-  secondaryBtnText: { fontSize: 17, fontWeight: '700', color: wellness.primaryDark },
-  ghostBtn: {
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  ghostBtnPressed: { opacity: 0.8 },
-  ghostBtnText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: wellness.link,
-    textDecorationLine: 'underline',
-  },
-  btnDisabled: { opacity: 0.45 },
-  btnTextDisabled: { color: wellness.textSecondary },
+  debugBtnPressed: { opacity: 0.9 },
+  debugBtnText: { fontSize: 14, fontWeight: '700', color: wellness.textSecondary },
 });

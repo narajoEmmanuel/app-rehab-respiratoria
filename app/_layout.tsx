@@ -21,6 +21,7 @@ import { Platform, Text, TextInput, type TextInputProps, type TextProps } from '
 import 'react-native-reanimated';
 
 import { AppModeProvider } from '@/src/modules/app-mode';
+import { SensorConnectionProvider } from '@/src/modules/device/state/SensorConnectionProvider';
 import { PatientSessionProvider } from '@/src/modules/patient/context/PatientSessionContext';
 import { fontRegular } from '@/src/shared/theme/typography';
 import { WebStartupSplash } from '@/src/shared/ui/WebStartupSplash';
@@ -116,23 +117,25 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={DefaultTheme}>
       <AppModeProvider>
-        <PatientSessionProvider>
-          <Stack>
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="auth/login" options={{ headerShown: false, title: 'Acceso' }} />
-            <Stack.Screen name="auth/registro" options={{ headerShown: false, title: 'Registro' }} />
-            <Stack.Screen name="legal/accept" options={{ headerShown: false, title: 'Consentimiento' }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="profile" options={{ headerShown: false }} />
-            <Stack.Screen name="data-export" options={{ headerShown: false, title: 'Datos y exportación' }} />
-            <Stack.Screen name="notification-settings" options={{ headerShown: false, title: 'Recordatorios' }} />
-            <Stack.Screen name="sensor-connection" options={{ headerShown: false }} />
-            <Stack.Screen name="hardware-lab" options={{ headerShown: false, title: 'Hardware Lab' }} />
-            <Stack.Screen name="diagnostico" options={{ headerShown: false }} />
-            <Stack.Screen name="diagnostico-resumen" options={{ headerShown: false }} />
-            <Stack.Screen name="esp32-raw-test" options={{ headerShown: false, title: 'ESP32 Raw WS Test' }} />
-          </Stack>
-        </PatientSessionProvider>
+        <SensorConnectionProvider>
+          <PatientSessionProvider>
+            <Stack>
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="auth/login" options={{ headerShown: false, title: 'Acceso' }} />
+              <Stack.Screen name="auth/registro" options={{ headerShown: false, title: 'Registro' }} />
+              <Stack.Screen name="legal/accept" options={{ headerShown: false, title: 'Consentimiento' }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="profile" options={{ headerShown: false }} />
+              <Stack.Screen name="data-export" options={{ headerShown: false, title: 'Datos y exportación' }} />
+              <Stack.Screen name="notification-settings" options={{ headerShown: false, title: 'Recordatorios' }} />
+              <Stack.Screen name="sensor-connection" options={{ headerShown: false }} />
+              <Stack.Screen name="hardware-lab" options={{ headerShown: false, title: 'Hardware Lab' }} />
+              <Stack.Screen name="diagnostico" options={{ headerShown: false }} />
+              <Stack.Screen name="diagnostico-resumen" options={{ headerShown: false }} />
+              <Stack.Screen name="esp32-raw-test" options={{ headerShown: false, title: 'ESP32 Raw WS Test' }} />
+            </Stack>
+          </PatientSessionProvider>
+        </SensorConnectionProvider>
       </AppModeProvider>
       <StatusBar style="dark" />
     </ThemeProvider>

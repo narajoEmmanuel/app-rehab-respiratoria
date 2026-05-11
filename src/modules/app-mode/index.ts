@@ -8,6 +8,7 @@ export {
   isCloudAuthEnabled,
   isHardwareLabAccessible,
   isOfflineSensorTestEnabled,
+  isSensorDebugEnabled,
 } from '@/src/modules/app-mode/app-mode-config';
 export { AppModeProvider, useAppMode } from '@/src/modules/app-mode/app-mode-context';
 export type { AppModeContextValue } from '@/src/modules/app-mode/app-mode-context';

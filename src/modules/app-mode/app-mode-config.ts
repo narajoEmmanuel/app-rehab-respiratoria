@@ -26,3 +26,12 @@ export function isOfflineSensorTestEnabled(): boolean {
 export function isHardwareLabAccessible(): boolean {
   return !isCloudAuthEnabled() || isOfflineSensorTestEnabled();
 }
+
+/**
+ * Sensor debug surfaces (Hardware Lab link, raw WS test link, simulated/mock buttons,
+ * verbose telemetry blocks) are hidden from the normal product UI and only shown when
+ * running in development with EXPO_PUBLIC_ENABLE_SENSOR_DEBUG=true.
+ */
+export function isSensorDebugEnabled(): boolean {
+  return __DEV__ && process.env.EXPO_PUBLIC_ENABLE_SENSOR_DEBUG === 'true';
+}

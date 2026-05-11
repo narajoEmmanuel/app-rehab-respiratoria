@@ -14,7 +14,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
-import { useEsp32WebSocketSensor } from '@/src/modules/device/adapters/use-esp32-websocket-sensor';
+import { isSensorDebugEnabled } from '@/src/modules/app-mode';
+import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import {
   buildCalibrationProfile,
   clearCalibrationProfile,
@@ -32,6 +33,7 @@ import {
 } from '@/src/modules/device/calibration';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { spacing } from '@/src/shared/theme/spacing';
 import {
   wellness,
@@ -39,7 +41,7 @@ import {
   wellnessShadows,
 } from '@/src/shared/theme/wellness-theme';
 
-const EXAMPLE_VOLUMES_ML = [0, 500, 1000, 1500, 2000] as const;
+const EXAMPLE_VOLUMES_ML = [0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000] as const;
 
 const BUFFER_MAX_SAMPLES = 20;
 const BUFFER_WINDOW_MS = 2000;
@@ -100,12 +102,6 @@ function formatScalar(value: string | number | boolean | null | undefined): stri
   if (typeof value === 'boolean') return value ? 'sí' : 'no';
   if (typeof value === 'number' && !Number.isFinite(value)) return '—';
   return String(value);
-}
-
-function truncateRaw(raw: string | null, max = 280): string {
-  if (!raw) return '—';
-  if (raw.length <= max) return raw;
-  return `${raw.slice(0, max)}…`;
 }
 
 function parseVolumeMlInput(text: string): number | null {
@@ -205,6 +201,12 @@ function confirmAction(title: string, message: string): Promise<boolean> {
   });
 }
 
+async function confirmActionDouble(title: string, firstMessage: string, secondMessage: string): Promise<boolean> {
+  const first = await confirmAction(title, firstMessage);
+  if (!first) return false;
+  return confirmAction(title, secondMessage);
+}
+
 function formatTimestamp(ts: number): string {
   try {
     return new Date(ts).toLocaleString();
@@ -232,25 +234,20 @@ export function SensorCalibrationScreen() {
     'idle',
   );
   const [storageMessage, setStorageMessage] = useState<string | null>(null);
+  const debug = isSensorDebugEnabled();
 
   const {
     status,
     mode,
     lastReading,
-    lastRawMessage,
-    messageCount,
-    messagesPerSecond,
     errorMessage,
-    closeCode,
-    closeReason,
     url,
-    setUrl,
     connect,
     disconnect,
     resetConnection,
     startMock,
     stopMock,
-  } = useEsp32WebSocketSensor();
+  } = useSensorConnection();
 
   const volumeMl = useMemo(() => parseVolumeMlInput(volumeInput), [volumeInput]);
 
@@ -301,7 +298,7 @@ export function SensorCalibrationScreen() {
   const registerBlockReason = useMemo(() => {
     if (volumeMl === null && volumeInput.trim() !== '') return 'Volumen no válido (usa un número ≥ 0).';
     if (volumeMl === null) return 'Indica un volumen en mL.';
-    if (!inLiveMode) return 'Conecta el sensor o usa modo demostración.';
+    if (!inLiveMode) return 'Conecta el sensor para comenzar.';
     if (!liveSignalOk) return 'No hay señal válida del sensor';
     if (!hasEnoughSamples) return 'Espera señal estable antes de registrar';
     return null;
@@ -319,6 +316,19 @@ export function SensorCalibrationScreen() {
     () => determineVolumeDistanceRelation(volumeSummaries),
     [volumeSummaries],
   );
+  const groupedPoints = useMemo(() => {
+    const grouped = new Map<number, CalibrationCapturePoint[]>();
+    for (const p of points) {
+      if (!grouped.has(p.volumeMl)) grouped.set(p.volumeMl, []);
+      grouped.get(p.volumeMl)?.push(p);
+    }
+    return Array.from(grouped.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([volume, items]) => ({
+        volume,
+        items: [...items].sort((a, b) => a.repetitionNumber - b.repetitionNumber),
+      }));
+  }, [points]);
 
   useEffect(() => {
     let cancelled = false;
@@ -378,15 +388,29 @@ export function SensorCalibrationScreen() {
   }, [bufferStats, canRegister, markDirty, volumeMl]);
 
   const onDeletePoint = useCallback(
-    (id: string) => {
+    async (id: string) => {
+      const target = points.find((p) => p.id === id);
+      const targetLabel = target ? `${target.volumeMl} mL · rep ${target.repetitionNumber}` : 'este punto';
+      const ok = await confirmActionDouble(
+        'Borrar punto',
+        `Se eliminará ${targetLabel} de la calibración local en pantalla.`,
+        'Confirma nuevamente para borrar este punto.',
+      );
+      if (!ok) return;
       hapticLight();
       setPoints((prev) => prev.filter((p) => p.id !== id));
       markDirty();
     },
-    [markDirty],
+    [markDirty, points],
   );
 
-  const onResetCalibration = useCallback(() => {
+  const onResetCalibration = useCallback(async () => {
+    const ok = await confirmActionDouble(
+      'Reiniciar calibración local',
+      'Se vaciarán todos los puntos de la pantalla.',
+      'Confirma nuevamente para reiniciar la calibración local en pantalla.',
+    );
+    if (!ok) return;
     hapticLight();
     setPoints([]);
     markDirty();
@@ -452,9 +476,10 @@ export function SensorCalibrationScreen() {
 
   const onClearStorage = useCallback(async () => {
     if (storageBusy !== 'idle') return;
-    const ok = await confirmAction(
+    const ok = await confirmActionDouble(
       'Borrar calibración guardada',
       'Se eliminará el perfil de calibración guardado en este dispositivo. Los puntos actuales en pantalla no se borran.',
+      'Confirma nuevamente para borrar la calibración guardada del dispositivo.',
     );
     if (!ok) return;
     hapticLight();
@@ -502,6 +527,7 @@ export function SensorCalibrationScreen() {
     (savedStatus.kind === 'saved' || savedStatus.kind === 'corrupt') && storageBusy === 'idle';
 
   const isConnecting = status === 'connecting';
+  const isOnline = status === 'connected' || status === 'receiving';
   const modeLabel = mode === 'mock' ? 'simulado' : 'real';
 
   return (
@@ -566,105 +592,159 @@ export function SensorCalibrationScreen() {
           </View>
         </View>
 
-        <View style={styles.alertCard}>
-          <Text style={styles.alertTitle}>Calibración experimental, no validada clínicamente</Text>
-        </View>
-
-        <View style={styles.noteCard}>
-          <Text style={styles.noteText}>
-            La medición física con espirómetro real queda pendiente. Esta herramienta solo prepara el registro.
-          </Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Telemetría en vivo</Text>
-          <View style={styles.kvGrid}>
-            <Metric label="status" value={statusLabel(status)} />
-            <Metric label="url" value={url || '—'} emphasize />
-            <Metric label="source" value={formatScalar(lastReading?.source)} />
-            <Metric label="distanceMm" value={formatScalar(distanceMm)} />
-            <Metric label="rawDistanceMm" value={formatScalar(lastReading?.rawDistanceMm)} />
-            <Metric label="distanceValid" value={formatScalar(lastReading?.distanceValid)} />
-            <Metric label="timestamp" value={formatScalar(lastReading?.timestamp)} />
-            <Metric label="messages" value={formatScalar(messageCount)} />
-            <Metric label="mps" value={formatScalar(messagesPerSecond)} />
-            <Metric label="lastRawMessage" value={truncateRaw(lastRawMessage)} multiline />
-            <Metric label="errorMessage" value={errorMessage ?? '—'} emphasize />
-            <Metric label="closeCode" value={closeCode === null ? '—' : String(closeCode)} />
-            <Metric label="closeReason" value={closeReason ?? '—'} />
+        <View style={styles.calibrationPurposeCard}>
+          <View style={styles.calibrationPurposeHeader}>
+            <View style={styles.calibrationPurposeIcon}>
+              <IconSymbol name="checkmark.circle.fill" size={22} color={wellness.primaryDark} />
+            </View>
+            <View style={styles.calibrationPurposeTextCol}>
+              <Text style={styles.calibrationPurposeTitle}>Calibración clave para tu terapia</Text>
+              <Text style={styles.calibrationPurposeSubtitle}>
+                Esta calibración alinea sensor y espirómetro para mejorar la estimación de volumen y la calidad del
+                entrenamiento respiratorio.
+              </Text>
+            </View>
+          </View>
+          <View style={styles.purposePillRow}>
+            <View style={styles.purposePill}>
+              <Text style={styles.purposePillText}>Juego más estable</Text>
+            </View>
+            <View style={styles.purposePill}>
+              <Text style={styles.purposePillText}>Lectura más confiable</Text>
+            </View>
+            <View style={styles.purposePill}>
+              <Text style={styles.purposePillText}>Proceso experimental</Text>
+            </View>
           </View>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>WebSocket</Text>
-          <TextInput
-            value={url}
-            onChangeText={setUrl}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            style={styles.urlInput}
-            placeholder="ws://192.168.4.1:81"
-            placeholderTextColor={wellness.textSecondary}
-          />
-          <View style={styles.rowGap}>
+          <View style={styles.telemetryHeader}>
+            <View style={styles.telemetryHeaderIcon}>
+              <IconSymbol name="dot.radiowaves.left.and.right" size={16} color={wellness.primaryDark} />
+            </View>
+            <Text style={styles.cardTitleStrong}>Lectura en vivo</Text>
+          </View>
+          <Text style={styles.cardHint}>
+            Esta matriz muestra solo métricas útiles para registrar puntos confiables.
+          </Text>
+          <View style={styles.telemetryGrid}>
+            <MetricCell label="Estado" value={statusLabel(status)} />
+            <MetricCell label="Distance" value={formatScalar(distanceMm)} unit="mm" />
+            <MetricCell label="Raw" value={formatScalar(lastReading?.rawDistanceMm)} unit="mm" />
+            <MetricCell label="Señal" value={lastReading?.distanceValid ? 'Válida' : 'Sin validar'} />
+            <MetricCell label="Muestras buffer" value={bufferStats ? String(bufferStats.sampleCount) : '0'} />
+            <MetricCell label="Variación (std)" value={bufferStats ? bufferStats.stdDistanceMm.toFixed(2) : '—'} unit="mm" />
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.telemetryHeader}>
+            <View style={styles.telemetryHeaderIcon}>
+              <IconSymbol name="gearshape.fill" size={16} color={wellness.primaryDark} />
+            </View>
+            <Text style={styles.cardTitleStrong}>Conexión del sensor</Text>
+          </View>
+          <Text style={styles.cardHint}>
+            La conexión del sensor se comparte con toda la app. La URL y la conexión principal se gestionan en
+            Preparar dispositivo; aquí puedes reconectar o limpiar si hace falta.
+          </Text>
+          <Text style={styles.sharedUrlReadonly} numberOfLines={1}>
+            {url.trim() || '—'}
+          </Text>
+
+          {isConnecting ? (
+            <View style={styles.connectingRow}>
+              <ActivityIndicator size="small" color={wellness.primaryDark} />
+              <Text style={styles.connectingHint}>Conectando al ESP32…</Text>
+            </View>
+          ) : null}
+
+          {!isOnline && !isConnecting ? (
             <Pressable
-              style={({ pressed }) => [
-                styles.primaryBtn,
-                isConnecting && styles.btnDisabled,
-                pressed && !isConnecting && styles.primaryBtnPressed,
-              ]}
+              style={({ pressed }) => [styles.primaryBtn, pressed && styles.primaryBtnPressed]}
               onPress={() => {
                 hapticLight();
                 connect();
               }}
-              disabled={isConnecting}>
-              <Text style={[styles.primaryBtnText, isConnecting && styles.btnTextDisabled]}>Conectar</Text>
+              accessibilityRole="button"
+              accessibilityLabel="Conectar sensor">
+              <Text style={styles.primaryBtnText}>Conectar sensor</Text>
             </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
-              onPress={() => {
-                hapticLight();
-                disconnect();
-              }}>
-              <Text style={styles.secondaryBtnText}>Desconectar</Text>
-            </Pressable>
+          ) : null}
+
+          {isOnline ? (
+            <View style={styles.rowGap}>
+              <View style={styles.connectedPill}>
+                <Text style={styles.connectedPillText}>Conectado</Text>
+              </View>
+              <Pressable
+                style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
+                onPress={onResetConnection}
+                accessibilityRole="button"
+                accessibilityLabel="Limpiar conexión">
+                <Text style={styles.secondaryBtnText}>Limpiar conexión</Text>
+              </Pressable>
+              <Text style={styles.limpiarExplain}>
+                Cierra la conexión actual si la señal se queda detenida, cambia la red o el estado queda atascado.
+              </Text>
+              <Pressable
+                style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
+                onPress={() => {
+                  hapticLight();
+                  disconnect();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Desconectar sensor">
+                <Text style={styles.ghostBtnText}>Desconectar</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {!isOnline && !isConnecting && status === 'error' ? (
             <Pressable
               style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
               onPress={onResetConnection}
               accessibilityRole="button"
-              accessibilityLabel="Limpiar conexión y volver a idle">
+              accessibilityLabel="Limpiar conexión">
               <Text style={styles.secondaryBtnText}>Limpiar conexión</Text>
             </Pressable>
-            {status === 'connecting' ? (
-              <Text style={styles.connectingHint}>
-                Esperando handshake del ESP32… si no responde en unos segundos, usa “Limpiar conexión”.
-              </Text>
-            ) : null}
-            {status === 'error' && errorMessage ? (
-              <Text style={styles.errorHint}>{errorMessage}</Text>
-            ) : null}
-            <Pressable
-              style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
-              onPress={() => {
-                hapticLight();
-                startMock();
-              }}>
-              <Text style={styles.ghostBtnText}>Modo demostración</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
-              onPress={() => {
-                hapticLight();
-                stopMock();
-              }}>
-              <Text style={styles.ghostBtnText}>Detener demostración</Text>
-            </Pressable>
-          </View>
+          ) : null}
+          {!isOnline && !isConnecting && status === 'error' ? (
+            <Text style={styles.limpiarExplain}>
+              Cierra el socket atascado o con error para volver a intentar con un estado limpio.
+            </Text>
+          ) : null}
+
+          {status === 'error' && errorMessage ? <Text style={styles.errorHint}>{errorMessage}</Text> : null}
+
+          {debug ? (
+            <>
+              <Pressable
+                style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
+                onPress={() => {
+                  hapticLight();
+                  startMock();
+                }}>
+                <Text style={styles.ghostBtnText}>Modo demostración (debug)</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
+                onPress={() => {
+                  hapticLight();
+                  stopMock();
+                }}>
+                <Text style={styles.ghostBtnText}>Detener demostración</Text>
+              </Pressable>
+            </>
+          ) : null}
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Estabilidad de señal</Text>
+          <Text style={styles.cardTitleStrong}>Estabilidad de medición</Text>
+          <Text style={styles.cardHint}>
+            Se analizan varias lecturas recientes para registrar un punto más confiable.
+          </Text>
           {bufferStats ? (
             <>
               <View style={styles.stabilityRow}>
@@ -692,7 +772,8 @@ export function SensorCalibrationScreen() {
                 Min / max: {bufferStats.minDistanceMm.toFixed(1)} · {bufferStats.maxDistanceMm.toFixed(1)} mm
               </Text>
               <Text style={styles.summaryLine}>
-                Lecturas en buffer: {bufferStats.sampleCount} (máx {BUFFER_MAX_SAMPLES} · ventana{' '}
+                Estado: {stabilityLabel(stability)} · Lecturas: {bufferStats.sampleCount} (máx {BUFFER_MAX_SAMPLES}
+                {' · ventana '}
                 {(BUFFER_WINDOW_MS / 1000).toFixed(1)} s)
               </Text>
               <View
@@ -715,24 +796,22 @@ export function SensorCalibrationScreen() {
               </View>
             </>
           ) : (
-            <Text style={styles.emptyText}>
-              Aún no hay lecturas válidas en el buffer. Conecta o usa modo demostración.
-            </Text>
+            <Text style={styles.emptyText}>Sin lecturas disponibles. Conecta el dispositivo para comenzar.</Text>
           )}
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Volumen del espirómetro (mL)</Text>
-          <Text style={styles.cardHint}>Escribe el valor que marca el espirómetro en este instante.</Text>
+          <Text style={styles.cardTitleStrong}>Volumen del espirómetro</Text>
+          <Text style={styles.cardSubTitleStrong}>Valor objetivo para registrar el siguiente punto (mL)</Text>
           <TextInput
             value={volumeInput}
             onChangeText={setVolumeInput}
             keyboardType="decimal-pad"
             style={styles.volumeInput}
-            placeholder="Ej. 500"
+            placeholder="Ej. 1500"
             placeholderTextColor={wellness.textSecondary}
           />
-          <Text style={styles.chipsLabel}>Ejemplos</Text>
+          <Text style={styles.chipsLabel}>Selección rápida 0–5000 mL</Text>
           <View style={styles.chipsRow}>
             {EXAMPLE_VOLUMES_ML.map((v) => (
               <Pressable
@@ -769,14 +848,14 @@ export function SensorCalibrationScreen() {
 
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.cardTitle}>Puntos capturados</Text>
+            <Text style={styles.cardTitleStrong}>Puntos capturados</Text>
             {points.length > 0 ? (
               <Pressable
                 onPress={onResetCalibration}
                 style={({ pressed }) => [styles.textBtn, pressed && styles.textBtnPressed]}
                 accessibilityRole="button"
                 accessibilityLabel="Vaciar puntos de la pantalla">
-                <Text style={styles.textBtnLabel}>Reiniciar</Text>
+                <Text style={styles.textBtnLabel}>Reiniciar puntos</Text>
               </Pressable>
             ) : null}
           </View>
@@ -789,75 +868,81 @@ export function SensorCalibrationScreen() {
           {points.length === 0 ? (
             <Text style={styles.emptyText}>Aún no hay puntos. Conecta, valida señal y registra.</Text>
           ) : (
-            points
-              .slice()
-              .reverse()
-              .map((p) => (
-                <View key={p.id} style={styles.pointRow}>
-                  <View style={styles.pointMain}>
-                    <Text style={styles.pointVol}>{p.volumeMl} mL</Text>
-                    <Text style={styles.pointMeta}>
-                      #{p.repetitionNumber} · {p.distanceMm.toFixed(1)} mm · {p.source}
-                    </Text>
-                    <Text style={styles.pointMetaMuted}>
-                      n={p.sampleCount} · ±{p.stdDistanceMm.toFixed(2)} mm · rango{' '}
-                      {(p.maxSampleDistanceMm - p.minSampleDistanceMm).toFixed(1)} mm
-                    </Text>
+            groupedPoints.map((group) => (
+              <View key={group.volume} style={styles.pointsGroup}>
+                <Text style={styles.pointsGroupTitle}>{group.volume} mL</Text>
+                {group.items.map((p) => (
+                  <View key={p.id} style={styles.pointTableRow}>
+                    <View style={styles.pointMain}>
+                      <Text style={styles.pointMeta}>
+                        Rep #{p.repetitionNumber} · {p.distanceMm.toFixed(1)} mm
+                      </Text>
+                      <Text style={styles.pointMetaMuted}>
+                        n={p.sampleCount} · ±{p.stdDistanceMm.toFixed(2)} · rango{' '}
+                        {(p.maxSampleDistanceMm - p.minSampleDistanceMm).toFixed(1)} mm
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() => void onDeletePoint(p.id)}
+                      style={({ pressed }) => [styles.iconDelete, pressed && styles.iconDeletePressed]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Eliminar punto">
+                      <Text style={styles.iconDeleteText}>✕</Text>
+                    </Pressable>
                   </View>
-                  <Pressable
-                    onPress={() => onDeletePoint(p.id)}
-                    style={({ pressed }) => [styles.iconDelete, pressed && styles.iconDeletePressed]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Eliminar punto">
-                    <Text style={styles.iconDeleteText}>✕</Text>
-                  </Pressable>
-                </View>
-              ))
+                ))}
+              </View>
+            ))
           )}
         </View>
 
         {volumeSummaries.length > 0 ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Resumen por volumen</Text>
+            <Text style={styles.cardTitleStrong}>Resumen por volumen</Text>
             <Text style={styles.cardHint}>
               Promedios calculados como media aritmética de distanceMm y rawDistanceMm por cada volumen marcado.
             </Text>
+            <View style={styles.summaryTableHead}>
+              <Text style={styles.summaryHeadCell}>Vol</Text>
+              <Text style={styles.summaryHeadCell}>Rep</Text>
+              <Text style={styles.summaryHeadCell}>Prom</Text>
+              <Text style={styles.summaryHeadCell}>Min-Max</Text>
+            </View>
             {volumeSummaries.map((row) => (
-              <View key={row.volumeMl} style={styles.summaryBlock}>
-                <Text style={styles.summaryVol}>{row.volumeMl} mL</Text>
-                <Text style={styles.summaryLine}>Repeticiones: {row.repetitions}</Text>
-                <Text style={styles.summaryLine}>
-                  Prom. distance: {row.avgDistanceMm.toFixed(1)} mm · Prom. raw: {row.avgRawDistanceMm.toFixed(1)} mm
-                </Text>
-                <Text style={styles.summaryLine}>
-                  Min / max distance: {row.minDistanceMm.toFixed(1)} · {row.maxDistanceMm.toFixed(1)} mm
+              <View key={row.volumeMl} style={styles.summaryTableRow}>
+                <Text style={styles.summaryCell}>{row.volumeMl}</Text>
+                <Text style={styles.summaryCell}>{row.repetitions}</Text>
+                <Text style={styles.summaryCell}>{row.avgDistanceMm.toFixed(1)} mm</Text>
+                <Text style={styles.summaryCell}>
+                  {row.minDistanceMm.toFixed(1)}-{row.maxDistanceMm.toFixed(1)}
                 </Text>
               </View>
             ))}
           </View>
         ) : null}
 
-        {globalRange.rangeMm !== null ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Rango útil global (distanceMm)</Text>
-            <Text style={styles.summaryLine}>
-              Mínimo: {(globalRange.minDistanceMm ?? 0).toFixed(1)} mm
-            </Text>
-            <Text style={styles.summaryLine}>
-              Máximo: {(globalRange.maxDistanceMm ?? 0).toFixed(1)} mm
-            </Text>
-            <Text style={styles.summaryLine}>Rango: {globalRange.rangeMm.toFixed(1)} mm</Text>
-          </View>
-        ) : null}
-
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Relación volumen → distancia</Text>
-          <Text style={styles.relationValue}>{relationLabel(relation)}</Text>
+          <Text style={styles.cardTitleStrong}>Resultados de calibración</Text>
+          <View style={styles.resultsGrid}>
+            <MetricCell label="Relación volumen-distancia" value={relationLabel(relation)} />
+            <MetricCell
+              label="Rango útil (mm)"
+              value={globalRange.rangeMm === null ? '—' : globalRange.rangeMm.toFixed(1)}
+            />
+            <MetricCell label="Estado" value={savedStatusLabel} />
+            <MetricCell label="Puntos registrados" value={String(points.length)} />
+          </View>
+          {globalRange.rangeMm !== null ? (
+            <Text style={styles.summaryLine}>
+              Mín: {(globalRange.minDistanceMm ?? 0).toFixed(1)} mm · Máx:{' '}
+              {(globalRange.maxDistanceMm ?? 0).toFixed(1)} mm
+            </Text>
+          ) : null}
           <Text style={styles.relationHint}>{relationHint(relation)}</Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Persistencia local</Text>
+          <Text style={styles.cardTitleStrong}>Persistencia local</Text>
           <View
             style={[
               styles.savedBadge,
@@ -935,6 +1020,7 @@ export function SensorCalibrationScreen() {
               accessibilityRole="button"
               accessibilityLabel="Cargar calibración guardada">
               <Text style={[styles.secondaryBtnText, !canLoad && styles.btnTextDisabled]}>
+                ↻{' '}
                 Cargar calibración guardada
               </Text>
             </Pressable>
@@ -969,24 +1055,21 @@ export function SensorCalibrationScreen() {
   );
 }
 
-function Metric({
+function MetricCell({
   label,
   value,
-  emphasize,
-  multiline,
+  unit,
 }: {
   label: string;
   value: string;
-  emphasize?: boolean;
-  multiline?: boolean;
+  unit?: string;
 }) {
   return (
-    <View style={styles.metric}>
-      <Text style={styles.metricLabel}>{label}</Text>
-      <Text
-        style={[styles.metricValue, emphasize && styles.metricValueEmph]}
-        numberOfLines={multiline ? 4 : 2}>
+    <View style={styles.metricCell}>
+      <Text style={styles.metricCellLabel}>{label}</Text>
+      <Text style={styles.metricCellValue} numberOfLines={2}>
         {value}
+        {unit ? ` ${unit}` : ''}
       </Text>
     </View>
   );
@@ -1078,36 +1161,54 @@ const styles = StyleSheet.create({
   },
   pillText: { fontSize: 13, fontWeight: '700', color: wellness.primaryDark },
   pillTextMuted: { fontSize: 13, fontWeight: '600', color: wellness.textSecondary },
-  alertCard: {
-    backgroundColor: wellness.errorBg,
-    borderRadius: wellnessRadii.card,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: wellness.borderStrong,
-  },
-  alertTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: wellness.errorText,
-    lineHeight: 21,
-    textAlign: 'center',
-  },
-  noteCard: {
+  calibrationPurposeCard: {
     backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.card,
-    padding: spacing.md,
+    borderRadius: wellnessRadii.cardLarge,
+    padding: spacing.lg,
     marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: wellness.border,
+    ...wellnessShadows.card,
   },
-  noteText: {
+  calibrationPurposeHeader: { flexDirection: 'row', gap: spacing.md },
+  calibrationPurposeIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: wellness.successBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: wellness.border,
+  },
+  calibrationPurposeTextCol: { flex: 1 },
+  calibrationPurposeTitle: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: wellness.text,
+    letterSpacing: -0.2,
+    marginBottom: 4,
+  },
+  calibrationPurposeSubtitle: {
     fontSize: 14,
-    fontWeight: '600',
     color: wellness.textSecondary,
     lineHeight: 20,
-    textAlign: 'center',
   },
+  purposePillRow: {
+    marginTop: spacing.md,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  purposePill: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: wellnessRadii.pill,
+    backgroundColor: wellness.screenBg,
+    borderWidth: 1,
+    borderColor: wellness.border,
+  },
+  purposePillText: { fontSize: 12, fontWeight: '700', color: wellness.primaryDark },
   card: {
     backgroundColor: wellness.card,
     borderRadius: wellnessRadii.cardLarge,
@@ -1117,13 +1218,18 @@ const styles = StyleSheet.create({
     borderColor: wellness.border,
     ...wellnessShadows.cardPress,
   },
-  cardTitle: {
-    fontSize: 13,
+  cardTitleStrong: {
+    fontSize: 20,
     fontWeight: '800',
+    color: wellness.text,
+    letterSpacing: -0.2,
+    marginBottom: spacing.xs,
+  },
+  cardSubTitleStrong: {
+    fontSize: 14,
     color: wellness.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
+    lineHeight: 20,
   },
   cardHint: {
     fontSize: 13,
@@ -1131,36 +1237,78 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: spacing.md,
   },
-  kvGrid: { gap: spacing.sm },
-  metric: {
-    paddingVertical: spacing.xs,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: wellness.border,
+  telemetryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
   },
-  metricLabel: {
+  telemetryHeaderIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: wellness.successBg,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  telemetryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  metricCell: {
+    width: '48%',
+    backgroundColor: wellness.screenBg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.sm,
+  },
+  metricCellLabel: {
     fontSize: 11,
     fontWeight: '700',
     color: wellness.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 2,
+    marginBottom: 3,
   },
-  metricValue: {
-    fontSize: 15,
+  metricCellValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: wellness.text,
+  },
+  sharedUrlReadonly: {
+    fontSize: 13,
     fontWeight: '600',
-    color: wellness.text,
-  },
-  metricValueEmph: { color: wellness.errorText },
-  urlInput: {
-    borderWidth: 1,
-    borderColor: wellness.borderStrong,
-    backgroundColor: wellness.screenBg,
-    borderRadius: 14,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    color: wellness.text,
-    fontSize: 15,
+    color: wellness.textSecondary,
     marginBottom: spacing.md,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
+  },
+  connectingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  connectedPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: wellnessRadii.pill,
+    backgroundColor: wellness.successBg,
+    borderWidth: 1,
+    borderColor: wellness.border,
+  },
+  connectedPillText: { fontSize: 13, fontWeight: '800', color: wellness.primaryDark },
+  limpiarExplain: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: wellness.textSecondary,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
   },
   rowGap: { gap: spacing.sm },
   primaryBtn: {
@@ -1293,17 +1441,29 @@ const styles = StyleSheet.create({
     color: wellness.textSecondary,
     lineHeight: 22,
   },
-  pointRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: wellness.border,
-  },
   pointMain: { flex: 1 },
-  pointVol: { fontSize: 18, fontWeight: '800', color: wellness.text },
   pointMeta: { fontSize: 14, fontWeight: '600', color: wellness.textSecondary, marginTop: 2 },
   pointMetaMuted: { fontSize: 12, color: wellness.textSecondary, marginTop: 2 },
+  pointsGroup: {
+    marginTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: wellness.border,
+    paddingTop: spacing.md,
+  },
+  pointsGroupTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+    marginBottom: spacing.xs,
+  },
+  pointTableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: wellness.border,
+    gap: spacing.sm,
+  },
   iconDelete: {
     width: 40,
     height: 40,
@@ -1316,20 +1476,29 @@ const styles = StyleSheet.create({
   },
   iconDeletePressed: { opacity: 0.85 },
   iconDeleteText: { fontSize: 16, fontWeight: '700', color: wellness.errorText },
-  summaryBlock: {
-    marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: wellness.border,
+  summaryTableHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingBottom: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: wellness.border,
   },
-  summaryVol: { fontSize: 17, fontWeight: '800', color: wellness.primaryDark, marginBottom: spacing.xs },
-  summaryLine: { fontSize: 14, fontWeight: '600', color: wellness.text, lineHeight: 20 },
-  relationValue: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: wellness.primaryDark,
+  summaryTableRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm + 2,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: wellness.border,
+  },
+  summaryHeadCell: { width: '25%', fontSize: 12, fontWeight: '700', color: wellness.textSecondary },
+  summaryCell: { width: '25%', fontSize: 13, fontWeight: '700', color: wellness.text },
+  resultsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
     marginBottom: spacing.sm,
   },
+  summaryLine: { fontSize: 14, fontWeight: '600', color: wellness.text, lineHeight: 20 },
   relationHint: { fontSize: 14, fontWeight: '600', color: wellness.textSecondary, lineHeight: 20 },
   linkBack: { paddingVertical: spacing.lg, alignItems: 'center' },
   linkBackPressed: { opacity: 0.8 },
