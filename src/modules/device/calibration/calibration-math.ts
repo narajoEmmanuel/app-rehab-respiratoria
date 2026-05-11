@@ -3,6 +3,13 @@
  * No tocan React ni AsyncStorage; las consume `SensorCalibrationScreen` y el storage.
  */
 import {
+  EXPECTED_MAX_VOLUME_ML,
+  EXPECTED_MIN_VOLUME_ML,
+  EXTENDED_RANGE_ML,
+  MIN_OPERATIVE_VOLUME_ML,
+  RECOMMENDED_RANGE_ML,
+} from '@/src/modules/device/calibration/calibration-constants';
+import {
   CALIBRATION_PROFILE_VERSION,
   type CalibrationCapturePoint,
   type CalibrationProfile,
@@ -92,6 +99,93 @@ export function determineVolumeDistanceRelation(
   if (allPositive) return 'direct';
   if (allNegative) return 'inverse';
   return 'indeterminate';
+}
+
+export type VolumeCoverage = {
+  /** Volumen mínimo presente en summaries (mL), o `null` si no hay puntos. */
+  coveredMinMl: number | null;
+  /** Volumen máximo presente en summaries (mL), o `null` si no hay puntos. */
+  coveredMaxMl: number | null;
+  /** Porcentaje 0–100 del rango recomendado (500–3000) que queda cubierto. */
+  recommendedCoveragePct: number;
+  /** Porcentaje 0–100 del rango total operativo (500–5000) que queda cubierto. */
+  totalCoveragePct: number;
+  /** `true` si los puntos cubren totalmente 500–3000. */
+  coversRecommended: boolean;
+  /** `true` si los puntos cubren totalmente el bloque extendido 3500–5000. */
+  coversExtended: boolean;
+  /** `true` si los puntos cubren totalmente 500–5000. */
+  coversTotal: boolean;
+};
+
+function clampPct(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  if (value < 0) return 0;
+  if (value > 100) return 100;
+  return value;
+}
+
+/**
+ * Calcula la cobertura del rango operativo a partir de los summaries.
+ * El cero real del espirómetro (0 mL) no resta cobertura pero tampoco aporta,
+ * porque las intersecciones se calculan contra los rangos operativos definidos.
+ */
+export function computeVolumeCoverage(
+  summaries: VolumeCalibrationSummary[],
+): VolumeCoverage {
+  if (summaries.length === 0) {
+    return {
+      coveredMinMl: null,
+      coveredMaxMl: null,
+      recommendedCoveragePct: 0,
+      totalCoveragePct: 0,
+      coversRecommended: false,
+      coversExtended: false,
+      coversTotal: false,
+    };
+  }
+  const volumes = summaries.map((s) => s.volumeMl);
+  const coveredMinMl = Math.min(...volumes);
+  const coveredMaxMl = Math.max(...volumes);
+
+  const recSpan = RECOMMENDED_RANGE_ML.max - RECOMMENDED_RANGE_ML.min;
+  const recOverlap = Math.max(
+    0,
+    Math.min(coveredMaxMl, RECOMMENDED_RANGE_ML.max) -
+      Math.max(coveredMinMl, RECOMMENDED_RANGE_ML.min),
+  );
+  const recommendedCoveragePct =
+    recSpan > 0 ? clampPct((recOverlap / recSpan) * 100) : 0;
+
+  const totalSpan = EXPECTED_MAX_VOLUME_ML - EXPECTED_MIN_VOLUME_ML;
+  const totalOverlap = Math.max(
+    0,
+    Math.min(coveredMaxMl, EXPECTED_MAX_VOLUME_ML) -
+      Math.max(coveredMinMl, EXPECTED_MIN_VOLUME_ML),
+  );
+  const totalCoveragePct =
+    totalSpan > 0 ? clampPct((totalOverlap / totalSpan) * 100) : 0;
+
+  return {
+    coveredMinMl,
+    coveredMaxMl,
+    recommendedCoveragePct,
+    totalCoveragePct,
+    coversRecommended:
+      coveredMinMl <= RECOMMENDED_RANGE_ML.min &&
+      coveredMaxMl >= RECOMMENDED_RANGE_ML.max,
+    coversExtended:
+      coveredMinMl <= EXTENDED_RANGE_ML.min && coveredMaxMl >= EXTENDED_RANGE_ML.max,
+    coversTotal:
+      coveredMinMl <= EXPECTED_MIN_VOLUME_ML && coveredMaxMl >= EXPECTED_MAX_VOLUME_ML,
+  };
+}
+
+/** Devuelve `true` si hay summaries por debajo del límite inferior operativo (500 mL). */
+export function hasSubOperativeVolumes(
+  summaries: VolumeCalibrationSummary[],
+): boolean {
+  return summaries.some((s) => s.volumeMl < MIN_OPERATIVE_VOLUME_ML);
 }
 
 export type BuildCalibrationProfileOptions = {

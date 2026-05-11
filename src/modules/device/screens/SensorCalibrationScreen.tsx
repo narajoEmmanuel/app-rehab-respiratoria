@@ -18,17 +18,31 @@ import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import {
   buildCalibrationProfile,
+  buildLinearCalibrationModel,
+  CALIBRATION_PROFILE_VERSION,
   clearCalibrationProfile,
   computeGlobalDistanceRange,
+  computeVolumeCoverage,
   computeVolumeSummaries,
   determineVolumeDistanceRelation,
+  EXPECTED_MAX_VOLUME_ML,
+  EXPECTED_MIN_VOLUME_ML,
+  EXPECTED_RECOMMENDED_MAX_VOLUME_ML,
+  EXTENDED_VOLUME_CHIPS_ML,
+  hasSubOperativeVolumes,
   loadCalibrationProfileDetailed,
+  MIN_OPERATIVE_VOLUME_ML,
+  MIN_RELIABLE_SENSOR_DISTANCE_MM,
+  RECOMMENDED_VOLUME_CHIPS_ML,
   saveCalibrationProfile,
   type CalibrationCapturePoint,
+  type CalibrationModel,
+  type CalibrationModelStatus,
   type CalibrationProfile,
   type GlobalDistanceRange,
   type LoadCalibrationResult,
   type VolumeCalibrationSummary,
+  type VolumeCoverage,
   type VolumeDistanceRelation,
 } from '@/src/modules/device/calibration';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
@@ -40,8 +54,6 @@ import {
   wellnessRadii,
   wellnessShadows,
 } from '@/src/shared/theme/wellness-theme';
-
-const EXAMPLE_VOLUMES_ML = [0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000] as const;
 
 const BUFFER_MAX_SAMPLES = 20;
 const BUFFER_WINDOW_MS = 2000;
@@ -169,6 +181,49 @@ function relationLabel(r: VolumeDistanceRelation): string {
   }
 }
 
+function modelStatusLabel(status: CalibrationModelStatus): string {
+  switch (status) {
+    case 'valid':
+      return 'Modelo listo';
+    case 'insufficient_data':
+      return 'Faltan puntos';
+    case 'non_monotonic':
+      return 'Relación no monotónica';
+    case 'invalid_range':
+      return 'Rango insuficiente';
+    case 'high_error':
+      return 'Error elevado, considera repetir';
+    default:
+      return status;
+  }
+}
+
+function modelStatusTone(status: CalibrationModelStatus): 'ok' | 'warn' | 'muted' {
+  if (status === 'valid') return 'ok';
+  if (status === 'insufficient_data') return 'muted';
+  return 'warn';
+}
+
+function formatMetricMl(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return '—';
+  return `${value.toFixed(0)} mL`;
+}
+
+function formatR2(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return '—';
+  return value.toFixed(3);
+}
+
+function formatSlope(value: number | undefined): string {
+  if (value === undefined || !Number.isFinite(value)) return '—';
+  return value.toFixed(2);
+}
+
+function formatIntercept(value: number | undefined): string {
+  if (value === undefined || !Number.isFinite(value)) return '—';
+  return value.toFixed(2);
+}
+
 function relationHint(r: VolumeDistanceRelation): string {
   switch (r) {
     case 'direct':
@@ -255,6 +310,12 @@ export function SensorCalibrationScreen() {
   const distanceValid = lastReading?.distanceValid === true;
   const distanceIsFinite = typeof distanceMm === 'number' && Number.isFinite(distanceMm);
   const liveSignalOk = distanceValid && distanceIsFinite;
+  /**
+   * Por debajo de `MIN_RELIABLE_SENSOR_DISTANCE_MM` el VL53L0X se vuelve inestable;
+   * bloqueamos el registro porque ese punto no aporta calibración confiable.
+   */
+  const distanceAboveSensorMin =
+    distanceIsFinite && (distanceMm as number) >= MIN_RELIABLE_SENSOR_DISTANCE_MM;
 
   useEffect(() => {
     if (!lastReading) return;
@@ -293,16 +354,34 @@ export function SensorCalibrationScreen() {
   const inLiveMode = status === 'connected' || status === 'receiving' || mode === 'mock';
 
   const canRegister =
-    inLiveMode && volumeMl !== null && liveSignalOk && hasEnoughSamples && bufferStats !== null;
+    inLiveMode &&
+    volumeMl !== null &&
+    liveSignalOk &&
+    distanceAboveSensorMin &&
+    hasEnoughSamples &&
+    bufferStats !== null;
 
   const registerBlockReason = useMemo(() => {
     if (volumeMl === null && volumeInput.trim() !== '') return 'Volumen no válido (usa un número ≥ 0).';
     if (volumeMl === null) return 'Indica un volumen en mL.';
     if (!inLiveMode) return 'Conecta el sensor para comenzar.';
     if (!liveSignalOk) return 'No hay señal válida del sensor';
+    if (!distanceAboveSensorMin) {
+      return 'La distancia está por debajo del rango confiable del sensor. Reubica el sensor o usa un volumen mayor.';
+    }
     if (!hasEnoughSamples) return 'Espera señal estable antes de registrar';
     return null;
-  }, [hasEnoughSamples, inLiveMode, liveSignalOk, volumeInput, volumeMl]);
+  }, [
+    distanceAboveSensorMin,
+    hasEnoughSamples,
+    inLiveMode,
+    liveSignalOk,
+    volumeInput,
+    volumeMl,
+  ]);
+
+  const isSubOperativeInput =
+    volumeMl !== null && volumeMl < MIN_OPERATIVE_VOLUME_ML;
 
   const volumeSummaries = useMemo<VolumeCalibrationSummary[]>(
     () => computeVolumeSummaries(points),
@@ -314,6 +393,41 @@ export function SensorCalibrationScreen() {
   );
   const relation = useMemo<VolumeDistanceRelation>(
     () => determineVolumeDistanceRelation(volumeSummaries),
+    [volumeSummaries],
+  );
+
+  /**
+   * Perfil "en vivo": se construye a partir de los puntos actuales en pantalla (incluye
+   * cambios sin guardar). Conserva id/createdAt del perfil persistido cuando existe,
+   * para que el modelo derive un calibrationProfileId estable.
+   */
+  const liveProfile = useMemo<CalibrationProfile>(
+    () => ({
+      id: savedProfile?.id ?? 'live',
+      name: savedProfile?.name ?? 'Calibración local',
+      createdAt: savedProfile?.createdAt ?? 0,
+      updatedAt: savedProfile?.updatedAt ?? 0,
+      points,
+      summaries: volumeSummaries,
+      globalRange,
+      relation,
+      isExperimental: true,
+      source: 'local_calibration',
+      notes: savedProfile?.notes,
+      version: CALIBRATION_PROFILE_VERSION,
+    }),
+    [globalRange, points, relation, savedProfile, volumeSummaries],
+  );
+  const linearModel = useMemo<CalibrationModel>(
+    () => buildLinearCalibrationModel(liveProfile),
+    [liveProfile],
+  );
+  const coverage = useMemo<VolumeCoverage>(
+    () => computeVolumeCoverage(volumeSummaries),
+    [volumeSummaries],
+  );
+  const hasLegacySubOperative = useMemo<boolean>(
+    () => hasSubOperativeVolumes(volumeSummaries),
     [volumeSummaries],
   );
   const groupedPoints = useMemo(() => {
@@ -811,20 +925,47 @@ export function SensorCalibrationScreen() {
             placeholder="Ej. 1500"
             placeholderTextColor={wellness.textSecondary}
           />
-          <Text style={styles.chipsLabel}>Selección rápida 0–5000 mL</Text>
+          <Text style={styles.chipsGroupLabel}>Rango recomendado · 500–3000 mL</Text>
           <View style={styles.chipsRow}>
-            {EXAMPLE_VOLUMES_ML.map((v) => (
+            {RECOMMENDED_VOLUME_CHIPS_ML.map((v) => (
               <Pressable
                 key={v}
                 style={({ pressed }) => [styles.chip, pressed && styles.chipPressed]}
                 onPress={() => {
                   hapticLight();
                   setVolumeInput(String(v));
-                }}>
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Volumen objetivo ${v} mililitros (rango recomendado)`}>
                 <Text style={styles.chipText}>{v}</Text>
               </Pressable>
             ))}
           </View>
+          <Text style={styles.chipsGroupLabelMuted}>Rango extendido · 3500–5000 mL</Text>
+          <View style={styles.chipsRow}>
+            {EXTENDED_VOLUME_CHIPS_ML.map((v) => (
+              <Pressable
+                key={v}
+                style={({ pressed }) => [
+                  styles.chip,
+                  styles.chipExtended,
+                  pressed && styles.chipPressed,
+                ]}
+                onPress={() => {
+                  hapticLight();
+                  setVolumeInput(String(v));
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Volumen objetivo ${v} mililitros (rango extendido)`}>
+                <Text style={[styles.chipText, styles.chipTextExtended]}>{v}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {isSubOperativeInput ? (
+            <Text style={styles.warnHint}>
+              El rango operativo recomendado inicia en 500 mL.
+            </Text>
+          ) : null}
           {!canRegister && registerBlockReason ? (
             <Text style={styles.blockHint}>{registerBlockReason}</Text>
           ) : null}
@@ -931,6 +1072,30 @@ export function SensorCalibrationScreen() {
             />
             <MetricCell label="Estado" value={savedStatusLabel} />
             <MetricCell label="Puntos registrados" value={String(points.length)} />
+            <MetricCell
+              label="Rango calibrado"
+              value={
+                coverage.coveredMinMl === null || coverage.coveredMaxMl === null
+                  ? '—'
+                  : `${coverage.coveredMinMl}–${coverage.coveredMaxMl} mL`
+              }
+            />
+            <MetricCell
+              label="Cobertura 500–3000"
+              value={
+                coverage.coveredMinMl === null
+                  ? '—'
+                  : `${coverage.recommendedCoveragePct.toFixed(0)} %`
+              }
+            />
+            <MetricCell
+              label="Cobertura 500–5000"
+              value={
+                coverage.coveredMinMl === null
+                  ? '—'
+                  : `${coverage.totalCoveragePct.toFixed(0)} %`
+              }
+            />
           </View>
           {globalRange.rangeMm !== null ? (
             <Text style={styles.summaryLine}>
@@ -938,7 +1103,133 @@ export function SensorCalibrationScreen() {
               {(globalRange.maxDistanceMm ?? 0).toFixed(1)} mm
             </Text>
           ) : null}
+          {volumeSummaries.length > 0 && !coverage.coversRecommended ? (
+            <Text style={styles.warnHint}>
+              Completa el rango recomendado antes de usar el modelo.
+            </Text>
+          ) : null}
+          {coverage.coversRecommended && !coverage.coversTotal ? (
+            <Text style={styles.cardHint}>
+              El rango extendido (3500–5000 mL) es opcional para pacientes con mayor capacidad.
+            </Text>
+          ) : null}
+          {hasLegacySubOperative ? (
+            <Text style={styles.cardHint}>
+              Este perfil contiene puntos por debajo del rango operativo recomendado
+              (&lt;{MIN_OPERATIVE_VOLUME_ML} mL). Se mantienen visibles, pero las nuevas capturas
+              deberían iniciar en {MIN_OPERATIVE_VOLUME_ML} mL.
+            </Text>
+          ) : null}
           <Text style={styles.relationHint}>{relationHint(relation)}</Text>
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.modelHeaderRow}>
+            <Text style={styles.cardTitleStrong}>Modelo experimental</Text>
+            <View
+              style={[
+                styles.modelStatusPill,
+                modelStatusTone(linearModel.status) === 'ok'
+                  ? styles.modelStatusPillOk
+                  : modelStatusTone(linearModel.status) === 'warn'
+                    ? styles.modelStatusPillWarn
+                    : styles.modelStatusPillMuted,
+              ]}>
+              <Text
+                style={[
+                  styles.modelStatusPillText,
+                  modelStatusTone(linearModel.status) === 'ok'
+                    ? styles.modelStatusPillTextOk
+                    : modelStatusTone(linearModel.status) === 'warn'
+                      ? styles.modelStatusPillTextWarn
+                      : styles.modelStatusPillTextMuted,
+                ]}>
+                {modelStatusLabel(linearModel.status)}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.cardHint}>
+            Regresión lineal sobre los promedios por volumen. Convierte distanceMm en
+            estimatedVolumeMl. Rango operativo de referencia:{' '}
+            {EXPECTED_MIN_VOLUME_ML}–{EXPECTED_RECOMMENDED_MAX_VOLUME_ML} mL recomendado,{' '}
+            hasta {EXPECTED_MAX_VOLUME_ML} mL extendido. No se usa todavía en terapia,
+            niveles ni sesiones.
+          </Text>
+
+          {linearModel.status === 'valid' &&
+          linearModel.coefficients.slope !== undefined &&
+          linearModel.coefficients.intercept !== undefined ? (
+            <View style={styles.modelEquationBox}>
+              <Text style={styles.modelEquationLabel}>Ecuación</Text>
+              <Text style={styles.modelEquationText}>
+                estimatedVolumeMl = {formatSlope(linearModel.coefficients.slope)} · distanceMm
+                {' '}
+                {linearModel.coefficients.intercept >= 0 ? '+' : '−'}{' '}
+                {formatIntercept(Math.abs(linearModel.coefficients.intercept))}
+              </Text>
+            </View>
+          ) : null}
+
+          <View style={styles.resultsGrid}>
+            <MetricCell label="R²" value={formatR2(linearModel.metrics.rSquared)} />
+            <MetricCell label="RMSE" value={formatMetricMl(linearModel.metrics.rmseMl)} />
+            <MetricCell label="MAE" value={formatMetricMl(linearModel.metrics.maeMl)} />
+            <MetricCell
+              label="Error máximo"
+              value={formatMetricMl(linearModel.metrics.maxAbsErrorMl)}
+            />
+            <MetricCell label="Puntos usados" value={String(linearModel.pointsUsed)} />
+            <MetricCell
+              label="Rango distancia"
+              value={
+                linearModel.distanceRangeMm.max - linearModel.distanceRangeMm.min === 0
+                  ? '—'
+                  : `${linearModel.distanceRangeMm.min.toFixed(1)}–${linearModel.distanceRangeMm.max.toFixed(1)} mm`
+              }
+            />
+            <MetricCell
+              label="Rango volumen"
+              value={
+                linearModel.volumeRangeMl.max - linearModel.volumeRangeMl.min === 0
+                  ? '—'
+                  : `${linearModel.volumeRangeMl.min}–${linearModel.volumeRangeMl.max} mL`
+              }
+            />
+            <MetricCell
+              label="Relación"
+              value={relationLabel(linearModel.relation)}
+            />
+          </View>
+
+          {linearModel.warnings.length > 0 ? (
+            <View style={styles.modelWarningsBox}>
+              {linearModel.warnings.map((warning, idx) => (
+                <Text key={idx} style={styles.modelWarningText}>
+                  • {warning}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+
+          {volumeSummaries.length > 0 ? (
+            <Text style={styles.modelCoverageHint}>
+              {coverage.coversTotal
+                ? `Cubre el rango total del dispositivo (${EXPECTED_MIN_VOLUME_ML}–${EXPECTED_MAX_VOLUME_ML} mL).`
+                : coverage.coversRecommended
+                  ? `Cubre el rango recomendado (${EXPECTED_MIN_VOLUME_ML}–${EXPECTED_RECOMMENDED_MAX_VOLUME_ML} mL).`
+                  : `Aún no cubre el rango recomendado (${EXPECTED_MIN_VOLUME_ML}–${EXPECTED_RECOMMENDED_MAX_VOLUME_ML} mL).`}
+            </Text>
+          ) : null}
+
+          {hasLegacySubOperative ? (
+            <Text style={styles.cardHint}>
+              Este perfil contiene puntos por debajo del rango operativo recomendado.
+            </Text>
+          ) : null}
+
+          <Text style={styles.modelDisclaimer}>
+            Modelo experimental, no validado clínicamente.
+          </Text>
         </View>
 
         <View style={styles.card}>
@@ -1355,6 +1646,22 @@ const styles = StyleSheet.create({
     color: wellness.textSecondary,
     marginBottom: spacing.xs,
   },
+  chipsGroupLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.xs,
+  },
+  chipsGroupLabelMuted: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: wellness.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.xs,
+  },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
   chip: {
     paddingHorizontal: spacing.md,
@@ -1364,8 +1671,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: wellness.border,
   },
+  chipExtended: {
+    backgroundColor: 'transparent',
+    borderStyle: 'dashed',
+  },
   chipPressed: { opacity: 0.88 },
   chipText: { fontSize: 15, fontWeight: '700', color: wellness.primaryDark },
+  chipTextExtended: { color: wellness.textSecondary },
   blockHint: {
     fontSize: 14,
     fontWeight: '600',
@@ -1532,4 +1844,85 @@ const styles = StyleSheet.create({
   },
   dangerBtnPressed: { opacity: 0.9 },
   dangerBtnText: { fontSize: 16, fontWeight: '800', color: wellness.errorText },
+  modelHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  modelStatusPill: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
+    borderRadius: wellnessRadii.pill,
+    borderWidth: 1,
+  },
+  modelStatusPillOk: {
+    backgroundColor: wellness.successBg,
+    borderColor: wellness.border,
+  },
+  modelStatusPillWarn: {
+    backgroundColor: wellness.errorBg,
+    borderColor: wellness.borderStrong,
+  },
+  modelStatusPillMuted: {
+    backgroundColor: wellness.screenBg,
+    borderColor: wellness.border,
+  },
+  modelStatusPillText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.2 },
+  modelStatusPillTextOk: { color: wellness.primaryDark },
+  modelStatusPillTextWarn: { color: wellness.errorText },
+  modelStatusPillTextMuted: { color: wellness.textSecondary },
+  modelEquationBox: {
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: 12,
+    backgroundColor: wellness.screenBg,
+    borderWidth: 1,
+    borderColor: wellness.border,
+  },
+  modelEquationLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: wellness.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 3,
+  },
+  modelEquationText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: wellness.text,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
+  },
+  modelWarningsBox: {
+    marginTop: spacing.sm,
+    padding: spacing.md,
+    borderRadius: 12,
+    backgroundColor: wellness.errorBg,
+    borderWidth: 1,
+    borderColor: wellness.borderStrong,
+    gap: 4,
+  },
+  modelWarningText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: wellness.errorText,
+    fontWeight: '600',
+  },
+  modelDisclaimer: {
+    marginTop: spacing.sm,
+    fontSize: 12,
+    lineHeight: 17,
+    color: wellness.textSecondary,
+    fontStyle: 'italic',
+  },
+  modelCoverageHint: {
+    marginTop: spacing.sm,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '700',
+    color: wellness.primaryDark,
+  },
 });
