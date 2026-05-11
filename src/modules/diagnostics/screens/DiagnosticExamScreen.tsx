@@ -141,6 +141,30 @@ export function DiagnosticExamScreen() {
         <Text style={styles.phaseTitle}>{phaseTitle}</Text>
         <Text style={styles.subtitle}>{instruction}</Text>
 
+        {phase === 'idle' ? (
+          <Pressable
+            style={({ pressed }) => [styles.primaryBtnTop, pressed && styles.primaryBtnTopPressed]}
+            onPress={() => {
+              maxVolumeRef.current = 0;
+              setAttemptOneMax(0);
+              setAttemptTwoMax(0);
+              setCurrentVolume(0);
+              setMaxVolume(0);
+              setTimeLeftMs(ATTEMPT_MS);
+              setSecondsLeft(TEST_SECONDS);
+              setPhase('attempt-1');
+              Animated.timing(balloonProgress, {
+                toValue: 0,
+                duration: 250,
+                useNativeDriver: true,
+              }).start();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Iniciar intento">
+            <Text style={styles.primaryBtnTopText}>Iniciar intento</Text>
+          </Pressable>
+        ) : null}
+
         <View style={styles.gameCard}>
           <View style={styles.timerBadge}>
             <Text style={styles.timerLabel}>Tiempo restante</Text>
@@ -180,27 +204,7 @@ export function DiagnosticExamScreen() {
           </View>
         </View>
 
-        {phase === 'idle' ? (
-          <Pressable
-            style={styles.primaryBtn}
-            onPress={() => {
-              maxVolumeRef.current = 0;
-              setAttemptOneMax(0);
-              setAttemptTwoMax(0);
-              setCurrentVolume(0);
-              setMaxVolume(0);
-              setTimeLeftMs(ATTEMPT_MS);
-              setSecondsLeft(TEST_SECONDS);
-              setPhase('attempt-1');
-              Animated.timing(balloonProgress, {
-                toValue: 0,
-                duration: 250,
-                useNativeDriver: true,
-              }).start();
-            }}>
-            <Text style={styles.primaryBtnText}>Iniciar intento</Text>
-          </Pressable>
-        ) : (
+        {phase !== 'idle' ? (
           <View style={styles.runningHintCard}>
             <Text style={styles.runningHintText}>
               {phase === 'rest'
@@ -208,7 +212,7 @@ export function DiagnosticExamScreen() {
                 : 'Sigue inhalando mientras el globo aumenta de tamaño.'}
             </Text>
           </View>
-        )}
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -241,7 +245,27 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 25,
     color: wellness.textSecondary,
-    marginBottom: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  primaryBtnTop: {
+    backgroundColor: wellness.primary,
+    borderRadius: wellnessRadii.pill,
+    paddingVertical: spacing.md + 6,
+    paddingHorizontal: spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 56,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  primaryBtnTopPressed: {
+    opacity: 0.9,
+  },
+  primaryBtnTopText: {
+    color: '#ffffff',
+    fontSize: 19,
+    fontWeight: '800',
   },
   gameCard: {
     backgroundColor: wellness.card,
@@ -361,20 +385,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: wellness.text,
   },
-  primaryBtn: {
-    marginTop: spacing.lg,
-    backgroundColor: wellness.primary,
-    borderRadius: wellnessRadii.pill,
-    paddingVertical: spacing.md + 4,
-    alignItems: 'center',
-  },
-  primaryBtnText: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '700',
-  },
   runningHintCard: {
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
     borderRadius: wellnessRadii.card,
     borderWidth: 1,
     borderColor: wellness.border,

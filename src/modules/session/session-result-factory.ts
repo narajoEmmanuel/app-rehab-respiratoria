@@ -43,7 +43,9 @@ export function buildSessionResult(params: BuildSessionResultParams): SessionRes
   const completed = status === 'completed';
   const interrupted = status === 'interrupted';
   const perfect =
-    completed && validAttempts === TARGET_ATTEMPTS && totalAttempts >= TARGET_ATTEMPTS;
+    completed &&
+    validAttempts === TARGET_ATTEMPTS &&
+    totalAttempts === TARGET_ATTEMPTS;
 
   return {
     patientId,

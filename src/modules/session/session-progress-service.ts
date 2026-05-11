@@ -11,7 +11,11 @@ import {
 } from '@/src/modules/session/storage/session-progress-repository';
 import type { AttemptRecord, SessionRecord } from '@/src/modules/session/types/session-progress';
 import type { SessionResult } from '@/src/modules/session/types/session-result';
-import { getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
+import {
+  todayStatsForPatientAndLevel,
+  todayStatsForPatientLevelRow,
+} from '@/src/modules/session/utils/today-session-stats';
+import { getLocalDateKey } from '@/src/shared/utils/local-date-key';
 
 const TARGET_ATTEMPTS = 10;
 const TARGET_PERFECT_SESSIONS = 6;
@@ -21,19 +25,6 @@ function nextLevel(levelId: LevelId): LevelId | null {
   const index = levels.indexOf(levelId);
   if (index < 0 || index === levels.length - 1) return null;
   return levels[index + 1];
-}
-
-export async function getTodaySessions(
-  patientId: number,
-  levelId?: string,
-): Promise<SessionRecord[]> {
-  const all = await readAllSessions();
-  const today = getLocalDateKey();
-  return all.filter((item) => {
-    if (item.patient_id !== patientId) return false;
-    if (levelId != null && item.level_id !== levelId) return false;
-    return sessionRecordLocalDayKey(item.session_date) === today;
-  });
 }
 
 export async function getCurrentPatientLevel(patientId: number): Promise<PatientLevelRecord | null> {
@@ -125,12 +116,14 @@ export async function updateDailyProgress(patientId: number): Promise<{ complete
   const active = await getCurrentActiveLevel(patientId);
   const levelId = active?.level_id ?? 'level-1';
   const today = getLocalDateKey();
-  const todaySessions = await getTodaySessions(patientId, levelId);
-  const completedToday = todaySessions.filter((item) => item.completed && item.interrupted !== true).length;
+  const allSessions = await readAllSessions();
+  const { completed: completedToday, perfect: perfectSessionsCompleted } = todayStatsForPatientAndLevel(
+    allSessions,
+    patientId,
+    levelId,
+    today,
+  );
   if (supabase != null) {
-    const perfectSessionsCompleted = todaySessions.filter(
-      (item) => item.perfect && item.completed && item.interrupted !== true,
-    ).length;
     const dailyGoalCompleted = completedToday >= TARGET_PERFECT_SESSIONS;
     const { error } = await supabase.from('daily_progress').upsert(
       {
@@ -159,15 +152,8 @@ export async function updatePatientLevelProgress(
   const sessions = await readAllSessions();
   const levelSessions = sessions.filter((item) => item.patient_level_id === patientLevelId);
   const today = getLocalDateKey();
-  const perfectSessionsCompleted = levelSessions.filter(
-    (item) => item.perfect && item.completed && item.interrupted !== true,
-  ).length;
-  const sessionsCompletedToday = levelSessions.filter(
-    (item) =>
-      item.completed &&
-      item.interrupted !== true &&
-      sessionRecordLocalDayKey(item.session_date) === today,
-  ).length;
+  const { completed: sessionsCompletedToday, perfect: perfectSessionsCompleted } =
+    todayStatsForPatientLevelRow(sessions, patientLevelId, today);
 
   levels[index] = {
     ...level,
@@ -188,19 +174,9 @@ export async function checkAndUnlockNextLevel(patientId: number): Promise<void> 
   const active = levels[activeIndex];
   const sessions = await readAllSessions();
   const today = getLocalDateKey();
-  const todayLevelSessions = sessions.filter(
-    (item) =>
-      item.patient_id === patientId &&
-      item.patient_level_id === active.patient_level_id &&
-      sessionRecordLocalDayKey(item.session_date) === today,
-  );
-  const completedToday = todayLevelSessions.filter(
-    (item) => item.completed && item.interrupted !== true,
-  ).length;
-  const perfectToday = todayLevelSessions.filter(
-    (item) => item.perfect && item.completed && item.interrupted !== true,
-  ).length;
-  if (completedToday < TARGET_PERFECT_SESSIONS || perfectToday < TARGET_PERFECT_SESSIONS) return;
+  const { perfect: perfectToday } = todayStatsForPatientLevelRow(sessions, active.patient_level_id, today);
+  /** Desbloqueo solo con 6 sesiones perfectas el mismo día calendario (no suma otros días). */
+  if (perfectToday < TARGET_PERFECT_SESSIONS) return;
 
   const nextLevelId = nextLevel(active.level_id);
   levels[activeIndex] = { ...active, level_status: 'completed' };

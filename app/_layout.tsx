@@ -21,6 +21,7 @@ import { Platform, Text, TextInput, type TextInputProps, type TextProps } from '
 import 'react-native-reanimated';
 
 import { AppModeProvider } from '@/src/modules/app-mode';
+import { LevelsProgressProvider } from '@/src/modules/levels/state/use-levels-progress';
 import { PatientSessionProvider } from '@/src/modules/patient/context/PatientSessionContext';
 import { fontRegular } from '@/src/shared/theme/typography';
 import { WebStartupSplash } from '@/src/shared/ui/WebStartupSplash';
@@ -117,6 +118,7 @@ export default function RootLayout() {
     <ThemeProvider value={DefaultTheme}>
       <AppModeProvider>
         <PatientSessionProvider>
+          <LevelsProgressProvider>
           <Stack>
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="auth/login" options={{ headerShown: false, title: 'Acceso' }} />
@@ -132,6 +134,7 @@ export default function RootLayout() {
             <Stack.Screen name="diagnostico-resumen" options={{ headerShown: false }} />
             <Stack.Screen name="esp32-raw-test" options={{ headerShown: false, title: 'ESP32 Raw WS Test' }} />
           </Stack>
+          </LevelsProgressProvider>
         </PatientSessionProvider>
       </AppModeProvider>
       <StatusBar style="dark" />

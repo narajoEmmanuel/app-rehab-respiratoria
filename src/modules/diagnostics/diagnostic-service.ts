@@ -1,5 +1,8 @@
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { updatePatientCurrentLevel } from '@/src/modules/patient/patient-service';
+import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
+import { todayStatsForPatientLevelRow } from '@/src/modules/session/utils/today-session-stats';
+import { getLocalDateKey } from '@/src/shared/utils/local-date-key';
 
 import {
   readAllDiagnostics,
@@ -79,7 +82,34 @@ export async function generatePatientLevels(
 
 export async function getPatientLevels(patientId: number): Promise<PatientLevelRecord[]> {
   const all = await readAllPatientLevels();
-  return all
+  const sessions = await readAllSessions();
+  const today = getLocalDateKey();
+
+  let mutated = false;
+  const reconciled = all.map((item) => {
+    if (item.patient_id !== patientId) return item;
+    const stats = todayStatsForPatientLevelRow(sessions, item.patient_level_id, today);
+    const perfect = stats.perfect;
+    const completedToday = stats.completed;
+    if (
+      (item.perfect_sessions_completed ?? 0) !== perfect ||
+      (item.sessions_completed_today ?? 0) !== completedToday
+    ) {
+      mutated = true;
+      return {
+        ...item,
+        perfect_sessions_completed: perfect,
+        sessions_completed_today: completedToday,
+      };
+    }
+    return item;
+  });
+
+  if (mutated) {
+    await writeAllPatientLevels(reconciled);
+  }
+
+  return reconciled
     .filter((item) => item.patient_id === patientId)
     .map((item, index) => ({
       ...item,
@@ -88,7 +118,11 @@ export async function getPatientLevels(patientId: number): Promise<PatientLevelR
       sessions_completed_today: item.sessions_completed_today ?? 0,
       last_session_date: item.last_session_date ?? null,
     }))
-    .sort((a, b) => LEVEL_FACTORS.findIndex((lv) => lv.levelId === a.level_id) - LEVEL_FACTORS.findIndex((lv) => lv.levelId === b.level_id));
+    .sort(
+      (a, b) =>
+        LEVEL_FACTORS.findIndex((lv) => lv.levelId === a.level_id) -
+        LEVEL_FACTORS.findIndex((lv) => lv.levelId === b.level_id),
+    );
 }
 
 export async function getCurrentActiveLevel(patientId: number): Promise<PatientLevelRecord | null> {
@@ -97,5 +131,9 @@ export async function getCurrentActiveLevel(patientId: number): Promise<PatientL
 }
 
 export async function savePatientLevels(rows: PatientLevelRecord[]): Promise<void> {
-  await writeAllPatientLevels(rows);
+  if (rows.length === 0) return;
+  const all = await readAllPatientLevels();
+  const patientIds = new Set(rows.map((r) => r.patient_id));
+  const merged = all.filter((r) => !patientIds.has(r.patient_id)).concat(rows);
+  await writeAllPatientLevels(merged);
 }
