@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 import {
   getSessionDetail,
@@ -85,6 +86,17 @@ export function SummaryScreen() {
     };
   }, [sessionId, parsedId]);
 
+  const maxHoldSeconds = useMemo(() => {
+    if (sessionDetail == null || !sessionDetail.attempts.length) return 0;
+    return Math.max(...sessionDetail.attempts.map((a) => a.hold_ms)) / 1000;
+  }, [sessionDetail]);
+
+  const levelNum = useMemo(() => {
+    if (sessionDetail == null) return '';
+    const m = /^level-(\d+)$/.exec(sessionDetail.session.level_id);
+    return m ? m[1] : sessionDetail.session.level_id;
+  }, [sessionDetail]);
+
   const noParam = sessionId == null || sessionId === '';
   const invalidId = !noParam && (parsedId == null || Number.isNaN(parsedId));
 
@@ -147,14 +159,14 @@ export function SummaryScreen() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/niveles" />
         <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color="#9cff54" />
+          <ActivityIndicator size="large" color={wellness.primary} />
           <Text style={styles.loadingText}>Cargando resumen…</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  const { session } = sessionDetail;
+  const session = sessionDetail.session;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -162,25 +174,21 @@ export function SummaryScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.screenTitle}>{getSummaryTitle(session)}</Text>
         <Text style={styles.screenSubtitle}>{getSummarySubtitle(session)}</Text>
-        <Text style={styles.levelLine}>Nivel {session.level_id}</Text>
+        <Text style={styles.levelLine}>Nivel {levelNum}</Text>
 
         <View style={styles.card}>
-          <MetricRow label="Cumplimiento" value={`${session.compliance_percent}%`} />
-          <MetricRow label="Intentos validos" value={String(session.valid_attempts)} />
-          <MetricRow label="Intentos invalidos" value={String(session.invalid_attempts)} />
-          <MetricRow label="Total intentos" value={String(session.total_attempts)} />
-          <MetricRow label="Volumen maximo" value={`${session.max_volume} mL`} />
-          <MetricRow label="Volumen promedio" value={`${session.avg_volume} mL`} />
-          <MetricRow
-            label="Tiempo medio sostenido"
+          <MetricTile label="Sesión completada" value={session.completed ? 'Sí' : 'No'} />
+          <MetricTile label="Repeticiones válidas" value={String(session.valid_attempts)} />
+          <MetricTile label="Repeticiones fallidas" value={String(session.invalid_attempts)} />
+          <MetricTile label="Cumplimiento" value={`${session.compliance_percent}%`} />
+          <MetricTile label="Volumen máximo" value={`${session.max_volume} mL`} />
+          <MetricTile label="Volumen promedio" value={`${session.avg_volume} mL`} />
+          <MetricTile label="Tiempo máximo sostenido" value={`${maxHoldSeconds.toFixed(1)} s`} />
+          <MetricTile
+            label="Tiempo promedio sostenido"
             value={`${session.avg_hold_seconds.toFixed(1)} s`}
           />
-          <MetricRow label="Completada" value={session.completed ? 'Si' : 'No'} />
-          <MetricRow label="Sesion perfecta" value={session.perfect ? 'Si' : 'No'} />
-          <MetricRow
-            label="Interrumpida"
-            value={session.interrupted === true ? 'Si' : 'No'}
-          />
+          <MetricTile label="Sesión perfecta" value={session.perfect ? 'Sí' : 'No'} />
         </View>
 
         <Pressable
@@ -198,11 +206,11 @@ export function SummaryScreen() {
   );
 }
 
-function MetricRow({ label, value }: { label: string; value: string }) {
+function MetricTile({ label, value }: { label: string; value: string }) {
   return (
-    <View style={styles.metricRow}>
-      <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={styles.metricValue}>{value}</Text>
+    <View style={styles.metricTile}>
+      <Text style={styles.metricTileLabel}>{label}</Text>
+      <Text style={styles.metricTileValue}>{value}</Text>
     </View>
   );
 }
@@ -210,7 +218,7 @@ function MetricRow({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#183911',
+    backgroundColor: wellness.screenBg,
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -231,75 +239,79 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: '#dbffc8',
+    color: wellness.textSecondary,
     fontSize: 16,
   },
   levelLine: {
-    color: '#c6f7ab',
+    color: wellness.primaryDark,
     fontSize: 14,
+    fontWeight: '700',
     marginBottom: 16,
   },
   screenTitle: {
-    color: '#ffffff',
+    color: wellness.text,
     fontSize: 26,
     fontWeight: '800',
     marginBottom: 6,
   },
   screenSubtitle: {
-    color: '#c6f7ab',
-    fontSize: 14,
+    color: wellness.textSecondary,
+    fontSize: 15,
+    lineHeight: 22,
     marginBottom: 8,
   },
   title: {
-    color: '#ffffff',
+    color: wellness.text,
     fontSize: 28,
     fontWeight: '800',
     marginBottom: 10,
     textAlign: 'center',
   },
   detail: {
-    color: '#dbffc8',
+    color: wellness.textSecondary,
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 20,
   },
   card: {
     width: '100%',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#9de765',
-    backgroundColor: '#234d16',
-    padding: 16,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
     marginBottom: 20,
   },
-  metricRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.12)',
+  metricTile: {
+    width: '48%',
+    flexGrow: 1,
+    minWidth: 140,
+    borderRadius: wellnessRadii.card,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    backgroundColor: wellness.card,
+    padding: 14,
   },
-  metricLabel: {
-    color: '#d7ffc4',
-    fontSize: 16,
-    flex: 1,
-    paddingRight: 12,
-  },
-  metricValue: {
-    color: '#ffffff',
-    fontSize: 16,
+  metricTileLabel: {
+    color: wellness.textSecondary,
+    fontSize: 12,
     fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 6,
+  },
+  metricTileValue: {
+    color: wellness.text,
+    fontSize: 18,
+    fontWeight: '800',
   },
   primaryButton: {
     width: '100%',
-    backgroundColor: '#80dd4f',
+    backgroundColor: wellness.primary,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: wellnessRadii.pill,
     marginBottom: 10,
   },
   primaryButtonText: {
-    color: '#17300d',
+    color: '#FFFFFF',
     textAlign: 'center',
     fontWeight: '800',
     fontSize: 16,
@@ -307,12 +319,13 @@ const styles = StyleSheet.create({
   secondaryButton: {
     width: '100%',
     borderWidth: 1,
-    borderColor: '#b7f58f',
+    borderColor: wellness.borderStrong,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: wellnessRadii.pill,
+    backgroundColor: wellness.softGreen,
   },
   secondaryButtonText: {
-    color: '#e6ffd8',
+    color: wellness.primaryDark,
     textAlign: 'center',
     fontWeight: '700',
     fontSize: 16,

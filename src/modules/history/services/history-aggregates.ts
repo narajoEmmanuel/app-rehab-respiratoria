@@ -2,7 +2,7 @@
  * Purpose: Pure aggregations for patient history (sessions + attempts + level snapshot).
  * Module: history
  */
-import type { LevelOneProgress } from '@/src/modules/levels/types/level-progress';
+import type { LevelId, LevelOneProgress } from '@/src/modules/levels/types/level-progress';
 import type { AttemptRecord, SessionRecord } from '@/src/modules/session/types/session-progress';
 import { addDaysLocal, getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 
@@ -134,14 +134,16 @@ export function attachBestHoldSeconds(
   };
 }
 
+/** `levelId` null = todas las sesiones del paciente (calendario / racha). */
 export function groupSessionsByDay(
   sessions: SessionRecord[],
   patientId: number,
-  levelId: 'level-1',
+  levelId: LevelId | null,
 ): Map<string, SessionRecord[]> {
   const map = new Map<string, SessionRecord[]>();
   for (const raw of sessions) {
-    if (raw.patient_id !== patientId || raw.level_id !== levelId) continue;
+    if (raw.patient_id !== patientId) continue;
+    if (levelId != null && raw.level_id !== levelId) continue;
     const key = sessionRecordLocalDayKey(raw.session_date);
     if (!key) continue;
     const list = map.get(key) ?? [];
@@ -191,14 +193,17 @@ export function levelOnePerfectSlotsForUnlock(levelOne: LevelOneProgress): numbe
   ).length;
 }
 
+/** `levelId` null = mejor registro en cualquier nivel. */
 export function globalMaxHoldSecondsForPatient(
   sessions: SessionRecord[],
   attempts: AttemptRecord[],
   patientId: number,
-  levelId: 'level-1',
+  levelId: LevelId | null,
 ): number | null {
   const sessionIds = new Set(
-    sessions.filter((s) => s.patient_id === patientId && s.level_id === levelId).map((s) => s.session_id),
+    sessions
+      .filter((s) => s.patient_id === patientId && (levelId == null || s.level_id === levelId))
+      .map((s) => s.session_id),
   );
   let maxMs = 0;
   let any = false;
@@ -213,7 +218,7 @@ export function globalMaxHoldSecondsForPatient(
 export function countCompletedToday(
   sessions: SessionRecord[],
   patientId: number,
-  levelId: 'level-1',
+  levelId: LevelId,
   todayKey: string,
 ): number {
   return sessions.filter(
@@ -226,14 +231,29 @@ export function countCompletedToday(
   ).length;
 }
 
+/** Al menos un día calendario con meta de desbloqueo (6 sesiones perfectas ese día). */
+export function hadUnlockPerfectDayForLevel(
+  sessions: SessionRecord[],
+  patientId: number,
+  levelId: LevelId,
+): boolean {
+  const byDay = groupSessionsByDay(sessions, patientId, levelId);
+  for (const list of byDay.values()) {
+    const norm = list.map(withLegacySessionDefaults);
+    const completed = norm.filter((s) => s.completed && s.interrupted !== true);
+    const perfect = completed.filter((s) => s.perfect).length;
+    if (perfect >= LEVEL1_DAILY_GOAL) return true;
+  }
+  return false;
+}
+
 export function buildAchievements(input: {
   sessions: SessionRecord[];
   patientId: number;
-  levelId: 'level-1';
-  levelOne: LevelOneProgress;
+  levelId: LevelId;
   streakDays: number;
 }): AchievementDef[] {
-  const { sessions, patientId, levelId, levelOne, streakDays } = input;
+  const { sessions, patientId, levelId, streakDays } = input;
   const mine = sessions
     .filter((s) => s.patient_id === patientId && s.level_id === levelId)
     .map(withLegacySessionDefaults);
@@ -248,13 +268,9 @@ export function buildAchievements(input: {
   const perfectTotal = mine.filter((s) => s.completed && s.perfect).length;
   const threePerfect = perfectTotal >= 3;
 
-  const slotsPerfect = levelOnePerfectSlotsForUnlock(levelOne);
-  const hasLevelActivity =
-    mine.length > 0 ||
-    levelOne.sessions.some(
-      (s) => s.completed || s.interrupted || s.validRepetitions > 0 || s.failedRepetitions > 0,
-    );
-  const levelStillUnfinished = !levelOne.levelCompleted || slotsPerfect < LEVEL1_DAILY_GOAL;
+  const hasLevelActivity = mine.length > 0;
+  const levelStillUnfinished = hasLevelActivity && !hadUnlockPerfectDayForLevel(sessions, patientId, levelId);
+  const levelOrdinal = levelId.replace('level-', '');
 
   const constancia = streakDays >= 3;
 
@@ -279,7 +295,7 @@ export function buildAchievements(input: {
     },
     {
       id: 'level-progress',
-      title: 'Nivel 1 en progreso',
+      title: `Nivel ${levelOrdinal} en progreso`,
       description: 'Sigues avanzando en tu plan respiratorio.',
       unlocked: hasLevelActivity && levelStillUnfinished,
     },

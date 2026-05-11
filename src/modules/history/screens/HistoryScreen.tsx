@@ -26,12 +26,10 @@ import {
   buildDayAggregate,
   buildAttemptsBySessionId,
   classifyCalendarDay,
-  countCompletedToday,
   dayDetailMotivation,
   formatDisplayDateEs,
   globalMaxHoldSecondsForPatient,
   groupSessionsByDay,
-  levelOnePerfectSlotsForUnlock,
   monthGridDates,
   pickMotivationalLine,
   computeStreakDays,
@@ -39,15 +37,16 @@ import {
   type CalendarDayKind,
   type DayAggregate,
 } from '@/src/modules/history/services/history-aggregates';
-import type { LevelOneProgress } from '@/src/modules/levels/types/level-progress';
-import { loadLevelsProgress } from '@/src/modules/levels/storage/levels-progress-storage';
+import { getCurrentActiveLevel } from '@/src/modules/diagnostics/diagnostic-service';
+import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { readAllAttempts, readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
+import { todayStatsForPatientAndLevel } from '@/src/modules/session/utils/today-session-stats';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness } from '@/src/shared/theme/wellness-theme';
 import { dashboardScreen, dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
-import { getLocalDateKey } from '@/src/shared/utils/local-date-key';
+import { getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 
 const CAL_BG: Record<CalendarDayKind, string> = {
   none: '#E8ECE9',
@@ -120,8 +119,7 @@ export function HistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [sessions, setSessions] = useState<Awaited<ReturnType<typeof readAllSessions>>>([]);
   const [attempts, setAttempts] = useState<Awaited<ReturnType<typeof readAllAttempts>>>([]);
-  const [levelOneSlotsPerfect, setLevelOneSlotsPerfect] = useState(0);
-  const [levelOneSnapshot, setLevelOneSnapshot] = useState<LevelOneProgress | null>(null);
+  const [historyLevelId, setHistoryLevelId] = useState<LevelId>('level-1');
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
   const [selectedDay, setSelectedDay] = useState<DayAggregate | null>(null);
@@ -129,22 +127,20 @@ export function HistoryScreen() {
   const load = useCallback(async () => {
     if (!patient) {
       setLoading(false);
-      setLevelOneSnapshot(null);
       setSessions([]);
       setAttempts([]);
       return;
     }
     setLoading(true);
     try {
-      const [sess, att, levels] = await Promise.all([
+      const [sess, att, active] = await Promise.all([
         readAllSessions(),
         readAllAttempts(),
-        loadLevelsProgress(),
+        getCurrentActiveLevel(patient.paciente_id),
       ]);
       setSessions(sess);
       setAttempts(att);
-      setLevelOneSlotsPerfect(levelOnePerfectSlotsForUnlock(levels.levelOne));
-      setLevelOneSnapshot(levels.levelOne);
+      setHistoryLevelId(active?.level_id ?? 'level-1');
     } finally {
       setLoading(false);
     }
@@ -160,7 +156,7 @@ export function HistoryScreen() {
   const todayKey = getLocalDateKey();
 
   const byDay = useMemo(
-    () => groupSessionsByDay(sessions, patientId, 'level-1'),
+    () => groupSessionsByDay(sessions, patientId, null),
     [sessions, patientId],
   );
 
@@ -180,23 +176,33 @@ export function HistoryScreen() {
     [activityDayKeys, patientId, todayKey],
   );
 
-  const completedToday = useMemo(
+  const { completed: completedToday, perfect: perfectToday } = useMemo(
     () =>
-      patientId >= 0 ? countCompletedToday(sessions, patientId, 'level-1', todayKey) : 0,
-    [sessions, patientId, todayKey],
+      patientId >= 0
+        ? todayStatsForPatientAndLevel(sessions, patientId, historyLevelId, todayKey)
+        : { completed: 0, perfect: 0 },
+    [sessions, patientId, historyLevelId, todayKey],
   );
 
   const bestHoldGlobal = useMemo(
     () =>
-      patientId >= 0 ? globalMaxHoldSecondsForPatient(sessions, attempts, patientId, 'level-1') : null,
+      patientId >= 0 ? globalMaxHoldSecondsForPatient(sessions, attempts, patientId, null) : null,
     [sessions, attempts, patientId],
   );
 
   const todayKind: CalendarDayKind | null = useMemo(() => {
-    const list = byDay.get(todayKey) ?? [];
+    const list =
+      patientId >= 0
+        ? sessions.filter(
+            (s) =>
+              s.patient_id === patientId &&
+              s.level_id === historyLevelId &&
+              sessionRecordLocalDayKey(s.session_date) === todayKey,
+          )
+        : [];
     if (list.length === 0) return null;
     return classifyCalendarDay(list);
-  }, [byDay, todayKey]);
+  }, [sessions, patientId, historyLevelId, todayKey]);
 
   const heroMotivation = pickMotivationalLine({
     completedToday,
@@ -212,15 +218,16 @@ export function HistoryScreen() {
   }, [viewYear, viewMonth]);
 
   const achievementsList = useMemo(() => {
-    if (!patient || !levelOneSnapshot) return [];
+    if (!patient) return [];
     return buildAchievements({
       sessions,
       patientId: patient.paciente_id,
-      levelId: 'level-1',
-      levelOne: levelOneSnapshot,
+      levelId: historyLevelId,
       streakDays,
     });
-  }, [patient, levelOneSnapshot, sessions, streakDays]);
+  }, [patient, historyLevelId, sessions, streakDays]);
+
+  const historyLevelOrdinal = historyLevelId.replace('level-', '');
 
   const hasAnyHistory = activityDayKeys.size > 0;
 
@@ -301,17 +308,17 @@ export function HistoryScreen() {
                 hint="Completadas (meta del día)"
               />
               <SummaryCard
-                label="Progreso Nivel 1"
-                value={`${levelOneSlotsPerfect}/${LEVEL1_DAILY_GOAL} perfectas`}
+                label={`Progreso Nivel ${historyLevelOrdinal}`}
+                value={`${perfectToday}/${LEVEL1_DAILY_GOAL} perfectas`}
                 badge={
-                  levelOneSlotsPerfect >= LEVEL1_DAILY_GOAL
+                  perfectToday >= LEVEL1_DAILY_GOAL
                     ? 'Completado'
-                    : levelOneSlotsPerfect > 0
+                    : perfectToday > 0
                       ? 'Parcial'
                       : 'Pendiente'
                 }
-                progress={Math.min(levelOneSlotsPerfect / LEVEL1_DAILY_GOAL, 1)}
-                hint="Progreso hacia desbloquear el siguiente nivel"
+                progress={Math.min(perfectToday / LEVEL1_DAILY_GOAL, 1)}
+                hint="Sesiones perfectas hoy (meta para desbloquear el siguiente nivel)"
               />
               <SummaryCard
                 label="Mejor inspiración"

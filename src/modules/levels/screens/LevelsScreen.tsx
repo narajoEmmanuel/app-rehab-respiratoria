@@ -16,6 +16,7 @@ import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progres
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { listLevels } from '@/src/modules/session/registry/level-registry';
+import { TARGET_PERFECT_SESSIONS } from '@/src/modules/session/session-progress-service';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import type { TherapyLevelStatusChip } from '@/src/shared/ui/therapy-level-card';
 import { TherapyLevelCard } from '@/src/shared/ui/therapy-level-card';
@@ -61,7 +62,7 @@ export function LevelsScreen({
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { patient } = usePatientSession();
-  const { progress, isLoading, selectLevel } = useLevelsProgress();
+  const { isLoading, selectLevel } = useLevelsProgress();
   const levels = listLevels();
   const [patientLevels, setPatientLevels] = useState<PatientLevelRecord[]>([]);
 
@@ -108,6 +109,12 @@ export function LevelsScreen({
   };
 
   const scrollBottom = dashboardScrollBottomPadding(insets.bottom);
+  const activePatientLevel = patientLevels.find((row) => row.level_status === 'active');
+  const showPerfectGapWarning =
+    !isLoading &&
+    activePatientLevel != null &&
+    (activePatientLevel.sessions_completed_today ?? 0) >= TARGET_PERFECT_SESSIONS &&
+    (activePatientLevel.perfect_sessions_completed ?? 0) < TARGET_PERFECT_SESSIONS;
 
   if (isLoading) {
     return (
@@ -171,10 +178,11 @@ export function LevelsScreen({
           <Text style={styles.messageText}>
             Completa 6 sesiones del nivel activo con 10 repeticiones válidas en cada una.
           </Text>
-          {!isLoading && progress.levelOne.levelCompleted && !progress.levelOne.levelPerfect ? (
+          {showPerfectGapWarning ? (
             <Text style={styles.warningText}>
-              Ya completaste las sesiones del Nivel 1. Para desbloquear el siguiente, alcanza 6 sesiones con 10
-              repeticiones válidas en cada una.
+              Hoy completaste {TARGET_PERFECT_SESSIONS} sesiones en tu nivel activo, pero faltan{' '}
+              {TARGET_PERFECT_SESSIONS - (activePatientLevel?.perfect_sessions_completed ?? 0)} perfectas para
+              desbloquear el siguiente. Cada una debe tener 10 repeticiones válidas.
             </Text>
           ) : null}
         </View>
