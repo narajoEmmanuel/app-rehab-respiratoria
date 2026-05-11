@@ -9,27 +9,54 @@ export {
 
 export {
   buildCalibrationProfile,
+  computeGeometricScaleReport,
   computeGlobalDistanceRange,
+  computeRepeatabilityReport,
+  computeRequiredCalibrationCoverage,
+  computeSegmentReport,
   computeVolumeCoverage,
   computeVolumeSummaries,
   determineVolumeDistanceRelation,
   groupCalibrationPointsByVolume,
   hasSubOperativeVolumes,
   type BuildCalibrationProfileOptions,
+  computePerVolumeRepeatability,
+  type CalibrationRepeatabilityReport,
+  type CalibrationSegment,
+  type CalibrationSegmentReport,
+  type GeometricScaleReport,
+  type GeometricScaleSegment,
+  type GeometricScaleSegmentStatus,
+  type RequiredCalibrationCoverage,
   type VolumeCoverage,
+  type VolumeRepeatability,
+  type VolumeRepeatabilityWarningLevel,
 } from '@/src/modules/device/calibration/calibration-math';
 
 export {
+  EXPECTED_DISTANCE_STEP_PER_500ML_MM,
   EXPECTED_MAX_VOLUME_ML,
   EXPECTED_MIN_VOLUME_ML,
   EXPECTED_RECOMMENDED_MAX_VOLUME_ML,
+  EXPECTED_VOLUME_STEP_ML,
   EXTENDED_RANGE_ML,
   EXTENDED_VOLUME_CHIPS_ML,
+  GEOMETRIC_STEP_OK_TOLERANCE_MM,
+  GEOMETRIC_STEP_REVIEW_TOLERANCE_MM,
+  MAX_ACCEPTABLE_SLOPE_VARIATION_RATIO,
+  MAX_ACCEPTABLE_STD_DISTANCE_MM,
   MIN_OPERATIVE_VOLUME_ML,
   MIN_RELIABLE_SENSOR_DISTANCE_MM,
+  MIN_REPETITIONS_PER_REQUIRED_VOLUME,
+  MIN_REPETITIONS_PER_VOLUME,
+  MIN_SEGMENT_DISTANCE_DELTA_MM,
+  MIN_VALID_CALIBRATION_POINTS_FOR_THERAPY,
   OPERATIVE_VOLUME_CHIPS_ML,
+  PIECEWISE_PREFERRED_MIN_DISTINCT_VOLUMES,
   RECOMMENDED_RANGE_ML,
   RECOMMENDED_VOLUME_CHIPS_ML,
+  REQUIRED_GEOMETRIC_SEGMENTS_ML,
+  REQUIRED_RECOMMENDED_VOLUMES_ML,
 } from '@/src/modules/device/calibration/calibration-constants';
 
 export {
@@ -44,14 +71,23 @@ export {
 
 export {
   CALIBRATION_MODEL_VERSION,
+  LINEAR_ACCEPTABLE_THRESHOLDS,
   MIN_USEFUL_DISTANCE_RANGE_MM,
   MODEL_WARNING_THRESHOLDS,
+  type CalibrationGeometricScaleSummary,
+  type CalibrationLinealQuality,
   type CalibrationModel,
   type CalibrationModelCoefficients,
   type CalibrationModelKind,
   type CalibrationModelMetrics,
   type CalibrationModelRange,
+  type CalibrationModelRecommendation,
+  type CalibrationModelRecommendationKind,
   type CalibrationModelStatus,
+  type CalibrationQuality,
+  type CalibrationRecommendationCoverage,
+  type CalibrationRecommendationStatus,
+  type CalibrationRequiredProtocolSummary,
   type EstimateVolumeResult,
   type EstimateVolumeStatus,
 } from '@/src/modules/device/calibration/calibration-model-types';
@@ -62,6 +98,7 @@ export {
   estimateVolumeFromDistance,
   estimateVolumeFromDistanceLinear,
   estimateVolumeFromDistancePiecewise,
+  recommendCalibrationModel,
 } from '@/src/modules/device/calibration/calibration-model';
 
 export {

@@ -6,19 +6,46 @@
  *
  * No realiza I/O. No depende de React. Solo lee `CalibrationProfile`.
  */
+import {
+  MAX_ACCEPTABLE_SLOPE_VARIATION_RATIO,
+  MAX_ACCEPTABLE_STD_DISTANCE_MM,
+  MIN_VALID_CALIBRATION_POINTS_FOR_THERAPY,
+  PIECEWISE_PREFERRED_MIN_DISTINCT_VOLUMES,
+} from '@/src/modules/device/calibration/calibration-constants';
+import {
+  computeGeometricScaleReport,
+  computeRepeatabilityReport,
+  computeRequiredCalibrationCoverage,
+  computeSegmentReport,
+  computeVolumeCoverage,
+  type CalibrationRepeatabilityReport,
+  type CalibrationSegmentReport,
+  type GeometricScaleReport,
+  type RequiredCalibrationCoverage,
+} from '@/src/modules/device/calibration/calibration-math';
 import { evaluatePredictions } from '@/src/modules/device/calibration/calibration-model-evaluation';
 import {
   CALIBRATION_MODEL_VERSION,
+  LINEAR_ACCEPTABLE_THRESHOLDS,
   MIN_USEFUL_DISTANCE_RANGE_MM,
   MODEL_WARNING_THRESHOLDS,
+  type CalibrationLinealQuality,
   type CalibrationModel,
   type CalibrationModelMetrics,
   type CalibrationModelRange,
+  type CalibrationModelRecommendation,
+  type CalibrationModelRecommendationKind,
+  type CalibrationQuality,
+  type CalibrationGeometricScaleSummary,
+  type CalibrationRecommendationCoverage,
+  type CalibrationRecommendationStatus,
+  type CalibrationRequiredProtocolSummary,
   type EstimateVolumeResult,
 } from '@/src/modules/device/calibration/calibration-model-types';
 import type {
   CalibrationProfile,
   VolumeCalibrationSummary,
+  VolumeDistanceRelation,
 } from '@/src/modules/device/calibration/calibration-types';
 
 function newModelId(): string {
@@ -426,6 +453,357 @@ export function estimateVolumeFromDistancePiecewise(
       ? 'Distancia fuera del rango calibrado; el resultado usa el extremo más cercano.'
       : undefined,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Recomendación de modelo final
+// ---------------------------------------------------------------------------
+
+function isLinearAcceptable(model: CalibrationModel): boolean {
+  if (model.status !== 'valid') return false;
+  const { rSquared, rmseMl, maeMl, maxAbsErrorMl } = model.metrics;
+  if (rSquared === null || rmseMl === null || maeMl === null || maxAbsErrorMl === null) {
+    return false;
+  }
+  return (
+    rSquared >= LINEAR_ACCEPTABLE_THRESHOLDS.rSquaredMin &&
+    rmseMl <= LINEAR_ACCEPTABLE_THRESHOLDS.rmseMlMax &&
+    maeMl <= LINEAR_ACCEPTABLE_THRESHOLDS.maeMlMax &&
+    maxAbsErrorMl <= LINEAR_ACCEPTABLE_THRESHOLDS.maxAbsErrorMlMax
+  );
+}
+
+function buildRequiredProtocolSummary(
+  requiredCov: RequiredCalibrationCoverage,
+): CalibrationRequiredProtocolSummary {
+  return {
+    requiredVolumes: requiredCov.requiredVolumes,
+    missingRequiredVolumes: requiredCov.missingRequiredVolumes,
+    requiredVolumesWithLowRepetitions: requiredCov.requiredVolumesWithLowRepetitions,
+    totalValidRequiredPoints: requiredCov.totalValidRequiredPoints,
+    minimumRequiredPoints: MIN_VALID_CALIBRATION_POINTS_FOR_THERAPY,
+    meetsRequiredProtocol: requiredCov.meetsRequiredProtocol,
+  };
+}
+
+function buildGeometricScaleSummary(
+  report: GeometricScaleReport,
+): CalibrationGeometricScaleSummary {
+  return {
+    expectedDistanceStepPer500MlMm: report.expectedDistanceStepPer500MlMm,
+    okSegments: report.okSegments,
+    reviewSegments: report.reviewSegments,
+    criticalSegments: report.criticalSegments,
+    missingSegments: report.missingSegments,
+    passesGeometricValidation: report.passesGeometricValidation,
+  };
+}
+
+function deriveTherapyReadinessReason(params: {
+  isReadyForTherapy: boolean;
+  requiredProtocol: CalibrationRequiredProtocolSummary;
+  requiredCov: RequiredCalibrationCoverage;
+  coverage: CalibrationRecommendationCoverage;
+  relation: VolumeDistanceRelation;
+  distanceSpread: number;
+  recommendedKind: CalibrationModelRecommendationKind;
+  maxStdDistanceMm: number;
+  slopeVariationRatio: number | null;
+  volumesRecommendedForRetake: number[];
+  passesGeometricValidation: boolean;
+}): string {
+  if (params.isReadyForTherapy) {
+    return 'Calibración apta para estimación terapéutica dentro del rango recomendado.';
+  }
+  const { requiredProtocol, requiredCov } = params;
+  if (params.relation === 'indeterminate') {
+    return 'La relación volumen-distancia no es consistente. Repite la calibración.';
+  }
+  if (params.distanceSpread < MIN_USEFUL_DISTANCE_RANGE_MM) {
+    return 'El rango de distancia es insuficiente para estimar volumen.';
+  }
+  if (params.recommendedKind === 'none') {
+    return 'No es posible construir un modelo confiable con los datos actuales.';
+  }
+  if (requiredProtocol.missingRequiredVolumes.length > 0) {
+    return `Faltan volúmenes obligatorios: ${requiredProtocol.missingRequiredVolumes.join(', ')} mL.`;
+  }
+  if (
+    !requiredCov.hasMinRepetitionsForAllRequiredVolumes ||
+    requiredProtocol.requiredVolumesWithLowRepetitions.length > 0
+  ) {
+    return 'Cada volumen obligatorio requiere al menos 5 mediciones válidas.';
+  }
+  if (requiredProtocol.totalValidRequiredPoints < requiredProtocol.minimumRequiredPoints) {
+    return 'Se requieren al menos 30 puntos válidos en el rango recomendado.';
+  }
+  if (params.volumesRecommendedForRetake.length > 0) {
+    return 'Repite las mediciones con alta variación antes de usar el modelo en terapia.';
+  }
+  if (!params.passesGeometricValidation) {
+    return 'La escala geométrica del sensor no coincide con la escala física del espirómetro. Revisa el montaje o repite los puntos marcados.';
+  }
+  if (!params.coverage.coversRecommended) {
+    return 'Falta cubrir el rango recomendado 500-3000 mL.';
+  }
+  if (params.maxStdDistanceMm > MAX_ACCEPTABLE_STD_DISTANCE_MM) {
+    return 'La medición tiene variación elevada. Repite los puntos inestables.';
+  }
+  if (
+    params.slopeVariationRatio !== null &&
+    params.slopeVariationRatio > MAX_ACCEPTABLE_SLOPE_VARIATION_RATIO
+  ) {
+    return 'La medición tiene variación elevada. Repite los puntos inestables.';
+  }
+  return 'Completa el protocolo mínimo de calibración para uso terapéutico.';
+}
+
+type TherapyEvaluationContext = {
+  profile: CalibrationProfile;
+  requiredProtocol: CalibrationRequiredProtocolSummary;
+  requiredCov: RequiredCalibrationCoverage;
+  repeatability: CalibrationRepeatabilityReport;
+  segmentReport: CalibrationSegmentReport;
+  geometricReport: GeometricScaleReport;
+  distanceSpread: number;
+};
+
+function withTherapyEvaluation(
+  base: Omit<
+    CalibrationModelRecommendation,
+    | 'canEstimateWithinCalibratedRange'
+    | 'isReadyForTherapy'
+    | 'therapyReadinessReason'
+    | 'requiredProtocol'
+    | 'geometricScale'
+  >,
+  ctx: TherapyEvaluationContext,
+): CalibrationModelRecommendation {
+  const segmentSlopeCritical =
+    ctx.segmentReport.slopeVariationRatio !== null &&
+    ctx.segmentReport.slopeVariationRatio > MAX_ACCEPTABLE_SLOPE_VARIATION_RATIO;
+  const stdCritical = ctx.repeatability.maxStdDistanceMm > MAX_ACCEPTABLE_STD_DISTANCE_MM;
+  const retakeVolumesRecommended = ctx.repeatability.volumesRecommendedForRetake.length > 0;
+  const geometryOk = ctx.geometricReport.passesGeometricValidation;
+  const isReadyForTherapy =
+    ctx.requiredProtocol.meetsRequiredProtocol &&
+    base.coverage.coversRecommended &&
+    ctx.profile.relation !== 'indeterminate' &&
+    ctx.distanceSpread >= MIN_USEFUL_DISTANCE_RANGE_MM &&
+    base.recommendedKind !== 'none' &&
+    !stdCritical &&
+    !segmentSlopeCritical &&
+    !retakeVolumesRecommended &&
+    geometryOk;
+  const therapyReadinessReason = deriveTherapyReadinessReason({
+    isReadyForTherapy,
+    requiredProtocol: ctx.requiredProtocol,
+    requiredCov: ctx.requiredCov,
+    coverage: base.coverage,
+    relation: ctx.profile.relation,
+    distanceSpread: ctx.distanceSpread,
+    recommendedKind: base.recommendedKind,
+    maxStdDistanceMm: ctx.repeatability.maxStdDistanceMm,
+    slopeVariationRatio: ctx.segmentReport.slopeVariationRatio,
+    volumesRecommendedForRetake: ctx.repeatability.volumesRecommendedForRetake,
+    passesGeometricValidation: geometryOk,
+  });
+  return {
+    ...base,
+    canEstimateWithinCalibratedRange: base.canEstimateVolume,
+    isReadyForTherapy,
+    therapyReadinessReason,
+    requiredProtocol: ctx.requiredProtocol,
+    geometricScale: buildGeometricScaleSummary(ctx.geometricReport),
+  };
+}
+
+/**
+ * Decide qué modelo recomendar para estimar volumen, separando explícitamente:
+ *   - calidad de la calibración (datos, monotonicidad, rango, cobertura),
+ *   - calidad del ajuste lineal (R², errores absolutos),
+ *   - modelo recomendado para estimación.
+ *
+ * Reglas (en orden):
+ *   A. <2 volúmenes distintos      → none / needs_more_points
+ *   B. relation === indeterminate  → none / needs_recalibration
+ *   C. distanceRange < 5 mm        → none / invalid
+ *   D. cobertura incompleta        → preferentemente piecewise si ≥4 volúmenes; status limited_range
+ *   E. lineal aceptable + cobertura → linear o piecewise (preferir piecewise si ≥4)
+ *   F. lineal no aceptable, monotónica, ≥4 volúmenes → piecewise (linealQuality not_recommended)
+ */
+export function recommendCalibrationModel(
+  profile: CalibrationProfile,
+  linearModel: CalibrationModel,
+  piecewiseModel: CalibrationModel,
+): CalibrationModelRecommendation {
+  const summaries = profile.summaries;
+  const distinctVolumes = distinctVolumeCount(summaries);
+  const requiredCov = computeRequiredCalibrationCoverage(profile.points, summaries);
+  const requiredProtocol = buildRequiredProtocolSummary(requiredCov);
+  const repeatability = computeRepeatabilityReport(profile.points, summaries);
+  const segmentReport = computeSegmentReport(summaries, profile.relation);
+  const geometricReport = computeGeometricScaleReport(summaries, profile.relation);
+  const distances = summaries.map((s) => s.avgDistanceMm);
+  const distanceSpread =
+    distances.length >= 2 ? Math.max(...distances) - Math.min(...distances) : 0;
+
+  const therapyCtx: TherapyEvaluationContext = {
+    profile,
+    requiredProtocol,
+    requiredCov,
+    repeatability,
+    segmentReport,
+    geometricReport,
+    distanceSpread,
+  };
+
+  const coverageRaw = computeVolumeCoverage(summaries);
+  const coverage: CalibrationRecommendationCoverage = {
+    coversRecommended: coverageRaw.coversRecommended,
+    coversTotal: coverageRaw.coversTotal,
+    recommendedCoveragePct:
+      summaries.length === 0 ? null : coverageRaw.recommendedCoveragePct,
+    totalCoveragePct: summaries.length === 0 ? null : coverageRaw.totalCoveragePct,
+  };
+
+  if (distinctVolumes < 2) {
+    return withTherapyEvaluation(
+      {
+        recommendedKind: 'none',
+        status: 'needs_more_points',
+        canEstimateVolume: false,
+        reason: 'Faltan puntos de calibración en diferentes volúmenes.',
+        warnings: [],
+        linealQuality: 'unavailable',
+        calibrationQuality: 'invalid',
+        coverage,
+      },
+      therapyCtx,
+    );
+  }
+
+  if (profile.relation === 'indeterminate') {
+    return withTherapyEvaluation(
+      {
+        recommendedKind: 'none',
+        status: 'needs_recalibration',
+        canEstimateVolume: false,
+        reason: 'La relación volumen-distancia no es consistente. Repite la calibración.',
+        warnings: [],
+        linealQuality: 'unavailable',
+        calibrationQuality: 'invalid',
+        coverage,
+      },
+      therapyCtx,
+    );
+  }
+
+  if (distanceSpread < MIN_USEFUL_DISTANCE_RANGE_MM) {
+    return withTherapyEvaluation(
+      {
+        recommendedKind: 'none',
+        status: 'invalid',
+        canEstimateVolume: false,
+        reason: 'El rango de distancia es insuficiente para estimar volumen.',
+        warnings: [],
+        linealQuality: 'unavailable',
+        calibrationQuality: 'invalid',
+        coverage,
+      },
+      therapyCtx,
+    );
+  }
+
+  // Calidad del modelo lineal (independiente del modelo recomendado).
+  let linealQuality: CalibrationLinealQuality;
+  if (linearModel.status !== 'valid') {
+    linealQuality = 'unavailable';
+  } else {
+    linealQuality = isLinearAcceptable(linearModel) ? 'acceptable' : 'not_recommended';
+  }
+
+  const piecewiseAvailable = piecewiseModel.status === 'valid';
+  const hasEnoughDistinct = distinctVolumes >= PIECEWISE_PREFERRED_MIN_DISTINCT_VOLUMES;
+
+  const warnings: string[] = [];
+  let recommendedKind: CalibrationModelRecommendationKind;
+  let status: CalibrationRecommendationStatus;
+  let canEstimateVolume: boolean;
+  let reason: string;
+  let calibrationQuality: CalibrationQuality;
+
+  if (coverage.coversRecommended) {
+    status = 'ready';
+    canEstimateVolume = true;
+    if (hasEnoughDistinct && piecewiseAvailable) {
+      recommendedKind = 'piecewise_linear';
+      reason =
+        linealQuality === 'not_recommended'
+          ? 'La calibración es monotónica, pero no suficientemente lineal. Se recomienda estimación por tramos.'
+          : 'Calibración completa con suficientes volúmenes; se prefiere estimación por tramos para conservar la curva real.';
+      calibrationQuality = linealQuality === 'acceptable' ? 'good' : 'limited';
+    } else if (linealQuality === 'acceptable') {
+      recommendedKind = 'linear_regression';
+      reason = 'Calibración completa con relación lineal aceptable.';
+      calibrationQuality = 'limited';
+    } else if (piecewiseAvailable) {
+      recommendedKind = 'piecewise_linear';
+      reason =
+        'Calibración completa pero con pocos volúmenes; se usa estimación por tramos.';
+      calibrationQuality = 'limited';
+    } else {
+      recommendedKind = 'none';
+      canEstimateVolume = false;
+      reason = 'No es posible construir un modelo confiable con los datos actuales.';
+      calibrationQuality = 'poor';
+    }
+  } else {
+    status = 'limited_range';
+    warnings.push(
+      'Completa el rango recomendado 500–3000 mL antes de usar el modelo en terapia.',
+    );
+    if (hasEnoughDistinct && piecewiseAvailable) {
+      recommendedKind = 'piecewise_linear';
+      canEstimateVolume = true;
+      reason =
+        linealQuality === 'not_recommended'
+          ? 'La calibración es monotónica pero no suficientemente lineal; se estima por tramos solo dentro del rango calibrado.'
+          : 'Cobertura limitada; se estima por tramos solo dentro del rango calibrado.';
+      calibrationQuality = 'limited';
+    } else if (linealQuality === 'acceptable') {
+      recommendedKind = 'linear_regression';
+      canEstimateVolume = true;
+      reason = 'Modelo lineal aceptable, pero la cobertura no alcanza el rango recomendado.';
+      calibrationQuality = 'limited';
+    } else {
+      recommendedKind = 'none';
+      canEstimateVolume = false;
+      reason =
+        'Faltan puntos en el rango recomendado y la relación lineal no es aceptable.';
+      calibrationQuality = 'poor';
+    }
+  }
+
+  if (linealQuality === 'not_recommended' && recommendedKind !== 'linear_regression') {
+    warnings.push(
+      'El ajuste lineal no alcanza los umbrales de calidad (R²/RMSE/MAE/Error máx).',
+    );
+  }
+
+  return withTherapyEvaluation(
+    {
+      recommendedKind,
+      status,
+      canEstimateVolume,
+      reason,
+      warnings,
+      linealQuality,
+      calibrationQuality,
+      coverage,
+    },
+    therapyCtx,
+  );
 }
 
 export function estimateVolumeFromDistance(

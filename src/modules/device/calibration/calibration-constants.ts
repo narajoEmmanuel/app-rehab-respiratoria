@@ -35,8 +35,69 @@ export const OPERATIVE_VOLUME_CHIPS_ML = [
   500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000,
 ] as const;
 
-/** Subconjunto del rango recomendado para chips. */
-export const RECOMMENDED_VOLUME_CHIPS_ML = [500, 1000, 1500, 2000, 2500, 3000] as const;
+/**
+ * Volúmenes obligatorios del protocolo mínimo (mismo subconjunto que el rango recomendado 500–3000).
+ * Deben estar presentes en la calibración con suficientes repeticiones para uso terapéutico.
+ */
+export const REQUIRED_RECOMMENDED_VOLUMES_ML = [
+  500, 1000, 1500, 2000, 2500, 3000,
+] as const;
+
+/** Subconjunto del rango recomendado para chips (alineado con volúmenes obligatorios). */
+export const RECOMMENDED_VOLUME_CHIPS_ML = REQUIRED_RECOMMENDED_VOLUMES_ML;
 
 /** Subconjunto del rango extendido para chips. */
 export const EXTENDED_VOLUME_CHIPS_ML = [3500, 4000, 4500, 5000] as const;
+
+/**
+ * Advertencia técnica: volúmenes con pocas repeticiones absolutas (cualquier nivel marcado).
+ * El protocolo final para terapia exige `MIN_REPETITIONS_PER_REQUIRED_VOLUME` en cada volumen obligatorio.
+ */
+export const MIN_REPETITIONS_PER_VOLUME = 3;
+
+/** Mínimo de mediciones válidas por cada volumen obligatorio para considerar listo para terapia. */
+export const MIN_REPETITIONS_PER_REQUIRED_VOLUME = 5;
+
+/** Total mínimo de puntos válidos en volúmenes obligatorios para listo para terapia. */
+export const MIN_VALID_CALIBRATION_POINTS_FOR_THERAPY = 30;
+
+/** Variación máxima aceptable de la desviación estándar de distancia por punto (mm). */
+export const MAX_ACCEPTABLE_STD_DISTANCE_MM = 5;
+
+/** Relación máxima maxSlope/minSlope antes de marcar saltos bruscos en segmentos. */
+export const MAX_ACCEPTABLE_SLOPE_VARIATION_RATIO = 2.5;
+
+/** Salto mínimo de distancia entre dos volúmenes consecutivos (mm). */
+export const MIN_SEGMENT_DISTANCE_DELTA_MM = 1;
+
+/** Paso de volumen de referencia para validación geométrica montaje vs espirómetro (mL). */
+export const EXPECTED_VOLUME_STEP_ML = 500;
+
+/**
+ * Desplazamiento esperado del pistón por cada EXPECTED_VOLUME_STEP_ML en el montaje de referencia (mm).
+ * Verificación física: ~1 cm ≈ 500 mL.
+ */
+export const EXPECTED_DISTANCE_STEP_PER_500ML_MM = 10;
+
+/** Tolerancia estricta: Δ medido dentro de [10 − tol, 10 + tol] mm frente al esperado (magnitud). */
+export const GEOMETRIC_STEP_OK_TOLERANCE_MM = 2;
+
+/** Tolerancia de revisión: error absoluto hasta este valor (mm) fuera de ok pero no crítico aún. */
+export const GEOMETRIC_STEP_REVIEW_TOLERANCE_MM = 4;
+
+/**
+ * Tramos consecutivos de 500 mL en el rango recomendado para comprobar escala geométrica (desde → hasta mL).
+ */
+export const REQUIRED_GEOMETRIC_SEGMENTS_ML = [
+  [500, 1000],
+  [1000, 1500],
+  [1500, 2000],
+  [2000, 2500],
+  [2500, 3000],
+] as const;
+
+/**
+ * A partir de este número de volúmenes distintos preferimos `piecewise_linear`
+ * sobre `linear_regression` porque preserva mejor la curva real de calibración.
+ */
+export const PIECEWISE_PREFERRED_MIN_DISTINCT_VOLUMES = 4;

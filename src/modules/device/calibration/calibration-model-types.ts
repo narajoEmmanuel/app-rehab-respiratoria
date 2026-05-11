@@ -75,3 +75,76 @@ export const MODEL_WARNING_THRESHOLDS = {
 
 /** Mínimo de rango útil (mm) para considerar la calibración cubre un intervalo aceptable. */
 export const MIN_USEFUL_DISTANCE_RANGE_MM = 5;
+
+/**
+ * Umbrales para considerar el ajuste lineal "aceptable" como modelo recomendado.
+ * Son criterios combinados (todos deben cumplirse).
+ */
+export const LINEAR_ACCEPTABLE_THRESHOLDS = {
+  rSquaredMin: 0.95,
+  rmseMlMax: 250,
+  maeMlMax: 200,
+  maxAbsErrorMlMax: 500,
+} as const;
+
+export type CalibrationModelRecommendationKind =
+  | 'linear_regression'
+  | 'piecewise_linear'
+  | 'none';
+
+export type CalibrationRecommendationStatus =
+  | 'ready'
+  | 'needs_more_points'
+  | 'needs_recalibration'
+  | 'limited_range'
+  | 'invalid';
+
+export type CalibrationLinealQuality = 'acceptable' | 'not_recommended' | 'unavailable';
+
+export type CalibrationQuality = 'good' | 'limited' | 'poor' | 'invalid';
+
+export type CalibrationRecommendationCoverage = {
+  coversRecommended: boolean;
+  coversTotal: boolean;
+  recommendedCoveragePct: number | null;
+  totalCoveragePct: number | null;
+};
+
+export type CalibrationRequiredProtocolSummary = {
+  requiredVolumes: number[];
+  missingRequiredVolumes: number[];
+  requiredVolumesWithLowRepetitions: number[];
+  totalValidRequiredPoints: number;
+  minimumRequiredPoints: number;
+  meetsRequiredProtocol: boolean;
+};
+
+/** Resumen de validación geométrica (escala física ~10 mm / 500 mL) incluido en la recomendación. */
+export type CalibrationGeometricScaleSummary = {
+  expectedDistanceStepPer500MlMm: number;
+  okSegments: number;
+  reviewSegments: number;
+  criticalSegments: number;
+  missingSegments: number;
+  passesGeometricValidation: boolean;
+};
+
+export type CalibrationModelRecommendation = {
+  recommendedKind: CalibrationModelRecommendationKind;
+  status: CalibrationRecommendationStatus;
+  canEstimateVolume: boolean;
+  /** Puede estimar volumen dentro del tramo capturado con un modelo válido (sin exigir protocolo terapéutico completo). */
+  canEstimateWithinCalibratedRange: boolean;
+  /** Cumple protocolo mínimo, cobertura, calidad de señal y modelo recomendado para uso terapéutico. */
+  isReadyForTherapy: boolean;
+  /** Causa principal del estado de listo para terapia o del bloqueo. */
+  therapyReadinessReason: string;
+  requiredProtocol: CalibrationRequiredProtocolSummary;
+  /** Validación geométrica del montaje frente a la escala física del espirómetro (~10 mm / 500 mL). */
+  geometricScale: CalibrationGeometricScaleSummary;
+  reason: string;
+  warnings: string[];
+  linealQuality: CalibrationLinealQuality;
+  calibrationQuality: CalibrationQuality;
+  coverage: CalibrationRecommendationCoverage;
+};

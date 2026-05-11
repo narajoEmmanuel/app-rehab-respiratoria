@@ -19,12 +19,18 @@ import { useSensorConnection } from '@/src/modules/device/state/SensorConnection
 import {
   buildCalibrationProfile,
   buildLinearCalibrationModel,
+  buildPiecewiseLinearCalibrationModel,
   CALIBRATION_PROFILE_VERSION,
   clearCalibrationProfile,
+  computeGeometricScaleReport,
   computeGlobalDistanceRange,
+  computeRepeatabilityReport,
+  computeSegmentReport,
+  computeRequiredCalibrationCoverage,
   computeVolumeCoverage,
   computeVolumeSummaries,
   determineVolumeDistanceRelation,
+  EXPECTED_DISTANCE_STEP_PER_500ML_MM,
   EXPECTED_MAX_VOLUME_ML,
   EXPECTED_MIN_VOLUME_ML,
   EXPECTED_RECOMMENDED_MAX_VOLUME_ML,
@@ -33,17 +39,32 @@ import {
   loadCalibrationProfileDetailed,
   MIN_OPERATIVE_VOLUME_ML,
   MIN_RELIABLE_SENSOR_DISTANCE_MM,
+  MIN_REPETITIONS_PER_REQUIRED_VOLUME,
+  MIN_REPETITIONS_PER_VOLUME,
+  MIN_VALID_CALIBRATION_POINTS_FOR_THERAPY,
+  recommendCalibrationModel,
   RECOMMENDED_VOLUME_CHIPS_ML,
+  REQUIRED_GEOMETRIC_SEGMENTS_ML,
+  REQUIRED_RECOMMENDED_VOLUMES_ML,
   saveCalibrationProfile,
   type CalibrationCapturePoint,
+  type CalibrationLinealQuality,
   type CalibrationModel,
+  type CalibrationModelRecommendation,
+  type CalibrationModelRecommendationKind,
   type CalibrationModelStatus,
   type CalibrationProfile,
+  type CalibrationQuality,
+  type CalibrationRecommendationStatus,
+  type CalibrationRepeatabilityReport,
+  type CalibrationSegmentReport,
   type GlobalDistanceRange,
   type LoadCalibrationResult,
   type VolumeCalibrationSummary,
   type VolumeCoverage,
   type VolumeDistanceRelation,
+  type VolumeRepeatability,
+  type GeometricScaleSegmentStatus,
 } from '@/src/modules/device/calibration';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
@@ -184,7 +205,7 @@ function relationLabel(r: VolumeDistanceRelation): string {
 function modelStatusLabel(status: CalibrationModelStatus): string {
   switch (status) {
     case 'valid':
-      return 'Modelo listo';
+      return 'Modelo lineal listo';
     case 'insufficient_data':
       return 'Faltan puntos';
     case 'non_monotonic':
@@ -198,10 +219,117 @@ function modelStatusLabel(status: CalibrationModelStatus): string {
   }
 }
 
-function modelStatusTone(status: CalibrationModelStatus): 'ok' | 'warn' | 'muted' {
-  if (status === 'valid') return 'ok';
-  if (status === 'insufficient_data') return 'muted';
+function recommendedKindLabel(kind: CalibrationModelRecommendationKind): string {
+  switch (kind) {
+    case 'piecewise_linear':
+      return 'Por tramos';
+    case 'linear_regression':
+      return 'Lineal';
+    case 'none':
+      return 'No disponible';
+    default:
+      return kind;
+  }
+}
+
+function recommendationStatusLabel(status: CalibrationRecommendationStatus): string {
+  switch (status) {
+    case 'ready':
+      return 'Listo';
+    case 'limited_range':
+      return 'Rango limitado';
+    case 'needs_more_points':
+      return 'Faltan puntos';
+    case 'needs_recalibration':
+      return 'Repetir calibración';
+    case 'invalid':
+      return 'Inválido';
+    default:
+      return status;
+  }
+}
+
+function recommendationStatusTone(
+  status: CalibrationRecommendationStatus,
+): 'ok' | 'warn' | 'muted' {
+  if (status === 'ready') return 'ok';
+  if (status === 'needs_more_points') return 'muted';
   return 'warn';
+}
+
+function linealQualityLabel(q: CalibrationLinealQuality): string {
+  switch (q) {
+    case 'acceptable':
+      return 'Aceptable';
+    case 'not_recommended':
+      return 'No recomendado';
+    case 'unavailable':
+      return 'No disponible';
+    default:
+      return q;
+  }
+}
+
+function linealQualityTone(q: CalibrationLinealQuality): 'ok' | 'warn' | 'muted' {
+  if (q === 'acceptable') return 'ok';
+  if (q === 'unavailable') return 'muted';
+  return 'warn';
+}
+
+function calibrationQualityLabel(q: CalibrationQuality): string {
+  switch (q) {
+    case 'good':
+      return 'Buena';
+    case 'limited':
+      return 'Limitada';
+    case 'poor':
+      return 'Insuficiente';
+    case 'invalid':
+      return 'Inválida';
+    default:
+      return q;
+  }
+}
+
+function volumeRepeatabilityBadgeLabel(row: VolumeRepeatability): string {
+  switch (row.warningLevel) {
+    case 'high':
+      return 'Repetir';
+    case 'moderate':
+      return 'Revisar';
+    default:
+      return 'Estable';
+  }
+}
+
+function geometricSegmentStatusLabel(status: GeometricScaleSegmentStatus): string {
+  switch (status) {
+    case 'ok':
+      return 'Correcto';
+    case 'review':
+      return 'Revisar';
+    case 'critical':
+      return 'Crítico';
+    case 'missing':
+      return 'Faltante';
+    default:
+      return status;
+  }
+}
+
+function formatExpectedDeltaMm(value: number): string {
+  if (value > 0) return `+${value.toFixed(0)} mm`;
+  if (value < 0) return `${value.toFixed(0)} mm`;
+  return `${value.toFixed(0)} mm`;
+}
+
+function geometricValidationOverallLabel(
+  missingSegments: number,
+  passesGeometricValidation: boolean,
+): string {
+  if (missingSegments > 0) return 'Incompleto';
+  if (passesGeometricValidation) return 'Correcto';
+  return 'Revisar montaje';
 }
 
 function formatMetricMl(value: number | null): string {
@@ -262,6 +390,26 @@ async function confirmActionDouble(title: string, firstMessage: string, secondMe
   return confirmAction(title, secondMessage);
 }
 
+/** Confirmación con botón principal configurable (p. ej. continuar / reemplazar). */
+function confirmProceed(
+  title: string,
+  message: string,
+  options?: { confirmLabel?: string },
+): Promise<boolean> {
+  const okLabel = options?.confirmLabel ?? 'Continuar';
+  if (Platform.OS === 'web') {
+    const ok =
+      typeof globalThis.confirm === 'function' ? globalThis.confirm(`${title}\n\n${message}`) : true;
+    return Promise.resolve(ok);
+  }
+  return new Promise((resolve) => {
+    Alert.alert(title, message, [
+      { text: 'Cancelar', style: 'cancel', onPress: () => resolve(false) },
+      { text: okLabel, onPress: () => resolve(true) },
+    ]);
+  });
+}
+
 function formatTimestamp(ts: number): string {
   try {
     return new Date(ts).toLocaleString();
@@ -289,7 +437,11 @@ export function SensorCalibrationScreen() {
     'idle',
   );
   const [storageMessage, setStorageMessage] = useState<string | null>(null);
+  const [retakeVolumeMl, setRetakeVolumeMl] = useState<number | null>(null);
+  const [retakeDraftPoints, setRetakeDraftPoints] = useState<CalibrationCapturePoint[]>([]);
   const debug = isSensorDebugEnabled();
+
+  const isRetakeMode = retakeVolumeMl !== null;
 
   const {
     status,
@@ -353,15 +505,28 @@ export function SensorCalibrationScreen() {
     bufferStats !== null && bufferStats.sampleCount >= MIN_SAMPLES_TO_REGISTER;
   const inLiveMode = status === 'connected' || status === 'receiving' || mode === 'mock';
 
+  const retakeDraftFull =
+    isRetakeMode && retakeDraftPoints.length >= MIN_REPETITIONS_PER_REQUIRED_VOLUME;
+  const retakeVolumeMismatch =
+    isRetakeMode && volumeMl !== null && volumeMl !== retakeVolumeMl;
+
   const canRegister =
     inLiveMode &&
     volumeMl !== null &&
     liveSignalOk &&
     distanceAboveSensorMin &&
     hasEnoughSamples &&
-    bufferStats !== null;
+    bufferStats !== null &&
+    !retakeDraftFull &&
+    !retakeVolumeMismatch;
 
   const registerBlockReason = useMemo(() => {
+    if (isRetakeMode && retakeDraftFull) {
+      return 'Ya tienes 5 mediciones en borrador. Usa «Reemplazar mediciones anteriores» o cancela la repetición.';
+    }
+    if (retakeVolumeMismatch) {
+      return 'Termina o cancela la repetición antes de cambiar de volumen.';
+    }
     if (volumeMl === null && volumeInput.trim() !== '') return 'Volumen no válido (usa un número ≥ 0).';
     if (volumeMl === null) return 'Indica un volumen en mL.';
     if (!inLiveMode) return 'Conecta el sensor para comenzar.';
@@ -375,7 +540,10 @@ export function SensorCalibrationScreen() {
     distanceAboveSensorMin,
     hasEnoughSamples,
     inLiveMode,
+    isRetakeMode,
     liveSignalOk,
+    retakeDraftFull,
+    retakeVolumeMismatch,
     volumeInput,
     volumeMl,
   ]);
@@ -422,9 +590,33 @@ export function SensorCalibrationScreen() {
     () => buildLinearCalibrationModel(liveProfile),
     [liveProfile],
   );
+  const piecewiseModel = useMemo<CalibrationModel>(
+    () => buildPiecewiseLinearCalibrationModel(liveProfile),
+    [liveProfile],
+  );
+  const recommendation = useMemo<CalibrationModelRecommendation>(
+    () => recommendCalibrationModel(liveProfile, linearModel, piecewiseModel),
+    [liveProfile, linearModel, piecewiseModel],
+  );
   const coverage = useMemo<VolumeCoverage>(
     () => computeVolumeCoverage(volumeSummaries),
     [volumeSummaries],
+  );
+  const repeatability = useMemo<CalibrationRepeatabilityReport>(
+    () => computeRepeatabilityReport(points, volumeSummaries),
+    [points, volumeSummaries],
+  );
+  const segmentReport = useMemo<CalibrationSegmentReport>(
+    () => computeSegmentReport(volumeSummaries, relation),
+    [relation, volumeSummaries],
+  );
+  const requiredCoverage = useMemo(
+    () => computeRequiredCalibrationCoverage(points, volumeSummaries),
+    [points, volumeSummaries],
+  );
+  const geometricReport = useMemo(
+    () => computeGeometricScaleReport(volumeSummaries, relation),
+    [relation, volumeSummaries],
   );
   const hasLegacySubOperative = useMemo<boolean>(
     () => hasSubOperativeVolumes(volumeSummaries),
@@ -452,6 +644,8 @@ export function SensorCalibrationScreen() {
       if (result.kind === 'ok') {
         setSavedProfile(result.profile);
         setPoints(result.profile.points);
+        setRetakeVolumeMl(null);
+        setRetakeDraftPoints([]);
         setHasUnsavedChanges(false);
         setSavedStatus({
           kind: 'saved',
@@ -476,9 +670,84 @@ export function SensorCalibrationScreen() {
     setStorageMessage(null);
   }, []);
 
+  const onStartVolumeRetake = useCallback(async (volume: number) => {
+    const first = await confirmProceed(
+      'Repetir volumen',
+      `Se iniciará una nueva toma para ${volume} mL.`,
+      { confirmLabel: 'Continuar' },
+    );
+    if (!first) return;
+    const second = await confirmProceed(
+      'Repetir volumen',
+      'Las mediciones anteriores se reemplazarán solo cuando completes 5 nuevas mediciones válidas.',
+      { confirmLabel: 'Entendido' },
+    );
+    if (!second) return;
+    hapticLight();
+    setRetakeVolumeMl(volume);
+    setRetakeDraftPoints([]);
+    setVolumeInput(String(volume));
+  }, []);
+
+  const onCancelVolumeRetake = useCallback(async () => {
+    if (retakeVolumeMl === null) return;
+    const ok = await confirmProceed(
+      'Cancelar repetición',
+      '¿Descartar las mediciones en borrador y conservar las anteriores?',
+      { confirmLabel: 'Sí, descartar' },
+    );
+    if (!ok) return;
+    hapticLight();
+    setRetakeVolumeMl(null);
+    setRetakeDraftPoints([]);
+  }, [retakeVolumeMl]);
+
+  const onConfirmRetakeReplace = useCallback(async () => {
+    if (retakeVolumeMl === null || retakeDraftPoints.length !== MIN_REPETITIONS_PER_REQUIRED_VOLUME) {
+      return;
+    }
+    const ok = await confirmProceed(
+      'Reemplazar mediciones',
+      `¿Reemplazar las mediciones anteriores de ${retakeVolumeMl} mL con estas ${MIN_REPETITIONS_PER_REQUIRED_VOLUME} nuevas mediciones?`,
+      { confirmLabel: 'Reemplazar' },
+    );
+    if (!ok) return;
+    hapticLight();
+    const vol = retakeVolumeMl;
+    setPoints((prev) => {
+      const kept = prev.filter((p) => p.volumeMl !== vol);
+      return [...kept, ...retakeDraftPoints];
+    });
+    setRetakeVolumeMl(null);
+    setRetakeDraftPoints([]);
+    markDirty();
+  }, [markDirty, retakeDraftPoints, retakeVolumeMl]);
+
   const onRegister = useCallback(() => {
     if (!canRegister || volumeMl === null || !bufferStats) return;
     hapticLight();
+    if (retakeVolumeMl !== null && volumeMl === retakeVolumeMl) {
+      if (retakeDraftPoints.length >= MIN_REPETITIONS_PER_REQUIRED_VOLUME) return;
+      setRetakeDraftPoints((prev) => {
+        const next: CalibrationCapturePoint = {
+          id: newCaptureId(),
+          volumeMl,
+          distanceMm: bufferStats.avgDistanceMm,
+          rawDistanceMm: bufferStats.avgRawDistanceMm,
+          distanceValid: true,
+          source: bufferStats.latestSource,
+          timestamp: bufferStats.latestTimestamp,
+          repetitionNumber: prev.length + 1,
+          createdAt: Date.now(),
+          sampleCount: bufferStats.sampleCount,
+          minSampleDistanceMm: bufferStats.minDistanceMm,
+          maxSampleDistanceMm: bufferStats.maxDistanceMm,
+          stdDistanceMm: bufferStats.stdDistanceMm,
+        };
+        return [...prev, next];
+      });
+      return;
+    }
     setPoints((prev) => {
       const sameVol = prev.filter((p) => p.volumeMl === volumeMl).length;
       const next: CalibrationCapturePoint = {
@@ -499,7 +768,14 @@ export function SensorCalibrationScreen() {
       return [...prev, next];
     });
     markDirty();
-  }, [bufferStats, canRegister, markDirty, volumeMl]);
+  }, [
+    bufferStats,
+    canRegister,
+    markDirty,
+    retakeDraftPoints.length,
+    retakeVolumeMl,
+    volumeMl,
+  ]);
 
   const onDeletePoint = useCallback(
     async (id: string) => {
@@ -527,6 +803,8 @@ export function SensorCalibrationScreen() {
     if (!ok) return;
     hapticLight();
     setPoints([]);
+    setRetakeVolumeMl(null);
+    setRetakeDraftPoints([]);
     markDirty();
   }, [markDirty]);
 
@@ -569,6 +847,8 @@ export function SensorCalibrationScreen() {
     if (result.kind === 'ok') {
       setSavedProfile(result.profile);
       setPoints(result.profile.points);
+      setRetakeVolumeMl(null);
+      setRetakeDraftPoints([]);
       setHasUnsavedChanges(false);
       setSavedStatus({
         kind: 'saved',
@@ -727,10 +1007,42 @@ export function SensorCalibrationScreen() {
               <Text style={styles.purposePillText}>Lectura más confiable</Text>
             </View>
             <View style={styles.purposePill}>
-              <Text style={styles.purposePillText}>Proceso experimental</Text>
+              <Text style={styles.purposePillText}>Pendiente de validación clínica</Text>
             </View>
           </View>
         </View>
+
+        {isRetakeMode && retakeVolumeMl !== null ? (
+          <View style={styles.retakeBanner}>
+            <Text style={styles.retakeBannerTitle}>Repitiendo {retakeVolumeMl} mL</Text>
+            <Text style={styles.retakeBannerBody}>
+              Captura {MIN_REPETITIONS_PER_REQUIRED_VOLUME} mediciones válidas para reemplazar el bloque anterior.
+            </Text>
+            <Text style={styles.retakeBannerProgress}>
+              Progreso: {retakeDraftPoints.length} / {MIN_REPETITIONS_PER_REQUIRED_VOLUME}
+            </Text>
+            {retakeDraftPoints.length === MIN_REPETITIONS_PER_REQUIRED_VOLUME ? (
+              <Pressable
+                style={({ pressed }) => [styles.primaryBtn, pressed && styles.primaryBtnPressed, styles.retakeBtn]}
+                onPress={() => {
+                  void onConfirmRetakeReplace();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Reemplazar mediciones anteriores">
+                <Text style={styles.primaryBtnText}>Reemplazar mediciones anteriores</Text>
+              </Pressable>
+            ) : null}
+            <Pressable
+              style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed, styles.retakeBtn]}
+              onPress={() => {
+                void onCancelVolumeRetake();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Cancelar repetición">
+              <Text style={styles.secondaryBtnText}>Cancelar repetición</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         <View style={styles.card}>
           <View style={styles.telemetryHeader}>
@@ -920,18 +1232,29 @@ export function SensorCalibrationScreen() {
           <TextInput
             value={volumeInput}
             onChangeText={setVolumeInput}
+            editable={!isRetakeMode}
             keyboardType="decimal-pad"
-            style={styles.volumeInput}
+            style={[styles.volumeInput, isRetakeMode && styles.volumeInputLocked]}
             placeholder="Ej. 1500"
             placeholderTextColor={wellness.textSecondary}
           />
+          {isRetakeMode ? (
+            <Text style={styles.cardHint}>
+              Volumen fijado durante repetir volumen. Termina o cancela la repetición para editar otro valor.
+            </Text>
+          ) : null}
           <Text style={styles.chipsGroupLabel}>Rango recomendado · 500–3000 mL</Text>
           <View style={styles.chipsRow}>
             {RECOMMENDED_VOLUME_CHIPS_ML.map((v) => (
               <Pressable
                 key={v}
-                style={({ pressed }) => [styles.chip, pressed && styles.chipPressed]}
+                style={({ pressed }) => [
+                  styles.chip,
+                  isRetakeMode && v !== retakeVolumeMl && styles.chipDisabled,
+                  pressed && styles.chipPressed,
+                ]}
                 onPress={() => {
+                  if (isRetakeMode && v !== retakeVolumeMl) return;
                   hapticLight();
                   setVolumeInput(String(v));
                 }}
@@ -949,9 +1272,11 @@ export function SensorCalibrationScreen() {
                 style={({ pressed }) => [
                   styles.chip,
                   styles.chipExtended,
+                  isRetakeMode && styles.chipDisabled,
                   pressed && styles.chipPressed,
                 ]}
                 onPress={() => {
+                  if (isRetakeMode) return;
                   hapticLight();
                   setVolumeInput(String(v));
                 }}
@@ -1062,16 +1387,269 @@ export function SensorCalibrationScreen() {
           </View>
         ) : null}
 
+        <View style={styles.modelSectionHeader}>
+          <Text style={styles.modelSectionTitle}>Modelo de calibración</Text>
+          <Text style={styles.modelSectionSubtitle}>
+            Convierte la distancia del sensor en volumen estimado. Rango recomendado{' '}
+            {EXPECTED_MIN_VOLUME_ML}–{EXPECTED_RECOMMENDED_MAX_VOLUME_ML} mL; rango extendido opcional
+            hasta {EXPECTED_MAX_VOLUME_ML} mL. Pendiente de validación clínica.
+          </Text>
+        </View>
+
+        {/* A. Protocolo mínimo */}
         <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Resultados de calibración</Text>
+          <Text style={styles.cardTitleStrong}>Protocolo mínimo de calibración</Text>
+          <Text style={styles.cardHint}>
+            Para considerar la calibración apta para terapia: {REQUIRED_RECOMMENDED_VOLUMES_ML.length}{' '}
+            volúmenes obligatorios ({REQUIRED_RECOMMENDED_VOLUMES_ML.join(', ')} mL), al menos{' '}
+            {MIN_REPETITIONS_PER_REQUIRED_VOLUME} mediciones válidas en cada uno y un total de al menos{' '}
+            {MIN_VALID_CALIBRATION_POINTS_FOR_THERAPY} puntos válidos en esos volúmenes.
+          </Text>
           <View style={styles.resultsGrid}>
-            <MetricCell label="Relación volumen-distancia" value={relationLabel(relation)} />
             <MetricCell
-              label="Rango útil (mm)"
-              value={globalRange.rangeMm === null ? '—' : globalRange.rangeMm.toFixed(1)}
+              label="Progreso (puntos válidos)"
+              value={`${recommendation.requiredProtocol.totalValidRequiredPoints} / ${recommendation.requiredProtocol.minimumRequiredPoints}`}
             />
-            <MetricCell label="Estado" value={savedStatusLabel} />
-            <MetricCell label="Puntos registrados" value={String(points.length)} />
+            <MetricCell
+              label="Protocolo mínimo cumplido"
+              value={recommendation.requiredProtocol.meetsRequiredProtocol ? 'Sí' : 'No'}
+            />
+          </View>
+          {requiredCoverage.missingRequiredVolumes.length > 0 ? (
+            <Text style={styles.warnHint}>
+              Volúmenes obligatorios faltantes:{' '}
+              {requiredCoverage.missingRequiredVolumes.map((v) => `${v} mL`).join(', ')}.
+            </Text>
+          ) : (
+            <Text style={styles.summaryLine}>
+              Volúmenes obligatorios presentes:{' '}
+              {requiredCoverage.presentRequiredVolumes.length === 0
+                ? '—'
+                : requiredCoverage.presentRequiredVolumes.map((v) => `${v} mL`).join(', ')}
+            </Text>
+          )}
+          {requiredCoverage.requiredVolumesWithLowRepetitions.length > 0 ? (
+            <Text style={styles.warnHint}>
+              Volúmenes obligatorios con pocas repeticiones (menos de {MIN_REPETITIONS_PER_REQUIRED_VOLUME}):{' '}
+              {requiredCoverage.requiredVolumesWithLowRepetitions.map((v) => `${v} mL`).join(', ')}.
+            </Text>
+          ) : null}
+          <Text style={styles.cardSubTitleStrong}>Mediciones por volumen obligatorio</Text>
+          <View style={styles.summaryTableHead}>
+            <Text style={[styles.summaryHeadCell, styles.protocolVolCol]}>Volumen</Text>
+            <Text style={[styles.summaryHeadCell, styles.protocolRepCol]}>Mediciones</Text>
+          </View>
+          {REQUIRED_RECOMMENDED_VOLUMES_ML.map((v) => (
+            <View key={`req-${v}`} style={styles.summaryTableRow}>
+              <Text style={[styles.summaryCell, styles.protocolVolCol]}>{v} mL</Text>
+              <Text style={[styles.summaryCell, styles.protocolRepCol]}>
+                {requiredCoverage.repetitionsByRequiredVolume[v] ?? 0}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Validación geométrica (escala física del espirómetro) */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitleStrong}>Validación geométrica</Text>
+          <Text style={styles.cardHint}>
+            Compara los saltos de distancia entre marcas de 500 mL con la escala física del espirómetro
+            (~{EXPECTED_DISTANCE_STEP_PER_500ML_MM} mm por cada 500 mL). No sustituye la calibración completa;
+            sirve para revisar montaje del sensor. Pendiente de validación clínica.
+          </Text>
+          <View style={styles.resultsGrid}>
+            <MetricCell
+              label="Escala esperada"
+              value={`${EXPECTED_DISTANCE_STEP_PER_500ML_MM} mm por cada 500 mL`}
+            />
+            <MetricCell
+              label="Segmentos correctos"
+              value={`${geometricReport.okSegments} / ${REQUIRED_GEOMETRIC_SEGMENTS_ML.length}`}
+            />
+            <MetricCell
+              label="Estado"
+              value={geometricValidationOverallLabel(
+                geometricReport.missingSegments,
+                geometricReport.passesGeometricValidation,
+              )}
+            />
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.geomTable}>
+              <View style={[styles.geomTableRow, styles.geomTableHeadRow]}>
+                <Text style={[styles.geomCell, styles.geomColRange]}>Tramo</Text>
+                <Text style={[styles.geomCell, styles.geomColDelta]}>Δ medido</Text>
+                <Text style={[styles.geomCell, styles.geomColExpected]}>Δ esperado</Text>
+                <Text style={[styles.geomCell, styles.geomColPct]}>Error %</Text>
+                <Text style={[styles.geomCell, styles.geomColState]}>Estado</Text>
+              </View>
+              {geometricReport.requiredSegments.map((seg) => (
+                <View key={`geom-${seg.volumeFromMl}-${seg.volumeToMl}`} style={styles.geomTableRow}>
+                  <Text style={[styles.geomCell, styles.geomColRange]}>
+                    {seg.volumeFromMl}→{seg.volumeToMl} mL
+                  </Text>
+                  <Text style={[styles.geomCell, styles.geomColDelta]}>
+                    {seg.actualDeltaDistanceMm === null
+                      ? '—'
+                      : `${seg.actualDeltaDistanceMm >= 0 ? '+' : ''}${seg.actualDeltaDistanceMm.toFixed(1)} mm`}
+                  </Text>
+                  <Text style={[styles.geomCell, styles.geomColExpected]}>
+                    {formatExpectedDeltaMm(seg.expectedDeltaDistanceMm)}
+                  </Text>
+                  <Text style={[styles.geomCell, styles.geomColPct]}>
+                    {seg.percentError === null ? '—' : `${seg.percentError.toFixed(0)} %`}
+                  </Text>
+                  <Text style={[styles.geomCell, styles.geomColState]}>
+                    {geometricSegmentStatusLabel(seg.status)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+          {geometricReport.criticalSegments > 0 ? (
+            <Text style={styles.warnHint}>
+              Revisa el montaje del sensor o repite las mediciones del tramo afectado.
+            </Text>
+          ) : null}
+        </View>
+
+        {/* B. Modelo recomendado */}
+        <View style={styles.card}>
+          <View style={styles.modelHeaderRow}>
+            <Text style={styles.cardTitleStrong}>Modelo recomendado</Text>
+            <View
+              style={[
+                styles.modelStatusPill,
+                recommendationStatusTone(recommendation.status) === 'ok'
+                  ? styles.modelStatusPillOk
+                  : recommendationStatusTone(recommendation.status) === 'warn'
+                    ? styles.modelStatusPillWarn
+                    : styles.modelStatusPillMuted,
+              ]}>
+              <Text
+                style={[
+                  styles.modelStatusPillText,
+                  recommendationStatusTone(recommendation.status) === 'ok'
+                    ? styles.modelStatusPillTextOk
+                    : recommendationStatusTone(recommendation.status) === 'warn'
+                      ? styles.modelStatusPillTextWarn
+                      : styles.modelStatusPillTextMuted,
+                ]}>
+                {recommendationStatusLabel(recommendation.status)}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.cardSubTitleStrong}>Estimación y terapia</Text>
+          <View style={styles.resultsGrid}>
+            <MetricCell
+              label="Estimación en rango calibrado"
+              value={recommendation.canEstimateWithinCalibratedRange ? 'Disponible' : 'No disponible'}
+            />
+            <MetricCell
+              label="Listo para terapia"
+              value={recommendation.isReadyForTherapy ? 'Sí' : 'No'}
+            />
+            <MetricCell
+              label="Modelo seleccionado"
+              value={recommendedKindLabel(recommendation.recommendedKind)}
+            />
+            <MetricCell
+              label="Calidad de calibración"
+              value={calibrationQualityLabel(recommendation.calibrationQuality)}
+            />
+            <MetricCell label="Puntos capturados (total)" value={String(points.length)} />
+          </View>
+          <Text style={styles.modelSubLabel}>Razón</Text>
+          <Text style={styles.modelReason}>{recommendation.therapyReadinessReason}</Text>
+          <Text style={styles.modelSubLabel}>Criterio de selección del modelo</Text>
+          <Text style={styles.modelSecondaryReason}>{recommendation.reason}</Text>
+          {recommendation.warnings.length > 0 ? (
+            <View style={styles.modelWarningsBox}>
+              {recommendation.warnings.map((warning, idx) => (
+                <Text key={`rec-${idx}`} style={styles.modelWarningText}>
+                  • {warning}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+        </View>
+
+        {/* C. Calidad del modelo lineal */}
+        <View style={styles.card}>
+          <View style={styles.modelHeaderRow}>
+            <Text style={styles.cardTitleStrong}>Calidad del modelo lineal</Text>
+            <View
+              style={[
+                styles.modelStatusPill,
+                linealQualityTone(recommendation.linealQuality) === 'ok'
+                  ? styles.modelStatusPillOk
+                  : linealQualityTone(recommendation.linealQuality) === 'warn'
+                    ? styles.modelStatusPillWarn
+                    : styles.modelStatusPillMuted,
+              ]}>
+              <Text
+                style={[
+                  styles.modelStatusPillText,
+                  linealQualityTone(recommendation.linealQuality) === 'ok'
+                    ? styles.modelStatusPillTextOk
+                    : linealQualityTone(recommendation.linealQuality) === 'warn'
+                      ? styles.modelStatusPillTextWarn
+                      : styles.modelStatusPillTextMuted,
+                ]}>
+                {linealQualityLabel(recommendation.linealQuality)}
+              </Text>
+            </View>
+          </View>
+          {linearModel.status === 'valid' &&
+          linearModel.coefficients.slope !== undefined &&
+          linearModel.coefficients.intercept !== undefined ? (
+            <View style={styles.modelEquationBox}>
+              <Text style={styles.modelEquationLabel}>Ecuación</Text>
+              <Text style={styles.modelEquationText}>
+                estimatedVolumeMl = {formatSlope(linearModel.coefficients.slope)} · distanceMm
+                {' '}
+                {linearModel.coefficients.intercept >= 0 ? '+' : '−'}{' '}
+                {formatIntercept(Math.abs(linearModel.coefficients.intercept))}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.cardHint}>
+              No hay ecuación disponible: {modelStatusLabel(linearModel.status).toLowerCase()}.
+            </Text>
+          )}
+          <View style={styles.resultsGrid}>
+            <MetricCell label="R²" value={formatR2(linearModel.metrics.rSquared)} />
+            <MetricCell label="RMSE" value={formatMetricMl(linearModel.metrics.rmseMl)} />
+            <MetricCell label="MAE" value={formatMetricMl(linearModel.metrics.maeMl)} />
+            <MetricCell
+              label="Error máximo"
+              value={formatMetricMl(linearModel.metrics.maxAbsErrorMl)}
+            />
+            <MetricCell label="Puntos usados" value={String(linearModel.pointsUsed)} />
+            <MetricCell
+              label="Rango distancia"
+              value={
+                linearModel.distanceRangeMm.max - linearModel.distanceRangeMm.min === 0
+                  ? '—'
+                  : `${linearModel.distanceRangeMm.min.toFixed(1)}–${linearModel.distanceRangeMm.max.toFixed(1)} mm`
+              }
+            />
+          </View>
+          {linearModel.warnings.length > 0 ? (
+            <View style={styles.modelWarningsBox}>
+              {linearModel.warnings.map((warning, idx) => (
+                <Text key={`lin-${idx}`} style={styles.modelWarningText}>
+                  • {warning}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+        </View>
+
+        {/* D. Cobertura */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitleStrong}>Cobertura</Text>
+          <View style={styles.resultsGrid}>
             <MetricCell
               label="Rango calibrado"
               value={
@@ -1079,6 +1657,10 @@ export function SensorCalibrationScreen() {
                   ? '—'
                   : `${coverage.coveredMinMl}–${coverage.coveredMaxMl} mL`
               }
+            />
+            <MetricCell
+              label="Rango útil (mm)"
+              value={globalRange.rangeMm === null ? '—' : `${globalRange.rangeMm.toFixed(1)} mm`}
             />
             <MetricCell
               label="Cobertura 500–3000"
@@ -1099,13 +1681,22 @@ export function SensorCalibrationScreen() {
           </View>
           {globalRange.rangeMm !== null ? (
             <Text style={styles.summaryLine}>
-              Mín: {(globalRange.minDistanceMm ?? 0).toFixed(1)} mm · Máx:{' '}
+              Distancia mín: {(globalRange.minDistanceMm ?? 0).toFixed(1)} mm · máx:{' '}
               {(globalRange.maxDistanceMm ?? 0).toFixed(1)} mm
+            </Text>
+          ) : null}
+          {volumeSummaries.length > 0 ? (
+            <Text style={styles.modelCoverageHint}>
+              {coverage.coversTotal
+                ? `Cubre el rango total del dispositivo (${EXPECTED_MIN_VOLUME_ML}–${EXPECTED_MAX_VOLUME_ML} mL).`
+                : coverage.coversRecommended
+                  ? `Cubre el rango recomendado (${EXPECTED_MIN_VOLUME_ML}–${EXPECTED_RECOMMENDED_MAX_VOLUME_ML} mL).`
+                  : `Aún no cubre el rango recomendado (${EXPECTED_MIN_VOLUME_ML}–${EXPECTED_RECOMMENDED_MAX_VOLUME_ML} mL).`}
             </Text>
           ) : null}
           {volumeSummaries.length > 0 && !coverage.coversRecommended ? (
             <Text style={styles.warnHint}>
-              Completa el rango recomendado antes de usar el modelo.
+              Completa el rango recomendado antes de usar el modelo en terapia.
             </Text>
           ) : null}
           {coverage.coversRecommended && !coverage.coversTotal ? (
@@ -1120,117 +1711,201 @@ export function SensorCalibrationScreen() {
               deberían iniciar en {MIN_OPERATIVE_VOLUME_ML} mL.
             </Text>
           ) : null}
-          <Text style={styles.relationHint}>{relationHint(relation)}</Text>
         </View>
 
+        {/* E. Repetibilidad */}
         <View style={styles.card}>
-          <View style={styles.modelHeaderRow}>
-            <Text style={styles.cardTitleStrong}>Modelo experimental</Text>
-            <View
-              style={[
-                styles.modelStatusPill,
-                modelStatusTone(linearModel.status) === 'ok'
-                  ? styles.modelStatusPillOk
-                  : modelStatusTone(linearModel.status) === 'warn'
-                    ? styles.modelStatusPillWarn
-                    : styles.modelStatusPillMuted,
-              ]}>
-              <Text
-                style={[
-                  styles.modelStatusPillText,
-                  modelStatusTone(linearModel.status) === 'ok'
-                    ? styles.modelStatusPillTextOk
-                    : modelStatusTone(linearModel.status) === 'warn'
-                      ? styles.modelStatusPillTextWarn
-                      : styles.modelStatusPillTextMuted,
-                ]}>
-                {modelStatusLabel(linearModel.status)}
-              </Text>
-            </View>
-          </View>
+          <Text style={styles.cardTitleStrong}>Repetibilidad</Text>
           <Text style={styles.cardHint}>
-            Regresión lineal sobre los promedios por volumen. Convierte distanceMm en
-            estimatedVolumeMl. Rango operativo de referencia:{' '}
-            {EXPECTED_MIN_VOLUME_ML}–{EXPECTED_RECOMMENDED_MAX_VOLUME_ML} mL recomendado,{' '}
-            hasta {EXPECTED_MAX_VOLUME_ML} mL extendido. No se usa todavía en terapia,
-            niveles ni sesiones.
+            Incluye la variación de cada medición (std por captura) y la dispersión entre mediciones del mismo
+            volumen (SD entre repeticiones). Mínimo requerido: {MIN_REPETITIONS_PER_REQUIRED_VOLUME} mediciones
+            válidas por volumen obligatorio. Por debajo de {MIN_REPETITIONS_PER_VOLUME} mediciones en cualquier
+            volumen se muestra una advertencia técnica adicional.
           </Text>
-
-          {linearModel.status === 'valid' &&
-          linearModel.coefficients.slope !== undefined &&
-          linearModel.coefficients.intercept !== undefined ? (
-            <View style={styles.modelEquationBox}>
-              <Text style={styles.modelEquationLabel}>Ecuación</Text>
-              <Text style={styles.modelEquationText}>
-                estimatedVolumeMl = {formatSlope(linearModel.coefficients.slope)} · distanceMm
-                {' '}
-                {linearModel.coefficients.intercept >= 0 ? '+' : '−'}{' '}
-                {formatIntercept(Math.abs(linearModel.coefficients.intercept))}
-              </Text>
-            </View>
-          ) : null}
-
-          <View style={styles.resultsGrid}>
-            <MetricCell label="R²" value={formatR2(linearModel.metrics.rSquared)} />
-            <MetricCell label="RMSE" value={formatMetricMl(linearModel.metrics.rmseMl)} />
-            <MetricCell label="MAE" value={formatMetricMl(linearModel.metrics.maeMl)} />
-            <MetricCell
-              label="Error máximo"
-              value={formatMetricMl(linearModel.metrics.maxAbsErrorMl)}
-            />
-            <MetricCell label="Puntos usados" value={String(linearModel.pointsUsed)} />
-            <MetricCell
-              label="Rango distancia"
-              value={
-                linearModel.distanceRangeMm.max - linearModel.distanceRangeMm.min === 0
-                  ? '—'
-                  : `${linearModel.distanceRangeMm.min.toFixed(1)}–${linearModel.distanceRangeMm.max.toFixed(1)} mm`
-              }
-            />
-            <MetricCell
-              label="Rango volumen"
-              value={
-                linearModel.volumeRangeMl.max - linearModel.volumeRangeMl.min === 0
-                  ? '—'
-                  : `${linearModel.volumeRangeMl.min}–${linearModel.volumeRangeMl.max} mL`
-              }
-            />
-            <MetricCell
-              label="Relación"
-              value={relationLabel(linearModel.relation)}
-            />
-          </View>
-
-          {linearModel.warnings.length > 0 ? (
+          {repeatability.hasPoints ? (
+            <>
+              <View style={styles.resultsGrid}>
+                <MetricCell
+                  label="Mín. repeticiones / volumen"
+                  value={String(repeatability.minRepetitionsPerVolume)}
+                />
+                <MetricCell
+                  label="Variación promedio (std captura)"
+                  value={`±${repeatability.averageStdDistanceMm.toFixed(2)} mm`}
+                />
+                <MetricCell
+                  label="Mayor variación (std captura)"
+                  value={`±${repeatability.maxStdDistanceMm.toFixed(2)} mm`}
+                />
+                <MetricCell
+                  label="Volumen con mayor variación (std)"
+                  value={
+                    repeatability.volumeWithMaxStdDistanceMm === null
+                      ? '—'
+                      : `${repeatability.volumeWithMaxStdDistanceMm} mL`
+                  }
+                />
+              </View>
+              <Text style={styles.cardSubTitleStrong}>Por volumen</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.repetTable}>
+                  <View style={[styles.repetTableRow, styles.repetTableHeadRow]}>
+                    <Text style={[styles.repetCell, styles.repetColVol]}>Volumen</Text>
+                    <Text style={[styles.repetCell, styles.repetColN]}>n</Text>
+                    <Text style={[styles.repetCell, styles.repetColMean]}>Promedio</Text>
+                    <Text style={[styles.repetCell, styles.repetColSd]}>SD rep.</Text>
+                    <Text style={[styles.repetCell, styles.repetColRange]}>Rango</Text>
+                    <Text style={[styles.repetCell, styles.repetColState]}>Estado</Text>
+                    <Text style={[styles.repetCell, styles.repetColAction]}>Acción</Text>
+                  </View>
+                  {repeatability.perVolume.map((row) => (
+                    <View key={`rep-v-${row.volumeMl}`} style={styles.repetTableRow}>
+                      <Text style={[styles.repetCell, styles.repetColVol]}>{row.volumeMl} mL</Text>
+                      <Text style={[styles.repetCell, styles.repetColN]}>{row.repetitions}</Text>
+                      <Text style={[styles.repetCell, styles.repetColMean]}>
+                        {row.meanDistanceMm.toFixed(1)} mm
+                      </Text>
+                      <Text style={[styles.repetCell, styles.repetColSd]}>
+                        {row.sdBetweenRepetitionsMm.toFixed(2)} mm
+                      </Text>
+                      <Text style={[styles.repetCell, styles.repetColRange]}>
+                        {row.rangeDistanceMm.toFixed(1)} mm
+                      </Text>
+                      <View style={styles.repetColState}>
+                        <View
+                          style={[
+                            styles.repetBadge,
+                            row.warningLevel === 'ok' && styles.repetBadgeOk,
+                            row.warningLevel === 'moderate' && styles.repetBadgeModerate,
+                            row.warningLevel === 'high' && styles.repetBadgeHigh,
+                          ]}>
+                          <Text
+                            style={[
+                              styles.repetBadgeText,
+                              row.warningLevel === 'high' && styles.repetBadgeTextHigh,
+                            ]}>
+                            {volumeRepeatabilityBadgeLabel(row)}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.repetColAction}>
+                        {row.warningLevel === 'high' && !isRetakeMode ? (
+                          <Pressable
+                            style={({ pressed }) => [
+                              styles.repetRepeatBtn,
+                              pressed && styles.repetRepeatBtnPressed,
+                            ]}
+                            onPress={() => {
+                              void onStartVolumeRetake(row.volumeMl);
+                            }}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Repetir volumen ${row.volumeMl} mililitros`}>
+                            <Text style={styles.repetRepeatBtnText}>Repetir {row.volumeMl} mL</Text>
+                          </Pressable>
+                        ) : row.warningLevel === 'high' &&
+                          isRetakeMode &&
+                          retakeVolumeMl === row.volumeMl ? (
+                          <Text style={styles.repetActionMuted}>En curso</Text>
+                        ) : (
+                          <Text style={styles.repetActionMuted}>—</Text>
+                        )}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            </>
+          ) : (
+            <Text style={styles.emptyText}>Aún no hay puntos para evaluar repetibilidad.</Text>
+          )}
+          {repeatability.warnings.length > 0 ? (
             <View style={styles.modelWarningsBox}>
-              {linearModel.warnings.map((warning, idx) => (
-                <Text key={idx} style={styles.modelWarningText}>
+              {repeatability.warnings.map((warning, idx) => (
+                <Text key={`rep-${idx}`} style={styles.modelWarningText}>
                   • {warning}
                 </Text>
               ))}
             </View>
           ) : null}
-
-          {volumeSummaries.length > 0 ? (
-            <Text style={styles.modelCoverageHint}>
-              {coverage.coversTotal
-                ? `Cubre el rango total del dispositivo (${EXPECTED_MIN_VOLUME_ML}–${EXPECTED_MAX_VOLUME_ML} mL).`
-                : coverage.coversRecommended
-                  ? `Cubre el rango recomendado (${EXPECTED_MIN_VOLUME_ML}–${EXPECTED_RECOMMENDED_MAX_VOLUME_ML} mL).`
-                  : `Aún no cubre el rango recomendado (${EXPECTED_MIN_VOLUME_ML}–${EXPECTED_RECOMMENDED_MAX_VOLUME_ML} mL).`}
-            </Text>
-          ) : null}
-
-          {hasLegacySubOperative ? (
-            <Text style={styles.cardHint}>
-              Este perfil contiene puntos por debajo del rango operativo recomendado.
-            </Text>
-          ) : null}
-
-          <Text style={styles.modelDisclaimer}>
-            Modelo experimental, no validado clínicamente.
-          </Text>
         </View>
+
+        {/* F. Segmentos */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitleStrong}>Segmentos</Text>
+          <Text style={styles.cardHint}>
+            Pendiente entre volúmenes consecutivos (mL por mm). Variaciones grandes indican
+            saltos bruscos o problemas de montaje. Relación actual:{' '}
+            {relationLabel(relation).toLowerCase()}.
+          </Text>
+          {segmentReport.segments.length === 0 ? (
+            <Text style={styles.emptyText}>Se necesitan al menos dos volúmenes.</Text>
+          ) : (
+            <>
+              <View style={styles.resultsGrid}>
+                <MetricCell
+                  label="Pendiente mín."
+                  value={
+                    segmentReport.minSlopeMlPerMm === null
+                      ? '—'
+                      : `${segmentReport.minSlopeMlPerMm.toFixed(0)} mL/mm`
+                  }
+                />
+                <MetricCell
+                  label="Pendiente máx."
+                  value={
+                    segmentReport.maxSlopeMlPerMm === null
+                      ? '—'
+                      : `${segmentReport.maxSlopeMlPerMm.toFixed(0)} mL/mm`
+                  }
+                />
+                <MetricCell
+                  label="Variación de pendiente"
+                  value={
+                    segmentReport.slopeVariationRatio === null
+                      ? '—'
+                      : `×${segmentReport.slopeVariationRatio.toFixed(1)}`
+                  }
+                />
+                <MetricCell label="Segmentos" value={String(segmentReport.segments.length)} />
+              </View>
+              <View style={styles.summaryTableHead}>
+                <Text style={[styles.summaryHeadCell, styles.segmentColRange]}>Tramo (mL)</Text>
+                <Text style={[styles.summaryHeadCell, styles.segmentColDist]}>Δ dist.</Text>
+                <Text style={[styles.summaryHeadCell, styles.segmentColSlope]}>Pendiente</Text>
+              </View>
+              {segmentReport.segments.map((seg, idx) => (
+                <View key={`seg-${idx}`} style={styles.summaryTableRow}>
+                  <Text style={[styles.summaryCell, styles.segmentColRange]}>
+                    {seg.volumeFromMl}→{seg.volumeToMl}
+                  </Text>
+                  <Text style={[styles.summaryCell, styles.segmentColDist]}>
+                    {seg.deltaDistanceMm >= 0 ? '+' : ''}
+                    {seg.deltaDistanceMm.toFixed(2)} mm
+                  </Text>
+                  <Text style={[styles.summaryCell, styles.segmentColSlope]}>
+                    {seg.slopeMlPerMm === null
+                      ? '—'
+                      : `${seg.slopeMlPerMm.toFixed(0)} mL/mm`}
+                  </Text>
+                </View>
+              ))}
+            </>
+          )}
+          {segmentReport.warnings.length > 0 ? (
+            <View style={styles.modelWarningsBox}>
+              {segmentReport.warnings.map((warning, idx) => (
+                <Text key={`seg-w-${idx}`} style={styles.modelWarningText}>
+                  • {warning}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+          <Text style={styles.relationHint}>{relationHint(relation)}</Text>
+        </View>
+
+        <Text style={styles.modelDisclaimer}>
+          La estimación a partir de esta calibración está pendiente de validación clínica.
+        </Text>
 
         <View style={styles.card}>
           <Text style={styles.cardTitleStrong}>Persistencia local</Text>
@@ -1925,4 +2600,155 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: wellness.primaryDark,
   },
+  modelSectionHeader: {
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.xs,
+  },
+  modelSectionTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: wellness.text,
+    letterSpacing: 0.2,
+    marginBottom: 4,
+  },
+  modelSectionSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: wellness.textSecondary,
+  },
+  modelSubLabel: {
+    marginTop: spacing.md,
+    fontSize: 11,
+    fontWeight: '700',
+    color: wellness.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  modelReason: {
+    marginTop: 0,
+    fontSize: 14,
+    lineHeight: 19,
+    color: wellness.text,
+    fontWeight: '600',
+  },
+  modelSecondaryReason: {
+    marginTop: 0,
+    fontSize: 13,
+    lineHeight: 18,
+    color: wellness.textSecondary,
+    fontWeight: '600',
+  },
+  protocolVolCol: { flex: 1.2 },
+  protocolRepCol: { flex: 0.8, textAlign: 'right' },
+  chipDisabled: { opacity: 0.4 },
+  volumeInputLocked: { opacity: 0.85 },
+  retakeBanner: {
+    backgroundColor: wellness.card,
+    borderRadius: wellnessRadii.cardLarge,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 2,
+    borderColor: wellness.primary,
+    ...wellnessShadows.cardPress,
+  },
+  retakeBannerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+    marginBottom: spacing.xs,
+  },
+  retakeBannerBody: {
+    fontSize: 14,
+    color: wellness.textSecondary,
+    lineHeight: 20,
+    marginBottom: spacing.sm,
+  },
+  retakeBannerProgress: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: wellness.text,
+    marginBottom: spacing.md,
+  },
+  retakeBtn: { marginTop: spacing.sm },
+  repetTable: { minWidth: 560, paddingBottom: spacing.xs },
+  repetTableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: wellness.border,
+    gap: 4,
+  },
+  repetTableHeadRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: wellness.borderStrong,
+    paddingBottom: spacing.sm,
+  },
+  repetCell: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: wellness.text,
+  },
+  repetColVol: { width: 72 },
+  repetColN: { width: 28, textAlign: 'center' },
+  repetColMean: { width: 78 },
+  repetColSd: { width: 72 },
+  repetColRange: { width: 72 },
+  repetColState: {
+    width: 88,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    minHeight: 28,
+  },
+  repetColAction: { width: 130, paddingLeft: 4, justifyContent: 'center', minHeight: 28 },
+  repetBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: wellnessRadii.pill,
+    borderWidth: 1,
+    borderColor: wellness.border,
+  },
+  repetBadgeOk: { backgroundColor: wellness.successBg },
+  repetBadgeModerate: { backgroundColor: wellness.screenBg },
+  repetBadgeHigh: { backgroundColor: wellness.errorBg, borderColor: wellness.borderStrong },
+  repetBadgeText: { fontSize: 11, fontWeight: '800', color: wellness.primaryDark },
+  repetBadgeTextHigh: { color: wellness.errorText },
+  repetRepeatBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: spacing.sm,
+    borderRadius: wellnessRadii.pill,
+    backgroundColor: wellness.primary,
+    borderWidth: 1,
+    borderColor: wellness.borderStrong,
+  },
+  repetRepeatBtnPressed: { opacity: 0.9 },
+  repetRepeatBtnText: { fontSize: 11, fontWeight: '800', color: wellness.primaryDark },
+  repetActionMuted: { fontSize: 12, fontWeight: '600', color: wellness.textSecondary },
+  geomTable: { minWidth: 420, marginTop: spacing.sm },
+  geomTableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: wellness.border,
+    gap: 4,
+  },
+  geomTableHeadRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: wellness.borderStrong,
+  },
+  geomCell: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: wellness.text,
+  },
+  geomColRange: { width: 108 },
+  geomColDelta: { width: 88 },
+  geomColExpected: { width: 88 },
+  geomColPct: { width: 64 },
+  geomColState: { width: 72 },
+  segmentColRange: { flex: 1.2 },
+  segmentColDist: { flex: 1, textAlign: 'right' },
+  segmentColSlope: { flex: 1, textAlign: 'right' },
 });
