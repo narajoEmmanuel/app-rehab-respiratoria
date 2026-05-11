@@ -19,9 +19,6 @@ export type Esp32WebSocketCallbacks = {
   onClose?: (details: { code: number | null; reason: string | null }) => void;
 };
 
-const READY_STATE_CONNECTING = 0;
-const READY_STATE_OPEN = 1;
-
 export class Esp32WebSocketClient {
   private socket: WebSocketLike | null = null;
 
@@ -37,12 +34,7 @@ export class Esp32WebSocketClient {
       return false;
     }
 
-    const existing = this.socket;
-    if (existing) {
-      const state = existing.readyState;
-      if (state === READY_STATE_CONNECTING || state === READY_STATE_OPEN) {
-        return true;
-      }
+    if (this.socket) {
       this.disconnect();
     }
 
@@ -87,7 +79,6 @@ export class Esp32WebSocketClient {
         });
       };
 
-      // TODO (phase 3): add reconnect/backoff strategy when transport is stable.
       return true;
     } catch {
       this.callbacks.onError?.('No se pudo abrir la conexión WebSocket con el ESP32.');

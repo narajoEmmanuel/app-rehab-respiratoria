@@ -11,6 +11,8 @@ import { Esp32WebSocketClient } from '@/src/modules/device/websocket/esp32-webso
 const DEFAULT_WS_URL = 'ws://192.168.4.1:81';
 const MOCK_INTERVAL_MS = 900;
 const MPS_WINDOW_MS = 5000;
+/** Si el handshake WebSocket no avanza en este tiempo, marcamos timeout y soltamos el socket. */
+const CONNECTING_TIMEOUT_MS = 9000;
 
 export function useEsp32WebSocketSensor() {
   const [status, setStatus] = useState<SensorConnectionStatus>('idle');
@@ -28,6 +30,11 @@ export function useEsp32WebSocketSensor() {
   const mockIndexRef = useRef(0);
   const clientRef = useRef<Esp32WebSocketClient | null>(null);
   const messageTimestampsRef = useRef<number[]>([]);
+  const statusRef = useRef<SensorConnectionStatus>('idle');
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   const resetMessageMetrics = useCallback(() => {
     messageTimestampsRef.current = [];
@@ -65,6 +72,35 @@ export function useEsp32WebSocketSensor() {
     setCloseReason('manual disconnect');
     setStatus('disconnected');
   }, [stopMock]);
+
+  /**
+   * Limpia el socket actual (incluso si quedó atorado en CONNECTING tras un cambio de red),
+   * borra error/closeCode/closeReason y vuelve a 'idle' para permitir reintentar.
+   * No hace reconexión automática.
+   */
+  const resetConnection = useCallback(() => {
+    stopMock();
+    clientRef.current?.disconnect();
+    resetMessageMetrics();
+    setLastReading(null);
+    setErrorMessage(null);
+    setCloseCode(null);
+    setCloseReason(null);
+    setStatus('idle');
+  }, [resetMessageMetrics, stopMock]);
+
+  useEffect(() => {
+    if (status !== 'connecting') return;
+    const timer = setTimeout(() => {
+      if (statusRef.current !== 'connecting') return;
+      clientRef.current?.disconnect();
+      setErrorMessage(
+        `Timeout esperando respuesta del WebSocket (${Math.round(CONNECTING_TIMEOUT_MS / 1000)} s). Limpia la conexión y reintenta.`,
+      );
+      setStatus('error');
+    }, CONNECTING_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [status]);
 
   useEffect(() => {
     clientRef.current = new Esp32WebSocketClient({
@@ -163,6 +199,7 @@ export function useEsp32WebSocketSensor() {
     setUrl,
     connect,
     disconnect,
+    resetConnection,
     startMock,
     stopMock,
   };

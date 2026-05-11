@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -25,6 +25,35 @@ import {
 
 const EXAMPLE_VOLUMES_ML = [0, 500, 1000, 1500, 2000] as const;
 
+const BUFFER_MAX_SAMPLES = 20;
+const BUFFER_WINDOW_MS = 2000;
+const MIN_SAMPLES_TO_REGISTER = 5;
+/** A partir de esta desviación estándar marcamos la señal como variable y avisamos. */
+const STABILITY_VARIABLE_STD_MM = 5;
+/** Por debajo de esto consideramos la señal estable visualmente. */
+const STABILITY_STABLE_STD_MM = 2.5;
+
+export type ValidSample = {
+  distanceMm: number;
+  rawDistanceMm: number;
+  timestamp: number;
+  source: string;
+  receivedAt: number;
+};
+
+export type BufferStats = {
+  sampleCount: number;
+  avgDistanceMm: number;
+  avgRawDistanceMm: number;
+  minDistanceMm: number;
+  maxDistanceMm: number;
+  stdDistanceMm: number;
+  latestSource: string;
+  latestTimestamp: number;
+};
+
+export type SignalStability = 'insufficient' | 'stable' | 'acceptable' | 'variable';
+
 export type CalibrationCapturePoint = {
   id: string;
   volumeMl: number;
@@ -35,6 +64,10 @@ export type CalibrationCapturePoint = {
   timestamp: number;
   repetitionNumber: number;
   createdAt: number;
+  sampleCount: number;
+  minSampleDistanceMm: number;
+  maxSampleDistanceMm: number;
+  stdDistanceMm: number;
 };
 
 export type VolumeCalibrationSummary = {
@@ -98,6 +131,52 @@ function parseVolumeMlInput(text: string): number | null {
   const n = Number(t);
   if (!Number.isFinite(n) || n < 0) return null;
   return n;
+}
+
+function computeBufferStats(buf: ValidSample[]): BufferStats | null {
+  const n = buf.length;
+  if (n === 0) return null;
+  const ds = buf.map((s) => s.distanceMm);
+  const rs = buf.map((s) => s.rawDistanceMm);
+  const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
+  const avgDistanceMm = sum(ds) / n;
+  const avgRawDistanceMm = sum(rs) / n;
+  let stdDistanceMm = 0;
+  if (n >= 2) {
+    const variance = ds.reduce((acc, v) => acc + (v - avgDistanceMm) * (v - avgDistanceMm), 0) / n;
+    stdDistanceMm = Math.sqrt(variance);
+  }
+  const last = buf[n - 1];
+  return {
+    sampleCount: n,
+    avgDistanceMm,
+    avgRawDistanceMm,
+    minDistanceMm: Math.min(...ds),
+    maxDistanceMm: Math.max(...ds),
+    stdDistanceMm,
+    latestSource: last.source,
+    latestTimestamp: last.timestamp,
+  };
+}
+
+function classifyStability(stats: BufferStats | null): SignalStability {
+  if (!stats || stats.sampleCount < MIN_SAMPLES_TO_REGISTER) return 'insufficient';
+  if (stats.stdDistanceMm <= STABILITY_STABLE_STD_MM) return 'stable';
+  if (stats.stdDistanceMm <= STABILITY_VARIABLE_STD_MM) return 'acceptable';
+  return 'variable';
+}
+
+function stabilityLabel(s: SignalStability): string {
+  switch (s) {
+    case 'stable':
+      return 'Estable';
+    case 'acceptable':
+      return 'Aceptable';
+    case 'variable':
+      return 'Variable';
+    default:
+      return 'Esperando muestras';
+  }
 }
 
 function computeVolumeSummaries(points: CalibrationCapturePoint[]): VolumeCalibrationSummary[] {
@@ -183,6 +262,7 @@ export function SensorCalibrationScreen() {
   const router = useRouter();
   const [volumeInput, setVolumeInput] = useState('');
   const [points, setPoints] = useState<CalibrationCapturePoint[]>([]);
+  const [buffer, setBuffer] = useState<ValidSample[]>([]);
 
   const {
     status,
@@ -198,6 +278,7 @@ export function SensorCalibrationScreen() {
     setUrl,
     connect,
     disconnect,
+    resetConnection,
     startMock,
     stopMock,
   } = useEsp32WebSocketSensor();
@@ -207,51 +288,83 @@ export function SensorCalibrationScreen() {
   const distanceMm = lastReading?.distanceMm;
   const distanceValid = lastReading?.distanceValid === true;
   const distanceIsFinite = typeof distanceMm === 'number' && Number.isFinite(distanceMm);
+  const liveSignalOk = distanceValid && distanceIsFinite;
+
+  useEffect(() => {
+    if (!lastReading) return;
+    if (lastReading.distanceValid !== true) return;
+    const dm = lastReading.distanceMm;
+    if (typeof dm !== 'number' || !Number.isFinite(dm)) return;
+    const rawCandidate = lastReading.rawDistanceMm;
+    const sample: ValidSample = {
+      distanceMm: dm,
+      rawDistanceMm:
+        typeof rawCandidate === 'number' && Number.isFinite(rawCandidate) ? rawCandidate : dm,
+      timestamp: lastReading.timestamp,
+      source: String(lastReading.source ?? mode),
+      receivedAt: Date.now(),
+    };
+    setBuffer((prev) => {
+      const now = sample.receivedAt;
+      const merged = [...prev, sample].filter((s) => now - s.receivedAt <= BUFFER_WINDOW_MS);
+      return merged.length > BUFFER_MAX_SAMPLES
+        ? merged.slice(merged.length - BUFFER_MAX_SAMPLES)
+        : merged;
+    });
+  }, [lastReading, mode]);
+
+  useEffect(() => {
+    if (status === 'idle' || status === 'disconnected' || status === 'error') {
+      setBuffer([]);
+    }
+  }, [status]);
+
+  const bufferStats = useMemo(() => computeBufferStats(buffer), [buffer]);
+  const stability = useMemo(() => classifyStability(bufferStats), [bufferStats]);
+  const isVariableSignal = stability === 'variable';
+  const hasEnoughSamples =
+    bufferStats !== null && bufferStats.sampleCount >= MIN_SAMPLES_TO_REGISTER;
+  const inLiveMode = status === 'connected' || status === 'receiving' || mode === 'mock';
 
   const canRegister =
-    distanceValid &&
-    distanceIsFinite &&
-    volumeMl !== null &&
-    (status === 'connected' || status === 'receiving' || mode === 'mock');
+    inLiveMode && volumeMl !== null && liveSignalOk && hasEnoughSamples && bufferStats !== null;
 
   const registerBlockReason = useMemo(() => {
     if (volumeMl === null && volumeInput.trim() !== '') return 'Volumen no válido (usa un número ≥ 0).';
     if (volumeMl === null) return 'Indica un volumen en mL.';
-    if (!distanceValid) return 'No hay señal válida del sensor';
-    if (!distanceIsFinite) return 'No hay señal válida del sensor';
-    if (!(status === 'connected' || status === 'receiving' || mode === 'mock')) {
-      return 'Conecta el sensor o usa modo demostración.';
-    }
+    if (!inLiveMode) return 'Conecta el sensor o usa modo demostración.';
+    if (!liveSignalOk) return 'No hay señal válida del sensor';
+    if (!hasEnoughSamples) return 'Espera señal estable antes de registrar';
     return null;
-  }, [distanceIsFinite, distanceValid, mode, status, volumeInput, volumeMl]);
+  }, [hasEnoughSamples, inLiveMode, liveSignalOk, volumeInput, volumeMl]);
 
   const volumeSummaries = useMemo(() => computeVolumeSummaries(points), [points]);
   const globalRange = useMemo(() => computeGlobalRange(points), [points]);
   const relation = useMemo(() => inferVolumeDistanceRelation(volumeSummaries), [volumeSummaries]);
 
   const onRegister = useCallback(() => {
-    if (!canRegister || volumeMl === null || !lastReading) return;
+    if (!canRegister || volumeMl === null || !bufferStats) return;
     hapticLight();
-    const distance = lastReading.distanceMm as number;
-    const raw = lastReading.rawDistanceMm ?? distance;
-    const source = String(lastReading.source ?? mode);
-    const ts = lastReading.timestamp;
     setPoints((prev) => {
       const sameVol = prev.filter((p) => p.volumeMl === volumeMl).length;
       const next: CalibrationCapturePoint = {
         id: newCaptureId(),
         volumeMl,
-        distanceMm: distance,
-        rawDistanceMm: Number.isFinite(raw) ? raw : distance,
+        distanceMm: bufferStats.avgDistanceMm,
+        rawDistanceMm: bufferStats.avgRawDistanceMm,
         distanceValid: true,
-        source,
-        timestamp: ts,
+        source: bufferStats.latestSource,
+        timestamp: bufferStats.latestTimestamp,
         repetitionNumber: sameVol + 1,
         createdAt: Date.now(),
+        sampleCount: bufferStats.sampleCount,
+        minSampleDistanceMm: bufferStats.minDistanceMm,
+        maxSampleDistanceMm: bufferStats.maxDistanceMm,
+        stdDistanceMm: bufferStats.stdDistanceMm,
       };
       return [...prev, next];
     });
-  }, [canRegister, lastReading, mode, volumeMl]);
+  }, [bufferStats, canRegister, volumeMl]);
 
   const onDeletePoint = useCallback((id: string) => {
     hapticLight();
@@ -263,9 +376,14 @@ export function SensorCalibrationScreen() {
     setPoints([]);
   }, []);
 
+  const onResetConnection = useCallback(() => {
+    hapticLight();
+    setBuffer([]);
+    resetConnection();
+  }, [resetConnection]);
+
   const isConnecting = status === 'connecting';
   const modeLabel = mode === 'mock' ? 'simulado' : 'real';
-  const signalOk = distanceValid && distanceIsFinite;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -289,9 +407,7 @@ export function SensorCalibrationScreen() {
                   <View
                     style={[
                       styles.statusDot,
-                      signalOk && (status === 'connected' || status === 'receiving' || mode === 'mock')
-                        ? styles.statusDotOk
-                        : styles.statusDotMuted,
+                      liveSignalOk && inLiveMode ? styles.statusDotOk : styles.statusDotMuted,
                     ]}
                   />
                 )}
@@ -304,11 +420,29 @@ export function SensorCalibrationScreen() {
             </View>
           </View>
           <View style={styles.pillRow}>
-            <View style={[styles.pill, signalOk ? styles.pillOk : styles.pillWarn]}>
-              <Text style={styles.pillText}>{signalOk ? 'Señal válida' : 'Señal no válida'}</Text>
+            <View style={[styles.pill, liveSignalOk ? styles.pillOk : styles.pillWarn]}>
+              <Text style={styles.pillText}>{liveSignalOk ? 'Señal válida' : 'Señal no válida'}</Text>
             </View>
             <View style={styles.pill}>
               <Text style={styles.pillTextMuted}>Modo {modeLabel}</Text>
+            </View>
+            <View
+              style={[
+                styles.pill,
+                stability === 'stable'
+                  ? styles.pillOk
+                  : stability === 'variable'
+                    ? styles.pillWarn
+                    : null,
+              ]}>
+              <Text
+                style={
+                  stability === 'stable' || stability === 'variable'
+                    ? styles.pillText
+                    : styles.pillTextMuted
+                }>
+                {stabilityLabel(stability)}
+              </Text>
             </View>
           </View>
         </View>
@@ -377,6 +511,21 @@ export function SensorCalibrationScreen() {
               <Text style={styles.secondaryBtnText}>Desconectar</Text>
             </Pressable>
             <Pressable
+              style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
+              onPress={onResetConnection}
+              accessibilityRole="button"
+              accessibilityLabel="Limpiar conexión y volver a idle">
+              <Text style={styles.secondaryBtnText}>Limpiar conexión</Text>
+            </Pressable>
+            {status === 'connecting' ? (
+              <Text style={styles.connectingHint}>
+                Esperando handshake del ESP32… si no responde en unos segundos, usa “Limpiar conexión”.
+              </Text>
+            ) : null}
+            {status === 'error' && errorMessage ? (
+              <Text style={styles.errorHint}>{errorMessage}</Text>
+            ) : null}
+            <Pressable
               style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
               onPress={() => {
                 hapticLight();
@@ -393,6 +542,64 @@ export function SensorCalibrationScreen() {
               <Text style={styles.ghostBtnText}>Detener demostración</Text>
             </Pressable>
           </View>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Estabilidad de señal</Text>
+          {bufferStats ? (
+            <>
+              <View style={styles.stabilityRow}>
+                <View style={styles.stabilityCol}>
+                  <Text style={styles.stabilityEyebrow}>Promedio distance</Text>
+                  <Text style={styles.stabilityBigNumber}>{bufferStats.avgDistanceMm.toFixed(1)}</Text>
+                  <Text style={styles.stabilityUnit}>mm</Text>
+                </View>
+                <View style={styles.stabilityCol}>
+                  <Text style={styles.stabilityEyebrow}>±std</Text>
+                  <Text
+                    style={[
+                      styles.stabilityBigNumber,
+                      isVariableSignal ? styles.stabilityBigNumberWarn : null,
+                    ]}>
+                    {bufferStats.stdDistanceMm.toFixed(2)}
+                  </Text>
+                  <Text style={styles.stabilityUnit}>mm</Text>
+                </View>
+              </View>
+              <Text style={styles.summaryLine}>
+                Promedio raw: {bufferStats.avgRawDistanceMm.toFixed(1)} mm
+              </Text>
+              <Text style={styles.summaryLine}>
+                Min / max: {bufferStats.minDistanceMm.toFixed(1)} · {bufferStats.maxDistanceMm.toFixed(1)} mm
+              </Text>
+              <Text style={styles.summaryLine}>
+                Lecturas en buffer: {bufferStats.sampleCount} (máx {BUFFER_MAX_SAMPLES} · ventana{' '}
+                {(BUFFER_WINDOW_MS / 1000).toFixed(1)} s)
+              </Text>
+              <View
+                style={[
+                  styles.stabilityBadge,
+                  stability === 'stable'
+                    ? styles.stabilityBadgeOk
+                    : stability === 'variable'
+                      ? styles.stabilityBadgeWarn
+                      : styles.stabilityBadgeMuted,
+                ]}>
+                <Text
+                  style={
+                    stability === 'insufficient' || stability === 'acceptable'
+                      ? styles.stabilityBadgeTextMuted
+                      : styles.stabilityBadgeText
+                  }>
+                  {stabilityLabel(stability)}
+                </Text>
+              </View>
+            </>
+          ) : (
+            <Text style={styles.emptyText}>
+              Aún no hay lecturas válidas en el buffer. Conecta o usa modo demostración.
+            </Text>
+          )}
         </View>
 
         <View style={styles.card}>
@@ -422,6 +629,11 @@ export function SensorCalibrationScreen() {
           </View>
           {!canRegister && registerBlockReason ? (
             <Text style={styles.blockHint}>{registerBlockReason}</Text>
+          ) : null}
+          {canRegister && isVariableSignal ? (
+            <Text style={styles.warnHint}>
+              La señal está variable, considera repetir la medición.
+            </Text>
           ) : null}
           <Pressable
             style={({ pressed }) => [
@@ -462,7 +674,10 @@ export function SensorCalibrationScreen() {
                     <Text style={styles.pointMeta}>
                       #{p.repetitionNumber} · {p.distanceMm.toFixed(1)} mm · {p.source}
                     </Text>
-                    <Text style={styles.pointMetaMuted}>id {p.id.slice(0, 8)}…</Text>
+                    <Text style={styles.pointMetaMuted}>
+                      n={p.sampleCount} · ±{p.stdDistanceMm.toFixed(2)} mm · rango{' '}
+                      {(p.maxSampleDistanceMm - p.minSampleDistanceMm).toFixed(1)} mm
+                    </Text>
                   </View>
                   <Pressable
                     onPress={() => onDeletePoint(p.id)}
@@ -779,6 +994,61 @@ const styles = StyleSheet.create({
     color: wellness.errorText,
     marginTop: spacing.xs,
   },
+  warnHint: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: wellness.errorText,
+    marginTop: spacing.xs,
+  },
+  connectingHint: {
+    fontSize: 13,
+    color: wellness.textSecondary,
+    lineHeight: 18,
+    marginTop: spacing.xs,
+  },
+  errorHint: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: wellness.errorText,
+    lineHeight: 18,
+    marginTop: spacing.xs,
+  },
+  stabilityRow: {
+    flexDirection: 'row',
+    gap: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  stabilityCol: { flex: 1 },
+  stabilityEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: wellness.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  stabilityBigNumber: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+    letterSpacing: -0.5,
+  },
+  stabilityBigNumberWarn: { color: wellness.errorText },
+  stabilityUnit: { fontSize: 12, fontWeight: '700', color: wellness.textSecondary, marginTop: -2 },
+  stabilityBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: wellnessRadii.pill,
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: wellness.border,
+  },
+  stabilityBadgeOk: { backgroundColor: wellness.successBg },
+  stabilityBadgeWarn: { backgroundColor: wellness.errorBg, borderColor: wellness.borderStrong },
+  stabilityBadgeMuted: { backgroundColor: wellness.screenBg },
+  stabilityBadgeText: { fontSize: 13, fontWeight: '800', color: wellness.primaryDark },
+  stabilityBadgeTextMuted: { fontSize: 13, fontWeight: '700', color: wellness.textSecondary },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
