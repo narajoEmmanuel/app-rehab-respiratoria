@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -14,6 +15,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
 import { useEsp32WebSocketSensor } from '@/src/modules/device/adapters/use-esp32-websocket-sensor';
+import {
+  buildCalibrationProfile,
+  clearCalibrationProfile,
+  computeGlobalDistanceRange,
+  computeVolumeSummaries,
+  determineVolumeDistanceRelation,
+  loadCalibrationProfileDetailed,
+  saveCalibrationProfile,
+  type CalibrationCapturePoint,
+  type CalibrationProfile,
+  type GlobalDistanceRange,
+  type LoadCalibrationResult,
+  type VolumeCalibrationSummary,
+  type VolumeDistanceRelation,
+} from '@/src/modules/device/calibration';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -53,39 +69,6 @@ export type BufferStats = {
 };
 
 export type SignalStability = 'insufficient' | 'stable' | 'acceptable' | 'variable';
-
-export type CalibrationCapturePoint = {
-  id: string;
-  volumeMl: number;
-  distanceMm: number;
-  rawDistanceMm: number;
-  distanceValid: boolean;
-  source: string;
-  timestamp: number;
-  repetitionNumber: number;
-  createdAt: number;
-  sampleCount: number;
-  minSampleDistanceMm: number;
-  maxSampleDistanceMm: number;
-  stdDistanceMm: number;
-};
-
-export type VolumeCalibrationSummary = {
-  volumeMl: number;
-  repetitions: number;
-  avgDistanceMm: number;
-  avgRawDistanceMm: number;
-  minDistanceMm: number;
-  maxDistanceMm: number;
-};
-
-export type GlobalDistanceRange = {
-  minDistanceMm: number;
-  maxDistanceMm: number;
-  rangeMm: number;
-};
-
-export type VolumeDistanceRelation = 'direct' | 'inverse' | 'indeterminate';
 
 function newCaptureId(): string {
   if (typeof globalThis.crypto !== 'undefined' && 'randomUUID' in globalThis.crypto) {
@@ -179,57 +162,6 @@ function stabilityLabel(s: SignalStability): string {
   }
 }
 
-function computeVolumeSummaries(points: CalibrationCapturePoint[]): VolumeCalibrationSummary[] {
-  const byVolume = new Map<number, CalibrationCapturePoint[]>();
-  for (const p of points) {
-    const list = byVolume.get(p.volumeMl) ?? [];
-    list.push(p);
-    byVolume.set(p.volumeMl, list);
-  }
-  return Array.from(byVolume.entries())
-    .map(([volumeMl, list]) => {
-      const distances = list.map((x) => x.distanceMm);
-      const raws = list.map((x) => x.rawDistanceMm);
-      const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
-      return {
-        volumeMl,
-        repetitions: list.length,
-        avgDistanceMm: sum(distances) / list.length,
-        avgRawDistanceMm: sum(raws) / list.length,
-        minDistanceMm: Math.min(...distances),
-        maxDistanceMm: Math.max(...distances),
-      };
-    })
-    .sort((a, b) => a.volumeMl - b.volumeMl);
-}
-
-function computeGlobalRange(points: CalibrationCapturePoint[]): GlobalDistanceRange | null {
-  if (points.length === 0) return null;
-  const ds = points.map((p) => p.distanceMm);
-  const minDistanceMm = Math.min(...ds);
-  const maxDistanceMm = Math.max(...ds);
-  return {
-    minDistanceMm,
-    maxDistanceMm,
-    rangeMm: maxDistanceMm - minDistanceMm,
-  };
-}
-
-/** Promedios por volumen ordenados; tendencia estrictamente creciente o decreciente en avgDistanceMm. */
-function inferVolumeDistanceRelation(rows: VolumeCalibrationSummary[]): VolumeDistanceRelation {
-  if (rows.length < 2) return 'indeterminate';
-  const sorted = [...rows].sort((a, b) => a.volumeMl - b.volumeMl);
-  const diffs: number[] = [];
-  for (let i = 1; i < sorted.length; i++) {
-    diffs.push(sorted[i].avgDistanceMm - sorted[i - 1].avgDistanceMm);
-  }
-  const allPositive = diffs.every((d) => d > 0);
-  const allNegative = diffs.every((d) => d < 0);
-  if (allPositive) return 'direct';
-  if (allNegative) return 'inverse';
-  return 'indeterminate';
-}
-
 function relationLabel(r: VolumeDistanceRelation): string {
   switch (r) {
     case 'direct':
@@ -258,11 +190,48 @@ function hapticLight() {
   }
 }
 
+/** Confirmación que funciona en native (Alert.alert) y en web (window.confirm). */
+function confirmAction(title: string, message: string): Promise<boolean> {
+  if (Platform.OS === 'web') {
+    const ok =
+      typeof globalThis.confirm === 'function' ? globalThis.confirm(`${title}\n\n${message}`) : true;
+    return Promise.resolve(ok);
+  }
+  return new Promise((resolve) => {
+    Alert.alert(title, message, [
+      { text: 'Cancelar', style: 'cancel', onPress: () => resolve(false) },
+      { text: 'Borrar', style: 'destructive', onPress: () => resolve(true) },
+    ]);
+  });
+}
+
+function formatTimestamp(ts: number): string {
+  try {
+    return new Date(ts).toLocaleString();
+  } catch {
+    return String(ts);
+  }
+}
+
+type SavedStatus =
+  | { kind: 'loading' }
+  | { kind: 'none' }
+  | { kind: 'saved'; updatedAt: number; pointsCount: number }
+  | { kind: 'unsaved' }
+  | { kind: 'corrupt'; errorMessage: string };
+
 export function SensorCalibrationScreen() {
   const router = useRouter();
   const [volumeInput, setVolumeInput] = useState('');
   const [points, setPoints] = useState<CalibrationCapturePoint[]>([]);
   const [buffer, setBuffer] = useState<ValidSample[]>([]);
+  const [savedProfile, setSavedProfile] = useState<CalibrationProfile | null>(null);
+  const [savedStatus, setSavedStatus] = useState<SavedStatus>({ kind: 'loading' });
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [storageBusy, setStorageBusy] = useState<'idle' | 'saving' | 'loading' | 'clearing'>(
+    'idle',
+  );
+  const [storageMessage, setStorageMessage] = useState<string | null>(null);
 
   const {
     status,
@@ -338,9 +307,50 @@ export function SensorCalibrationScreen() {
     return null;
   }, [hasEnoughSamples, inLiveMode, liveSignalOk, volumeInput, volumeMl]);
 
-  const volumeSummaries = useMemo(() => computeVolumeSummaries(points), [points]);
-  const globalRange = useMemo(() => computeGlobalRange(points), [points]);
-  const relation = useMemo(() => inferVolumeDistanceRelation(volumeSummaries), [volumeSummaries]);
+  const volumeSummaries = useMemo<VolumeCalibrationSummary[]>(
+    () => computeVolumeSummaries(points),
+    [points],
+  );
+  const globalRange = useMemo<GlobalDistanceRange>(
+    () => computeGlobalDistanceRange(points),
+    [points],
+  );
+  const relation = useMemo<VolumeDistanceRelation>(
+    () => determineVolumeDistanceRelation(volumeSummaries),
+    [volumeSummaries],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const result: LoadCalibrationResult = await loadCalibrationProfileDetailed();
+      if (cancelled) return;
+      if (result.kind === 'ok') {
+        setSavedProfile(result.profile);
+        setPoints(result.profile.points);
+        setHasUnsavedChanges(false);
+        setSavedStatus({
+          kind: 'saved',
+          updatedAt: result.profile.updatedAt,
+          pointsCount: result.profile.points.length,
+        });
+      } else if (result.kind === 'empty') {
+        setSavedProfile(null);
+        setSavedStatus({ kind: 'none' });
+      } else {
+        setSavedProfile(null);
+        setSavedStatus({ kind: 'corrupt', errorMessage: result.errorMessage });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const markDirty = useCallback(() => {
+    setHasUnsavedChanges(true);
+    setStorageMessage(null);
+  }, []);
 
   const onRegister = useCallback(() => {
     if (!canRegister || volumeMl === null || !bufferStats) return;
@@ -364,23 +374,132 @@ export function SensorCalibrationScreen() {
       };
       return [...prev, next];
     });
-  }, [bufferStats, canRegister, volumeMl]);
+    markDirty();
+  }, [bufferStats, canRegister, markDirty, volumeMl]);
 
-  const onDeletePoint = useCallback((id: string) => {
-    hapticLight();
-    setPoints((prev) => prev.filter((p) => p.id !== id));
-  }, []);
+  const onDeletePoint = useCallback(
+    (id: string) => {
+      hapticLight();
+      setPoints((prev) => prev.filter((p) => p.id !== id));
+      markDirty();
+    },
+    [markDirty],
+  );
 
   const onResetCalibration = useCallback(() => {
     hapticLight();
     setPoints([]);
-  }, []);
+    markDirty();
+  }, [markDirty]);
 
   const onResetConnection = useCallback(() => {
     hapticLight();
     setBuffer([]);
     resetConnection();
   }, [resetConnection]);
+
+  const onSaveCalibration = useCallback(async () => {
+    if (storageBusy !== 'idle') return;
+    hapticLight();
+    setStorageBusy('saving');
+    setStorageMessage(null);
+    try {
+      const profile = buildCalibrationProfile(points, { previous: savedProfile });
+      await saveCalibrationProfile(profile);
+      setSavedProfile(profile);
+      setHasUnsavedChanges(false);
+      setSavedStatus({
+        kind: 'saved',
+        updatedAt: profile.updatedAt,
+        pointsCount: profile.points.length,
+      });
+      setStorageMessage('Calibración guardada localmente.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error al guardar.';
+      setStorageMessage(message);
+    } finally {
+      setStorageBusy('idle');
+    }
+  }, [points, savedProfile, storageBusy]);
+
+  const onLoadCalibration = useCallback(async () => {
+    if (storageBusy !== 'idle') return;
+    hapticLight();
+    setStorageBusy('loading');
+    setStorageMessage(null);
+    const result = await loadCalibrationProfileDetailed();
+    if (result.kind === 'ok') {
+      setSavedProfile(result.profile);
+      setPoints(result.profile.points);
+      setHasUnsavedChanges(false);
+      setSavedStatus({
+        kind: 'saved',
+        updatedAt: result.profile.updatedAt,
+        pointsCount: result.profile.points.length,
+      });
+      setStorageMessage('Calibración cargada desde almacenamiento local.');
+    } else if (result.kind === 'empty') {
+      setSavedProfile(null);
+      setSavedStatus({ kind: 'none' });
+      setStorageMessage('No hay calibración guardada todavía.');
+    } else {
+      setSavedProfile(null);
+      setSavedStatus({ kind: 'corrupt', errorMessage: result.errorMessage });
+      setStorageMessage(`Calibración guardada corrupta: ${result.errorMessage}`);
+    }
+    setStorageBusy('idle');
+  }, [storageBusy]);
+
+  const onClearStorage = useCallback(async () => {
+    if (storageBusy !== 'idle') return;
+    const ok = await confirmAction(
+      'Borrar calibración guardada',
+      'Se eliminará el perfil de calibración guardado en este dispositivo. Los puntos actuales en pantalla no se borran.',
+    );
+    if (!ok) return;
+    hapticLight();
+    setStorageBusy('clearing');
+    setStorageMessage(null);
+    try {
+      await clearCalibrationProfile();
+      setSavedProfile(null);
+      setSavedStatus({ kind: 'none' });
+      setHasUnsavedChanges(points.length > 0);
+      setStorageMessage('Calibración guardada eliminada.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error al borrar.';
+      setStorageMessage(message);
+    } finally {
+      setStorageBusy('idle');
+    }
+  }, [points.length, storageBusy]);
+
+  const effectiveSavedStatus: SavedStatus = useMemo(() => {
+    if (savedStatus.kind === 'loading' || savedStatus.kind === 'corrupt') return savedStatus;
+    if (hasUnsavedChanges) return { kind: 'unsaved' };
+    return savedStatus;
+  }, [hasUnsavedChanges, savedStatus]);
+
+  const savedStatusLabel = useMemo(() => {
+    switch (effectiveSavedStatus.kind) {
+      case 'loading':
+        return 'Cargando calibración guardada…';
+      case 'none':
+        return 'Calibración no guardada';
+      case 'saved':
+        return 'Calibración guardada localmente';
+      case 'unsaved':
+        return 'Cambios pendientes por guardar';
+      case 'corrupt':
+        return 'Calibración guardada corrupta';
+    }
+  }, [effectiveSavedStatus]);
+
+  const canSave = points.length > 0 && hasUnsavedChanges && storageBusy === 'idle';
+  const canLoad =
+    savedStatus.kind === 'saved' && savedProfile !== null && storageBusy === 'idle';
+  const canClearStorage =
+    (savedStatus.kind === 'saved' || savedStatus.kind === 'corrupt') && storageBusy === 'idle';
 
   const isConnecting = status === 'connecting';
   const modeLabel = mode === 'mock' ? 'simulado' : 'real';
@@ -656,11 +775,17 @@ export function SensorCalibrationScreen() {
                 onPress={onResetCalibration}
                 style={({ pressed }) => [styles.textBtn, pressed && styles.textBtnPressed]}
                 accessibilityRole="button"
-                accessibilityLabel="Reiniciar calibración local">
+                accessibilityLabel="Vaciar puntos de la pantalla">
                 <Text style={styles.textBtnLabel}>Reiniciar</Text>
               </Pressable>
             ) : null}
           </View>
+          {points.length > 0 ? (
+            <Text style={styles.cardHint}>
+              “Reiniciar” solo vacía la lista en pantalla. No borra la calibración guardada
+              localmente; para eso usa “Borrar calibración guardada”.
+            </Text>
+          ) : null}
           {points.length === 0 ? (
             <Text style={styles.emptyText}>Aún no hay puntos. Conecta, valida señal y registra.</Text>
           ) : (
@@ -712,11 +837,15 @@ export function SensorCalibrationScreen() {
           </View>
         ) : null}
 
-        {globalRange ? (
+        {globalRange.rangeMm !== null ? (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Rango útil global (distanceMm)</Text>
-            <Text style={styles.summaryLine}>Mínimo: {globalRange.minDistanceMm.toFixed(1)} mm</Text>
-            <Text style={styles.summaryLine}>Máximo: {globalRange.maxDistanceMm.toFixed(1)} mm</Text>
+            <Text style={styles.summaryLine}>
+              Mínimo: {(globalRange.minDistanceMm ?? 0).toFixed(1)} mm
+            </Text>
+            <Text style={styles.summaryLine}>
+              Máximo: {(globalRange.maxDistanceMm ?? 0).toFixed(1)} mm
+            </Text>
             <Text style={styles.summaryLine}>Rango: {globalRange.rangeMm.toFixed(1)} mm</Text>
           </View>
         ) : null}
@@ -725,6 +854,107 @@ export function SensorCalibrationScreen() {
           <Text style={styles.cardTitle}>Relación volumen → distancia</Text>
           <Text style={styles.relationValue}>{relationLabel(relation)}</Text>
           <Text style={styles.relationHint}>{relationHint(relation)}</Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Persistencia local</Text>
+          <View
+            style={[
+              styles.savedBadge,
+              effectiveSavedStatus.kind === 'saved'
+                ? styles.savedBadgeOk
+                : effectiveSavedStatus.kind === 'unsaved'
+                  ? styles.savedBadgeWarn
+                  : effectiveSavedStatus.kind === 'corrupt'
+                    ? styles.savedBadgeError
+                    : styles.savedBadgeMuted,
+            ]}>
+            {storageBusy !== 'idle' ? (
+              <ActivityIndicator size="small" color={wellness.primaryDark} />
+            ) : null}
+            <Text
+              style={
+                effectiveSavedStatus.kind === 'saved' || effectiveSavedStatus.kind === 'unsaved'
+                  ? styles.savedBadgeText
+                  : effectiveSavedStatus.kind === 'corrupt'
+                    ? styles.savedBadgeTextError
+                    : styles.savedBadgeTextMuted
+              }>
+              {savedStatusLabel}
+            </Text>
+          </View>
+
+          {effectiveSavedStatus.kind === 'saved' ? (
+            <>
+              <Text style={styles.summaryLine}>Puntos guardados: {effectiveSavedStatus.pointsCount}</Text>
+              <Text style={styles.summaryLine}>
+                Última actualización: {formatTimestamp(effectiveSavedStatus.updatedAt)}
+              </Text>
+            </>
+          ) : null}
+          {effectiveSavedStatus.kind === 'unsaved' && savedProfile ? (
+            <Text style={styles.summaryLine}>
+              Último guardado: {formatTimestamp(savedProfile.updatedAt)} ·{' '}
+              {savedProfile.points.length} pts
+            </Text>
+          ) : null}
+          {effectiveSavedStatus.kind === 'corrupt' ? (
+            <Text style={styles.errorHint}>
+              El JSON persistido no se pudo leer. Borra la calibración guardada para limpiarlo.
+            </Text>
+          ) : null}
+          {storageMessage ? <Text style={styles.cardHint}>{storageMessage}</Text> : null}
+
+          <View style={styles.rowGap}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                !canSave && styles.btnDisabled,
+                pressed && canSave && styles.primaryBtnPressed,
+              ]}
+              onPress={() => {
+                void onSaveCalibration();
+              }}
+              disabled={!canSave}
+              accessibilityRole="button"
+              accessibilityLabel="Guardar calibración local">
+              <Text style={[styles.primaryBtnText, !canSave && styles.btnTextDisabled]}>
+                Guardar calibración local
+              </Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.secondaryBtn,
+                !canLoad && styles.btnDisabled,
+                pressed && canLoad && styles.secondaryBtnPressed,
+              ]}
+              onPress={() => {
+                void onLoadCalibration();
+              }}
+              disabled={!canLoad}
+              accessibilityRole="button"
+              accessibilityLabel="Cargar calibración guardada">
+              <Text style={[styles.secondaryBtnText, !canLoad && styles.btnTextDisabled]}>
+                Cargar calibración guardada
+              </Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.dangerBtn,
+                !canClearStorage && styles.btnDisabled,
+                pressed && canClearStorage && styles.dangerBtnPressed,
+              ]}
+              onPress={() => {
+                void onClearStorage();
+              }}
+              disabled={!canClearStorage}
+              accessibilityRole="button"
+              accessibilityLabel="Borrar calibración guardada">
+              <Text style={[styles.dangerBtnText, !canClearStorage && styles.btnTextDisabled]}>
+                Borrar calibración guardada
+              </Text>
+            </Pressable>
+          </View>
         </View>
 
         <Pressable
@@ -1104,4 +1334,33 @@ const styles = StyleSheet.create({
   linkBack: { paddingVertical: spacing.lg, alignItems: 'center' },
   linkBackPressed: { opacity: 0.8 },
   linkBackText: { fontSize: 16, fontWeight: '700', color: wellness.link, textDecorationLine: 'underline' },
+  savedBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: wellnessRadii.pill,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    marginBottom: spacing.sm,
+  },
+  savedBadgeOk: { backgroundColor: wellness.successBg },
+  savedBadgeWarn: { backgroundColor: wellness.errorBg, borderColor: wellness.borderStrong },
+  savedBadgeError: { backgroundColor: wellness.errorBg, borderColor: wellness.borderStrong },
+  savedBadgeMuted: { backgroundColor: wellness.screenBg },
+  savedBadgeText: { fontSize: 13, fontWeight: '800', color: wellness.primaryDark },
+  savedBadgeTextMuted: { fontSize: 13, fontWeight: '700', color: wellness.textSecondary },
+  savedBadgeTextError: { fontSize: 13, fontWeight: '800', color: wellness.errorText },
+  dangerBtn: {
+    backgroundColor: wellness.errorBg,
+    borderRadius: wellnessRadii.pill,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: wellness.borderStrong,
+  },
+  dangerBtnPressed: { opacity: 0.9 },
+  dangerBtnText: { fontSize: 16, fontWeight: '800', color: wellness.errorText },
 });
