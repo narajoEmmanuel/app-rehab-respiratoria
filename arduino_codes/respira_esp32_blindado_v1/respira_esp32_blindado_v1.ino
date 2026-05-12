@@ -249,7 +249,7 @@ const char DIAGNOSTIC_PAGE[] PROGMEM = R"rawliteral(
 <body>
   <div class="container">
     <h1>RESPIRA+ Diagnostico ESP32</h1>
-    <p class="subtitle">Version blindada: el WebSocket puede abrirse, pero los datos solo se envian cuando el boton fisico CONECTAR APP habilita el modo de transmision.</p>
+    <p class="subtitle">Version blindada: con el WebSocket abierto, el ESP32 envia lecturas JSON en streaming (desde IDLE o tras CONECTAR APP). El boton fisico sirve para iniciar sesion sin app aun o para cancelar con pulsacion larga.</p>
 
     <button onclick="connectWs()">Conectar WebSocket</button>
     <button class="secondary" onclick="disconnectWs()">Desconectar</button>
@@ -321,7 +321,7 @@ const char DIAGNOSTIC_PAGE[] PROGMEM = R"rawliteral(
     </div>
 
     <h2>Ultimo JSON recibido</h2>
-    <pre id="jsonBox" class="json-box">Sin datos. Si el WebSocket ya esta conectado, presiona el boton fisico CONECTAR APP en el dispositivo.</pre>
+    <pre id="jsonBox" class="json-box">Sin datos aun. Conecta el WebSocket y espera mensajes JSON del ESP32.</pre>
   </div>
 
   <script>
@@ -343,7 +343,7 @@ const char DIAGNOSTIC_PAGE[] PROGMEM = R"rawliteral(
       ws = new WebSocket("ws://192.168.4.1:81");
 
       ws.onopen = () => {
-        setStatus("WebSocket conectado. Si no hay datos, presiona CONECTAR APP en el dispositivo.", true);
+        setStatus("WebSocket conectado. Recibiendo datos cuando el ESP32 este en streaming.", true);
       };
 
       ws.onmessage = (event) => {
@@ -527,7 +527,7 @@ void webSocketEvent(uint8_t clientNumber, WStype_t type, uint8_t* payload, size_
       Serial.print("Clientes WebSocket activos: ");
       Serial.println(connectedWsClients);
 
-      if (deviceState == WAITING_FOR_APP && sensorOk) {
+      if ((deviceState == IDLE || deviceState == WAITING_FOR_APP) && sensorOk) {
         enterState(STREAMING, "app conectada por WebSocket");
       }
       break;
@@ -957,13 +957,14 @@ void setup() {
     return;
   }
 
-  enterState(IDLE, "arranque correcto, esperando boton fisico");
+  enterState(IDLE, "arranque correcto, listo para WebSocket o boton fisico");
 
   Serial.println();
   Serial.println("Modo inicial: IDLE");
   Serial.println("LED de estado apagado.");
   Serial.println("Conectate a RESPIRA_ESP32 y abre la app o http://192.168.4.1");
-  Serial.println("Los datos NO se envian hasta presionar el boton fisico CONECTAR APP.");
+  Serial.println("Si la app abre ws://192.168.4.1:81, se envian lecturas JSON mientras haya cliente (sensor OK).");
+  Serial.println("El boton CONECTAR APP inicia sesion si aun no hay WebSocket; pulsacion larga cancela streaming.");
 }
 
 void loop() {
