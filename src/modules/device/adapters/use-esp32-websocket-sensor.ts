@@ -112,12 +112,13 @@ export function useEsp32WebSocketSensor() {
         recordIncomingMessage(rawData);
       },
       onParseError: (message) => {
+        // No tumbamos toda la conexión por un frame inválido.
         setErrorMessage(message);
-        setStatus('error');
       },
       onReading: (reading) => {
         setLastReading(reading);
-        setStatus('connected');
+        setStatus('receiving');
+        setErrorMessage(null);
       },
       onError: (message) => {
         setErrorMessage(message);

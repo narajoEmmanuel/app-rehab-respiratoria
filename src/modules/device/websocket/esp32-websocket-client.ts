@@ -16,11 +16,17 @@ export type Esp32WebSocketCallbacks = {
   onRawMessage?: (rawData: string) => void;
   onParseError?: (errorMessage: string, rawData: string) => void;
   onError?: (errorMessage: string) => void;
-  onClose?: (details: { code: number | null; reason: string | null }) => void;
+  onClose?: (details: {
+    code: number | null;
+    reason: string | null;
+    intentional?: boolean;
+  }) => void;
 };
 
 export class Esp32WebSocketClient {
-  private socket: WebSocketLike | null = null;
+  private ws: WebSocketLike | null = null;
+
+  private intentionalClose = false;
 
   private callbacks: Esp32WebSocketCallbacks;
 
@@ -34,19 +40,38 @@ export class Esp32WebSocketClient {
       return false;
     }
 
-    if (this.socket) {
-      this.disconnect();
+    this.intentionalClose = false;
+
+    const previous = this.ws;
+    if (previous) {
+      previous.onopen = null;
+      previous.onmessage = null;
+      previous.onerror = null;
+      previous.onclose = null;
+      try {
+        previous.close();
+      } catch {
+        // Ignore errors cleaning up the previous socket.
+      }
     }
 
-    try {
-      const nextSocket = new WebSocket(url) as unknown as WebSocketLike;
-      this.socket = nextSocket;
+    this.ws = null;
 
-      nextSocket.onopen = () => {
+    try {
+      const nextWs = new WebSocket(url) as unknown as WebSocketLike;
+      this.ws = nextWs;
+
+      nextWs.onopen = () => {
+        if (this.ws !== nextWs) {
+          return;
+        }
         this.callbacks.onOpen?.();
       };
 
-      nextSocket.onmessage = (event) => {
+      nextWs.onmessage = (event) => {
+        if (this.ws !== nextWs) {
+          return;
+        }
         if (typeof event.data === 'string') {
           this.callbacks.onRawMessage?.(event.data);
         }
@@ -57,7 +82,7 @@ export class Esp32WebSocketClient {
           } else {
             this.callbacks.onParseError?.(
               'El mensaje del WebSocket no es texto JSON parseable.',
-              String(event.data ?? '')
+              String(event.data ?? ''),
             );
           }
           return;
@@ -65,42 +90,60 @@ export class Esp32WebSocketClient {
         this.callbacks.onReading?.(reading);
       };
 
-      nextSocket.onerror = () => {
+      nextWs.onerror = () => {
+        if (this.ws !== nextWs) {
+          return;
+        }
         this.callbacks.onError?.('No se pudo mantener la conexión WebSocket con el ESP32.');
       };
 
-      nextSocket.onclose = (event) => {
-        if (this.socket === nextSocket) {
-          this.socket = null;
+      nextWs.onclose = (event) => {
+        if (this.ws !== nextWs) {
+          return;
         }
+        this.ws = null;
+        const code = typeof event.code === 'number' ? event.code : null;
+        const reason = typeof event.reason === 'string' && event.reason.length > 0 ? event.reason : null;
         this.callbacks.onClose?.({
-          code: typeof event.code === 'number' ? event.code : null,
-          reason: typeof event.reason === 'string' && event.reason.length > 0 ? event.reason : null,
+          code,
+          reason,
+          intentional: this.intentionalClose,
         });
+        this.intentionalClose = false;
       };
 
       return true;
     } catch {
+      this.ws = null;
       this.callbacks.onError?.('No se pudo abrir la conexión WebSocket con el ESP32.');
       return false;
     }
   }
 
   disconnect(): void {
-    if (!this.socket) {
+    if (!this.ws) {
       return;
     }
 
+    this.intentionalClose = true;
+    const active = this.ws;
+    this.ws = null;
+
     try {
-      this.socket.onopen = null;
-      this.socket.onmessage = null;
-      this.socket.onerror = null;
-      this.socket.onclose = null;
-      this.socket.close();
+      active.onopen = null;
+      active.onmessage = null;
+      active.onerror = null;
+      active.onclose = null;
+      active.close();
     } catch {
       // Swallow transport shutdown errors to keep UI stable.
-    } finally {
-      this.socket = null;
     }
+
+    this.callbacks.onClose?.({
+      code: 1000,
+      reason: null,
+      intentional: true,
+    });
+    this.intentionalClose = false;
   }
 }
