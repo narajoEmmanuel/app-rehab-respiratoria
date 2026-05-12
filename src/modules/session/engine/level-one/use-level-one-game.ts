@@ -4,7 +4,7 @@
  * Dependencies: react, levels/types
  * Notes: Pure gameplay transitions with UI-agnostic state.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type {
   LevelOneProgress,
@@ -30,11 +30,18 @@ type UseLevelOneGameParams = {
   progress: LevelOneProgress;
   onProgressChange: (updater: (prev: LevelOneProgress) => LevelOneProgress) => void;
   onAttemptResolved?: (payload: { valid: boolean; holdMs: number }) => void;
+  /** Al cambiar (paciente distinto o nueva partida), el motor vuelve a `not-started` antes del pintado. */
+  engineScopeKey?: string;
 };
 
 type AttemptFeedback = 'idle' | 'valid' | 'failed';
 
-export function useLevelOneGame({ progress, onProgressChange, onAttemptResolved }: UseLevelOneGameParams) {
+export function useLevelOneGame({
+  progress,
+  onProgressChange,
+  onAttemptResolved,
+  engineScopeKey,
+}: UseLevelOneGameParams) {
   const [phase, setPhase] = useState<LevelOnePhase>('not-started');
   const [countdownMs, setCountdownMs] = useState(PREP_MS);
   const [holdMs, setHoldMs] = useState(0);
@@ -70,6 +77,11 @@ export function useLevelOneGame({ progress, onProgressChange, onAttemptResolved 
     setCountdownMs(PREP_MS);
     setPhase('not-started');
   }, [clearTimers]);
+
+  useLayoutEffect(() => {
+    if (engineScopeKey === undefined) return;
+    stopSession();
+  }, [engineScopeKey, stopSession]);
 
   const restartCurrentSession = useCallback(() => {
     clearTimers();

@@ -113,6 +113,13 @@ export function HomeScreen() {
   }, [patientSessions]);
 
   const goStartTerapia = useCallback(() => {
+    if (!hasCompletedDiagnostic) {
+      Alert.alert(
+        'Diagnóstico pendiente',
+        'Primero realiza tu diagnóstico para iniciar terapia.',
+      );
+      return;
+    }
     if (!consentUiReady) return;
     if (!consentActive) {
       Alert.alert(
@@ -127,7 +134,7 @@ export function HomeScreen() {
     }
     onLightImpact();
     router.push('/(tabs)/terapia');
-  }, [consentActive, consentUiReady, router]);
+  }, [consentActive, consentUiReady, hasCompletedDiagnostic, router]);
 
   const goSensorConnection = useCallback(() => {
     if (consentUiReady && !consentActive) {
@@ -163,10 +170,11 @@ export function HomeScreen() {
   }
 
   const firstName = patient.nombre_completo.trim().split(/\s+/)[0] ?? patient.nombre_completo;
-  const therapyCtaDisabled = !consentUiReady || !consentActive;
+  const therapyCtaDisabled =
+    !hasCompletedDiagnostic || !consentUiReady || !consentActive;
   const heroSubtitle = hasCompletedDiagnostic
     ? `${currentLevelLabel} · ${todayCompletedSessions} de 6 sesiones hoy`
-    : `${currentLevelLabel} · evaluación opcional para afinar tu plan`;
+    : `${currentLevelLabel}`;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -194,11 +202,44 @@ export function HomeScreen() {
           </View>
         ) : null}
 
-        <View style={styles.heroCard}>
-          <Text style={styles.heroKicker}>Sesión recomendada</Text>
-          <Text style={styles.heroTitle}>Terapia guiada</Text>
-          <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
-          {hasCompletedDiagnostic ? (
+        {!hasCompletedDiagnostic ? (
+          <>
+            <View style={styles.diagnosticHeroCard}>
+              <Text style={styles.diagnosticHeroKicker}>Antes de la terapia</Text>
+              <Text style={styles.diagnosticHeroTitle}>Realizar primer diagnóstico</Text>
+              <Text style={styles.diagnosticHeroBody}>
+                Antes de iniciar terapia, necesitamos medir tu volumen inspiratorio máximo.
+              </Text>
+              <Pressable
+                style={({ pressed }) => [styles.diagnosticHeroBtn, pressed && styles.diagnosticHeroBtnPressed]}
+                onPress={goDiagnostico}
+                accessibilityRole="button"
+                accessibilityLabel="Realizar primer diagnóstico">
+                <Text style={styles.diagnosticHeroBtnText}>Realizar primer diagnóstico</Text>
+              </Pressable>
+            </View>
+
+            <View style={[styles.heroCard, styles.heroCardBlocked]}>
+              <Text style={styles.heroKicker}>Sesión recomendada</Text>
+              <Text style={styles.heroTitle}>Terapia guiada</Text>
+              <Text style={styles.heroSubtitleBlocked}>
+                Primero realiza tu diagnóstico para iniciar terapia.
+              </Text>
+              <Pressable
+                style={[styles.primaryCta, styles.primaryCtaBlocked]}
+                disabled
+                accessibilityRole="button"
+                accessibilityLabel="Terapia bloqueada hasta completar diagnóstico"
+                accessibilityState={{ disabled: true }}>
+                <Text style={styles.primaryCtaTextMuted}>Iniciar terapia</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <View style={styles.heroCard}>
+            <Text style={styles.heroKicker}>Sesión recomendada</Text>
+            <Text style={styles.heroTitle}>Terapia guiada</Text>
+            <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
             <View style={styles.progressTrack}>
               <View
                 style={[
@@ -207,23 +248,27 @@ export function HomeScreen() {
                 ]}
               />
             </View>
-          ) : null}
-          <Pressable
-            style={({ pressed }) => [
-              styles.primaryCta,
-              therapyCtaDisabled && styles.primaryCtaDisabled,
-              pressed && !therapyCtaDisabled && styles.primaryCtaPressed,
-            ]}
-            onPress={goStartTerapia}
-            disabled={!consentUiReady}
-            accessibilityRole="button"
-            accessibilityLabel="Iniciar terapia"
-            accessibilityState={{ disabled: therapyCtaDisabled || !consentUiReady }}>
-            <Text style={styles.primaryCtaText}>
-              {!consentUiReady ? 'Preparando…' : !consentActive ? 'Activa el consentimiento para continuar' : 'Iniciar terapia'}
-            </Text>
-          </Pressable>
-        </View>
+            <Pressable
+              style={({ pressed }) => [
+                styles.primaryCta,
+                therapyCtaDisabled && styles.primaryCtaDisabled,
+                pressed && !therapyCtaDisabled && styles.primaryCtaPressed,
+              ]}
+              onPress={goStartTerapia}
+              disabled={!consentUiReady}
+              accessibilityRole="button"
+              accessibilityLabel="Iniciar terapia"
+              accessibilityState={{ disabled: therapyCtaDisabled || !consentUiReady }}>
+              <Text style={styles.primaryCtaText}>
+                {!consentUiReady
+                  ? 'Preparando…'
+                  : !consentActive
+                    ? 'Activa el consentimiento para continuar'
+                    : 'Iniciar terapia'}
+              </Text>
+            </Pressable>
+          </View>
+        )}
 
         {!hasAnySession ? (
           <View style={styles.emptyCard}>
@@ -255,11 +300,11 @@ export function HomeScreen() {
           onPress={goSensorConnection}
         />
 
-        <Pressable style={styles.evalLink} onPress={goDiagnostico} accessibilityRole="button">
-          <Text style={styles.evalLinkText}>
-            {hasCompletedDiagnostic ? 'Repetir evaluación respiratoria (opcional)' : 'Evaluación respiratoria (opcional)'}
-          </Text>
-        </Pressable>
+        {hasCompletedDiagnostic ? (
+          <Pressable style={styles.evalLink} onPress={goDiagnostico} accessibilityRole="button">
+            <Text style={styles.evalLinkText}>Repetir diagnóstico</Text>
+          </Pressable>
+        ) : null}
 
         <View style={styles.claveRow}>
           <Text style={styles.claveLabel}>Tu clave de acceso</Text>
@@ -433,6 +478,50 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  diagnosticHeroCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(52, 171, 165, 0.45)',
+    padding: spacing.lg + 4,
+    marginBottom: spacing.lg,
+    gap: spacing.md,
+  },
+  diagnosticHeroKicker: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: ACCENT,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  diagnosticHeroTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#111827',
+    lineHeight: 32,
+  },
+  diagnosticHeroBody: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#4B5563',
+  },
+  diagnosticHeroBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: ACCENT,
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: spacing.lg,
+    minHeight: 56,
+  },
+  diagnosticHeroBtnPressed: {
+    opacity: 0.92,
+  },
+  diagnosticHeroBtnText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+  },
   heroCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -440,6 +529,10 @@ const styles = StyleSheet.create({
     borderColor: '#EBEBEB',
     padding: spacing.lg,
     marginBottom: spacing.lg,
+  },
+  heroCardBlocked: {
+    borderStyle: 'dashed',
+    opacity: 0.92,
   },
   heroKicker: {
     fontSize: 12,
@@ -460,6 +553,13 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: '#6B7280',
     marginBottom: spacing.md,
+  },
+  heroSubtitleBlocked: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#9CA3AF',
+    marginBottom: spacing.md,
+    fontWeight: '600',
   },
   progressTrack: {
     height: 6,
@@ -484,11 +584,20 @@ const styles = StyleSheet.create({
   primaryCtaDisabled: {
     opacity: 0.5,
   },
+  primaryCtaBlocked: {
+    backgroundColor: '#D1D5DB',
+    opacity: 1,
+  },
   primaryCtaPressed: {
     opacity: 0.92,
   },
   primaryCtaText: {
     color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  primaryCtaTextMuted: {
+    color: '#6B7280',
     fontSize: 17,
     fontWeight: '700',
   },

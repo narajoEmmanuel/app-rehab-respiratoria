@@ -12,20 +12,23 @@ export type DownloadExportFileResult =
   | { ok: true; mode: 'web_download' | 'native_share' }
   | { ok: false; reason: 'sharing_unavailable' | 'write_failed'; message: string };
 
-const FIXED_CSV = 'respira_export.csv';
-const FIXED_JSON = 'respira_export.json';
+const DEFAULT_CSV = 'respira_export.csv';
 
-function resolveSafeFileName(mimeType: string): typeof FIXED_CSV | typeof FIXED_JSON {
-  if (mimeType.includes('json')) return FIXED_JSON;
-  return FIXED_CSV;
+/** CSV fijo genérico o reporte clínico dinámico respira_reporte_clinico_* .csv */
+function assertCsvFilename(name: string): boolean {
+  if (name === DEFAULT_CSV) return true;
+  return /^respira_reporte_clinico_[A-Za-z0-9_-]+\.csv$/.test(name);
 }
 
-/** Solo nombres fijos ASCII; rechaza espacios, acentos u otros caracteres. */
-function assertValidExportFileName(name: string): void {
-  const ok = name === FIXED_CSV || name === FIXED_JSON;
-  if (!ok) {
-    throw new Error('Nombre de archivo no válido para exportación.');
+function resolveFilename(mimeType: string, csvFileName?: string): string {
+  if (mimeType.includes('json')) {
+    return 'respira_export.json';
   }
+  const candidate = csvFileName ?? DEFAULT_CSV;
+  if (!assertCsvFilename(candidate)) {
+    throw new Error('Nombre de archivo CSV no válido.');
+  }
+  return candidate;
 }
 
 function triggerWebDownload(content: string, filename: string, mimeType: string): boolean {
@@ -46,9 +49,17 @@ function triggerWebDownload(content: string, filename: string, mimeType: string)
   }
 }
 
-export async function downloadExportFile(content: string, mimeType: string): Promise<DownloadExportFileResult> {
-  const fileName = resolveSafeFileName(mimeType);
-  assertValidExportFileName(fileName);
+export type DownloadExportOptions = {
+  /** Solo CSV; p. ej. respira_reporte_clinico_CLAVE_20260507-143022.csv */
+  csvFileName?: string;
+};
+
+export async function downloadExportFile(
+  content: string,
+  mimeType: string,
+  options?: DownloadExportOptions,
+): Promise<DownloadExportFileResult> {
+  const fileName = resolveFilename(mimeType, options?.csvFileName);
 
   if (Platform.OS === 'web') {
     try {
