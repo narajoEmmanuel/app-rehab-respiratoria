@@ -22,6 +22,7 @@ import {
   buildPiecewiseLinearCalibrationModel,
   CALIBRATION_PROFILE_VERSION,
   clearCalibrationProfile,
+  computeCalibrationUncertaintySummary,
   computeGeometricScaleReport,
   computeGlobalDistanceRange,
   computeRepeatabilityReport,
@@ -31,6 +32,7 @@ import {
   computeVolumeSummaries,
   determineVolumeDistanceRelation,
   EXPECTED_DISTANCE_STEP_PER_500ML_MM,
+  EXPECTED_VOLUME_STEP_ML,
   EXPECTED_MAX_VOLUME_ML,
   EXPECTED_MIN_VOLUME_ML,
   EXPECTED_RECOMMENDED_MAX_VOLUME_ML,
@@ -47,6 +49,7 @@ import {
   REQUIRED_GEOMETRIC_SEGMENTS_ML,
   REQUIRED_RECOMMENDED_VOLUMES_ML,
   saveCalibrationProfile,
+  UNCERTAINTY_COVERAGE_FACTOR_K,
   type CalibrationCapturePoint,
   type CalibrationLinealQuality,
   type CalibrationModel,
@@ -65,6 +68,9 @@ import {
   type VolumeDistanceRelation,
   type VolumeRepeatability,
   type GeometricScaleSegmentStatus,
+  type CalibrationUncertaintySummary,
+  type VolumeUncertaintyReport,
+  type VolumeUncertaintyStatus,
 } from '@/src/modules/device/calibration';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
@@ -299,6 +305,34 @@ function volumeRepeatabilityBadgeLabel(row: VolumeRepeatability): string {
       return 'Revisar';
     default:
       return 'Estable';
+  }
+}
+
+function formatUncertaintyMl(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return '—';
+  return `±${value.toFixed(0)}`;
+}
+
+function uncertaintyOverallLabel(
+  uncertainty: CalibrationUncertaintySummary['reports'],
+  hasAcceptable: boolean,
+): 'Aceptable' | 'Revisar' | 'Incompleto' {
+  if (uncertainty.length === 0 || uncertainty.every((r) => r.status === 'insufficient_data')) {
+    return 'Incompleto';
+  }
+  return hasAcceptable ? 'Aceptable' : 'Revisar';
+}
+
+function volumeUncertaintyStatusLabel(status: VolumeUncertaintyStatus): string {
+  switch (status) {
+    case 'ok':
+      return 'OK';
+    case 'limited':
+      return 'Limitado';
+    case 'insufficient_data':
+      return 'Incompleto';
+    default:
+      return status;
   }
 }
 
@@ -617,6 +651,10 @@ export function SensorCalibrationScreen() {
   const geometricReport = useMemo(
     () => computeGeometricScaleReport(volumeSummaries, relation),
     [relation, volumeSummaries],
+  );
+  const uncertaintySummary = useMemo<CalibrationUncertaintySummary>(
+    () => computeCalibrationUncertaintySummary(liveProfile),
+    [liveProfile],
   );
   const hasLegacySubOperative = useMemo<boolean>(
     () => hasSubOperativeVolumes(volumeSummaries),
@@ -1453,14 +1491,16 @@ export function SensorCalibrationScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitleStrong}>Validación geométrica</Text>
           <Text style={styles.cardHint}>
-            Compara los saltos de distancia entre marcas de 500 mL con la escala física del espirómetro
-            (~{EXPECTED_DISTANCE_STEP_PER_500ML_MM} mm por cada 500 mL). No sustituye la calibración completa;
-            sirve para revisar montaje del sensor. Pendiente de validación clínica.
+            Verificación geométrica del montaje: compara saltos de distancia entre marcas del
+            espirómetro con el desplazamiento medido con regla en este modelo (
+            {EXPECTED_DISTANCE_STEP_PER_500ML_MM} mm por cada {EXPECTED_VOLUME_STEP_ML} mL en el
+            perfil actual). No define el volumen de referencia (escala del espirómetro). Pendiente
+            de validación clínica.
           </Text>
           <View style={styles.resultsGrid}>
             <MetricCell
-              label="Escala esperada"
-              value={`${EXPECTED_DISTANCE_STEP_PER_500ML_MM} mm por cada 500 mL`}
+              label="Escala esperada (perfil)"
+              value={`${EXPECTED_DISTANCE_STEP_PER_500ML_MM} mm / ${EXPECTED_VOLUME_STEP_ML} mL`}
             />
             <MetricCell
               label="Segmentos correctos"
@@ -1572,6 +1612,158 @@ export function SensorCalibrationScreen() {
               ))}
             </View>
           ) : null}
+          {uncertaintySummary.reports.some((r) => r.expandedUncertaintyU95Ml !== null) ? (
+            <>
+              <Text style={styles.modelSubLabel}>Resultado esperado del modelo</Text>
+              <Text style={styles.modelReason}>
+                Volumen estimado ± U95 (mL), con bandas según volumen calibrado (k ={' '}
+                {UNCERTAINTY_COVERAGE_FACTOR_K}).
+              </Text>
+              <Text style={styles.cardHint}>
+                Cuando se active en terapia, el modelo reportará el volumen estimado acompañado de
+                una incertidumbre expandida U95.
+              </Text>
+            </>
+          ) : null}
+        </View>
+
+        {/* Incertidumbre metrológica */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitleStrong}>Incertidumbre metrológica</Text>
+          <Text style={styles.cardHint}>
+            Referencia primaria de volumen: escala del espirómetro. La regla se usa solo en
+            verificación geométrica del montaje y no entra en uc por defecto. Pendiente de
+            validación clínica.
+          </Text>
+          <View style={styles.resultsGrid}>
+            <MetricCell
+              label="U95 promedio"
+              value={formatUncertaintyMl(uncertaintySummary.averageU95Ml)}
+              unit="mL"
+            />
+            <MetricCell
+              label="U95 máximo"
+              value={formatUncertaintyMl(uncertaintySummary.maxU95Ml)}
+              unit="mL"
+            />
+            <MetricCell
+              label="Volumen con mayor U95"
+              value={
+                uncertaintySummary.volumeWithMaxU95Ml === null
+                  ? '—'
+                  : `${uncertaintySummary.volumeWithMaxU95Ml} mL`
+              }
+            />
+            <MetricCell
+              label="Factor k"
+              value={String(UNCERTAINTY_COVERAGE_FACTOR_K)}
+            />
+            <MetricCell
+              label="Estado"
+              value={uncertaintyOverallLabel(
+                uncertaintySummary.reports,
+                recommendation.uncertainty.hasAcceptableUncertainty,
+              )}
+            />
+          </View>
+          {uncertaintySummary.reports.length > 0 ? (
+            <>
+              <Text style={styles.cardSubTitleStrong}>Por volumen</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.uncertTable}>
+                  <View style={[styles.uncertTableRow, styles.uncertTableHeadRow]}>
+                    <Text style={[styles.uncertCell, styles.uncertColVol]}>Vol.</Text>
+                    <Text style={[styles.uncertCell, styles.uncertColN]}>n</Text>
+                    <Text style={[styles.uncertCell, styles.uncertColSd]}>SD rep.</Text>
+                    <Text style={[styles.uncertCell, styles.uncertColUa]}>uA</Text>
+                    <Text style={[styles.uncertCell, styles.uncertColSens]}>Sens.</Text>
+                    <Text style={[styles.uncertCell, styles.uncertColUc]}>uc</Text>
+                    <Text style={[styles.uncertCell, styles.uncertColU95]}>U95</Text>
+                    <Text style={[styles.uncertCell, styles.uncertColState]}>Estado</Text>
+                  </View>
+                  {uncertaintySummary.reports.map((row: VolumeUncertaintyReport) => (
+                    <View key={`unc-${row.volumeMl}`} style={styles.uncertTableRow}>
+                      <Text style={[styles.uncertCell, styles.uncertColVol]}>{row.volumeMl}</Text>
+                      <Text style={[styles.uncertCell, styles.uncertColN]}>{row.repetitions}</Text>
+                      <Text style={[styles.uncertCell, styles.uncertColSd]}>
+                        {row.sdBetweenRepetitionsMm === null
+                          ? '—'
+                          : `${row.sdBetweenRepetitionsMm.toFixed(2)}`}
+                      </Text>
+                      <Text style={[styles.uncertCell, styles.uncertColUa]}>
+                        {row.uARepeatabilityDistanceMm === null
+                          ? '—'
+                          : row.uARepeatabilityDistanceMm.toFixed(2)}
+                      </Text>
+                      <Text style={[styles.uncertCell, styles.uncertColSens]}>
+                        {row.localSensitivityMlPerMm === null
+                          ? '—'
+                          : `${row.localSensitivityMlPerMm.toFixed(0)}`}
+                      </Text>
+                      <Text style={[styles.uncertCell, styles.uncertColUc]}>
+                        {row.uCombinedVolumeMl === null
+                          ? '—'
+                          : row.uCombinedVolumeMl.toFixed(0)}
+                      </Text>
+                      <Text style={[styles.uncertCell, styles.uncertColU95]}>
+                        {formatUncertaintyMl(row.expandedUncertaintyU95Ml)}
+                      </Text>
+                      <Text style={[styles.uncertCell, styles.uncertColState]}>
+                        {volumeUncertaintyStatusLabel(row.status)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            </>
+          ) : (
+            <Text style={styles.emptyText}>Registra puntos de calibración para calcular incertidumbre.</Text>
+          )}
+          <Text style={styles.cardSubTitleStrong}>Componentes considerados</Text>
+          {uncertaintySummary.components.map((comp) => (
+            <View key={comp.label} style={styles.uncertComponentRow}>
+              <View style={styles.uncertComponentHeader}>
+                <Text style={styles.uncertComponentLabel}>{comp.label}</Text>
+                {comp.includedInCombinedUncertainty === false ? (
+                  <Text style={styles.uncertComponentBadge}>Solo verificación geométrica</Text>
+                ) : comp.includedInCombinedUncertainty === true &&
+                  comp.label === 'Lectura marca espirómetro' ? (
+                  <Text style={styles.uncertComponentBadgePrimary}>Referencia primaria</Text>
+                ) : null}
+              </View>
+              <Text style={styles.uncertComponentValue}>
+                {comp.value === null
+                  ? '—'
+                  : comp.label === 'Incertidumbre relativa sensor'
+                    ? `${comp.value.toFixed(0)} %`
+                    : comp.label === 'Factor de cobertura k'
+                      ? String(comp.value)
+                      : comp.label.startsWith('Regla física')
+                        ? `u ≈ ${comp.value.toFixed(1)} mL`
+                        : `${comp.value} ${comp.unit}`}
+              </Text>
+              <Text style={styles.uncertComponentDesc}>{comp.description}</Text>
+            </View>
+          ))}
+          {!uncertaintySummary.includeRuleInCombinedUncertainty ? (
+            <Text style={styles.cardHint}>
+              La regla no se suma en la incertidumbre combinada del volumen estimado; define solo la
+              verificación geométrica del desplazamiento del pistón.
+            </Text>
+          ) : null}
+          {uncertaintySummary.warnings.length > 0 ? (
+            <View style={styles.modelWarningsBox}>
+              {uncertaintySummary.warnings.map((warning, idx) => (
+                <Text key={`unc-w-${idx}`} style={styles.modelWarningText}>
+                  • {warning}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+          <Text style={styles.modelDisclaimer}>
+            La incertidumbre reportada corresponde al procedimiento de calibración actual y está
+            pendiente de validación clínica.
+          </Text>
         </View>
 
         {/* C. Calidad del modelo lineal */}
@@ -2725,6 +2917,76 @@ const styles = StyleSheet.create({
   repetRepeatBtnPressed: { opacity: 0.9 },
   repetRepeatBtnText: { fontSize: 11, fontWeight: '800', color: wellness.primaryDark },
   repetActionMuted: { fontSize: 12, fontWeight: '600', color: wellness.textSecondary },
+  uncertTable: { minWidth: 520, paddingBottom: spacing.xs, marginTop: spacing.xs },
+  uncertTableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: wellness.border,
+    gap: 4,
+  },
+  uncertTableHeadRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: wellness.borderStrong,
+    paddingBottom: spacing.sm,
+  },
+  uncertCell: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: wellness.text,
+  },
+  uncertColVol: { width: 44 },
+  uncertColN: { width: 24, textAlign: 'center' },
+  uncertColSd: { width: 56 },
+  uncertColUa: { width: 44 },
+  uncertColSens: { width: 48 },
+  uncertColUc: { width: 40 },
+  uncertColU95: { width: 52 },
+  uncertColState: { width: 72 },
+  uncertComponentRow: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: wellness.border,
+  },
+  uncertComponentHeader: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  uncertComponentBadge: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: wellness.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  uncertComponentBadgePrimary: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  uncertComponentLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: wellness.text,
+  },
+  uncertComponentValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: wellness.primaryDark,
+    marginTop: 2,
+  },
+  uncertComponentDesc: {
+    fontSize: 11,
+    lineHeight: 15,
+    color: wellness.textSecondary,
+    marginTop: 2,
+  },
   geomTable: { minWidth: 420, marginTop: spacing.sm },
   geomTableRow: {
     flexDirection: 'row',

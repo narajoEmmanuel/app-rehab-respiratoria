@@ -34,6 +34,7 @@ export {
 } from '@/src/modules/device/calibration/calibration-math';
 
 export {
+  CURRENT_SPIROMETER_PROFILE,
   EXPECTED_DISTANCE_STEP_PER_500ML_MM,
   EXPECTED_MAX_VOLUME_ML,
   EXPECTED_MIN_VOLUME_ML,
@@ -41,7 +42,9 @@ export {
   EXPECTED_VOLUME_STEP_ML,
   EXTENDED_RANGE_ML,
   EXTENDED_VOLUME_CHIPS_ML,
+  GEOMETRIC_VALIDATION_SOURCE,
   GEOMETRIC_STEP_OK_TOLERANCE_MM,
+  INCLUDE_RULE_IN_COMBINED_UNCERTAINTY,
   GEOMETRIC_STEP_REVIEW_TOLERANCE_MM,
   MAX_ACCEPTABLE_SLOPE_VARIATION_RATIO,
   MAX_ACCEPTABLE_STD_DISTANCE_MM,
@@ -55,9 +58,37 @@ export {
   PIECEWISE_PREFERRED_MIN_DISTINCT_VOLUMES,
   RECOMMENDED_RANGE_ML,
   RECOMMENDED_VOLUME_CHIPS_ML,
+  REFERENCE_VOLUME_PER_MM_ML,
   REQUIRED_GEOMETRIC_SEGMENTS_ML,
   REQUIRED_RECOMMENDED_VOLUMES_ML,
+  RULE_RESOLUTION_HALF_WIDTH_MM,
+  RULE_RESOLUTION_MM,
+  SENSOR_ALIGNMENT_HALF_WIDTH_MM,
+  SENSOR_RELATIVE_UNCERTAINTY,
+  SENSOR_RESOLUTION_HALF_WIDTH_MM,
+  SENSOR_RESOLUTION_MM,
+  SPIROMETER_MARK_HALF_WIDTH_ML,
+  UNCERTAINTY_COVERAGE_FACTOR_K,
+  UNCERTAINTY_MAX_ACCEPTABLE_U95_ML,
 } from '@/src/modules/device/calibration/calibration-constants';
+
+export {
+  buildUncertaintyRecommendation,
+  computeCalibrationUncertaintySummary,
+  computeLocalSensitivityMlPerMm,
+  computeSampleStandardDeviation,
+  computeStandardUncertaintyFromRectangularHalfWidth,
+  computeVolumeUncertaintyReports,
+  getExpectedGeometricDistanceStepMm,
+} from '@/src/modules/device/calibration/calibration-uncertainty';
+
+export {
+  type CalibrationUncertaintyRecommendation,
+  type CalibrationUncertaintySummary,
+  type UncertaintyComponent,
+  type VolumeUncertaintyReport,
+  type VolumeUncertaintyStatus,
+} from '@/src/modules/device/calibration/calibration-uncertainty-types';
 
 export {
   CALIBRATION_STORAGE_KEY,

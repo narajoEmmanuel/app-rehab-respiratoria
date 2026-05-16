@@ -12,7 +12,7 @@ import {
   MIN_REPETITIONS_PER_REQUIRED_VOLUME,
   MIN_REPETITIONS_PER_VOLUME,
   MIN_VALID_CALIBRATION_POINTS_FOR_THERAPY,
-  EXPECTED_DISTANCE_STEP_PER_500ML_MM,
+  CURRENT_SPIROMETER_PROFILE,
   GEOMETRIC_STEP_OK_TOLERANCE_MM,
   GEOMETRIC_STEP_REVIEW_TOLERANCE_MM,
   MIN_SEGMENT_DISTANCE_DELTA_MM,
@@ -287,14 +287,28 @@ export type GeometricScaleReport = {
 };
 
 /**
- * Comprueba que cada salto de 500 mL en el rango recomendado produzca ~10 mm de cambio en distancia media,
- * coherente con la escala física del espirómetro (no sustituye la calibración completa).
+ * Comprueba que cada salto de volumen del perfil activo produzca el desplazamiento esperado en distancia,
+ * según verificación geométrica del montaje (regla en perfil actual; no sustituye la calibración completa).
  */
 export function computeGeometricScaleReport(
   summaries: VolumeCalibrationSummary[],
   relation: VolumeDistanceRelation,
 ): GeometricScaleReport {
-  const expectedMag = EXPECTED_DISTANCE_STEP_PER_500ML_MM;
+  const expectedMag = CURRENT_SPIROMETER_PROFILE.expectedDistanceStepMm;
+
+  if (!CURRENT_SPIROMETER_PROFILE.geometricValidationEnabled) {
+    return {
+      expectedDistanceStepPer500MlMm: expectedMag,
+      requiredSegments: [],
+      okSegments: 0,
+      reviewSegments: 0,
+      criticalSegments: 0,
+      missingSegments: 0,
+      passesGeometricValidation: true,
+      warnings: ['Validación geométrica deshabilitada para el perfil de espirómetro activo.'],
+    };
+  }
+
   const summaryByVolume = new Map<number, VolumeCalibrationSummary>();
   for (const s of summaries) {
     summaryByVolume.set(s.volumeMl, s);

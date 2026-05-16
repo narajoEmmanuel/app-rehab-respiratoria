@@ -70,14 +70,38 @@ export const MAX_ACCEPTABLE_SLOPE_VARIATION_RATIO = 2.5;
 /** Salto mínimo de distancia entre dos volúmenes consecutivos (mm). */
 export const MIN_SEGMENT_DISTANCE_DELTA_MM = 1;
 
-/** Paso de volumen de referencia para validación geométrica montaje vs espirómetro (mL). */
-export const EXPECTED_VOLUME_STEP_ML = 500;
+/**
+ * Perfil del espirómetro activo en calibración (Besmed CIYO/TB-93500, 5000 mL).
+ * Otros modelos (p. ej. 3000 mL) requerirán otro perfil con paso geométrico y rangos distintos.
+ */
+export const CURRENT_SPIROMETER_PROFILE = {
+  maxVolumeMl: 5000,
+  operativeMinVolumeMl: 500,
+  recommendedMaxVolumeMl: 3000,
+  calibrationStepMl: 500,
+  expectedDistanceStepMm: 10,
+  geometricValidationEnabled: true,
+  geometrySource: 'measured_with_rule' as const,
+} as const;
+
+/** Paso de volumen entre marcas para validación geométrica (perfil actual). */
+export const EXPECTED_VOLUME_STEP_ML = CURRENT_SPIROMETER_PROFILE.calibrationStepMl;
 
 /**
- * Desplazamiento esperado del pistón por cada EXPECTED_VOLUME_STEP_ML en el montaje de referencia (mm).
- * Verificación física: ~1 cm ≈ 500 mL.
+ * Desplazamiento esperado del pistón por cada paso de volumen del perfil actual (mm).
+ * Procede de verificación con regla en este espirómetro; no es universal entre modelos.
  */
-export const EXPECTED_DISTANCE_STEP_PER_500ML_MM = 10;
+export const EXPECTED_DISTANCE_STEP_PER_500ML_MM =
+  CURRENT_SPIROMETER_PROFILE.expectedDistanceStepMm;
+
+/** Origen de la escala geométrica esperada (regla en montaje de referencia). */
+export const GEOMETRIC_VALIDATION_SOURCE = CURRENT_SPIROMETER_PROFILE.geometrySource;
+
+/**
+ * Si true, la incertidumbre de la regla entra en uc del volumen estimado.
+ * Por defecto false: la referencia primaria de volumen son las marcas del espirómetro.
+ */
+export const INCLUDE_RULE_IN_COMBINED_UNCERTAINTY = false;
 
 /** Tolerancia estricta: Δ medido dentro de [10 − tol, 10 + tol] mm frente al esperado (magnitud). */
 export const GEOMETRIC_STEP_OK_TOLERANCE_MM = 2;
@@ -101,3 +125,47 @@ export const REQUIRED_GEOMETRIC_SEGMENTS_ML = [
  * sobre `linear_regression` porque preserva mejor la curva real de calibración.
  */
 export const PIECEWISE_PREFERRED_MIN_DISTINCT_VOLUMES = 4;
+
+/** Factor de cobertura para incertidumbre expandida U95 (k ≈ 2, ~95 %). */
+export const UNCERTAINTY_COVERAGE_FACTOR_K = 2;
+
+/** U95 máxima aceptable para considerar la calibración apta para terapia (mL). */
+export const UNCERTAINTY_MAX_ACCEPTABLE_U95_ML = 250;
+
+/** Resolución nominal del VL53L0X en este montaje (mm). */
+export const SENSOR_RESOLUTION_MM = 1;
+
+/** Semiancho rectangular de la resolución del sensor (mm). */
+export const SENSOR_RESOLUTION_HALF_WIDTH_MM = 0.5;
+
+/**
+ * Incertidumbre relativa del sensor (fracción, p. ej. 0.03 = 3 %).
+ * Supuesto técnico conservador ajustable según el modo real de medición del VL53L0X.
+ */
+export const SENSOR_RELATIVE_UNCERTAINTY = 0.03;
+
+/**
+ * Semiancho rectangular por montaje, alineación, concavidad del pistón y acoplamiento (mm).
+ */
+export const SENSOR_ALIGNMENT_HALF_WIDTH_MM = 2;
+
+/**
+ * Semiancho rectangular de lectura de la marca del espirómetro (mL); ajustable.
+ */
+export const SPIROMETER_MARK_HALF_WIDTH_ML = 50;
+
+/**
+ * Regla física: solo validación geométrica del montaje (no referencia primaria de volumen).
+ * Valores observados en el espirómetro actual; otro modelo puede tener otra relación mm/mL.
+ */
+/** Resolución de lectura con regla durante verificación geométrica (mm). */
+export const RULE_RESOLUTION_MM = 1;
+
+/** Semiancho rectangular de la resolución de regla en verificación geométrica (mm). */
+export const RULE_RESOLUTION_HALF_WIDTH_MM = 0.5;
+
+/**
+ * Conversión mm→mL usada al propagar u_regla en verificación geométrica
+ * (perfil actual: ~10 mm ≈ 500 mL → 50 mL/mm).
+ */
+export const REFERENCE_VOLUME_PER_MM_ML = 50;
