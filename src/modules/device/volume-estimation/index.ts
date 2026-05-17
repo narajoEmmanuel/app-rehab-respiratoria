@@ -22,3 +22,27 @@ export {
   type UseActiveVolumeEstimateOptions,
   type UseActiveVolumeEstimateResult,
 } from '@/src/modules/device/volume-estimation/use-active-volume-estimate';
+
+export {
+  type TherapyReadinessActionRoute,
+  type TherapyReadinessGate,
+  type TherapyReadinessGateContext,
+  type TherapyReadinessGateEstimate,
+  type TherapyReadinessStatus,
+} from '@/src/modules/device/volume-estimation/therapy-readiness-types';
+
+export {
+  buildTherapyReadinessGate,
+  evaluateTherapyReadinessOnDemand,
+  showTherapyReadinessAlert,
+  therapyReadinessCardStatusLabel,
+  volumeEstimationStatusToTherapy,
+  type EvaluateTherapyReadinessOnDemandParams,
+  type TherapyReadinessInputState,
+} from '@/src/modules/device/volume-estimation/therapy-readiness-service';
+
+export {
+  useTherapyReadinessGate,
+  type UseTherapyReadinessGateOptions,
+  type UseTherapyReadinessGateResult,
+} from '@/src/modules/device/volume-estimation/use-therapy-readiness-gate';

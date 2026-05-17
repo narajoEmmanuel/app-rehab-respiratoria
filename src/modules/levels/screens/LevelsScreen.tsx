@@ -7,10 +7,14 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useCalibrationSnapshot } from '@/src/modules/device/state/use-calibration-snapshot';
+import {
+  evaluateTherapyReadinessOnDemand,
+  showTherapyReadinessAlert,
+  useTherapyReadinessGate,
+} from '@/src/modules/device/volume-estimation';
 import { getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
 import type { PatientLevelRecord } from '@/src/modules/diagnostics/types';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
@@ -64,11 +68,10 @@ export function LevelsScreen({
   const insets = useSafeAreaInsets();
   const { patient } = usePatientSession();
   const { isLoading, selectLevel } = useLevelsProgress();
-  const { snapshot: calibrationSnapshot } = useCalibrationSnapshot();
+  const { refresh: refreshTherapyGate, lastReading, sensorConnected } = useTherapyReadinessGate();
   const levels = listLevels();
   const [patientLevels, setPatientLevels] = useState<PatientLevelRecord[]>([]);
-  const deviceNotReady =
-    calibrationSnapshot.kind === 'none' || calibrationSnapshot.kind === 'corrupt';
+  const [startingLevelId, setStartingLevelId] = useState<LevelId | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -95,22 +98,45 @@ export function LevelsScreen({
         if (!cancelled) setPatientLevels(rows);
       };
       void refreshLevels();
+      void refreshTherapyGate();
       return () => {
         cancelled = true;
       };
-    }, [patient]),
+    }, [patient, refreshTherapyGate]),
   );
 
-  const onLevelPress = (levelId: LevelId) => {
-    selectLevel(levelId);
-    router.push({
-      pathname: '/(tabs)/sesion',
-      params: {
-        levelId,
-        sessionRunId: `${levelId}-${Date.now()}`,
-      },
-    });
-  };
+  const onLevelPress = useCallback(
+    async (levelId: LevelId, progressionLocked: boolean) => {
+      if (progressionLocked || startingLevelId !== null) return;
+
+      setStartingLevelId(levelId);
+      try {
+        const distanceMm = lastReading?.distanceMm;
+        const distanceIsFinite = typeof distanceMm === 'number' && Number.isFinite(distanceMm);
+        const gate = await evaluateTherapyReadinessOnDemand({
+          distanceMm: sensorConnected && distanceIsFinite ? distanceMm : null,
+          sensorConnected,
+        });
+
+        if (!gate.canStartTherapy) {
+          showTherapyReadinessAlert(gate, (route) => router.push(route));
+          return;
+        }
+
+        selectLevel(levelId);
+        router.push({
+          pathname: '/(tabs)/sesion',
+          params: {
+            levelId,
+            sessionRunId: `${levelId}-${Date.now()}`,
+          },
+        });
+      } finally {
+        setStartingLevelId(null);
+      }
+    },
+    [lastReading?.distanceMm, router, selectLevel, sensorConnected, startingLevelId],
+  );
 
   const scrollBottom = dashboardScrollBottomPadding(insets.bottom);
   const activePatientLevel = patientLevels.find((row) => row.level_status === 'active');
@@ -140,23 +166,6 @@ export function LevelsScreen({
         showsVerticalScrollIndicator={false}>
         <Text style={styles.screenTitle}>Avanza a tu ritmo</Text>
         <Text style={styles.tagline}>{headerSubtitle}</Text>
-
-        {deviceNotReady ? (
-          <Pressable
-            style={({ pressed }) => [styles.devicePrecondition, pressed && styles.devicePreconditionPressed]}
-            onPress={() => router.push('/sensor-connection')}
-            accessibilityRole="button"
-            accessibilityLabel="Preparar dispositivo antes de iniciar terapia">
-            <Text style={styles.devicePreconditionEyebrow}>Antes de empezar</Text>
-            <Text style={styles.devicePreconditionTitle}>Prepara tu dispositivo</Text>
-            <Text style={styles.devicePreconditionBody}>
-              {calibrationSnapshot.kind === 'corrupt'
-                ? 'La calibración guardada está dañada. Vuelve a calibrar para activar la terapia con datos confiables.'
-                : 'Conecta el sensor y registra una calibración local para activar la lectura durante la terapia.'}
-            </Text>
-            <Text style={styles.devicePreconditionCta}>Preparar dispositivo →</Text>
-          </Pressable>
-        ) : null}
 
         {levels.map((level) => {
           const levelId = level.id as LevelId;
@@ -189,7 +198,9 @@ export function LevelsScreen({
                   : 'Completa 6 sesiones perfectas en el nivel activo para desbloquear el siguiente.'
               }
               locked={locked}
-              onPress={() => onLevelPress(levelId)}
+              onPress={() => {
+                void onLevelPress(levelId, locked);
+              }}
             />
           );
         })}
@@ -265,39 +276,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 15,
     lineHeight: 22,
-  },
-  devicePrecondition: {
-    backgroundColor: dashboardScreen.cardBg,
-    borderRadius: dashboardScreen.cardRadius,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-  },
-  devicePreconditionPressed: { opacity: 0.94 },
-  devicePreconditionEyebrow: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#6B7280',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: spacing.xs,
-  },
-  devicePreconditionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: dashboardScreen.textPrimaryStrong,
-    marginBottom: 4,
-  },
-  devicePreconditionBody: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: dashboardScreen.textSecondary,
-    marginBottom: spacing.sm,
-  },
-  devicePreconditionCta: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#34aba5',
   },
 });
