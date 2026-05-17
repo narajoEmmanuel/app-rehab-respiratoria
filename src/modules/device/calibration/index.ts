@@ -144,3 +144,37 @@ export {
   computeRSquaredMl,
   evaluatePredictions,
 } from '@/src/modules/device/calibration/calibration-model-evaluation';
+
+export {
+  ACTIVE_CALIBRATION_MODEL_VERSION,
+  type ActiveCalibrationClinicalStatus,
+  type ActiveCalibrationCoverageSummary,
+  type ActiveCalibrationDistanceRangeMm,
+  type ActiveCalibrationGeometricSummary,
+  type ActiveCalibrationModel,
+  type ActiveCalibrationProtocolSummary,
+  type ActiveCalibrationQualitySummary,
+  type ActiveCalibrationRangeMl,
+  type ActiveCalibrationRepeatabilitySummary,
+  type ActiveCalibrationTechnicalSummary,
+  type ActiveCalibrationUncertaintySummary,
+} from '@/src/modules/device/calibration/active-calibration-types';
+
+export {
+  activeModelCardStatusLabel,
+  buildActiveCalibrationModel,
+  buildActiveCalibrationTechnicalSummary,
+  isActiveCalibrationModelStale,
+  resolveActiveModelCardStatus,
+  type ActiveModelCardStatus,
+  type BuildActiveCalibrationModelParams,
+} from '@/src/modules/device/calibration/active-calibration-model';
+
+export {
+  ACTIVE_CALIBRATION_BY_SPIROMETER_STORAGE_KEY,
+  clearActiveCalibrationModelForSpirometer,
+  hasActiveCalibrationModelForSpirometer,
+  listActiveCalibrationModelsBySpirometer,
+  loadActiveCalibrationModelForSpirometer,
+  saveActiveCalibrationModelForSpirometer,
+} from '@/src/modules/device/calibration/active-calibration-storage';

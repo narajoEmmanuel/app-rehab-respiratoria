@@ -17,6 +17,14 @@ import * as Haptics from 'expo-haptics';
 import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import {
+  activeModelCardStatusLabel,
+  buildActiveCalibrationModel,
+  buildActiveCalibrationTechnicalSummary,
+  clearActiveCalibrationModelForSpirometer,
+  isActiveCalibrationModelStale,
+  loadActiveCalibrationModelForSpirometer,
+  resolveActiveModelCardStatus,
+  saveActiveCalibrationModelForSpirometer,
   buildCalibrationProfile,
   buildLinearCalibrationModel,
   buildPiecewiseLinearCalibrationModel,
@@ -62,6 +70,8 @@ import {
   type CalibrationUncertaintySummary,
   type VolumeUncertaintyReport,
   type VolumeUncertaintyStatus,
+  type ActiveCalibrationModel,
+  type ActiveCalibrationTechnicalSummary,
 } from '@/src/modules/device/calibration';
 import {
   buildGeometricSegmentsMl,
@@ -380,6 +390,23 @@ function geometricValidationStatusLabel(profile: SpirometerProfile): string {
   return 'No configurada';
 }
 
+function activeModelKindUiLabel(kind: 'linear_regression' | 'piecewise_linear'): string {
+  return kind === 'piecewise_linear' ? 'Por tramos' : 'Lineal';
+}
+
+async function confirmActivationDouble(
+  firstMessage: string,
+  secondMessage: string,
+): Promise<boolean> {
+  const first = await confirmProceed('Activar modelo recomendado', firstMessage, {
+    confirmLabel: 'Continuar',
+  });
+  if (!first) return false;
+  return confirmProceed('Activar modelo recomendado', secondMessage, {
+    confirmLabel: 'Activar modelo',
+  });
+}
+
 function formatMetricMl(value: number | null): string {
   if (value === null || !Number.isFinite(value)) return '—';
   return `${value.toFixed(0)} mL`;
@@ -495,6 +522,12 @@ export function SensorCalibrationScreen() {
     null,
   );
   const [spirometerReady, setSpirometerReady] = useState(false);
+  const [activeCalibrationModel, setActiveCalibrationModel] =
+    useState<ActiveCalibrationModel | null>(null);
+  const [showActiveModelSummary, setShowActiveModelSummary] = useState(false);
+  const [activeModelBusy, setActiveModelBusy] = useState<'idle' | 'activating' | 'clearing'>(
+    'idle',
+  );
   const debug = isSensorDebugEnabled();
 
   const isRetakeMode = retakeVolumeMl !== null;
@@ -771,12 +804,19 @@ export function SensorCalibrationScreen() {
     }
   }, []);
 
+  const loadActiveModelForDevice = useCallback(async (deviceId: string) => {
+    const model = await loadActiveCalibrationModelForSpirometer(deviceId);
+    setActiveCalibrationModel(model);
+    setShowActiveModelSummary(false);
+  }, []);
+
   const loadCalibrationForDevice = useCallback(
     async (deviceId: string) => {
       const result = await loadCalibrationProfileDetailed(deviceId);
       applyLoadCalibrationResult(result);
+      await loadActiveModelForDevice(deviceId);
     },
-    [applyLoadCalibrationResult],
+    [applyLoadCalibrationResult, loadActiveModelForDevice],
   );
 
   useEffect(() => {
@@ -1081,6 +1121,161 @@ export function SensorCalibrationScreen() {
     savedStatus.kind === 'saved' && savedProfile !== null && storageBusy === 'idle';
   const canClearStorage =
     (savedStatus.kind === 'saved' || savedStatus.kind === 'corrupt') && storageBusy === 'idle';
+
+  const canActivateRecommendedModel = useMemo(() => {
+    if (activeModelBusy !== 'idle' || storageBusy !== 'idle') return false;
+    if (!activeSpirometerDevice || !savedProfile) return false;
+    if (hasUnsavedChanges) return false;
+    if (!recommendation || !linearModel || !piecewiseModel) return false;
+    if (recommendation.recommendedKind === 'none') return false;
+    if (!recommendation.isReadyForTherapy) return false;
+    return true;
+  }, [
+    activeModelBusy,
+    activeSpirometerDevice,
+    hasUnsavedChanges,
+    linearModel,
+    piecewiseModel,
+    recommendation,
+    savedProfile,
+    storageBusy,
+  ]);
+
+  const activationBlockReason = useMemo(() => {
+    if (canActivateRecommendedModel) return null;
+    if (hasUnsavedChanges) {
+      return 'Guarda la calibración y completa los criterios antes de activar el modelo.';
+    }
+    if (!savedProfile) {
+      return 'Guarda la calibración y completa los criterios antes de activar el modelo.';
+    }
+    if (!activeSpirometerDevice) {
+      return 'Selecciona un espirómetro antes de activar el modelo.';
+    }
+    if (!recommendation || recommendation.recommendedKind === 'none') {
+      return 'Guarda la calibración y completa los criterios antes de activar el modelo.';
+    }
+    if (!recommendation.isReadyForTherapy) {
+      return recommendation.therapyReadinessReason;
+    }
+    return 'Guarda la calibración y completa los criterios antes de activar el modelo.';
+  }, [
+    activeSpirometerDevice,
+    canActivateRecommendedModel,
+    hasUnsavedChanges,
+    recommendation,
+    savedProfile,
+  ]);
+
+  const activeModelIsStale = useMemo(
+    () =>
+      isActiveCalibrationModelStale(activeCalibrationModel, savedProfile, hasUnsavedChanges),
+    [activeCalibrationModel, hasUnsavedChanges, savedProfile],
+  );
+
+  const activeModelCardStatus = useMemo(
+    () =>
+      resolveActiveModelCardStatus(
+        activeCalibrationModel,
+        savedProfile,
+        hasUnsavedChanges,
+        canActivateRecommendedModel,
+      ),
+    [
+      activeCalibrationModel,
+      canActivateRecommendedModel,
+      hasUnsavedChanges,
+      savedProfile,
+    ],
+  );
+
+  const activeModelStatusLabel = useMemo(
+    () => activeModelCardStatusLabel(activeModelCardStatus),
+    [activeModelCardStatus],
+  );
+
+  const activeTechnicalSummary = useMemo<ActiveCalibrationTechnicalSummary | null>(() => {
+    if (!activeCalibrationModel || !activeSpirometerDevice) return null;
+    return buildActiveCalibrationTechnicalSummary(
+      activeCalibrationModel,
+      activeSpirometerDevice.label,
+    );
+  }, [activeCalibrationModel, activeSpirometerDevice]);
+
+  const onActivateRecommendedModel = useCallback(async () => {
+    if (
+      !canActivateRecommendedModel ||
+      !savedProfile ||
+      !recommendation ||
+      !linearModel ||
+      !piecewiseModel ||
+      !activeSpirometerDevice
+    ) {
+      return;
+    }
+    const ok = await confirmActivationDouble(
+      'Se guardará este modelo como modelo activo para el espirómetro seleccionado.',
+      'Solo debe activarse si la calibración fue realizada correctamente y está pendiente de validación clínica.',
+    );
+    if (!ok) return;
+    hapticLight();
+    setActiveModelBusy('activating');
+    setStorageMessage(null);
+    try {
+      const model = buildActiveCalibrationModel({
+        calibrationProfile: savedProfile,
+        recommendation,
+        linearModel,
+        piecewiseModel,
+      });
+      await saveActiveCalibrationModelForSpirometer(model);
+      setActiveCalibrationModel(model);
+      setShowActiveModelSummary(true);
+      setStorageMessage(
+        `Modelo activo guardado para ${activeSpirometerDevice.label}.`,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'No se pudo activar el modelo.';
+      setStorageMessage(message);
+    } finally {
+      setActiveModelBusy('idle');
+    }
+  }, [
+    activeSpirometerDevice,
+    canActivateRecommendedModel,
+    linearModel,
+    piecewiseModel,
+    recommendation,
+    savedProfile,
+  ]);
+
+  const onClearActiveModel = useCallback(async () => {
+    if (!activeSpirometerDevice || !activeCalibrationModel) return;
+    const ok = await confirmActionDouble(
+      'Borrar modelo activo',
+      `Se eliminará el modelo activo de ${activeSpirometerDevice.label}. La calibración guardada y los puntos no se borran.`,
+      'Confirma nuevamente para borrar solo el modelo activo.',
+    );
+    if (!ok) return;
+    hapticLight();
+    setActiveModelBusy('clearing');
+    setStorageMessage(null);
+    try {
+      await clearActiveCalibrationModelForSpirometer(activeSpirometerDevice.id);
+      setActiveCalibrationModel(null);
+      setShowActiveModelSummary(false);
+      setStorageMessage(`Modelo activo eliminado para ${activeSpirometerDevice.label}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error al borrar el modelo activo.';
+      setStorageMessage(message);
+    } finally {
+      setActiveModelBusy('idle');
+    }
+  }, [activeCalibrationModel, activeSpirometerDevice]);
+
+  const canClearActiveModel =
+    activeCalibrationModel !== null && activeModelBusy === 'idle' && storageBusy === 'idle';
 
   const isConnecting = status === 'connecting';
   const isOnline = status === 'connected' || status === 'receiving';
@@ -2339,6 +2534,191 @@ export function SensorCalibrationScreen() {
         </Text>
 
         <View style={styles.card}>
+          <Text style={styles.cardTitleStrong}>Modelo activo</Text>
+          <Text style={styles.cardHint}>
+            Aprobación del modelo recomendado para la calibración específica del espirómetro
+            seleccionado. Pendiente de validación clínica antes de uso en terapia.
+          </Text>
+          <View
+            style={[
+              styles.savedBadge,
+              activeModelCardStatus === 'current'
+                ? styles.savedBadgeOk
+                : activeModelCardStatus === 'stale'
+                  ? styles.savedBadgeWarn
+                  : activeModelCardStatus === 'not_eligible'
+                    ? styles.savedBadgeWarn
+                    : styles.savedBadgeMuted,
+            ]}>
+            {activeModelBusy !== 'idle' ? (
+              <ActivityIndicator size="small" color={wellness.primaryDark} />
+            ) : null}
+            <Text
+              style={
+                activeModelCardStatus === 'current'
+                  ? styles.savedBadgeText
+                  : activeModelCardStatus === 'stale' || activeModelCardStatus === 'not_eligible'
+                    ? styles.savedBadgeText
+                    : styles.savedBadgeTextMuted
+              }>
+              {activeModelStatusLabel}
+            </Text>
+          </View>
+
+          {activeCalibrationModel ? (
+            <View style={styles.resultsGrid}>
+              <MetricCell
+                label="Tipo de modelo activo"
+                value={activeModelKindUiLabel(activeCalibrationModel.modelKind)}
+              />
+              <MetricCell
+                label="Espirómetro asociado"
+                value={activeSpirometerDevice?.label ?? '—'}
+              />
+              <MetricCell
+                label="Activado"
+                value={formatTimestamp(activeCalibrationModel.activatedAt)}
+              />
+              <MetricCell
+                label="U95 máximo"
+                value={
+                  activeCalibrationModel.uncertainty.maxU95Ml !== null
+                    ? `${activeCalibrationModel.uncertainty.maxU95Ml.toFixed(0)} mL`
+                    : '—'
+                }
+              />
+              <MetricCell
+                label="Rango calibrado"
+                value={`${activeCalibrationModel.calibratedRangeMl.min}–${activeCalibrationModel.calibratedRangeMl.max} mL`}
+              />
+              <MetricCell
+                label="Validación clínica"
+                value={activeCalibrationModel.clinicalStatus.label}
+              />
+            </View>
+          ) : (
+            <Text style={styles.summaryLine}>
+              Aún no hay modelo activo guardado para este espirómetro.
+            </Text>
+          )}
+
+          {activeModelIsStale && activeCalibrationModel ? (
+            <Text style={styles.warnHint}>
+              El modelo activo no coincide con la calibración guardada actual. Actívalo de nuevo
+              después de guardar si la calibración cumple los criterios.
+            </Text>
+          ) : null}
+
+          {!canActivateRecommendedModel && activationBlockReason ? (
+            <Text style={styles.cardHint}>{activationBlockReason}</Text>
+          ) : null}
+
+          <View style={styles.rowGap}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                !canActivateRecommendedModel && styles.btnDisabled,
+                pressed && canActivateRecommendedModel && styles.primaryBtnPressed,
+              ]}
+              onPress={() => {
+                void onActivateRecommendedModel();
+              }}
+              disabled={!canActivateRecommendedModel}
+              accessibilityRole="button"
+              accessibilityLabel="Activar modelo recomendado">
+              <Text
+                style={[
+                  styles.primaryBtnText,
+                  !canActivateRecommendedModel && styles.btnTextDisabled,
+                ]}>
+                Activar modelo recomendado
+              </Text>
+            </Pressable>
+            {activeCalibrationModel ? (
+              <>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.secondaryBtn,
+                    pressed && styles.secondaryBtnPressed,
+                  ]}
+                  onPress={() => {
+                    hapticLight();
+                    setShowActiveModelSummary((v) => !v);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ver resumen técnico">
+                  <Text style={styles.secondaryBtnText}>
+                    {showActiveModelSummary ? 'Ocultar resumen técnico' : 'Ver resumen técnico'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.dangerBtn,
+                    !canClearActiveModel && styles.btnDisabled,
+                    pressed && canClearActiveModel && styles.dangerBtnPressed,
+                  ]}
+                  onPress={() => {
+                    void onClearActiveModel();
+                  }}
+                  disabled={!canClearActiveModel}
+                  accessibilityRole="button"
+                  accessibilityLabel="Borrar modelo activo">
+                  <Text style={[styles.dangerBtnText, !canClearActiveModel && styles.btnTextDisabled]}>
+                    Borrar modelo activo
+                  </Text>
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+
+          {showActiveModelSummary && activeTechnicalSummary ? (
+            <View style={styles.activeSummaryBox}>
+              <Text style={styles.cardSubTitleStrong}>Resumen técnico</Text>
+              <Text style={styles.summaryLine}>
+                Espirómetro: {activeTechnicalSummary.spirometerLabel} ·{' '}
+                {activeTechnicalSummary.spirometerProfileName}
+              </Text>
+              <Text style={styles.summaryLine}>Modelo: {activeTechnicalSummary.modelKind}</Text>
+              <Text style={styles.summaryLine}>
+                Activado: {formatTimestamp(activeTechnicalSummary.activatedAt)}
+              </Text>
+              <Text style={styles.summaryLine}>
+                Rango calibrado: {activeTechnicalSummary.calibratedRangeMl}
+              </Text>
+              <Text style={styles.summaryLine}>
+                Protocolo: {activeTechnicalSummary.requiredProtocolSummary}
+              </Text>
+              <Text style={styles.summaryLine}>
+                Repetibilidad: {activeTechnicalSummary.repeatabilitySummary}
+              </Text>
+              <Text style={styles.summaryLine}>
+                Geometría: {activeTechnicalSummary.geometricSummary}
+              </Text>
+              <Text style={styles.summaryLine}>
+                Incertidumbre: {activeTechnicalSummary.uncertaintySummary}
+              </Text>
+              <Text style={styles.summaryLine}>
+                Estado: {activeTechnicalSummary.isReadyForTherapy ? 'Apto para activación' : 'No apto'} ·{' '}
+                {activeTechnicalSummary.therapyReadinessReason}
+              </Text>
+              <Text style={styles.summaryLine}>
+                Validación clínica: Pendiente de validación clínica
+              </Text>
+              {activeTechnicalSummary.warnings.length > 0 ? (
+                <View style={styles.modelWarningsBox}>
+                  <Text style={styles.modelSubLabel}>Advertencias</Text>
+                  {activeTechnicalSummary.warnings.map((warning, idx) => (
+                    <Text key={`acm-w-${idx}`} style={styles.modelWarningText}>
+                      • {warning}
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.cardTitleStrong}>Persistencia local</Text>
           <View
             style={[
@@ -3037,6 +3417,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: wellness.borderStrong,
     gap: 4,
+  },
+  activeSummaryBox: {
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: wellnessRadii.card,
+    backgroundColor: wellness.screenBgAlt,
+    borderWidth: 1,
+    borderColor: wellness.tabBarBorder,
+    gap: spacing.xs,
   },
   modelWarningText: {
     fontSize: 13,
