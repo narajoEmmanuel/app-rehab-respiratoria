@@ -3,6 +3,8 @@
  * No tiene dependencias de React ni de transporte; lo importan pantalla, math y storage.
  */
 
+import type { SpirometerProfile } from '@/src/modules/device/spirometer/spirometer-types';
+
 export type CalibrationCapturePoint = {
   id: string;
   volumeMl: number;
@@ -37,7 +39,12 @@ export type GlobalDistanceRange = {
 export type VolumeDistanceRelation = 'direct' | 'inverse' | 'indeterminate';
 
 /** Versión del esquema persistido; incrementar si rompemos compatibilidad con AsyncStorage. */
-export const CALIBRATION_PROFILE_VERSION = 1;
+export const CALIBRATION_PROFILE_VERSION = 2;
+
+export type CalibrationRangeMl = {
+  min: number;
+  max: number;
+};
 
 export type CalibrationProfile = {
   id: string;
@@ -52,4 +59,9 @@ export type CalibrationProfile = {
   source: 'local_calibration';
   notes?: string;
   version: number;
+  spirometerDeviceId: string;
+  spirometerProfileId: string;
+  spirometerProfileSnapshot: SpirometerProfile;
+  calibrationRangeMl: CalibrationRangeMl;
+  requiredVolumesMl: number[];
 };

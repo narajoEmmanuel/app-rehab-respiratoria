@@ -17,11 +17,24 @@ import * as Haptics from 'expo-haptics';
 import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import {
+  useActiveVolumeEstimate,
+  volumeEstimationCardStatusLabel,
+} from '@/src/modules/device/volume-estimation';
+import {
+  activeModelCardStatusLabel,
+  buildActiveCalibrationModel,
+  buildActiveCalibrationTechnicalSummary,
+  clearActiveCalibrationModelForSpirometer,
+  isActiveCalibrationModelStale,
+  loadActiveCalibrationModelForSpirometer,
+  resolveActiveModelCardStatus,
+  saveActiveCalibrationModelForSpirometer,
   buildCalibrationProfile,
   buildLinearCalibrationModel,
   buildPiecewiseLinearCalibrationModel,
   CALIBRATION_PROFILE_VERSION,
-  clearCalibrationProfile,
+  clearCalibrationProfileForSpirometer,
+  computeCalibrationUncertaintySummary,
   computeGeometricScaleReport,
   computeGlobalDistanceRange,
   computeRepeatabilityReport,
@@ -30,23 +43,15 @@ import {
   computeVolumeCoverage,
   computeVolumeSummaries,
   determineVolumeDistanceRelation,
-  EXPECTED_DISTANCE_STEP_PER_500ML_MM,
-  EXPECTED_MAX_VOLUME_ML,
-  EXPECTED_MIN_VOLUME_ML,
-  EXPECTED_RECOMMENDED_MAX_VOLUME_ML,
-  EXTENDED_VOLUME_CHIPS_ML,
   hasSubOperativeVolumes,
   loadCalibrationProfileDetailed,
-  MIN_OPERATIVE_VOLUME_ML,
   MIN_RELIABLE_SENSOR_DISTANCE_MM,
   MIN_REPETITIONS_PER_REQUIRED_VOLUME,
   MIN_REPETITIONS_PER_VOLUME,
   MIN_VALID_CALIBRATION_POINTS_FOR_THERAPY,
   recommendCalibrationModel,
-  RECOMMENDED_VOLUME_CHIPS_ML,
-  REQUIRED_GEOMETRIC_SEGMENTS_ML,
-  REQUIRED_RECOMMENDED_VOLUMES_ML,
-  saveCalibrationProfile,
+  saveCalibrationProfileForSpirometer,
+  UNCERTAINTY_COVERAGE_FACTOR_K,
   type CalibrationCapturePoint,
   type CalibrationLinealQuality,
   type CalibrationModel,
@@ -64,8 +69,26 @@ import {
   type VolumeCoverage,
   type VolumeDistanceRelation,
   type VolumeRepeatability,
+  type GeometricScaleReport,
   type GeometricScaleSegmentStatus,
+  type CalibrationUncertaintySummary,
+  type VolumeUncertaintyReport,
+  type VolumeUncertaintyStatus,
+  type ActiveCalibrationModel,
+  type ActiveCalibrationTechnicalSummary,
 } from '@/src/modules/device/calibration';
+import {
+  buildGeometricSegmentsMl,
+  createDefaultSpirometerDevicesIfNeeded,
+  getActiveSpirometerContext,
+  getExtendedRangeMinVolumeMl,
+  getExtendedVolumeChipsMl,
+  getRecommendedVolumeChipsMl,
+  listSpirometerDevices,
+  setActiveSpirometerDevice as persistActiveSpirometerDevice,
+  type SpirometerDevice,
+  type SpirometerProfile,
+} from '@/src/modules/device/spirometer';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
@@ -302,6 +325,34 @@ function volumeRepeatabilityBadgeLabel(row: VolumeRepeatability): string {
   }
 }
 
+function formatUncertaintyMl(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return '—';
+  return `±${value.toFixed(0)}`;
+}
+
+function uncertaintyOverallLabel(
+  uncertainty: CalibrationUncertaintySummary['reports'],
+  hasAcceptable: boolean,
+): 'Aceptable' | 'Revisar' | 'Incompleto' {
+  if (uncertainty.length === 0 || uncertainty.every((r) => r.status === 'insufficient_data')) {
+    return 'Incompleto';
+  }
+  return hasAcceptable ? 'Aceptable' : 'Revisar';
+}
+
+function volumeUncertaintyStatusLabel(status: VolumeUncertaintyStatus): string {
+  switch (status) {
+    case 'ok':
+      return 'OK';
+    case 'limited':
+      return 'Limitado';
+    case 'insufficient_data':
+      return 'Incompleto';
+    default:
+      return status;
+  }
+}
+
 function geometricSegmentStatusLabel(status: GeometricScaleSegmentStatus): string {
   switch (status) {
     case 'ok':
@@ -324,12 +375,40 @@ function formatExpectedDeltaMm(value: number): string {
 }
 
 function geometricValidationOverallLabel(
-  missingSegments: number,
-  passesGeometricValidation: boolean,
+  report: GeometricScaleReport,
 ): string {
-  if (missingSegments > 0) return 'Incompleto';
-  if (passesGeometricValidation) return 'Correcto';
+  if (!report.geometricValidationConfigured) return 'No configurada';
+  if (report.missingSegments > 0) return 'Incompleto';
+  if (report.passesGeometricValidation) return 'Correcto';
   return 'Revisar montaje';
+}
+
+function spirometerProfileVolumeLabel(profile: SpirometerProfile): string {
+  return `${profile.maxVolumeMl} mL`;
+}
+
+function geometricValidationStatusLabel(profile: SpirometerProfile): string {
+  if (profile.geometricValidationEnabled && profile.expectedDistanceStepMm !== null) {
+    return 'Activa';
+  }
+  return 'No configurada';
+}
+
+function activeModelKindUiLabel(kind: 'linear_regression' | 'piecewise_linear'): string {
+  return kind === 'piecewise_linear' ? 'Por tramos' : 'Lineal';
+}
+
+async function confirmActivationDouble(
+  firstMessage: string,
+  secondMessage: string,
+): Promise<boolean> {
+  const first = await confirmProceed('Activar modelo recomendado', firstMessage, {
+    confirmLabel: 'Continuar',
+  });
+  if (!first) return false;
+  return confirmProceed('Activar modelo recomendado', secondMessage, {
+    confirmLabel: 'Activar modelo',
+  });
 }
 
 function formatMetricMl(value: number | null): string {
@@ -439,6 +518,20 @@ export function SensorCalibrationScreen() {
   const [storageMessage, setStorageMessage] = useState<string | null>(null);
   const [retakeVolumeMl, setRetakeVolumeMl] = useState<number | null>(null);
   const [retakeDraftPoints, setRetakeDraftPoints] = useState<CalibrationCapturePoint[]>([]);
+  const [spirometerDevices, setSpirometerDevices] = useState<SpirometerDevice[]>([]);
+  const [activeSpirometerDevice, setActiveSpirometerDevice] = useState<SpirometerDevice | null>(
+    null,
+  );
+  const [activeSpirometerProfile, setActiveSpirometerProfile] = useState<SpirometerProfile | null>(
+    null,
+  );
+  const [spirometerReady, setSpirometerReady] = useState(false);
+  const [activeCalibrationModel, setActiveCalibrationModel] =
+    useState<ActiveCalibrationModel | null>(null);
+  const [showActiveModelSummary, setShowActiveModelSummary] = useState(false);
+  const [activeModelBusy, setActiveModelBusy] = useState<'idle' | 'activating' | 'clearing'>(
+    'idle',
+  );
   const debug = isSensorDebugEnabled();
 
   const isRetakeMode = retakeVolumeMl !== null;
@@ -548,8 +641,33 @@ export function SensorCalibrationScreen() {
     volumeMl,
   ]);
 
-  const isSubOperativeInput =
-    volumeMl !== null && volumeMl < MIN_OPERATIVE_VOLUME_ML;
+  const operativeMinVolumeMl = activeSpirometerProfile?.operativeMinVolumeMl ?? 500;
+
+  const recommendedVolumeChips = useMemo(
+    () =>
+      activeSpirometerProfile
+        ? getRecommendedVolumeChipsMl(activeSpirometerProfile)
+        : [],
+    [activeSpirometerProfile],
+  );
+  const extendedVolumeChips = useMemo(
+    () =>
+      activeSpirometerProfile ? getExtendedVolumeChipsMl(activeSpirometerProfile) : [],
+    [activeSpirometerProfile],
+  );
+  const requiredVolumesMl = useMemo(
+    () => activeSpirometerProfile?.requiredVolumesMl ?? [],
+    [activeSpirometerProfile],
+  );
+  const geometricSegmentCount = useMemo(
+    () =>
+      activeSpirometerProfile
+        ? buildGeometricSegmentsMl(activeSpirometerProfile).length
+        : 0,
+    [activeSpirometerProfile],
+  );
+
+  const isSubOperativeInput = volumeMl !== null && volumeMl < operativeMinVolumeMl;
 
   const volumeSummaries = useMemo<VolumeCalibrationSummary[]>(
     () => computeVolumeSummaries(points),
@@ -569,8 +687,10 @@ export function SensorCalibrationScreen() {
    * cambios sin guardar). Conserva id/createdAt del perfil persistido cuando existe,
    * para que el modelo derive un calibrationProfileId estable.
    */
-  const liveProfile = useMemo<CalibrationProfile>(
-    () => ({
+  const liveProfile = useMemo<CalibrationProfile | null>(() => {
+    if (!activeSpirometerDevice || !activeSpirometerProfile) return null;
+    const snapshot = activeSpirometerProfile;
+    return {
       id: savedProfile?.id ?? 'live',
       name: savedProfile?.name ?? 'Calibración local',
       createdAt: savedProfile?.createdAt ?? 0,
@@ -583,44 +703,70 @@ export function SensorCalibrationScreen() {
       source: 'local_calibration',
       notes: savedProfile?.notes,
       version: CALIBRATION_PROFILE_VERSION,
-    }),
-    [globalRange, points, relation, savedProfile, volumeSummaries],
-  );
-  const linearModel = useMemo<CalibrationModel>(
-    () => buildLinearCalibrationModel(liveProfile),
+      spirometerDeviceId: activeSpirometerDevice.id,
+      spirometerProfileId: snapshot.id,
+      spirometerProfileSnapshot: snapshot,
+      calibrationRangeMl: {
+        min: snapshot.operativeMinVolumeMl,
+        max: snapshot.maxVolumeMl,
+      },
+      requiredVolumesMl: [...snapshot.requiredVolumesMl],
+    };
+  }, [
+    activeSpirometerDevice,
+    activeSpirometerProfile,
+    globalRange,
+    points,
+    relation,
+    savedProfile,
+    volumeSummaries,
+  ]);
+  const linearModel = useMemo<CalibrationModel | null>(
+    () => (liveProfile ? buildLinearCalibrationModel(liveProfile) : null),
     [liveProfile],
   );
-  const piecewiseModel = useMemo<CalibrationModel>(
-    () => buildPiecewiseLinearCalibrationModel(liveProfile),
+  const piecewiseModel = useMemo<CalibrationModel | null>(
+    () => (liveProfile ? buildPiecewiseLinearCalibrationModel(liveProfile) : null),
     [liveProfile],
   );
-  const recommendation = useMemo<CalibrationModelRecommendation>(
-    () => recommendCalibrationModel(liveProfile, linearModel, piecewiseModel),
-    [liveProfile, linearModel, piecewiseModel],
-  );
-  const coverage = useMemo<VolumeCoverage>(
-    () => computeVolumeCoverage(volumeSummaries),
-    [volumeSummaries],
+  const recommendation = useMemo<CalibrationModelRecommendation | null>(() => {
+    if (!liveProfile || !linearModel || !piecewiseModel) return null;
+    return recommendCalibrationModel(liveProfile, linearModel, piecewiseModel);
+  }, [liveProfile, linearModel, piecewiseModel]);
+  const coverage = useMemo<VolumeCoverage | null>(
+    () =>
+      activeSpirometerProfile
+        ? computeVolumeCoverage(volumeSummaries, activeSpirometerProfile)
+        : null,
+    [activeSpirometerProfile, volumeSummaries],
   );
   const repeatability = useMemo<CalibrationRepeatabilityReport>(
-    () => computeRepeatabilityReport(points, volumeSummaries),
-    [points, volumeSummaries],
+    () =>
+      computeRepeatabilityReport(points, volumeSummaries, requiredVolumesMl),
+    [points, requiredVolumesMl, volumeSummaries],
   );
   const segmentReport = useMemo<CalibrationSegmentReport>(
     () => computeSegmentReport(volumeSummaries, relation),
     [relation, volumeSummaries],
   );
   const requiredCoverage = useMemo(
-    () => computeRequiredCalibrationCoverage(points, volumeSummaries),
-    [points, volumeSummaries],
+    () => computeRequiredCalibrationCoverage(points, volumeSummaries, requiredVolumesMl),
+    [points, requiredVolumesMl, volumeSummaries],
   );
   const geometricReport = useMemo(
-    () => computeGeometricScaleReport(volumeSummaries, relation),
-    [relation, volumeSummaries],
+    () =>
+      activeSpirometerProfile
+        ? computeGeometricScaleReport(volumeSummaries, relation, activeSpirometerProfile)
+        : null,
+    [activeSpirometerProfile, relation, volumeSummaries],
+  );
+  const uncertaintySummary = useMemo<CalibrationUncertaintySummary | null>(
+    () => (liveProfile ? computeCalibrationUncertaintySummary(liveProfile) : null),
+    [liveProfile],
   );
   const hasLegacySubOperative = useMemo<boolean>(
-    () => hasSubOperativeVolumes(volumeSummaries),
-    [volumeSummaries],
+    () => hasSubOperativeVolumes(volumeSummaries, operativeMinVolumeMl),
+    [operativeMinVolumeMl, volumeSummaries],
   );
   const groupedPoints = useMemo(() => {
     const grouped = new Map<number, CalibrationCapturePoint[]>();
@@ -636,34 +782,92 @@ export function SensorCalibrationScreen() {
       }));
   }, [points]);
 
+  const applyLoadCalibrationResult = useCallback((result: LoadCalibrationResult) => {
+    if (result.kind === 'ok') {
+      setSavedProfile(result.profile);
+      setPoints(result.profile.points);
+      setRetakeVolumeMl(null);
+      setRetakeDraftPoints([]);
+      setHasUnsavedChanges(false);
+      setSavedStatus({
+        kind: 'saved',
+        updatedAt: result.profile.updatedAt,
+        pointsCount: result.profile.points.length,
+      });
+    } else if (result.kind === 'empty') {
+      setSavedProfile(null);
+      setPoints([]);
+      setRetakeVolumeMl(null);
+      setRetakeDraftPoints([]);
+      setHasUnsavedChanges(false);
+      setSavedStatus({ kind: 'none' });
+    } else {
+      setSavedProfile(null);
+      setPoints([]);
+      setSavedStatus({ kind: 'corrupt', errorMessage: result.errorMessage });
+    }
+  }, []);
+
+  const loadActiveModelForDevice = useCallback(async (deviceId: string) => {
+    const model = await loadActiveCalibrationModelForSpirometer(deviceId);
+    setActiveCalibrationModel(model);
+    setShowActiveModelSummary(false);
+  }, []);
+
+  const loadCalibrationForDevice = useCallback(
+    async (deviceId: string) => {
+      const result = await loadCalibrationProfileDetailed(deviceId);
+      applyLoadCalibrationResult(result);
+      await loadActiveModelForDevice(deviceId);
+    },
+    [applyLoadCalibrationResult, loadActiveModelForDevice],
+  );
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const result: LoadCalibrationResult = await loadCalibrationProfileDetailed();
+      await createDefaultSpirometerDevicesIfNeeded();
+      const devices = await listSpirometerDevices();
+      const context = await getActiveSpirometerContext();
       if (cancelled) return;
-      if (result.kind === 'ok') {
-        setSavedProfile(result.profile);
-        setPoints(result.profile.points);
-        setRetakeVolumeMl(null);
-        setRetakeDraftPoints([]);
-        setHasUnsavedChanges(false);
-        setSavedStatus({
-          kind: 'saved',
-          updatedAt: result.profile.updatedAt,
-          pointsCount: result.profile.points.length,
-        });
-      } else if (result.kind === 'empty') {
-        setSavedProfile(null);
-        setSavedStatus({ kind: 'none' });
-      } else {
-        setSavedProfile(null);
-        setSavedStatus({ kind: 'corrupt', errorMessage: result.errorMessage });
+      setSpirometerDevices(devices);
+      if (context) {
+        setActiveSpirometerDevice(context.device);
+        setActiveSpirometerProfile(context.profile);
+        await loadCalibrationForDevice(context.device.id);
       }
+      if (!cancelled) setSpirometerReady(true);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadCalibrationForDevice]);
+
+  const onSelectSpirometerDevice = useCallback(
+    async (device: SpirometerDevice) => {
+      if (activeSpirometerDevice?.id === device.id) return;
+      if (hasUnsavedChanges) {
+        const ok = await confirmProceed(
+          'Cambiar espirómetro',
+          'Hay cambios sin guardar en la calibración actual. Si continúas, se descartarán los puntos en pantalla.',
+          { confirmLabel: 'Cambiar espirómetro' },
+        );
+        if (!ok) return;
+      }
+      hapticLight();
+      await persistActiveSpirometerDevice(device.id);
+      const context = await getActiveSpirometerContext();
+      if (!context) return;
+      setActiveSpirometerDevice(context.device);
+      setActiveSpirometerProfile(context.profile);
+      setSpirometerDevices(await listSpirometerDevices());
+      setVolumeInput('');
+      setBuffer([]);
+      setStorageMessage(null);
+      await loadCalibrationForDevice(device.id);
+    },
+    [activeSpirometerDevice?.id, hasUnsavedChanges, loadCalibrationForDevice],
+  );
 
   const markDirty = useCallback(() => {
     setHasUnsavedChanges(true);
@@ -815,13 +1019,18 @@ export function SensorCalibrationScreen() {
   }, [resetConnection]);
 
   const onSaveCalibration = useCallback(async () => {
-    if (storageBusy !== 'idle') return;
+    if (storageBusy !== 'idle' || !activeSpirometerDevice || !activeSpirometerProfile) return;
     hapticLight();
     setStorageBusy('saving');
     setStorageMessage(null);
     try {
-      const profile = buildCalibrationProfile(points, { previous: savedProfile });
-      await saveCalibrationProfile(profile);
+      const profile = buildCalibrationProfile(points, {
+        previous: savedProfile,
+        spirometerDeviceId: activeSpirometerDevice.id,
+        spirometerProfileId: activeSpirometerProfile.id,
+        spirometerProfileSnapshot: activeSpirometerProfile,
+      });
+      await saveCalibrationProfileForSpirometer(activeSpirometerDevice.id, profile);
       setSavedProfile(profile);
       setHasUnsavedChanges(false);
       setSavedStatus({
@@ -829,69 +1038,66 @@ export function SensorCalibrationScreen() {
         updatedAt: profile.updatedAt,
         pointsCount: profile.points.length,
       });
-      setStorageMessage('Calibración guardada localmente.');
+      setStorageMessage(
+        `Calibración guardada para ${activeSpirometerDevice.label} (calibración específica del espirómetro).`,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error al guardar.';
       setStorageMessage(message);
     } finally {
       setStorageBusy('idle');
     }
-  }, [points, savedProfile, storageBusy]);
+  }, [
+    activeSpirometerDevice,
+    activeSpirometerProfile,
+    points,
+    savedProfile,
+    storageBusy,
+  ]);
 
   const onLoadCalibration = useCallback(async () => {
-    if (storageBusy !== 'idle') return;
+    if (storageBusy !== 'idle' || !activeSpirometerDevice) return;
     hapticLight();
     setStorageBusy('loading');
     setStorageMessage(null);
-    const result = await loadCalibrationProfileDetailed();
+    const result = await loadCalibrationProfileDetailed(activeSpirometerDevice.id);
+    applyLoadCalibrationResult(result);
     if (result.kind === 'ok') {
-      setSavedProfile(result.profile);
-      setPoints(result.profile.points);
-      setRetakeVolumeMl(null);
-      setRetakeDraftPoints([]);
-      setHasUnsavedChanges(false);
-      setSavedStatus({
-        kind: 'saved',
-        updatedAt: result.profile.updatedAt,
-        pointsCount: result.profile.points.length,
-      });
-      setStorageMessage('Calibración cargada desde almacenamiento local.');
+      setStorageMessage(
+        `Calibración cargada para ${activeSpirometerDevice.label}.`,
+      );
     } else if (result.kind === 'empty') {
-      setSavedProfile(null);
-      setSavedStatus({ kind: 'none' });
-      setStorageMessage('No hay calibración guardada todavía.');
+      setStorageMessage('No hay calibración guardada para este espirómetro.');
     } else {
-      setSavedProfile(null);
-      setSavedStatus({ kind: 'corrupt', errorMessage: result.errorMessage });
       setStorageMessage(`Calibración guardada corrupta: ${result.errorMessage}`);
     }
     setStorageBusy('idle');
-  }, [storageBusy]);
+  }, [activeSpirometerDevice, applyLoadCalibrationResult, storageBusy]);
 
   const onClearStorage = useCallback(async () => {
-    if (storageBusy !== 'idle') return;
+    if (storageBusy !== 'idle' || !activeSpirometerDevice) return;
     const ok = await confirmActionDouble(
       'Borrar calibración guardada',
-      'Se eliminará el perfil de calibración guardado en este dispositivo. Los puntos actuales en pantalla no se borran.',
-      'Confirma nuevamente para borrar la calibración guardada del dispositivo.',
+      `Se eliminará la calibración guardada de ${activeSpirometerDevice.label}. Los puntos actuales en pantalla no se borran.`,
+      'Confirma nuevamente para borrar la calibración guardada de este espirómetro.',
     );
     if (!ok) return;
     hapticLight();
     setStorageBusy('clearing');
     setStorageMessage(null);
     try {
-      await clearCalibrationProfile();
+      await clearCalibrationProfileForSpirometer(activeSpirometerDevice.id);
       setSavedProfile(null);
       setSavedStatus({ kind: 'none' });
       setHasUnsavedChanges(points.length > 0);
-      setStorageMessage('Calibración guardada eliminada.');
+      setStorageMessage(`Calibración guardada eliminada para ${activeSpirometerDevice.label}.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error al borrar.';
       setStorageMessage(message);
     } finally {
       setStorageBusy('idle');
     }
-  }, [points.length, storageBusy]);
+  }, [activeSpirometerDevice, points.length, storageBusy]);
 
   const effectiveSavedStatus: SavedStatus = useMemo(() => {
     if (savedStatus.kind === 'loading' || savedStatus.kind === 'corrupt') return savedStatus;
@@ -919,6 +1125,179 @@ export function SensorCalibrationScreen() {
     savedStatus.kind === 'saved' && savedProfile !== null && storageBusy === 'idle';
   const canClearStorage =
     (savedStatus.kind === 'saved' || savedStatus.kind === 'corrupt') && storageBusy === 'idle';
+
+  const canActivateRecommendedModel = useMemo(() => {
+    if (activeModelBusy !== 'idle' || storageBusy !== 'idle') return false;
+    if (!activeSpirometerDevice || !savedProfile) return false;
+    if (hasUnsavedChanges) return false;
+    if (!recommendation || !linearModel || !piecewiseModel) return false;
+    if (recommendation.recommendedKind === 'none') return false;
+    if (!recommendation.isReadyForTherapy) return false;
+    return true;
+  }, [
+    activeModelBusy,
+    activeSpirometerDevice,
+    hasUnsavedChanges,
+    linearModel,
+    piecewiseModel,
+    recommendation,
+    savedProfile,
+    storageBusy,
+  ]);
+
+  const activationBlockReason = useMemo(() => {
+    if (canActivateRecommendedModel) return null;
+    if (hasUnsavedChanges) {
+      return 'Guarda la calibración y completa los criterios antes de activar el modelo.';
+    }
+    if (!savedProfile) {
+      return 'Guarda la calibración y completa los criterios antes de activar el modelo.';
+    }
+    if (!activeSpirometerDevice) {
+      return 'Selecciona un espirómetro antes de activar el modelo.';
+    }
+    if (!recommendation || recommendation.recommendedKind === 'none') {
+      return 'Guarda la calibración y completa los criterios antes de activar el modelo.';
+    }
+    if (!recommendation.isReadyForTherapy) {
+      return recommendation.therapyReadinessReason;
+    }
+    return 'Guarda la calibración y completa los criterios antes de activar el modelo.';
+  }, [
+    activeSpirometerDevice,
+    canActivateRecommendedModel,
+    hasUnsavedChanges,
+    recommendation,
+    savedProfile,
+  ]);
+
+  const activeModelIsStale = useMemo(
+    () =>
+      isActiveCalibrationModelStale(activeCalibrationModel, savedProfile, hasUnsavedChanges),
+    [activeCalibrationModel, hasUnsavedChanges, savedProfile],
+  );
+
+  const activeModelCardStatus = useMemo(
+    () =>
+      resolveActiveModelCardStatus(
+        activeCalibrationModel,
+        savedProfile,
+        hasUnsavedChanges,
+        canActivateRecommendedModel,
+      ),
+    [
+      activeCalibrationModel,
+      canActivateRecommendedModel,
+      hasUnsavedChanges,
+      savedProfile,
+    ],
+  );
+
+  const activeModelStatusLabel = useMemo(
+    () => activeModelCardStatusLabel(activeModelCardStatus),
+    [activeModelCardStatus],
+  );
+
+  const activeTechnicalSummary = useMemo<ActiveCalibrationTechnicalSummary | null>(() => {
+    if (!activeCalibrationModel || !activeSpirometerDevice) return null;
+    return buildActiveCalibrationTechnicalSummary(
+      activeCalibrationModel,
+      activeSpirometerDevice.label,
+    );
+  }, [activeCalibrationModel, activeSpirometerDevice]);
+
+  const {
+    refresh: refreshVolumeEstimate,
+    context: volumeEstimationContext,
+    estimate: liveVolumeEstimate,
+    status: volumeEstimateStatus,
+    message: volumeEstimateMessage,
+    sensorConnected: sensorConnectedForEstimate,
+  } = useActiveVolumeEstimate({
+    spirometerDeviceId: activeSpirometerDevice?.id,
+    hasUnsavedChanges,
+    enabled: spirometerReady && !!activeSpirometerDevice?.id,
+  });
+
+  const liveEstimateStatusLabel = volumeEstimationCardStatusLabel(volumeEstimateStatus);
+
+  const onActivateRecommendedModel = useCallback(async () => {
+    if (
+      !canActivateRecommendedModel ||
+      !savedProfile ||
+      !recommendation ||
+      !linearModel ||
+      !piecewiseModel ||
+      !activeSpirometerDevice
+    ) {
+      return;
+    }
+    const ok = await confirmActivationDouble(
+      'Se guardará este modelo como modelo activo para el espirómetro seleccionado.',
+      'Solo debe activarse si la calibración fue realizada correctamente y está pendiente de validación clínica.',
+    );
+    if (!ok) return;
+    hapticLight();
+    setActiveModelBusy('activating');
+    setStorageMessage(null);
+    try {
+      const model = buildActiveCalibrationModel({
+        calibrationProfile: savedProfile,
+        recommendation,
+        linearModel,
+        piecewiseModel,
+      });
+      await saveActiveCalibrationModelForSpirometer(model);
+      setActiveCalibrationModel(model);
+      setShowActiveModelSummary(true);
+      await refreshVolumeEstimate();
+      setStorageMessage(
+        `Modelo activo guardado para ${activeSpirometerDevice.label}.`,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'No se pudo activar el modelo.';
+      setStorageMessage(message);
+    } finally {
+      setActiveModelBusy('idle');
+    }
+  }, [
+    activeSpirometerDevice,
+    canActivateRecommendedModel,
+    linearModel,
+    piecewiseModel,
+    recommendation,
+    refreshVolumeEstimate,
+    savedProfile,
+  ]);
+
+  const onClearActiveModel = useCallback(async () => {
+    if (!activeSpirometerDevice || !activeCalibrationModel) return;
+    const ok = await confirmActionDouble(
+      'Borrar modelo activo',
+      `Se eliminará el modelo activo de ${activeSpirometerDevice.label}. La calibración guardada y los puntos no se borran.`,
+      'Confirma nuevamente para borrar solo el modelo activo.',
+    );
+    if (!ok) return;
+    hapticLight();
+    setActiveModelBusy('clearing');
+    setStorageMessage(null);
+    try {
+      await clearActiveCalibrationModelForSpirometer(activeSpirometerDevice.id);
+      setActiveCalibrationModel(null);
+      setShowActiveModelSummary(false);
+      await refreshVolumeEstimate();
+      setStorageMessage(`Modelo activo eliminado para ${activeSpirometerDevice.label}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error al borrar el modelo activo.';
+      setStorageMessage(message);
+    } finally {
+      setActiveModelBusy('idle');
+    }
+  }, [activeCalibrationModel, activeSpirometerDevice, refreshVolumeEstimate]);
+
+  const canClearActiveModel =
+    activeCalibrationModel !== null && activeModelBusy === 'idle' && storageBusy === 'idle';
 
   const isConnecting = status === 'connecting';
   const isOnline = status === 'connected' || status === 'receiving';
@@ -1011,6 +1390,69 @@ export function SensorCalibrationScreen() {
             </View>
           </View>
         </View>
+
+        {spirometerReady && activeSpirometerDevice && activeSpirometerProfile ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitleStrong}>Espirómetro activo</Text>
+            <Text style={styles.cardHint}>
+              Cada unidad física tiene su propia calibración. El sensor compartido no cambia al
+              seleccionar otro espirómetro.
+            </Text>
+            <View style={styles.resultsGrid}>
+              <MetricCell label="Unidad" value={activeSpirometerDevice.label} />
+              <MetricCell
+                label="Perfil de espirómetro"
+                value={spirometerProfileVolumeLabel(activeSpirometerProfile)}
+              />
+              <MetricCell
+                label="Rango recomendado"
+                value={`${activeSpirometerProfile.recommendedMinVolumeMl}–${activeSpirometerProfile.recommendedMaxVolumeMl} mL`}
+              />
+              <MetricCell
+                label="Rango total"
+                value={`${activeSpirometerProfile.operativeMinVolumeMl}–${activeSpirometerProfile.maxVolumeMl} mL`}
+              />
+              <MetricCell
+                label="Validación geométrica"
+                value={geometricValidationStatusLabel(activeSpirometerProfile)}
+              />
+            </View>
+            <Text style={styles.chipsGroupLabel}>Seleccionar espirómetro</Text>
+            <View style={styles.spirometerSelectorRow}>
+              {spirometerDevices.map((device) => {
+                const selected = device.id === activeSpirometerDevice.id;
+                return (
+                  <Pressable
+                    key={device.id}
+                    style={({ pressed }) => [
+                      styles.spirometerOption,
+                      selected && styles.spirometerOptionSelected,
+                      pressed && styles.spirometerOptionPressed,
+                    ]}
+                    onPress={() => {
+                      void onSelectSpirometerDevice(device);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={`Seleccionar ${device.label}`}>
+                    <Text
+                      style={[
+                        styles.spirometerOptionLabel,
+                        selected && styles.spirometerOptionLabelSelected,
+                      ]}>
+                      {device.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : (
+          <View style={styles.card}>
+            <ActivityIndicator size="small" color={wellness.primaryDark} />
+            <Text style={styles.cardHint}>Cargando espirómetros registrados…</Text>
+          </View>
+        )}
 
         {isRetakeMode && retakeVolumeMl !== null ? (
           <View style={styles.retakeBanner}>
@@ -1243,9 +1685,12 @@ export function SensorCalibrationScreen() {
               Volumen fijado durante repetir volumen. Termina o cancela la repetición para editar otro valor.
             </Text>
           ) : null}
-          <Text style={styles.chipsGroupLabel}>Rango recomendado · 500–3000 mL</Text>
+          <Text style={styles.chipsGroupLabel}>
+            Rango recomendado · {activeSpirometerProfile?.recommendedMinVolumeMl ?? 500}–
+            {activeSpirometerProfile?.recommendedMaxVolumeMl ?? 3000} mL
+          </Text>
           <View style={styles.chipsRow}>
-            {RECOMMENDED_VOLUME_CHIPS_ML.map((v) => (
+            {recommendedVolumeChips.map((v) => (
               <Pressable
                 key={v}
                 style={({ pressed }) => [
@@ -1264,31 +1709,38 @@ export function SensorCalibrationScreen() {
               </Pressable>
             ))}
           </View>
-          <Text style={styles.chipsGroupLabelMuted}>Rango extendido · 3500–5000 mL</Text>
-          <View style={styles.chipsRow}>
-            {EXTENDED_VOLUME_CHIPS_ML.map((v) => (
-              <Pressable
-                key={v}
-                style={({ pressed }) => [
-                  styles.chip,
-                  styles.chipExtended,
-                  isRetakeMode && styles.chipDisabled,
-                  pressed && styles.chipPressed,
-                ]}
-                onPress={() => {
-                  if (isRetakeMode) return;
-                  hapticLight();
-                  setVolumeInput(String(v));
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`Volumen objetivo ${v} mililitros (rango extendido)`}>
-                <Text style={[styles.chipText, styles.chipTextExtended]}>{v}</Text>
-              </Pressable>
-            ))}
-          </View>
+          {extendedVolumeChips.length > 0 && activeSpirometerProfile ? (
+            <>
+              <Text style={styles.chipsGroupLabelMuted}>
+                Rango extendido · {getExtendedRangeMinVolumeMl(activeSpirometerProfile)}–
+                {activeSpirometerProfile.extendedMaxVolumeMl} mL
+              </Text>
+              <View style={styles.chipsRow}>
+                {extendedVolumeChips.map((v) => (
+                  <Pressable
+                    key={v}
+                    style={({ pressed }) => [
+                      styles.chip,
+                      styles.chipExtended,
+                      isRetakeMode && styles.chipDisabled,
+                      pressed && styles.chipPressed,
+                    ]}
+                    onPress={() => {
+                      if (isRetakeMode) return;
+                      hapticLight();
+                      setVolumeInput(String(v));
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Volumen objetivo ${v} mililitros (rango extendido)`}>
+                    <Text style={[styles.chipText, styles.chipTextExtended]}>{v}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          ) : null}
           {isSubOperativeInput ? (
             <Text style={styles.warnHint}>
-              El rango operativo recomendado inicia en 500 mL.
+              El rango operativo recomendado inicia en {operativeMinVolumeMl} mL.
             </Text>
           ) : null}
           {!canRegister && registerBlockReason ? (
@@ -1390,9 +1842,16 @@ export function SensorCalibrationScreen() {
         <View style={styles.modelSectionHeader}>
           <Text style={styles.modelSectionTitle}>Modelo de calibración</Text>
           <Text style={styles.modelSectionSubtitle}>
-            Convierte la distancia del sensor en volumen estimado. Rango recomendado{' '}
-            {EXPECTED_MIN_VOLUME_ML}–{EXPECTED_RECOMMENDED_MAX_VOLUME_ML} mL; rango extendido opcional
-            hasta {EXPECTED_MAX_VOLUME_ML} mL. Pendiente de validación clínica.
+            Convierte la distancia del sensor en volumen estimado para{' '}
+            {activeSpirometerProfile?.name ?? 'el espirómetro activo'}. Rango recomendado{' '}
+            {activeSpirometerProfile?.recommendedMinVolumeMl ?? 500}–
+            {activeSpirometerProfile?.recommendedMaxVolumeMl ?? 3000} mL
+            {activeSpirometerProfile &&
+            activeSpirometerProfile.extendedMaxVolumeMl >
+              activeSpirometerProfile.recommendedMaxVolumeMl
+              ? `; rango extendido opcional hasta ${activeSpirometerProfile.extendedMaxVolumeMl} mL`
+              : ''}
+            . Pendiente de validación clínica.
           </Text>
         </View>
 
@@ -1400,19 +1859,25 @@ export function SensorCalibrationScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitleStrong}>Protocolo mínimo de calibración</Text>
           <Text style={styles.cardHint}>
-            Para considerar la calibración apta para terapia: {REQUIRED_RECOMMENDED_VOLUMES_ML.length}{' '}
-            volúmenes obligatorios ({REQUIRED_RECOMMENDED_VOLUMES_ML.join(', ')} mL), al menos{' '}
+            Para considerar la calibración apta para terapia: {requiredVolumesMl.length}{' '}
+            volúmenes obligatorios ({requiredVolumesMl.join(', ')} mL), al menos{' '}
             {MIN_REPETITIONS_PER_REQUIRED_VOLUME} mediciones válidas en cada uno y un total de al menos{' '}
             {MIN_VALID_CALIBRATION_POINTS_FOR_THERAPY} puntos válidos en esos volúmenes.
           </Text>
           <View style={styles.resultsGrid}>
             <MetricCell
               label="Progreso (puntos válidos)"
-              value={`${recommendation.requiredProtocol.totalValidRequiredPoints} / ${recommendation.requiredProtocol.minimumRequiredPoints}`}
+              value={
+                recommendation
+                  ? `${recommendation.requiredProtocol.totalValidRequiredPoints} / ${recommendation.requiredProtocol.minimumRequiredPoints}`
+                  : '—'
+              }
             />
             <MetricCell
               label="Protocolo mínimo cumplido"
-              value={recommendation.requiredProtocol.meetsRequiredProtocol ? 'Sí' : 'No'}
+              value={
+                recommendation?.requiredProtocol.meetsRequiredProtocol ? 'Sí' : 'No'
+              }
             />
           </View>
           {requiredCoverage.missingRequiredVolumes.length > 0 ? (
@@ -1439,7 +1904,7 @@ export function SensorCalibrationScreen() {
             <Text style={[styles.summaryHeadCell, styles.protocolVolCol]}>Volumen</Text>
             <Text style={[styles.summaryHeadCell, styles.protocolRepCol]}>Mediciones</Text>
           </View>
-          {REQUIRED_RECOMMENDED_VOLUMES_ML.map((v) => (
+          {requiredVolumesMl.map((v) => (
             <View key={`req-${v}`} style={styles.summaryTableRow}>
               <Text style={[styles.summaryCell, styles.protocolVolCol]}>{v} mL</Text>
               <Text style={[styles.summaryCell, styles.protocolRepCol]}>
@@ -1450,30 +1915,45 @@ export function SensorCalibrationScreen() {
         </View>
 
         {/* Validación geométrica (escala física del espirómetro) */}
+        {geometricReport ? (
         <View style={styles.card}>
           <Text style={styles.cardTitleStrong}>Validación geométrica</Text>
           <Text style={styles.cardHint}>
-            Compara los saltos de distancia entre marcas de 500 mL con la escala física del espirómetro
-            (~{EXPECTED_DISTANCE_STEP_PER_500ML_MM} mm por cada 500 mL). No sustituye la calibración completa;
-            sirve para revisar montaje del sensor. Pendiente de validación clínica.
+            Verificación geométrica del montaje: compara saltos de distancia entre marcas del
+            espirómetro con el desplazamiento físico esperado del perfil de espirómetro activo.
+            No define el volumen de referencia (escala del espirómetro). Pendiente de validación
+            clínica.
           </Text>
+          {!geometricReport.geometricValidationConfigured ? (
+            <Text style={styles.warnHint}>
+              La validación geométrica requiere medir la distancia física entre marcas del
+              espirómetro.
+            </Text>
+          ) : null}
           <View style={styles.resultsGrid}>
             <MetricCell
-              label="Escala esperada"
-              value={`${EXPECTED_DISTANCE_STEP_PER_500ML_MM} mm por cada 500 mL`}
+              label="Escala esperada (perfil)"
+              value={
+                geometricReport.expectedDistanceStepPer500MlMm !== null &&
+                activeSpirometerProfile
+                  ? `${geometricReport.expectedDistanceStepPer500MlMm} mm / ${activeSpirometerProfile.calibrationStepMl} mL`
+                  : 'No configurada'
+              }
             />
             <MetricCell
               label="Segmentos correctos"
-              value={`${geometricReport.okSegments} / ${REQUIRED_GEOMETRIC_SEGMENTS_ML.length}`}
+              value={
+                geometricReport.geometricValidationConfigured
+                  ? `${geometricReport.okSegments} / ${geometricSegmentCount}`
+                  : '—'
+              }
             />
             <MetricCell
               label="Estado"
-              value={geometricValidationOverallLabel(
-                geometricReport.missingSegments,
-                geometricReport.passesGeometricValidation,
-              )}
+              value={geometricValidationOverallLabel(geometricReport)}
             />
           </View>
+          {geometricReport.geometricValidationConfigured ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.geomTable}>
               <View style={[styles.geomTableRow, styles.geomTableHeadRow]}>
@@ -1506,14 +1986,19 @@ export function SensorCalibrationScreen() {
               ))}
             </View>
           </ScrollView>
-          {geometricReport.criticalSegments > 0 ? (
+          ) : null}
+          {geometricReport.geometricValidationConfigured &&
+          geometricReport.criticalSegments > 0 ? (
             <Text style={styles.warnHint}>
               Revisa el montaje del sensor o repite las mediciones del tramo afectado.
             </Text>
           ) : null}
         </View>
+        ) : null}
 
         {/* B. Modelo recomendado */}
+        {recommendation && uncertaintySummary && coverage && linearModel ? (
+        <>
         <View style={styles.card}>
           <View style={styles.modelHeaderRow}>
             <Text style={styles.cardTitleStrong}>Modelo recomendado</Text>
@@ -1572,6 +2057,158 @@ export function SensorCalibrationScreen() {
               ))}
             </View>
           ) : null}
+          {uncertaintySummary.reports.some((r) => r.expandedUncertaintyU95Ml !== null) ? (
+            <>
+              <Text style={styles.modelSubLabel}>Resultado esperado del modelo</Text>
+              <Text style={styles.modelReason}>
+                Volumen estimado ± U95 (mL), con bandas según volumen calibrado (k ={' '}
+                {UNCERTAINTY_COVERAGE_FACTOR_K}).
+              </Text>
+              <Text style={styles.cardHint}>
+                Cuando se active en terapia, el modelo reportará el volumen estimado acompañado de
+                una incertidumbre expandida U95.
+              </Text>
+            </>
+          ) : null}
+        </View>
+
+        {/* Incertidumbre metrológica */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitleStrong}>Incertidumbre metrológica</Text>
+          <Text style={styles.cardHint}>
+            Referencia primaria de volumen: escala del espirómetro. La regla se usa solo en
+            verificación geométrica del montaje y no entra en uc por defecto. Pendiente de
+            validación clínica.
+          </Text>
+          <View style={styles.resultsGrid}>
+            <MetricCell
+              label="U95 promedio"
+              value={formatUncertaintyMl(uncertaintySummary.averageU95Ml)}
+              unit="mL"
+            />
+            <MetricCell
+              label="U95 máximo"
+              value={formatUncertaintyMl(uncertaintySummary.maxU95Ml)}
+              unit="mL"
+            />
+            <MetricCell
+              label="Volumen con mayor U95"
+              value={
+                uncertaintySummary.volumeWithMaxU95Ml === null
+                  ? '—'
+                  : `${uncertaintySummary.volumeWithMaxU95Ml} mL`
+              }
+            />
+            <MetricCell
+              label="Factor k"
+              value={String(UNCERTAINTY_COVERAGE_FACTOR_K)}
+            />
+            <MetricCell
+              label="Estado"
+              value={uncertaintyOverallLabel(
+                uncertaintySummary.reports,
+                recommendation.uncertainty.hasAcceptableUncertainty,
+              )}
+            />
+          </View>
+          {uncertaintySummary.reports.length > 0 ? (
+            <>
+              <Text style={styles.cardSubTitleStrong}>Por volumen</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.uncertTable}>
+                  <View style={[styles.uncertTableRow, styles.uncertTableHeadRow]}>
+                    <Text style={[styles.uncertCell, styles.uncertColVol]}>Vol.</Text>
+                    <Text style={[styles.uncertCell, styles.uncertColN]}>n</Text>
+                    <Text style={[styles.uncertCell, styles.uncertColSd]}>SD rep.</Text>
+                    <Text style={[styles.uncertCell, styles.uncertColUa]}>uA</Text>
+                    <Text style={[styles.uncertCell, styles.uncertColSens]}>Sens.</Text>
+                    <Text style={[styles.uncertCell, styles.uncertColUc]}>uc</Text>
+                    <Text style={[styles.uncertCell, styles.uncertColU95]}>U95</Text>
+                    <Text style={[styles.uncertCell, styles.uncertColState]}>Estado</Text>
+                  </View>
+                  {uncertaintySummary.reports.map((row: VolumeUncertaintyReport) => (
+                    <View key={`unc-${row.volumeMl}`} style={styles.uncertTableRow}>
+                      <Text style={[styles.uncertCell, styles.uncertColVol]}>{row.volumeMl}</Text>
+                      <Text style={[styles.uncertCell, styles.uncertColN]}>{row.repetitions}</Text>
+                      <Text style={[styles.uncertCell, styles.uncertColSd]}>
+                        {row.sdBetweenRepetitionsMm === null
+                          ? '—'
+                          : `${row.sdBetweenRepetitionsMm.toFixed(2)}`}
+                      </Text>
+                      <Text style={[styles.uncertCell, styles.uncertColUa]}>
+                        {row.uARepeatabilityDistanceMm === null
+                          ? '—'
+                          : row.uARepeatabilityDistanceMm.toFixed(2)}
+                      </Text>
+                      <Text style={[styles.uncertCell, styles.uncertColSens]}>
+                        {row.localSensitivityMlPerMm === null
+                          ? '—'
+                          : `${row.localSensitivityMlPerMm.toFixed(0)}`}
+                      </Text>
+                      <Text style={[styles.uncertCell, styles.uncertColUc]}>
+                        {row.uCombinedVolumeMl === null
+                          ? '—'
+                          : row.uCombinedVolumeMl.toFixed(0)}
+                      </Text>
+                      <Text style={[styles.uncertCell, styles.uncertColU95]}>
+                        {formatUncertaintyMl(row.expandedUncertaintyU95Ml)}
+                      </Text>
+                      <Text style={[styles.uncertCell, styles.uncertColState]}>
+                        {volumeUncertaintyStatusLabel(row.status)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            </>
+          ) : (
+            <Text style={styles.emptyText}>Registra puntos de calibración para calcular incertidumbre.</Text>
+          )}
+          <Text style={styles.cardSubTitleStrong}>Componentes considerados</Text>
+          {uncertaintySummary.components.map((comp) => (
+            <View key={comp.label} style={styles.uncertComponentRow}>
+              <View style={styles.uncertComponentHeader}>
+                <Text style={styles.uncertComponentLabel}>{comp.label}</Text>
+                {comp.includedInCombinedUncertainty === false ? (
+                  <Text style={styles.uncertComponentBadge}>Solo verificación geométrica</Text>
+                ) : comp.includedInCombinedUncertainty === true &&
+                  comp.label === 'Lectura marca espirómetro' ? (
+                  <Text style={styles.uncertComponentBadgePrimary}>Referencia primaria</Text>
+                ) : null}
+              </View>
+              <Text style={styles.uncertComponentValue}>
+                {comp.value === null
+                  ? '—'
+                  : comp.label === 'Incertidumbre relativa sensor'
+                    ? `${comp.value.toFixed(0)} %`
+                    : comp.label === 'Factor de cobertura k'
+                      ? String(comp.value)
+                      : comp.label.startsWith('Regla física')
+                        ? `u ≈ ${comp.value.toFixed(1)} mL`
+                        : `${comp.value} ${comp.unit}`}
+              </Text>
+              <Text style={styles.uncertComponentDesc}>{comp.description}</Text>
+            </View>
+          ))}
+          {!uncertaintySummary.includeRuleInCombinedUncertainty ? (
+            <Text style={styles.cardHint}>
+              La regla no se suma en la incertidumbre combinada del volumen estimado; define solo la
+              verificación geométrica del desplazamiento del pistón.
+            </Text>
+          ) : null}
+          {uncertaintySummary.warnings.length > 0 ? (
+            <View style={styles.modelWarningsBox}>
+              {uncertaintySummary.warnings.map((warning, idx) => (
+                <Text key={`unc-w-${idx}`} style={styles.modelWarningText}>
+                  • {warning}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+          <Text style={styles.modelDisclaimer}>
+            La incertidumbre reportada corresponde al procedimiento de calibración actual y está
+            pendiente de validación clínica.
+          </Text>
         </View>
 
         {/* C. Calidad del modelo lineal */}
@@ -1663,7 +2300,7 @@ export function SensorCalibrationScreen() {
               value={globalRange.rangeMm === null ? '—' : `${globalRange.rangeMm.toFixed(1)} mm`}
             />
             <MetricCell
-              label="Cobertura 500–3000"
+              label={`Cobertura ${activeSpirometerProfile?.recommendedMinVolumeMl ?? 500}–${activeSpirometerProfile?.recommendedMaxVolumeMl ?? 3000}`}
               value={
                 coverage.coveredMinMl === null
                   ? '—'
@@ -1671,7 +2308,7 @@ export function SensorCalibrationScreen() {
               }
             />
             <MetricCell
-              label="Cobertura 500–5000"
+              label={`Cobertura ${activeSpirometerProfile?.operativeMinVolumeMl ?? 500}–${activeSpirometerProfile?.maxVolumeMl ?? 5000}`}
               value={
                 coverage.coveredMinMl === null
                   ? '—'
@@ -1687,11 +2324,13 @@ export function SensorCalibrationScreen() {
           ) : null}
           {volumeSummaries.length > 0 ? (
             <Text style={styles.modelCoverageHint}>
-              {coverage.coversTotal
-                ? `Cubre el rango total del dispositivo (${EXPECTED_MIN_VOLUME_ML}–${EXPECTED_MAX_VOLUME_ML} mL).`
-                : coverage.coversRecommended
-                  ? `Cubre el rango recomendado (${EXPECTED_MIN_VOLUME_ML}–${EXPECTED_RECOMMENDED_MAX_VOLUME_ML} mL).`
-                  : `Aún no cubre el rango recomendado (${EXPECTED_MIN_VOLUME_ML}–${EXPECTED_RECOMMENDED_MAX_VOLUME_ML} mL).`}
+              {coverage.coversTotal && activeSpirometerProfile
+                ? `Cubre el rango total del dispositivo (${activeSpirometerProfile.operativeMinVolumeMl}–${activeSpirometerProfile.maxVolumeMl} mL).`
+                : coverage.coversRecommended && activeSpirometerProfile
+                  ? `Cubre el rango recomendado (${activeSpirometerProfile.recommendedMinVolumeMl}–${activeSpirometerProfile.recommendedMaxVolumeMl} mL).`
+                  : activeSpirometerProfile
+                    ? `Aún no cubre el rango recomendado (${activeSpirometerProfile.recommendedMinVolumeMl}–${activeSpirometerProfile.recommendedMaxVolumeMl} mL).`
+                    : 'Aún no cubre el rango recomendado.'}
             </Text>
           ) : null}
           {volumeSummaries.length > 0 && !coverage.coversRecommended ? (
@@ -1699,19 +2338,28 @@ export function SensorCalibrationScreen() {
               Completa el rango recomendado antes de usar el modelo en terapia.
             </Text>
           ) : null}
-          {coverage.coversRecommended && !coverage.coversTotal ? (
+          {coverage.coversRecommended &&
+          !coverage.coversTotal &&
+          activeSpirometerProfile &&
+          activeSpirometerProfile.extendedMaxVolumeMl >
+            activeSpirometerProfile.recommendedMaxVolumeMl ? (
             <Text style={styles.cardHint}>
-              El rango extendido (3500–5000 mL) es opcional para pacientes con mayor capacidad.
+              El rango extendido (
+              {getExtendedRangeMinVolumeMl(activeSpirometerProfile)}–
+              {activeSpirometerProfile.extendedMaxVolumeMl} mL) es opcional para pacientes con mayor
+              capacidad.
             </Text>
           ) : null}
           {hasLegacySubOperative ? (
             <Text style={styles.cardHint}>
               Este perfil contiene puntos por debajo del rango operativo recomendado
-              (&lt;{MIN_OPERATIVE_VOLUME_ML} mL). Se mantienen visibles, pero las nuevas capturas
-              deberían iniciar en {MIN_OPERATIVE_VOLUME_ML} mL.
+              (&lt;{operativeMinVolumeMl} mL). Se mantienen visibles, pero las nuevas capturas
+              deberían iniciar en {operativeMinVolumeMl} mL.
             </Text>
           ) : null}
         </View>
+        </>
+        ) : null}
 
         {/* E. Repetibilidad */}
         <View style={styles.card}>
@@ -1906,6 +2554,280 @@ export function SensorCalibrationScreen() {
         <Text style={styles.modelDisclaimer}>
           La estimación a partir de esta calibración está pendiente de validación clínica.
         </Text>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitleStrong}>Modelo activo</Text>
+          <Text style={styles.cardHint}>
+            Aprobación del modelo recomendado para la calibración específica del espirómetro
+            seleccionado. Pendiente de validación clínica antes de uso en terapia.
+          </Text>
+          <View
+            style={[
+              styles.savedBadge,
+              activeModelCardStatus === 'current'
+                ? styles.savedBadgeOk
+                : activeModelCardStatus === 'stale'
+                  ? styles.savedBadgeWarn
+                  : activeModelCardStatus === 'not_eligible'
+                    ? styles.savedBadgeWarn
+                    : styles.savedBadgeMuted,
+            ]}>
+            {activeModelBusy !== 'idle' ? (
+              <ActivityIndicator size="small" color={wellness.primaryDark} />
+            ) : null}
+            <Text
+              style={
+                activeModelCardStatus === 'current'
+                  ? styles.savedBadgeText
+                  : activeModelCardStatus === 'stale' || activeModelCardStatus === 'not_eligible'
+                    ? styles.savedBadgeText
+                    : styles.savedBadgeTextMuted
+              }>
+              {activeModelStatusLabel}
+            </Text>
+          </View>
+
+          {activeCalibrationModel ? (
+            <View style={styles.resultsGrid}>
+              <MetricCell
+                label="Tipo de modelo activo"
+                value={activeModelKindUiLabel(activeCalibrationModel.modelKind)}
+              />
+              <MetricCell
+                label="Espirómetro asociado"
+                value={activeSpirometerDevice?.label ?? '—'}
+              />
+              <MetricCell
+                label="Activado"
+                value={formatTimestamp(activeCalibrationModel.activatedAt)}
+              />
+              <MetricCell
+                label="U95 máximo"
+                value={
+                  activeCalibrationModel.uncertainty.maxU95Ml !== null
+                    ? `${activeCalibrationModel.uncertainty.maxU95Ml.toFixed(0)} mL`
+                    : '—'
+                }
+              />
+              <MetricCell
+                label="Rango calibrado"
+                value={`${activeCalibrationModel.calibratedRangeMl.min}–${activeCalibrationModel.calibratedRangeMl.max} mL`}
+              />
+              <MetricCell
+                label="Validación clínica"
+                value={activeCalibrationModel.clinicalStatus.label}
+              />
+            </View>
+          ) : (
+            <Text style={styles.summaryLine}>
+              Aún no hay modelo activo guardado para este espirómetro.
+            </Text>
+          )}
+
+          {activeModelIsStale && activeCalibrationModel ? (
+            <Text style={styles.warnHint}>
+              El modelo activo no coincide con la calibración guardada actual. Actívalo de nuevo
+              después de guardar si la calibración cumple los criterios.
+            </Text>
+          ) : null}
+
+          {!canActivateRecommendedModel && activationBlockReason ? (
+            <Text style={styles.cardHint}>{activationBlockReason}</Text>
+          ) : null}
+
+          <View style={styles.rowGap}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                !canActivateRecommendedModel && styles.btnDisabled,
+                pressed && canActivateRecommendedModel && styles.primaryBtnPressed,
+              ]}
+              onPress={() => {
+                void onActivateRecommendedModel();
+              }}
+              disabled={!canActivateRecommendedModel}
+              accessibilityRole="button"
+              accessibilityLabel="Activar modelo recomendado">
+              <Text
+                style={[
+                  styles.primaryBtnText,
+                  !canActivateRecommendedModel && styles.btnTextDisabled,
+                ]}>
+                Activar modelo recomendado
+              </Text>
+            </Pressable>
+            {activeCalibrationModel ? (
+              <>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.secondaryBtn,
+                    pressed && styles.secondaryBtnPressed,
+                  ]}
+                  onPress={() => {
+                    hapticLight();
+                    setShowActiveModelSummary((v) => !v);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ver resumen técnico">
+                  <Text style={styles.secondaryBtnText}>
+                    {showActiveModelSummary ? 'Ocultar resumen técnico' : 'Ver resumen técnico'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.dangerBtn,
+                    !canClearActiveModel && styles.btnDisabled,
+                    pressed && canClearActiveModel && styles.dangerBtnPressed,
+                  ]}
+                  onPress={() => {
+                    void onClearActiveModel();
+                  }}
+                  disabled={!canClearActiveModel}
+                  accessibilityRole="button"
+                  accessibilityLabel="Borrar modelo activo">
+                  <Text style={[styles.dangerBtnText, !canClearActiveModel && styles.btnTextDisabled]}>
+                    Borrar modelo activo
+                  </Text>
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+
+          {showActiveModelSummary && activeTechnicalSummary ? (
+            <View style={styles.activeSummaryBox}>
+              <Text style={styles.cardSubTitleStrong}>Resumen técnico</Text>
+              <Text style={styles.summaryLine}>
+                Espirómetro: {activeTechnicalSummary.spirometerLabel} ·{' '}
+                {activeTechnicalSummary.spirometerProfileName}
+              </Text>
+              <Text style={styles.summaryLine}>Modelo: {activeTechnicalSummary.modelKind}</Text>
+              <Text style={styles.summaryLine}>
+                Activado: {formatTimestamp(activeTechnicalSummary.activatedAt)}
+              </Text>
+              <Text style={styles.summaryLine}>
+                Rango calibrado: {activeTechnicalSummary.calibratedRangeMl}
+              </Text>
+              <Text style={styles.summaryLine}>
+                Protocolo: {activeTechnicalSummary.requiredProtocolSummary}
+              </Text>
+              <Text style={styles.summaryLine}>
+                Repetibilidad: {activeTechnicalSummary.repeatabilitySummary}
+              </Text>
+              <Text style={styles.summaryLine}>
+                Geometría: {activeTechnicalSummary.geometricSummary}
+              </Text>
+              <Text style={styles.summaryLine}>
+                Incertidumbre: {activeTechnicalSummary.uncertaintySummary}
+              </Text>
+              <Text style={styles.summaryLine}>
+                Estado: {activeTechnicalSummary.isReadyForTherapy ? 'Apto para activación' : 'No apto'} ·{' '}
+                {activeTechnicalSummary.therapyReadinessReason}
+              </Text>
+              <Text style={styles.summaryLine}>
+                Validación clínica: Pendiente de validación clínica
+              </Text>
+              {activeTechnicalSummary.warnings.length > 0 ? (
+                <View style={styles.modelWarningsBox}>
+                  <Text style={styles.modelSubLabel}>Advertencias</Text>
+                  {activeTechnicalSummary.warnings.map((warning, idx) => (
+                    <Text key={`acm-w-${idx}`} style={styles.modelWarningText}>
+                      • {warning}
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitleStrong}>Prueba de estimación en vivo</Text>
+          <Text style={styles.cardHint}>
+            Esta lectura usa el modelo activo del espirómetro seleccionado y está pendiente de
+            validación clínica.
+          </Text>
+          <View
+            style={[
+              styles.savedBadge,
+              volumeEstimateStatus === 'ready'
+                ? styles.savedBadgeOk
+                : volumeEstimateStatus === 'no_active_model' ||
+                    volumeEstimateStatus === 'sensor_disconnected' ||
+                    volumeEstimateStatus === 'loading'
+                  ? styles.savedBadgeMuted
+                  : styles.savedBadgeWarn,
+            ]}>
+            <Text
+              style={
+                volumeEstimateStatus === 'ready'
+                  ? styles.savedBadgeText
+                  : volumeEstimateStatus === 'no_active_model' ||
+                      volumeEstimateStatus === 'sensor_disconnected' ||
+                      volumeEstimateStatus === 'loading'
+                    ? styles.savedBadgeTextMuted
+                    : styles.savedBadgeText
+              }>
+              {liveEstimateStatusLabel}
+            </Text>
+          </View>
+          <View style={styles.resultsGrid}>
+            <MetricCell
+              label="Espirómetro activo"
+              value={volumeEstimationContext.spirometerLabel ?? activeSpirometerDevice?.label ?? '—'}
+            />
+            <MetricCell
+              label="Estado del sensor"
+              value={sensorConnectedForEstimate ? 'Conectado' : 'Desconectado'}
+            />
+            <MetricCell
+              label="Modelo activo"
+              value={
+                volumeEstimationContext.activeModelKind
+                  ? activeModelKindUiLabel(volumeEstimationContext.activeModelKind)
+                  : '—'
+              }
+            />
+            <MetricCell
+              label="Distancia actual"
+              value={formatScalar(liveVolumeEstimate.distanceMm)}
+              unit="mm"
+            />
+            <MetricCell
+              label="Volumen estimado"
+              value={
+                liveVolumeEstimate.roundedVolumeMl !== null
+                  ? String(liveVolumeEstimate.roundedVolumeMl)
+                  : '—'
+              }
+              unit="mL"
+            />
+            <MetricCell
+              label="U95"
+              value={
+                liveVolumeEstimate.u95Ml !== null
+                  ? `±${liveVolumeEstimate.u95Ml.toFixed(0)}`
+                  : '—'
+              }
+              unit="mL"
+            />
+            <MetricCell
+              label="Intervalo estimado"
+              value={
+                liveVolumeEstimate.lowerBoundMl !== null &&
+                liveVolumeEstimate.upperBoundMl !== null
+                  ? `${Math.round(liveVolumeEstimate.lowerBoundMl)} a ${Math.round(liveVolumeEstimate.upperBoundMl)}`
+                  : '—'
+              }
+              unit="mL"
+            />
+          </View>
+          {volumeEstimateStatus !== 'ready' && volumeEstimateMessage ? (
+            <Text style={styles.warnHint}>{volumeEstimateMessage}</Text>
+          ) : null}
+          <Text style={styles.cardHint}>
+            Esta prueba no inicia una sesión terapéutica ni registra desempeño del paciente.
+          </Text>
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitleStrong}>Persistencia local</Text>
@@ -2353,6 +3275,33 @@ const styles = StyleSheet.create({
   chipPressed: { opacity: 0.88 },
   chipText: { fontSize: 15, fontWeight: '700', color: wellness.primaryDark },
   chipTextExtended: { color: wellness.textSecondary },
+  spirometerSelectorRow: {
+    flexDirection: 'column',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  spirometerOption: {
+    borderWidth: 1,
+    borderColor: wellness.tabBarBorder,
+    borderRadius: wellnessRadii.card,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    backgroundColor: wellness.card,
+  },
+  spirometerOptionSelected: {
+    borderColor: wellness.primaryDark,
+    backgroundColor: wellness.screenBgAlt,
+  },
+  spirometerOptionPressed: { opacity: 0.9 },
+  spirometerOptionLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: wellness.text,
+  },
+  spirometerOptionLabelSelected: {
+    color: wellness.primaryDark,
+    fontWeight: '700',
+  },
   blockHint: {
     fontSize: 14,
     fontWeight: '600',
@@ -2580,6 +3529,15 @@ const styles = StyleSheet.create({
     borderColor: wellness.borderStrong,
     gap: 4,
   },
+  activeSummaryBox: {
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: wellnessRadii.card,
+    backgroundColor: wellness.screenBgAlt,
+    borderWidth: 1,
+    borderColor: wellness.tabBarBorder,
+    gap: spacing.xs,
+  },
   modelWarningText: {
     fontSize: 13,
     lineHeight: 18,
@@ -2725,6 +3683,76 @@ const styles = StyleSheet.create({
   repetRepeatBtnPressed: { opacity: 0.9 },
   repetRepeatBtnText: { fontSize: 11, fontWeight: '800', color: wellness.primaryDark },
   repetActionMuted: { fontSize: 12, fontWeight: '600', color: wellness.textSecondary },
+  uncertTable: { minWidth: 520, paddingBottom: spacing.xs, marginTop: spacing.xs },
+  uncertTableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: wellness.border,
+    gap: 4,
+  },
+  uncertTableHeadRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: wellness.borderStrong,
+    paddingBottom: spacing.sm,
+  },
+  uncertCell: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: wellness.text,
+  },
+  uncertColVol: { width: 44 },
+  uncertColN: { width: 24, textAlign: 'center' },
+  uncertColSd: { width: 56 },
+  uncertColUa: { width: 44 },
+  uncertColSens: { width: 48 },
+  uncertColUc: { width: 40 },
+  uncertColU95: { width: 52 },
+  uncertColState: { width: 72 },
+  uncertComponentRow: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: wellness.border,
+  },
+  uncertComponentHeader: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  uncertComponentBadge: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: wellness.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  uncertComponentBadgePrimary: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  uncertComponentLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: wellness.text,
+  },
+  uncertComponentValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: wellness.primaryDark,
+    marginTop: 2,
+  },
+  uncertComponentDesc: {
+    fontSize: 11,
+    lineHeight: 15,
+    color: wellness.textSecondary,
+    marginTop: 2,
+  },
   geomTable: { minWidth: 420, marginTop: spacing.sm },
   geomTableRow: {
     flexDirection: 'row',

@@ -11,12 +11,17 @@ import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getCurrentActiveLevel } from '@/src/modules/diagnostics/diagnostic-service';
+import {
+  toTherapyVolumeEstimateSnapshot,
+  useActiveVolumeEstimate,
+} from '@/src/modules/device/volume-estimation';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { useLevelOneGame } from '@/src/modules/session/engine/level-one/use-level-one-game';
 import { useTouchInputAdapter } from '@/src/modules/session/engine/touch/use-touch-input-adapter';
 import { LevelOneGameView } from '@/src/modules/session/games/components/LevelOneGameView';
+import { SessionEstimatedVolumeCard } from '@/src/modules/session/games/components/SessionEstimatedVolumeCard';
 import { getLevelById } from '@/src/modules/session/registry/level-registry';
 import { buildSessionResult } from '@/src/modules/session/session-result-factory';
 import { persistSessionResult, TARGET_ATTEMPTS } from '@/src/modules/session/session-progress-service';
@@ -56,6 +61,28 @@ export function SessionScreen() {
 
   const isLevelOne = useMemo(() => selectedLevelId === 'level-1', [selectedLevelId]);
   const currentSessionData = progress.levelOne.sessions[progress.levelOne.currentSession - 1];
+
+  const {
+    estimate: activeVolumeEstimate,
+    status: volumeEstimateStatus,
+    message: volumeEstimateMessage,
+    context: volumeEstimateContext,
+    sensorStatus: volumeSensorStatus,
+  } = useActiveVolumeEstimate({ enabled: isFocused && isLevelOne });
+
+  // Visualización informativa. La integración con métricas de sesión se realizará en una fase posterior.
+  const _therapyEstimateSnapshot = useMemo(
+    () =>
+      toTherapyVolumeEstimateSnapshot({
+        readinessStatus: volumeEstimateStatus,
+        estimate: activeVolumeEstimate,
+      }),
+    [activeVolumeEstimate, volumeEstimateStatus],
+  );
+  void _therapyEstimateSnapshot;
+  void volumeEstimateMessage;
+  void volumeEstimateContext;
+  void volumeSensorStatus;
 
   const [summaryDismissedKind, setSummaryDismissedKind] = useState<SessionSummaryKind>(null);
   const [activeLevelLoaded, setActiveLevelLoaded] = useState(false);
@@ -289,6 +316,14 @@ export function SessionScreen() {
           simulatedVolume={simulatedVolume}
           targetVolume={targetVolume}
           holdSeconds={levelOneEngine.holdMs / 1000}
+          estimatedVolumeSlot={
+            <SessionEstimatedVolumeCard
+              status={volumeEstimateStatus}
+              estimate={activeVolumeEstimate}
+              onConnectSensor={() => router.push('/sensor-connection')}
+              onGoCalibration={() => router.push('/sensor-calibration')}
+            />
+          }
         />
       </View>
       <Modal
