@@ -17,12 +17,14 @@ import * as Haptics from 'expo-haptics';
 import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import {
+  useActiveVolumeEstimate,
+  volumeEstimationCardStatusLabel,
+} from '@/src/modules/device/volume-estimation';
+import {
   activeModelCardStatusLabel,
-  activeVolumeEstimateCardStatusLabel,
   buildActiveCalibrationModel,
   buildActiveCalibrationTechnicalSummary,
   clearActiveCalibrationModelForSpirometer,
-  estimateVolumeFromActiveModel,
   isActiveCalibrationModelStale,
   loadActiveCalibrationModelForSpirometer,
   resolveActiveModelCardStatus,
@@ -1204,31 +1206,20 @@ export function SensorCalibrationScreen() {
     );
   }, [activeCalibrationModel, activeSpirometerDevice]);
 
-  const sensorConnectedForEstimate =
-    status === 'connected' || status === 'receiving' || mode === 'mock';
+  const {
+    refresh: refreshVolumeEstimate,
+    context: volumeEstimationContext,
+    estimate: liveVolumeEstimate,
+    status: volumeEstimateStatus,
+    message: volumeEstimateMessage,
+    sensorConnected: sensorConnectedForEstimate,
+  } = useActiveVolumeEstimate({
+    spirometerDeviceId: activeSpirometerDevice?.id,
+    hasUnsavedChanges,
+    enabled: spirometerReady && !!activeSpirometerDevice?.id,
+  });
 
-  const liveVolumeEstimate = useMemo(
-    () =>
-      estimateVolumeFromActiveModel({
-        activeModel: activeCalibrationModel,
-        distanceMm:
-          sensorConnectedForEstimate && distanceIsFinite ? (distanceMm as number) : null,
-        sensorConnected: sensorConnectedForEstimate,
-        isModelStale: activeModelIsStale,
-      }),
-    [
-      activeCalibrationModel,
-      activeModelIsStale,
-      distanceIsFinite,
-      distanceMm,
-      sensorConnectedForEstimate,
-    ],
-  );
-
-  const liveEstimateStatusLabel = useMemo(
-    () => activeVolumeEstimateCardStatusLabel(liveVolumeEstimate),
-    [liveVolumeEstimate],
-  );
+  const liveEstimateStatusLabel = volumeEstimationCardStatusLabel(volumeEstimateStatus);
 
   const onActivateRecommendedModel = useCallback(async () => {
     if (
@@ -1259,6 +1250,7 @@ export function SensorCalibrationScreen() {
       await saveActiveCalibrationModelForSpirometer(model);
       setActiveCalibrationModel(model);
       setShowActiveModelSummary(true);
+      await refreshVolumeEstimate();
       setStorageMessage(
         `Modelo activo guardado para ${activeSpirometerDevice.label}.`,
       );
@@ -1275,6 +1267,7 @@ export function SensorCalibrationScreen() {
     linearModel,
     piecewiseModel,
     recommendation,
+    refreshVolumeEstimate,
     savedProfile,
   ]);
 
@@ -1293,6 +1286,7 @@ export function SensorCalibrationScreen() {
       await clearActiveCalibrationModelForSpirometer(activeSpirometerDevice.id);
       setActiveCalibrationModel(null);
       setShowActiveModelSummary(false);
+      await refreshVolumeEstimate();
       setStorageMessage(`Modelo activo eliminado para ${activeSpirometerDevice.label}.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error al borrar el modelo activo.';
@@ -1300,7 +1294,7 @@ export function SensorCalibrationScreen() {
     } finally {
       setActiveModelBusy('idle');
     }
-  }, [activeCalibrationModel, activeSpirometerDevice]);
+  }, [activeCalibrationModel, activeSpirometerDevice, refreshVolumeEstimate]);
 
   const canClearActiveModel =
     activeCalibrationModel !== null && activeModelBusy === 'idle' && storageBusy === 'idle';
@@ -2755,19 +2749,21 @@ export function SensorCalibrationScreen() {
           <View
             style={[
               styles.savedBadge,
-              liveVolumeEstimate.status === 'ok'
+              volumeEstimateStatus === 'ready'
                 ? styles.savedBadgeOk
-                : liveVolumeEstimate.status === 'no_active_model' ||
-                    liveVolumeEstimate.status === 'sensor_disconnected'
+                : volumeEstimateStatus === 'no_active_model' ||
+                    volumeEstimateStatus === 'sensor_disconnected' ||
+                    volumeEstimateStatus === 'loading'
                   ? styles.savedBadgeMuted
                   : styles.savedBadgeWarn,
             ]}>
             <Text
               style={
-                liveVolumeEstimate.status === 'ok'
+                volumeEstimateStatus === 'ready'
                   ? styles.savedBadgeText
-                  : liveVolumeEstimate.status === 'no_active_model' ||
-                      liveVolumeEstimate.status === 'sensor_disconnected'
+                  : volumeEstimateStatus === 'no_active_model' ||
+                      volumeEstimateStatus === 'sensor_disconnected' ||
+                      volumeEstimateStatus === 'loading'
                     ? styles.savedBadgeTextMuted
                     : styles.savedBadgeText
               }>
@@ -2777,7 +2773,7 @@ export function SensorCalibrationScreen() {
           <View style={styles.resultsGrid}>
             <MetricCell
               label="Espirómetro activo"
-              value={activeSpirometerDevice?.label ?? '—'}
+              value={volumeEstimationContext.spirometerLabel ?? activeSpirometerDevice?.label ?? '—'}
             />
             <MetricCell
               label="Estado del sensor"
@@ -2786,8 +2782,8 @@ export function SensorCalibrationScreen() {
             <MetricCell
               label="Modelo activo"
               value={
-                activeCalibrationModel
-                  ? activeModelKindUiLabel(activeCalibrationModel.modelKind)
+                volumeEstimationContext.activeModelKind
+                  ? activeModelKindUiLabel(volumeEstimationContext.activeModelKind)
                   : '—'
               }
             />
@@ -2825,8 +2821,8 @@ export function SensorCalibrationScreen() {
               unit="mL"
             />
           </View>
-          {liveVolumeEstimate.warning ? (
-            <Text style={styles.warnHint}>{liveVolumeEstimate.warning}</Text>
+          {volumeEstimateStatus !== 'ready' && volumeEstimateMessage ? (
+            <Text style={styles.warnHint}>{volumeEstimateMessage}</Text>
           ) : null}
           <Text style={styles.cardHint}>
             Esta prueba no inicia una sesión terapéutica ni registra desempeño del paciente.
