@@ -48,14 +48,18 @@ type LevelOneGameViewProps = {
   onPressOut: () => void;
   onPressStop: () => void;
   simulatedVolume: number;
+  displayVolumeMl: number;
+  displayVolumeSource: 'sensor' | 'fallback';
+  displayU95Ml?: number | null;
+  displayVolumeStatus?: string;
   targetVolume: number;
   holdSeconds: number;
   holdMs?: number;
   levelLabel?: string;
   introMode?: boolean;
   onIntroComplete?: () => void;
-  /** Bloque informativo de volumen estimado (sensor); no altera el juego. */
-  estimatedVolumeSlot?: ReactNode;
+  /** Chip compacto de estado del sensor; no altera el juego. */
+  sensorStatusSlot?: ReactNode;
 };
 
 export function LevelOneGameView({
@@ -71,14 +75,18 @@ export function LevelOneGameView({
   onPressIn,
   onPressOut,
   onPressStop,
-  simulatedVolume,
+  simulatedVolume: _simulatedVolume,
+  displayVolumeMl,
+  displayVolumeSource,
+  displayU95Ml = null,
+  displayVolumeStatus,
   targetVolume,
   holdSeconds,
   holdMs = 0,
   levelLabel = 'Nivel 1',
   introMode = false,
   onIntroComplete,
-  estimatedVolumeSlot,
+  sensorStatusSlot,
 }: LevelOneGameViewProps) {
   const { width: layoutW } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -322,7 +330,7 @@ export function LevelOneGameView({
           </View>
         )}
 
-        {!introMode && estimatedVolumeSlot ? estimatedVolumeSlot : null}
+        {!introMode && sensorStatusSlot ? sensorStatusSlot : null}
 
         <View style={styles.scene}>
           <View style={styles.parallaxClip}>
@@ -428,13 +436,30 @@ export function LevelOneGameView({
             onPressIn={onPressIn}
             onPressOut={onPressOut}
             accessibilityRole="adjustable"
-            accessibilityLabel={`Volumen actual ${Math.round(simulatedVolume)} mililitros. Mantén presionado en el juego o aquí para inspirar.`}>
-            <Text style={styles.volumeBarLabel}>Volumen actual</Text>
-            <Text style={styles.volumeBarValue}>
-              {Math.round(simulatedVolume)}
-              <Text style={styles.volumeBarUnit}> mL</Text>
+            accessibilityLabel={
+              displayVolumeSource === 'sensor'
+                ? `Volumen estimado ${Math.round(displayVolumeMl)} mililitros${
+                    displayVolumeStatus === 'out_of_range' ? ', fuera de rango calibrado' : ''
+                  }. Medido con sensor RESPIRA más.`
+                : `Volumen actual ${Math.round(displayVolumeMl)} mililitros. Mantén presionado en el juego o aquí para inspirar.`
+            }>
+            <Text style={styles.volumeBarLabel}>
+              {displayVolumeSource === 'sensor' ? 'Volumen estimado' : 'Volumen actual'}
             </Text>
-            <Text style={styles.volumeBarHint}>Mantén presionado para inspirar · suelta para exhalar</Text>
+            <View style={styles.volumeBarValueRow}>
+              <Text style={styles.volumeBarValue}>
+                {Math.round(displayVolumeMl)}
+                <Text style={styles.volumeBarUnit}> mL</Text>
+              </Text>
+              {displayVolumeSource === 'sensor' && displayU95Ml !== null && Number.isFinite(displayU95Ml) ? (
+                <Text style={styles.volumeBarU95}>±{Math.round(displayU95Ml)} mL</Text>
+              ) : null}
+            </View>
+            <Text style={styles.volumeBarHint}>
+              {displayVolumeSource === 'sensor'
+                ? 'Medido con sensor RESPIRA+'
+                : 'Mantén presionado para inspirar · suelta para exhalar'}
+            </Text>
           </Pressable>
         ) : null}
       </View>
@@ -1008,11 +1033,22 @@ const styles = StyleSheet.create({
     color: wellness.textSecondary,
     letterSpacing: 0.3,
   },
-  volumeBarValue: {
+  volumeBarValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'center',
+    gap: 10,
     marginTop: 4,
+  },
+  volumeBarValue: {
     fontSize: 28,
     fontWeight: '900',
     color: wellness.primaryDark,
+  },
+  volumeBarU95: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: wellness.textSecondary,
   },
   volumeBarUnit: {
     fontSize: 16,
