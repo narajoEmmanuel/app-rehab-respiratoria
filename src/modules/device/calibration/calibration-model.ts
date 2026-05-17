@@ -42,11 +42,20 @@ import {
   type CalibrationRequiredProtocolSummary,
   type EstimateVolumeResult,
 } from '@/src/modules/device/calibration/calibration-model-types';
+import {
+  buildUncertaintyRecommendation,
+  computeCalibrationUncertaintySummary,
+} from '@/src/modules/device/calibration/calibration-uncertainty';
 import type {
   CalibrationProfile,
   VolumeCalibrationSummary,
   VolumeDistanceRelation,
 } from '@/src/modules/device/calibration/calibration-types';
+import {
+  getSpirometerProfileById,
+  SPIROMETER_PROFILE_5000ML_ID,
+} from '@/src/modules/device/spirometer';
+import type { SpirometerProfile } from '@/src/modules/device/spirometer/spirometer-types';
 
 function newModelId(): string {
   if (typeof globalThis.crypto !== 'undefined' && 'randomUUID' in globalThis.crypto) {
@@ -486,11 +495,27 @@ function buildRequiredProtocolSummary(
   };
 }
 
+function resolveProfileSnapshot(profile: CalibrationProfile): SpirometerProfile {
+  if (profile.spirometerProfileSnapshot) {
+    return profile.spirometerProfileSnapshot;
+  }
+  const fromId = profile.spirometerProfileId
+    ? getSpirometerProfileById(profile.spirometerProfileId)
+    : null;
+  return fromId ?? getSpirometerProfileById(SPIROMETER_PROFILE_5000ML_ID)!;
+}
+
+function resolveRequiredVolumes(profile: CalibrationProfile): number[] {
+  if (profile.requiredVolumesMl?.length) return profile.requiredVolumesMl;
+  return resolveProfileSnapshot(profile).requiredVolumesMl;
+}
+
 function buildGeometricScaleSummary(
   report: GeometricScaleReport,
 ): CalibrationGeometricScaleSummary {
   return {
     expectedDistanceStepPer500MlMm: report.expectedDistanceStepPer500MlMm,
+    geometricValidationConfigured: report.geometricValidationConfigured,
     okSegments: report.okSegments,
     reviewSegments: report.reviewSegments,
     criticalSegments: report.criticalSegments,
@@ -511,6 +536,7 @@ function deriveTherapyReadinessReason(params: {
   slopeVariationRatio: number | null;
   volumesRecommendedForRetake: number[];
   passesGeometricValidation: boolean;
+  hasAcceptableUncertainty: boolean;
 }): string {
   if (params.isReadyForTherapy) {
     return 'Calibración apta para estimación terapéutica dentro del rango recomendado.';
@@ -542,6 +568,9 @@ function deriveTherapyReadinessReason(params: {
   }
   if (!params.passesGeometricValidation) {
     return 'La escala geométrica del sensor no coincide con la escala física del espirómetro. Revisa el montaje o repite los puntos marcados.';
+  }
+  if (!params.hasAcceptableUncertainty) {
+    return 'La incertidumbre metrológica es elevada. Revisa el montaje o repite las mediciones.';
   }
   if (!params.coverage.coversRecommended) {
     return 'Falta cubrir el rango recomendado 500-3000 mL.';
@@ -576,9 +605,13 @@ function withTherapyEvaluation(
     | 'therapyReadinessReason'
     | 'requiredProtocol'
     | 'geometricScale'
+    | 'uncertainty'
   >,
   ctx: TherapyEvaluationContext,
 ): CalibrationModelRecommendation {
+  const uncertaintySummary = computeCalibrationUncertaintySummary(ctx.profile);
+  const uncertainty = buildUncertaintyRecommendation(uncertaintySummary);
+
   const segmentSlopeCritical =
     ctx.segmentReport.slopeVariationRatio !== null &&
     ctx.segmentReport.slopeVariationRatio > MAX_ACCEPTABLE_SLOPE_VARIATION_RATIO;
@@ -594,7 +627,8 @@ function withTherapyEvaluation(
     !stdCritical &&
     !segmentSlopeCritical &&
     !retakeVolumesRecommended &&
-    geometryOk;
+    geometryOk &&
+    uncertainty.hasAcceptableUncertainty;
   const therapyReadinessReason = deriveTherapyReadinessReason({
     isReadyForTherapy,
     requiredProtocol: ctx.requiredProtocol,
@@ -607,6 +641,7 @@ function withTherapyEvaluation(
     slopeVariationRatio: ctx.segmentReport.slopeVariationRatio,
     volumesRecommendedForRetake: ctx.repeatability.volumesRecommendedForRetake,
     passesGeometricValidation: geometryOk,
+    hasAcceptableUncertainty: uncertainty.hasAcceptableUncertainty,
   });
   return {
     ...base,
@@ -615,6 +650,7 @@ function withTherapyEvaluation(
     therapyReadinessReason,
     requiredProtocol: ctx.requiredProtocol,
     geometricScale: buildGeometricScaleSummary(ctx.geometricReport),
+    uncertainty,
   };
 }
 
@@ -639,11 +675,25 @@ export function recommendCalibrationModel(
 ): CalibrationModelRecommendation {
   const summaries = profile.summaries;
   const distinctVolumes = distinctVolumeCount(summaries);
-  const requiredCov = computeRequiredCalibrationCoverage(profile.points, summaries);
+  const spirometerProfile = resolveProfileSnapshot(profile);
+  const requiredVolumes = resolveRequiredVolumes(profile);
+  const requiredCov = computeRequiredCalibrationCoverage(
+    profile.points,
+    summaries,
+    requiredVolumes,
+  );
   const requiredProtocol = buildRequiredProtocolSummary(requiredCov);
-  const repeatability = computeRepeatabilityReport(profile.points, summaries);
+  const repeatability = computeRepeatabilityReport(
+    profile.points,
+    summaries,
+    requiredVolumes,
+  );
   const segmentReport = computeSegmentReport(summaries, profile.relation);
-  const geometricReport = computeGeometricScaleReport(summaries, profile.relation);
+  const geometricReport = computeGeometricScaleReport(
+    summaries,
+    profile.relation,
+    spirometerProfile,
+  );
   const distances = summaries.map((s) => s.avgDistanceMm);
   const distanceSpread =
     distances.length >= 2 ? Math.max(...distances) - Math.min(...distances) : 0;
@@ -658,7 +708,7 @@ export function recommendCalibrationModel(
     distanceSpread,
   };
 
-  const coverageRaw = computeVolumeCoverage(summaries);
+  const coverageRaw = computeVolumeCoverage(summaries, spirometerProfile);
   const coverage: CalibrationRecommendationCoverage = {
     coversRecommended: coverageRaw.coversRecommended,
     coversTotal: coverageRaw.coversTotal,

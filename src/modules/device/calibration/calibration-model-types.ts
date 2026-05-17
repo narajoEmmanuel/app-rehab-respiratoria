@@ -3,6 +3,9 @@
  * No depende de React ni de transporte; lo usan calibration-model / evaluation y la UI.
  */
 import type { VolumeDistanceRelation } from '@/src/modules/device/calibration/calibration-types';
+import type { CalibrationUncertaintyRecommendation } from '@/src/modules/device/calibration/calibration-uncertainty-types';
+
+export type { CalibrationUncertaintyRecommendation };
 
 export type CalibrationModelKind = 'linear_regression' | 'piecewise_linear';
 
@@ -121,7 +124,8 @@ export type CalibrationRequiredProtocolSummary = {
 
 /** Resumen de validación geométrica (escala física ~10 mm / 500 mL) incluido en la recomendación. */
 export type CalibrationGeometricScaleSummary = {
-  expectedDistanceStepPer500MlMm: number;
+  expectedDistanceStepPer500MlMm: number | null;
+  geometricValidationConfigured: boolean;
   okSegments: number;
   reviewSegments: number;
   criticalSegments: number;
@@ -142,6 +146,8 @@ export type CalibrationModelRecommendation = {
   requiredProtocol: CalibrationRequiredProtocolSummary;
   /** Validación geométrica del montaje frente a la escala física del espirómetro (~10 mm / 500 mL). */
   geometricScale: CalibrationGeometricScaleSummary;
+  /** Resumen de incertidumbre metrológica (U95) del procedimiento de calibración. */
+  uncertainty: CalibrationUncertaintyRecommendation;
   reason: string;
   warnings: string[];
   linealQuality: CalibrationLinealQuality;

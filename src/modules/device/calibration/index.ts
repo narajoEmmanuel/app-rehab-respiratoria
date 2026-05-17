@@ -91,12 +91,17 @@ export {
 } from '@/src/modules/device/calibration/calibration-uncertainty-types';
 
 export {
+  CALIBRATION_BY_SPIROMETER_STORAGE_KEY,
   CALIBRATION_STORAGE_KEY,
   clearCalibrationProfile,
+  clearCalibrationProfileForSpirometer,
   hasCalibrationProfile,
+  listCalibrationProfilesBySpirometer,
   loadCalibrationProfile,
   loadCalibrationProfileDetailed,
+  loadCalibrationProfileForSpirometer,
   saveCalibrationProfile,
+  saveCalibrationProfileForSpirometer,
   type LoadCalibrationResult,
 } from '@/src/modules/device/calibration/calibration-storage';
 

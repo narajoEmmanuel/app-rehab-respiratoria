@@ -3,23 +3,17 @@
  * No tocan React ni AsyncStorage; las consume `SensorCalibrationScreen` y el storage.
  */
 import {
-  EXPECTED_MAX_VOLUME_ML,
-  EXPECTED_MIN_VOLUME_ML,
-  EXTENDED_RANGE_ML,
   MAX_ACCEPTABLE_SLOPE_VARIATION_RATIO,
   MAX_ACCEPTABLE_STD_DISTANCE_MM,
-  MIN_OPERATIVE_VOLUME_ML,
   MIN_REPETITIONS_PER_REQUIRED_VOLUME,
   MIN_REPETITIONS_PER_VOLUME,
   MIN_VALID_CALIBRATION_POINTS_FOR_THERAPY,
-  CURRENT_SPIROMETER_PROFILE,
   GEOMETRIC_STEP_OK_TOLERANCE_MM,
   GEOMETRIC_STEP_REVIEW_TOLERANCE_MM,
   MIN_SEGMENT_DISTANCE_DELTA_MM,
-  RECOMMENDED_RANGE_ML,
-  REQUIRED_GEOMETRIC_SEGMENTS_ML,
-  REQUIRED_RECOMMENDED_VOLUMES_ML,
 } from '@/src/modules/device/calibration/calibration-constants';
+import { buildGeometricSegmentsMl, getExtendedRangeMinVolumeMl } from '@/src/modules/device/spirometer';
+import type { SpirometerProfile } from '@/src/modules/device/spirometer/spirometer-types';
 import {
   CALIBRATION_PROFILE_VERSION,
   type CalibrationCapturePoint,
@@ -143,6 +137,7 @@ function clampPct(value: number): number {
  */
 export function computeVolumeCoverage(
   summaries: VolumeCalibrationSummary[],
+  profile: SpirometerProfile,
 ): VolumeCoverage {
   if (summaries.length === 0) {
     return {
@@ -159,44 +154,47 @@ export function computeVolumeCoverage(
   const coveredMinMl = Math.min(...volumes);
   const coveredMaxMl = Math.max(...volumes);
 
-  const recSpan = RECOMMENDED_RANGE_ML.max - RECOMMENDED_RANGE_ML.min;
+  const recMin = profile.recommendedMinVolumeMl;
+  const recMax = profile.recommendedMaxVolumeMl;
+  const recSpan = recMax - recMin;
   const recOverlap = Math.max(
     0,
-    Math.min(coveredMaxMl, RECOMMENDED_RANGE_ML.max) -
-      Math.max(coveredMinMl, RECOMMENDED_RANGE_ML.min),
+    Math.min(coveredMaxMl, recMax) - Math.max(coveredMinMl, recMin),
   );
-  const recommendedCoveragePct =
-    recSpan > 0 ? clampPct((recOverlap / recSpan) * 100) : 0;
+  const recommendedCoveragePct = recSpan > 0 ? clampPct((recOverlap / recSpan) * 100) : 0;
 
-  const totalSpan = EXPECTED_MAX_VOLUME_ML - EXPECTED_MIN_VOLUME_ML;
+  const opMin = profile.operativeMinVolumeMl;
+  const maxVol = profile.maxVolumeMl;
+  const totalSpan = maxVol - opMin;
   const totalOverlap = Math.max(
     0,
-    Math.min(coveredMaxMl, EXPECTED_MAX_VOLUME_ML) -
-      Math.max(coveredMinMl, EXPECTED_MIN_VOLUME_ML),
+    Math.min(coveredMaxMl, maxVol) - Math.max(coveredMinMl, opMin),
   );
-  const totalCoveragePct =
-    totalSpan > 0 ? clampPct((totalOverlap / totalSpan) * 100) : 0;
+  const totalCoveragePct = totalSpan > 0 ? clampPct((totalOverlap / totalSpan) * 100) : 0;
+
+  const extMin = getExtendedRangeMinVolumeMl(profile);
+  const coversExtended =
+    extMin === null
+      ? profile.extendedMaxVolumeMl <= profile.recommendedMaxVolumeMl
+      : coveredMinMl <= extMin && coveredMaxMl >= profile.extendedMaxVolumeMl;
 
   return {
     coveredMinMl,
     coveredMaxMl,
     recommendedCoveragePct,
     totalCoveragePct,
-    coversRecommended:
-      coveredMinMl <= RECOMMENDED_RANGE_ML.min &&
-      coveredMaxMl >= RECOMMENDED_RANGE_ML.max,
-    coversExtended:
-      coveredMinMl <= EXTENDED_RANGE_ML.min && coveredMaxMl >= EXTENDED_RANGE_ML.max,
-    coversTotal:
-      coveredMinMl <= EXPECTED_MIN_VOLUME_ML && coveredMaxMl >= EXPECTED_MAX_VOLUME_ML,
+    coversRecommended: coveredMinMl <= recMin && coveredMaxMl >= recMax,
+    coversExtended,
+    coversTotal: coveredMinMl <= opMin && coveredMaxMl >= maxVol,
   };
 }
 
-/** Devuelve `true` si hay summaries por debajo del límite inferior operativo (500 mL). */
+/** Devuelve `true` si hay summaries por debajo del límite inferior operativo del perfil. */
 export function hasSubOperativeVolumes(
   summaries: VolumeCalibrationSummary[],
+  operativeMinVolumeMl: number,
 ): boolean {
-  return summaries.some((s) => s.volumeMl < MIN_OPERATIVE_VOLUME_ML);
+  return summaries.some((s) => s.volumeMl < operativeMinVolumeMl);
 }
 
 export type RequiredCalibrationCoverage = {
@@ -218,8 +216,9 @@ export type RequiredCalibrationCoverage = {
 export function computeRequiredCalibrationCoverage(
   points: CalibrationCapturePoint[],
   summaries: VolumeCalibrationSummary[],
+  requiredVolumesMl: number[],
 ): RequiredCalibrationCoverage {
-  const requiredVolumes = [...REQUIRED_RECOMMENDED_VOLUMES_ML];
+  const requiredVolumes = [...requiredVolumesMl];
   const summaryByVolume = new Map<number, VolumeCalibrationSummary>();
   for (const s of summaries) {
     summaryByVolume.set(s.volumeMl, s);
@@ -276,7 +275,9 @@ export type GeometricScaleSegment = {
 };
 
 export type GeometricScaleReport = {
-  expectedDistanceStepPer500MlMm: number;
+  expectedDistanceStepPer500MlMm: number | null;
+  geometricValidationEnabled: boolean;
+  geometricValidationConfigured: boolean;
   requiredSegments: GeometricScaleSegment[];
   okSegments: number;
   reviewSegments: number;
@@ -293,19 +294,26 @@ export type GeometricScaleReport = {
 export function computeGeometricScaleReport(
   summaries: VolumeCalibrationSummary[],
   relation: VolumeDistanceRelation,
+  profile: SpirometerProfile,
 ): GeometricScaleReport {
-  const expectedMag = CURRENT_SPIROMETER_PROFILE.expectedDistanceStepMm;
+  const expectedMag = profile.expectedDistanceStepMm;
+  const geometricValidationConfigured =
+    profile.geometricValidationEnabled && expectedMag !== null;
 
-  if (!CURRENT_SPIROMETER_PROFILE.geometricValidationEnabled) {
+  if (!geometricValidationConfigured) {
     return {
       expectedDistanceStepPer500MlMm: expectedMag,
+      geometricValidationEnabled: profile.geometricValidationEnabled,
+      geometricValidationConfigured: false,
       requiredSegments: [],
       okSegments: 0,
       reviewSegments: 0,
       criticalSegments: 0,
       missingSegments: 0,
       passesGeometricValidation: true,
-      warnings: ['Validación geométrica deshabilitada para el perfil de espirómetro activo.'],
+      warnings: [
+        'La validación geométrica requiere medir la distancia física entre marcas del espirómetro.',
+      ],
     };
   }
 
@@ -316,8 +324,9 @@ export function computeGeometricScaleReport(
 
   const requiredSegments: GeometricScaleSegment[] = [];
   const warnings: string[] = [];
+  const segmentPairs = buildGeometricSegmentsMl(profile);
 
-  for (const [fromMl, toMl] of REQUIRED_GEOMETRIC_SEGMENTS_ML) {
+  for (const [fromMl, toMl] of segmentPairs) {
     const sFrom = summaryByVolume.get(fromMl);
     const sTo = summaryByVolume.get(toMl);
     const expectedDeltaDistanceMm = relation === 'inverse' ? -expectedMag : expectedMag;
@@ -447,6 +456,8 @@ export function computeGeometricScaleReport(
 
   return {
     expectedDistanceStepPer500MlMm: expectedMag,
+    geometricValidationEnabled: profile.geometricValidationEnabled,
+    geometricValidationConfigured: true,
     requiredSegments,
     okSegments,
     reviewSegments,
@@ -560,6 +571,7 @@ export type CalibrationRepeatabilityReport = {
 export function computeRepeatabilityReport(
   points: CalibrationCapturePoint[],
   summaries: VolumeCalibrationSummary[],
+  requiredVolumesMl: number[],
 ): CalibrationRepeatabilityReport {
   if (points.length === 0 || summaries.length === 0) {
     return {
@@ -579,7 +591,7 @@ export function computeRepeatabilityReport(
   const volumesWithLowRepetitions = summaries
     .filter((s) => s.repetitions < MIN_REPETITIONS_PER_VOLUME)
     .map((s) => s.volumeMl);
-  const requiredSet = new Set<number>(REQUIRED_RECOMMENDED_VOLUMES_ML);
+  const requiredSet = new Set<number>(requiredVolumesMl);
   const requiredVolumesWithTherapyLowReps = summaries
     .filter(
       (s) =>
@@ -744,6 +756,9 @@ export type BuildCalibrationProfileOptions = {
   notes?: string;
   /** Si se pasa un perfil previo, conservamos su `id` y `createdAt`. */
   previous?: CalibrationProfile | null;
+  spirometerDeviceId: string;
+  spirometerProfileId: string;
+  spirometerProfileSnapshot: SpirometerProfile;
   /** Inyectable para tests; por defecto `Date.now()`. */
   now?: number;
 };
@@ -751,13 +766,14 @@ export type BuildCalibrationProfileOptions = {
 /** Construye un `CalibrationProfile` consistente derivando summaries, rango y relación. */
 export function buildCalibrationProfile(
   points: CalibrationCapturePoint[],
-  options: BuildCalibrationProfileOptions = {},
+  options: BuildCalibrationProfileOptions,
 ): CalibrationProfile {
   const summaries = computeVolumeSummaries(points);
   const globalRange = computeGlobalDistanceRange(points);
   const relation = determineVolumeDistanceRelation(summaries);
   const now = options.now ?? Date.now();
   const previous = options.previous ?? null;
+  const snapshot = options.spirometerProfileSnapshot;
   return {
     id: options.id ?? previous?.id ?? newProfileId(),
     name: options.name ?? previous?.name ?? 'Calibración local',
@@ -771,5 +787,13 @@ export function buildCalibrationProfile(
     source: 'local_calibration',
     notes: options.notes ?? previous?.notes,
     version: CALIBRATION_PROFILE_VERSION,
+    spirometerDeviceId: options.spirometerDeviceId,
+    spirometerProfileId: options.spirometerProfileId,
+    spirometerProfileSnapshot: snapshot,
+    calibrationRangeMl: {
+      min: snapshot.operativeMinVolumeMl,
+      max: snapshot.maxVolumeMl,
+    },
+    requiredVolumesMl: [...snapshot.requiredVolumesMl],
   };
 }

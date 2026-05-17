@@ -3,12 +3,9 @@
  * No modifica modelos de estimación ni terapia; solo reporta y alimenta criterios de listo.
  */
 import {
-  CURRENT_SPIROMETER_PROFILE,
   INCLUDE_RULE_IN_COMBINED_UNCERTAINTY,
   MIN_REPETITIONS_PER_REQUIRED_VOLUME,
   MIN_VALID_CALIBRATION_POINTS_FOR_THERAPY,
-  REFERENCE_VOLUME_PER_MM_ML,
-  REQUIRED_RECOMMENDED_VOLUMES_ML,
   RULE_RESOLUTION_HALF_WIDTH_MM,
   SENSOR_ALIGNMENT_HALF_WIDTH_MM,
   SENSOR_RELATIVE_UNCERTAINTY,
@@ -29,6 +26,8 @@ import type {
   VolumeCalibrationSummary,
   VolumeDistanceRelation,
 } from '@/src/modules/device/calibration/calibration-types';
+import { deriveReferenceVolumePerMmMl } from '@/src/modules/device/spirometer';
+import type { SpirometerProfile } from '@/src/modules/device/spirometer/spirometer-types';
 
 const SQRT3 = Math.sqrt(3);
 
@@ -128,6 +127,7 @@ function buildVolumeUncertaintyReport(
   summary: VolumeCalibrationSummary,
   distancesMm: number[],
   profile: CalibrationProfile,
+  referenceVolumePerMmMl: number | null,
 ): VolumeUncertaintyReport {
   const warnings: string[] = [];
   const n = summary.repetitions;
@@ -139,9 +139,7 @@ function buildVolumeUncertaintyReport(
     n >= 2 && sdBetweenRepetitionsMm !== null ? sdBetweenRepetitionsMm / Math.sqrt(n) : null;
 
   const uSensorDistanceMm =
-    avgDistanceMm > 0
-      ? (SENSOR_RELATIVE_UNCERTAINTY * avgDistanceMm) / SQRT3
-      : null;
+    avgDistanceMm > 0 ? (SENSOR_RELATIVE_UNCERTAINTY * avgDistanceMm) / SQRT3 : null;
 
   const uResolutionDistanceMm = computeStandardUncertaintyFromRectangularHalfWidth(
     SENSOR_RESOLUTION_HALF_WIDTH_MM,
@@ -171,14 +169,17 @@ function buildVolumeUncertaintyReport(
   const uSpirometerMarkMl = computeStandardUncertaintyFromRectangularHalfWidth(
     SPIROMETER_MARK_HALF_WIDTH_ML,
   );
+
   const uRuleGeometryCheckMl =
-    REFERENCE_VOLUME_PER_MM_ML *
-    computeStandardUncertaintyFromRectangularHalfWidth(RULE_RESOLUTION_HALF_WIDTH_MM);
+    referenceVolumePerMmMl !== null
+      ? referenceVolumePerMmMl *
+        computeStandardUncertaintyFromRectangularHalfWidth(RULE_RESOLUTION_HALF_WIDTH_MM)
+      : null;
   const uRuleVolumeMl = uRuleGeometryCheckMl;
   const includeRuleInCombinedUncertainty = INCLUDE_RULE_IN_COMBINED_UNCERTAINTY;
 
   const volumeUncertaintyTerms: (number | null)[] = [uDistanceAsVolumeMl, uSpirometerMarkMl];
-  if (includeRuleInCombinedUncertainty) {
+  if (includeRuleInCombinedUncertainty && uRuleGeometryCheckMl !== null) {
     volumeUncertaintyTerms.push(uRuleGeometryCheckMl);
   }
   const uCombinedVolumeMl = combineQuadrature(volumeUncertaintyTerms);
@@ -237,8 +238,22 @@ function buildVolumeUncertaintyReport(
   };
 }
 
+function resolveSpirometerProfile(profile: CalibrationProfile): SpirometerProfile {
+  return profile.spirometerProfileSnapshot;
+}
+
+function resolveRequiredVolumes(profile: CalibrationProfile): number[] {
+  if (profile.requiredVolumesMl?.length) {
+    return profile.requiredVolumesMl;
+  }
+  return resolveSpirometerProfile(profile).requiredVolumesMl;
+}
+
 /** Reporte de incertidumbre por cada volumen presente en el perfil. */
 export function computeVolumeUncertaintyReports(profile: CalibrationProfile): VolumeUncertaintyReport[] {
+  const spirometerProfile = resolveSpirometerProfile(profile);
+  const referenceVolumePerMmMl = deriveReferenceVolumePerMmMl(spirometerProfile);
+
   const byVolume = new Map<number, number[]>();
   for (const p of profile.points) {
     if (!byVolume.has(p.volumeMl)) byVolume.set(p.volumeMl, []);
@@ -248,14 +263,21 @@ export function computeVolumeUncertaintyReports(profile: CalibrationProfile): Vo
   return [...profile.summaries]
     .sort((a, b) => a.volumeMl - b.volumeMl)
     .map((summary) =>
-      buildVolumeUncertaintyReport(summary, byVolume.get(summary.volumeMl) ?? [], profile),
+      buildVolumeUncertaintyReport(
+        summary,
+        byVolume.get(summary.volumeMl) ?? [],
+        profile,
+        referenceVolumePerMmMl,
+      ),
     );
 }
 
-function buildBaseComponents(): UncertaintyComponent[] {
+function buildBaseComponents(referenceVolumePerMmMl: number | null): UncertaintyComponent[] {
   const uRuleGeometryCheckMl =
-    REFERENCE_VOLUME_PER_MM_ML *
-    computeStandardUncertaintyFromRectangularHalfWidth(RULE_RESOLUTION_HALF_WIDTH_MM);
+    referenceVolumePerMmMl !== null
+      ? referenceVolumePerMmMl *
+        computeStandardUncertaintyFromRectangularHalfWidth(RULE_RESOLUTION_HALF_WIDTH_MM)
+      : null;
 
   return [
     {
@@ -290,7 +312,9 @@ function buildBaseComponents(): UncertaintyComponent[] {
       value: uRuleGeometryCheckMl,
       unit: 'mL',
       description:
-        'Usada para verificar la coherencia del desplazamiento físico del pistón. No se incluye por defecto en la incertidumbre combinada del volumen, porque la referencia primaria es la escala del espirómetro.',
+        referenceVolumePerMmMl === null
+          ? 'No disponible: el perfil de espirómetro no tiene escala geométrica medida (distancia entre marcas).'
+          : 'Usada para verificar la coherencia del desplazamiento físico del pistón. No se incluye por defecto en la incertidumbre combinada del volumen, porque la referencia primaria es la escala del espirómetro.',
       includedInCombinedUncertainty: INCLUDE_RULE_IN_COMBINED_UNCERTAINTY,
     },
     {
@@ -311,6 +335,10 @@ function meanOf(values: number[]): number | null {
 export function computeCalibrationUncertaintySummary(
   profile: CalibrationProfile,
 ): CalibrationUncertaintySummary {
+  const spirometerProfile = resolveSpirometerProfile(profile);
+  const requiredVolumes = resolveRequiredVolumes(profile);
+  const referenceVolumePerMmMl = deriveReferenceVolumePerMmMl(spirometerProfile);
+
   const reports = computeVolumeUncertaintyReports(profile);
   const u95Values = reports
     .map((r) => r.expandedUncertaintyU95Ml)
@@ -334,19 +362,17 @@ export function computeCalibrationUncertaintySummary(
     );
   }
 
-  const missingRequired = REQUIRED_RECOMMENDED_VOLUMES_ML.filter(
+  const missingRequired = requiredVolumes.filter(
     (v) => !profile.summaries.some((s) => s.volumeMl === v),
   );
   if (missingRequired.length > 0) {
     warnings.push(`Faltan volúmenes obligatorios: ${missingRequired.join(', ')} mL.`);
   }
 
-  const totalRequiredPoints = profile.points.filter((p) =>
-    (REQUIRED_RECOMMENDED_VOLUMES_ML as readonly number[]).includes(p.volumeMl),
-  ).length;
+  const totalRequiredPoints = profile.points.filter((p) => requiredVolumes.includes(p.volumeMl)).length;
   const meetsProtocol =
     missingRequired.length === 0 &&
-    REQUIRED_RECOMMENDED_VOLUMES_ML.every(
+    requiredVolumes.every(
       (v) =>
         (profile.summaries.find((s) => s.volumeMl === v)?.repetitions ?? 0) >=
         MIN_REPETITIONS_PER_REQUIRED_VOLUME,
@@ -361,6 +387,11 @@ export function computeCalibrationUncertaintySummary(
       'La regla no se incluye en uc del volumen: solo verificación geométrica del montaje (referencia primaria: escala del espirómetro).',
     );
   }
+  if (referenceVolumePerMmMl === null) {
+    warnings.push(
+      'La regla física no está disponible en este perfil de espirómetro (validación geométrica no configurada).',
+    );
+  }
 
   return {
     averageU95Ml,
@@ -368,15 +399,17 @@ export function computeCalibrationUncertaintySummary(
     volumeWithMaxU95Ml,
     minU95Ml,
     reports,
-    components: buildBaseComponents(),
+    components: buildBaseComponents(referenceVolumePerMmMl),
     includeRuleInCombinedUncertainty: INCLUDE_RULE_IN_COMBINED_UNCERTAINTY,
     warnings,
   };
 }
 
-/** Paso de distancia esperado por tramo de volumen del perfil de espirómetro activo (mm). */
-export function getExpectedGeometricDistanceStepMm(): number {
-  return CURRENT_SPIROMETER_PROFILE.expectedDistanceStepMm;
+/** Paso de distancia esperado por tramo de volumen del perfil (mm), o null si no está configurado. */
+export function getExpectedGeometricDistanceStepMm(
+  profile: SpirometerProfile,
+): number | null {
+  return profile.expectedDistanceStepMm;
 }
 
 export function buildUncertaintyRecommendation(

@@ -27,9 +27,9 @@ export type VolumeUncertaintyReport = {
   uDistanceAsVolumeMl: number | null;
   uSpirometerMarkMl: number;
   /** Alias histórico; mismo valor que `uRuleGeometryCheckMl` (verificación geométrica). */
-  uRuleVolumeMl: number;
-  /** Incertidumbre de la regla como verificación geométrica; informativa salvo `includeRuleInCombinedUncertainty`. */
-  uRuleGeometryCheckMl: number;
+  uRuleVolumeMl: number | null;
+  /** Incertidumbre de la regla como verificación geométrica; null si no hay escala geométrica medida. */
+  uRuleGeometryCheckMl: number | null;
   includeRuleInCombinedUncertainty: boolean;
   uCombinedVolumeMl: number | null;
   expandedUncertaintyU95Ml: number | null;
