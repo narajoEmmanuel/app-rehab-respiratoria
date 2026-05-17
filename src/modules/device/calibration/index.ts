@@ -149,6 +149,8 @@ export {
   ACTIVE_CALIBRATION_MODEL_VERSION,
   type ActiveCalibrationClinicalStatus,
   type ActiveCalibrationCoverageSummary,
+  type ActiveCalibrationCurve,
+  type ActiveCalibrationCurvePoint,
   type ActiveCalibrationDistanceRangeMm,
   type ActiveCalibrationGeometricSummary,
   type ActiveCalibrationModel,
@@ -157,6 +159,7 @@ export {
   type ActiveCalibrationRangeMl,
   type ActiveCalibrationRepeatabilitySummary,
   type ActiveCalibrationTechnicalSummary,
+  type ActiveCalibrationUncertaintyByVolumeEntry,
   type ActiveCalibrationUncertaintySummary,
 } from '@/src/modules/device/calibration/active-calibration-types';
 
@@ -164,11 +167,24 @@ export {
   activeModelCardStatusLabel,
   buildActiveCalibrationModel,
   buildActiveCalibrationTechnicalSummary,
+  hasActiveCalibrationCurveSnapshot,
   isActiveCalibrationModelStale,
   resolveActiveModelCardStatus,
   type ActiveModelCardStatus,
   type BuildActiveCalibrationModelParams,
 } from '@/src/modules/device/calibration/active-calibration-model';
+
+export {
+  type ActiveVolumeEstimateResult,
+  type ActiveVolumeEstimateStatus,
+  type ActiveVolumeEstimateUsedSegment,
+} from '@/src/modules/device/calibration/active-volume-estimation-types';
+
+export {
+  activeVolumeEstimateCardStatusLabel,
+  estimateVolumeFromActiveModel,
+  type EstimateVolumeFromActiveModelParams,
+} from '@/src/modules/device/calibration/active-volume-estimator';
 
 export {
   ACTIVE_CALIBRATION_BY_SPIROMETER_STORAGE_KEY,

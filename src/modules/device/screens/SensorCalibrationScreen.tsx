@@ -18,9 +18,11 @@ import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import {
   activeModelCardStatusLabel,
+  activeVolumeEstimateCardStatusLabel,
   buildActiveCalibrationModel,
   buildActiveCalibrationTechnicalSummary,
   clearActiveCalibrationModelForSpirometer,
+  estimateVolumeFromActiveModel,
   isActiveCalibrationModelStale,
   loadActiveCalibrationModelForSpirometer,
   resolveActiveModelCardStatus,
@@ -1201,6 +1203,32 @@ export function SensorCalibrationScreen() {
       activeSpirometerDevice.label,
     );
   }, [activeCalibrationModel, activeSpirometerDevice]);
+
+  const sensorConnectedForEstimate =
+    status === 'connected' || status === 'receiving' || mode === 'mock';
+
+  const liveVolumeEstimate = useMemo(
+    () =>
+      estimateVolumeFromActiveModel({
+        activeModel: activeCalibrationModel,
+        distanceMm:
+          sensorConnectedForEstimate && distanceIsFinite ? (distanceMm as number) : null,
+        sensorConnected: sensorConnectedForEstimate,
+        isModelStale: activeModelIsStale,
+      }),
+    [
+      activeCalibrationModel,
+      activeModelIsStale,
+      distanceIsFinite,
+      distanceMm,
+      sensorConnectedForEstimate,
+    ],
+  );
+
+  const liveEstimateStatusLabel = useMemo(
+    () => activeVolumeEstimateCardStatusLabel(liveVolumeEstimate),
+    [liveVolumeEstimate],
+  );
 
   const onActivateRecommendedModel = useCallback(async () => {
     if (
@@ -2716,6 +2744,93 @@ export function SensorCalibrationScreen() {
               ) : null}
             </View>
           ) : null}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitleStrong}>Prueba de estimación en vivo</Text>
+          <Text style={styles.cardHint}>
+            Esta lectura usa el modelo activo del espirómetro seleccionado y está pendiente de
+            validación clínica.
+          </Text>
+          <View
+            style={[
+              styles.savedBadge,
+              liveVolumeEstimate.status === 'ok'
+                ? styles.savedBadgeOk
+                : liveVolumeEstimate.status === 'no_active_model' ||
+                    liveVolumeEstimate.status === 'sensor_disconnected'
+                  ? styles.savedBadgeMuted
+                  : styles.savedBadgeWarn,
+            ]}>
+            <Text
+              style={
+                liveVolumeEstimate.status === 'ok'
+                  ? styles.savedBadgeText
+                  : liveVolumeEstimate.status === 'no_active_model' ||
+                      liveVolumeEstimate.status === 'sensor_disconnected'
+                    ? styles.savedBadgeTextMuted
+                    : styles.savedBadgeText
+              }>
+              {liveEstimateStatusLabel}
+            </Text>
+          </View>
+          <View style={styles.resultsGrid}>
+            <MetricCell
+              label="Espirómetro activo"
+              value={activeSpirometerDevice?.label ?? '—'}
+            />
+            <MetricCell
+              label="Estado del sensor"
+              value={sensorConnectedForEstimate ? 'Conectado' : 'Desconectado'}
+            />
+            <MetricCell
+              label="Modelo activo"
+              value={
+                activeCalibrationModel
+                  ? activeModelKindUiLabel(activeCalibrationModel.modelKind)
+                  : '—'
+              }
+            />
+            <MetricCell
+              label="Distancia actual"
+              value={formatScalar(liveVolumeEstimate.distanceMm)}
+              unit="mm"
+            />
+            <MetricCell
+              label="Volumen estimado"
+              value={
+                liveVolumeEstimate.roundedVolumeMl !== null
+                  ? String(liveVolumeEstimate.roundedVolumeMl)
+                  : '—'
+              }
+              unit="mL"
+            />
+            <MetricCell
+              label="U95"
+              value={
+                liveVolumeEstimate.u95Ml !== null
+                  ? `±${liveVolumeEstimate.u95Ml.toFixed(0)}`
+                  : '—'
+              }
+              unit="mL"
+            />
+            <MetricCell
+              label="Intervalo estimado"
+              value={
+                liveVolumeEstimate.lowerBoundMl !== null &&
+                liveVolumeEstimate.upperBoundMl !== null
+                  ? `${Math.round(liveVolumeEstimate.lowerBoundMl)} a ${Math.round(liveVolumeEstimate.upperBoundMl)}`
+                  : '—'
+              }
+              unit="mL"
+            />
+          </View>
+          {liveVolumeEstimate.warning ? (
+            <Text style={styles.warnHint}>{liveVolumeEstimate.warning}</Text>
+          ) : null}
+          <Text style={styles.cardHint}>
+            Esta prueba no inicia una sesión terapéutica ni registra desempeño del paciente.
+          </Text>
         </View>
 
         <View style={styles.card}>

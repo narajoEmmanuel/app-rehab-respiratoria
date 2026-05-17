@@ -8,6 +8,7 @@ import type {
   CalibrationModelKind,
   CalibrationQuality,
 } from '@/src/modules/device/calibration/calibration-model-types';
+import type { VolumeDistanceRelation } from '@/src/modules/device/calibration/calibration-types';
 import type { SpirometerProfile } from '@/src/modules/device/spirometer/spirometer-types';
 
 export const ACTIVE_CALIBRATION_MODEL_VERSION = 1;
@@ -71,6 +72,26 @@ export type ActiveCalibrationClinicalStatus = {
   note: string;
 };
 
+/** Punto de la curva calibrada congelada al activar el modelo (desde summaries del perfil). */
+export type ActiveCalibrationCurvePoint = {
+  volumeMl: number;
+  avgDistanceMm: number;
+  repetitions: number;
+  u95Ml: number | null;
+};
+
+/** Snapshot de la curva volumen–distancia para estimación por tramos independiente del perfil guardado. */
+export type ActiveCalibrationCurve = {
+  points: ActiveCalibrationCurvePoint[];
+  relation: VolumeDistanceRelation;
+};
+
+export type ActiveCalibrationUncertaintyByVolumeEntry = {
+  u95Ml: number | null;
+  uCombinedVolumeMl: number | null;
+  localSensitivityMlPerMm: number | null;
+};
+
 export type ActiveCalibrationModel = {
   id: string;
   spirometerDeviceId: string;
@@ -99,6 +120,10 @@ export type ActiveCalibrationModel = {
   uncertainty: ActiveCalibrationUncertaintySummary;
   quality: ActiveCalibrationQualitySummary;
   clinicalStatus: ActiveCalibrationClinicalStatus;
+  /** Curva congelada al activar; requerida para estimación en vivo por tramos. */
+  calibrationCurve?: ActiveCalibrationCurve;
+  /** Incertidumbre U95 por volumen calibrado al momento de la activación. */
+  uncertaintyByVolumeMl?: Record<number, ActiveCalibrationUncertaintyByVolumeEntry>;
 };
 
 export type ActiveCalibrationTechnicalSummary = {

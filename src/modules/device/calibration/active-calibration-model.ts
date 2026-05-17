@@ -5,10 +5,13 @@ import {
   MIN_REPETITIONS_PER_REQUIRED_VOLUME,
 } from '@/src/modules/device/calibration/calibration-constants';
 import type {
+  ActiveCalibrationCurve,
   ActiveCalibrationModel,
   ActiveCalibrationTechnicalSummary,
+  ActiveCalibrationUncertaintyByVolumeEntry,
 } from '@/src/modules/device/calibration/active-calibration-types';
 import { computeRepeatabilityReport } from '@/src/modules/device/calibration/calibration-math';
+import { computeVolumeUncertaintyReports } from '@/src/modules/device/calibration/calibration-uncertainty';
 import {
   CALIBRATION_MODEL_VERSION,
   type CalibrationModel,
@@ -42,6 +45,61 @@ function selectRecommendedModel(
   return linearModel;
 }
 
+function buildCalibrationCurveSnapshot(
+  calibrationProfile: CalibrationProfile,
+): ActiveCalibrationCurve {
+  const reports = computeVolumeUncertaintyReports(calibrationProfile);
+  const u95ByVolume = new Map(
+    reports.map((r) => [r.volumeMl, r.expandedUncertaintyU95Ml] as const),
+  );
+  const points = [...calibrationProfile.summaries]
+    .map((s) => ({
+      volumeMl: s.volumeMl,
+      avgDistanceMm: s.avgDistanceMm,
+      repetitions: s.repetitions,
+      u95Ml: u95ByVolume.get(s.volumeMl) ?? null,
+    }))
+    .sort((a, b) => a.avgDistanceMm - b.avgDistanceMm);
+  return {
+    points,
+    relation: calibrationProfile.relation,
+  };
+}
+
+function buildUncertaintyByVolumeSnapshot(
+  calibrationProfile: CalibrationProfile,
+): Record<number, ActiveCalibrationUncertaintyByVolumeEntry> {
+  const reports = computeVolumeUncertaintyReports(calibrationProfile);
+  const record: Record<number, ActiveCalibrationUncertaintyByVolumeEntry> = {};
+  for (const r of reports) {
+    record[r.volumeMl] = {
+      u95Ml: r.expandedUncertaintyU95Ml,
+      uCombinedVolumeMl: r.uCombinedVolumeMl,
+      localSensitivityMlPerMm: r.localSensitivityMlPerMm,
+    };
+  }
+  return record;
+}
+
+/** Modelos activos persistidos antes del snapshot de curva no pueden estimar en vivo. */
+export function hasActiveCalibrationCurveSnapshot(model: ActiveCalibrationModel): boolean {
+  const curve = model.calibrationCurve;
+  if (!curve || !Array.isArray(curve.points) || curve.points.length < 2) return false;
+  if (
+    curve.relation !== 'direct' &&
+    curve.relation !== 'inverse' &&
+    curve.relation !== 'indeterminate'
+  ) {
+    return false;
+  }
+  return curve.points.every(
+    (p) =>
+      Number.isFinite(p.volumeMl) &&
+      Number.isFinite(p.avgDistanceMm) &&
+      Number.isFinite(p.repetitions),
+  );
+}
+
 export function buildActiveCalibrationModel(
   params: BuildActiveCalibrationModelParams,
 ): ActiveCalibrationModel {
@@ -69,6 +127,8 @@ export function buildActiveCalibrationModel(
   const geo = recommendation.geometricScale;
   const now = Date.now();
   const snapshot = calibrationProfile.spirometerProfileSnapshot;
+  const calibrationCurve = buildCalibrationCurveSnapshot(calibrationProfile);
+  const uncertaintyByVolumeMl = buildUncertaintyByVolumeSnapshot(calibrationProfile);
 
   return {
     id: newActiveModelId(),
@@ -144,6 +204,8 @@ export function buildActiveCalibrationModel(
       note:
         'Este modelo activo queda registrado para el espirómetro seleccionado. Su uso en terapia requiere validación clínica posterior.',
     },
+    calibrationCurve,
+    uncertaintyByVolumeMl,
   };
 }
 
