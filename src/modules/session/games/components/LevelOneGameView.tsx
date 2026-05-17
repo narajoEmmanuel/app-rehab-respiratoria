@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Platform,
   Pressable,
@@ -54,6 +54,8 @@ type LevelOneGameViewProps = {
   levelLabel?: string;
   introMode?: boolean;
   onIntroComplete?: () => void;
+  /** Bloque informativo de volumen estimado (sensor); no altera el juego. */
+  estimatedVolumeSlot?: ReactNode;
 };
 
 export function LevelOneGameView({
@@ -76,6 +78,7 @@ export function LevelOneGameView({
   levelLabel = 'Nivel 1',
   introMode = false,
   onIntroComplete,
+  estimatedVolumeSlot,
 }: LevelOneGameViewProps) {
   const { width: layoutW } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -318,6 +321,8 @@ export function LevelOneGameView({
             </Pressable>
           </View>
         )}
+
+        {!introMode && estimatedVolumeSlot ? estimatedVolumeSlot : null}
 
         <View style={styles.scene}>
           <View style={styles.parallaxClip}>
