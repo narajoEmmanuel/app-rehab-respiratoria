@@ -15,7 +15,6 @@ type SessionSensorStatusChipProps = {
 type ChipPresentation = {
   label: string;
   tone: 'ok' | 'warn' | 'muted';
-  showClinicalNote: boolean;
 };
 
 function resolveChipPresentation(
@@ -28,25 +27,24 @@ function resolveChipPresentation(
     return {
       label: 'Sensor activo · En rango',
       tone: 'ok',
-      showClinicalNote: true,
     };
   }
 
   switch (status) {
     case 'out_of_range':
-      return { label: 'Fuera de rango', tone: 'warn', showClinicalNote: displaySource === 'sensor' };
+      return { label: 'Fuera de rango', tone: 'warn' };
     case 'sensor_disconnected':
-      return { label: 'Sensor desconectado', tone: 'muted', showClinicalNote: false };
+      return { label: 'Sensor desconectado', tone: 'muted' };
     case 'model_stale':
-      return { label: 'Modelo desactualizado', tone: 'warn', showClinicalNote: false };
+      return { label: 'Modelo desactualizado', tone: 'warn' };
     case 'no_active_model':
     case 'missing_curve':
     case 'no_spirometer':
     case 'not_ready_for_therapy':
-      return { label: 'Calibración requerida', tone: 'muted', showClinicalNote: false };
+      return { label: 'Calibración requerida', tone: 'muted' };
     case 'invalid_sensor_reading':
     case 'error':
-      return { label: 'Modelo no disponible', tone: 'muted', showClinicalNote: false };
+      return { label: 'Modelo no disponible', tone: 'muted' };
     default:
       return null;
   }
@@ -86,9 +84,6 @@ export function SessionEstimatedVolumeCard({
       <View style={[styles.chip, { backgroundColor: tone.bg, borderColor: tone.border }]}>
         <Text style={[styles.chipText, { color: tone.text }]}>{presentation.label}</Text>
       </View>
-      {presentation.showClinicalNote ? (
-        <Text style={styles.clinicalNote}>Pendiente de validación clínica</Text>
-      ) : null}
     </View>
   );
 }

@@ -402,9 +402,9 @@ export function SensorConnectionScreen() {
             {debug ? (
               <>
                 <View style={styles.techDivider} />
-                <Text style={styles.techSection}>Herramientas de desarrollo</Text>
+                <Text style={styles.techSection}>Diagnóstico avanzado</Text>
                 <Text style={styles.techDebugHint}>
-                  Solo visibles en desarrollo con EXPO_PUBLIC_ENABLE_SENSOR_DEBUG=true.
+                  Opciones para verificación técnica del sensor en este dispositivo.
                 </Text>
                 <Pressable
                   style={({ pressed }) => [styles.debugBtn, pressed && styles.debugBtnPressed]}
@@ -414,9 +414,9 @@ export function SensorConnectionScreen() {
                     else startMock();
                   }}
                   accessibilityRole="button"
-                  accessibilityLabel={isMock ? 'Detener modo simulado' : 'Iniciar modo simulado'}>
+                  accessibilityLabel={isMock ? 'Detener lectura de prueba' : 'Iniciar lectura de prueba'}>
                   <Text style={styles.debugBtnText}>
-                    {isMock ? 'Detener modo simulado' : 'Iniciar modo simulado'}
+                    {isMock ? 'Detener lectura de prueba' : 'Iniciar lectura de prueba'}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -426,8 +426,8 @@ export function SensorConnectionScreen() {
                     router.push('/hardware-lab');
                   }}
                   accessibilityRole="button"
-                  accessibilityLabel="Abrir Hardware Lab">
-                  <Text style={styles.debugBtnText}>Abrir Hardware Lab</Text>
+                  accessibilityLabel="Abrir laboratorio de hardware">
+                  <Text style={styles.debugBtnText}>Laboratorio de hardware</Text>
                 </Pressable>
                 <Pressable
                   style={({ pressed }) => [styles.debugBtn, pressed && styles.debugBtnPressed]}

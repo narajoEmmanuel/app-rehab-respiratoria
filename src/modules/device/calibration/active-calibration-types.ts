@@ -68,7 +68,7 @@ export type ActiveCalibrationQualitySummary = {
 };
 
 export type ActiveCalibrationClinicalStatus = {
-  label: 'Pendiente de validación clínica';
+  label: string;
   note: string;
 };
 

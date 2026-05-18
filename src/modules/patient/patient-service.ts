@@ -91,7 +91,7 @@ const LOCAL_PROTOTYPE_AGE = 30;
 export async function ensureLocalPrototypePatientRecord(): Promise<PatientRecord> {
   const current = await getCurrentPatient();
   if (current) return current;
-  const row = await createPatient('Prototipo local (desarrollo)', LOCAL_PROTOTYPE_AGE);
+  const row = await createPatient('Paciente local', LOCAL_PROTOTYPE_AGE);
   await saveCurrentPatient(row);
   return row;
 }

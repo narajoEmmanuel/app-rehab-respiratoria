@@ -9,7 +9,6 @@ import { useCallback, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { isCloudAuthEnabled } from '@/src/modules/app-mode/app-mode-config';
 import { getLatestDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
 import type { DiagnosticRecord } from '@/src/modules/diagnostics/types';
 import { formatDisplayDateEs } from '@/src/modules/history/services/history-aggregates';
@@ -165,7 +164,7 @@ export function ProfileScreen() {
   const onWithdraw = useCallback(() => {
     Alert.alert(
       'Retirar consentimiento',
-      'Si continúas, el uso del prototipo quedará limitado: no podrás usar Terapia, Historial ni la conexión del sensor hasta que vuelvas a aceptar en la app.',
+      'Si continúas, no podrás usar Terapia, Historial ni la conexión del sensor hasta que vuelvas a aceptar los documentos en la app.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -207,13 +206,6 @@ export function ProfileScreen() {
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingBottom: wellnessFloatingTabBarInset + spacing.lg }]}
         showsVerticalScrollIndicator={false}>
-        {!isCloudAuthEnabled() ? (
-          <View style={styles.prototypeCloudHint} accessibilityRole="text">
-            <Text style={styles.prototypeCloudHintText}>
-              Modo prototipo local, datos no sincronizados con la nube
-            </Text>
-          </View>
-        ) : null}
         <View style={styles.profileHeader}>
           <ProfileAvatarPicker
             patientId={patient.paciente_id}
@@ -372,17 +364,13 @@ export function ProfileScreen() {
           </ProfileInfoCard>
         </ProfileSection>
 
-        <ProfileSection title="Ayuda y soporte" subtitle="Uso responsable del prototipo.">
+        <ProfileSection title="Ayuda y soporte" subtitle="Contacto y uso de la app.">
           <ProfileInfoCard>
             <Text style={styles.helpParagraph}>
-              RESPIRA+ es un prototipo académico en desarrollo. No sustituye valoración médica ni tratamiento
-              profesional.
+              Los términos, el consentimiento y el aviso de privacidad están en la sección de arriba.
             </Text>
             <Text style={styles.helpParagraph}>
-              Si los síntomas empeoran o te preocupan, suspende el uso y consulta a un profesional de salud.
-            </Text>
-            <Text style={styles.helpEmphasis}>
-              No uses esta app en emergencias. Ante una urgencia, busca atención médica inmediata.
+              Ante síntomas graves o dudas sobre tu salud, consulta a un profesional o a urgencias.
             </Text>
           </ProfileInfoCard>
         </ProfileSection>
@@ -413,21 +401,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     gap: spacing.lg,
-  },
-  prototypeCloudHint: {
-    backgroundColor: '#EFFDF4',
-    borderRadius: wellnessRadii.card,
-    borderWidth: 1,
-    borderColor: '#D1FAE5',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-  },
-  prototypeCloudHintText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: wellness.primaryDark,
-    textAlign: 'center',
-    lineHeight: 18,
   },
   profileHeader: {
     alignItems: 'center',

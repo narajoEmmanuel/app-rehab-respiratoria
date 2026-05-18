@@ -37,11 +37,11 @@ const LEAD = 16;
 
 const CHECK_LABELS: readonly string[] = [
   'He leído y acepto los Términos y condiciones de uso.',
-  'He leído y acepto el Consentimiento informado para uso o prueba del prototipo.',
+  'He leído y acepto el Consentimiento informado.',
   'He leído y autorizo el Aviso de privacidad.',
-  'Entiendo que RESPIRA+ es un prototipo académico en etapa de desarrollo y validación preliminar.',
-  'Entiendo que RESPIRA+ no sustituye atención médica, diagnóstico, tratamiento ni seguimiento profesional.',
-  'Entiendo que los resultados son indicadores de apoyo y no mediciones clínicas definitivas.',
+  'Acepto las condiciones y limitaciones descritas en el documento legal.',
+  'Entiendo que la app no sustituye valoración ni tratamiento médico.',
+  'Entiendo que los indicadores de la app son de apoyo y no mediciones clínicas definitivas.',
   'Entiendo que puedo retirar mi consentimiento en cualquier momento.',
 ];
 
@@ -151,12 +151,8 @@ export function LegalAcceptScreen() {
         showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Antes de comenzar</Text>
         <Text style={styles.lead}>
-          RESPIRA+ es un prototipo académico para ejercicios respiratorios con espirómetro incentivador. No sustituye
-          atención médica, diagnóstico, tratamiento ni seguimiento profesional.
-        </Text>
-        <Text style={styles.lead}>
-          La app registra datos de desempeño respiratorio y uso del prototipo para apoyo al paciente y análisis del
-          proyecto.
+          Para usar RESPIRA+ necesitas aceptar los documentos legales. El detalle completo está en el PDF; marca cada
+          casilla tras leerlo.
         </Text>
 
         <Pressable

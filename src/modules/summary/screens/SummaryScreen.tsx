@@ -205,7 +205,7 @@ export function SummaryScreen() {
               value={
                 typeof sensorMaxMl === 'number' && Number.isFinite(sensorMaxMl)
                   ? `${Math.round(sensorMaxMl)} mL`
-                  : 'Pendiente de validación clínica'
+                  : '—'
               }
             />
             <SensorDataRow

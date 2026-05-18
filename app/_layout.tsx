@@ -132,10 +132,10 @@ export default function RootLayout() {
                 <Stack.Screen name="notification-settings" options={{ headerShown: false, title: 'Recordatorios' }} />
                 <Stack.Screen name="sensor-connection" options={{ headerShown: false }} />
                 <Stack.Screen name="sensor-calibration" options={{ headerShown: false }} />
-                <Stack.Screen name="hardware-lab" options={{ headerShown: false, title: 'Hardware Lab' }} />
+                <Stack.Screen name="hardware-lab" options={{ headerShown: false, title: 'Laboratorio de hardware' }} />
                 <Stack.Screen name="diagnostico" options={{ headerShown: false }} />
                 <Stack.Screen name="diagnostico-resumen" options={{ headerShown: false }} />
-                <Stack.Screen name="esp32-raw-test" options={{ headerShown: false, title: 'ESP32 Raw WS Test' }} />
+                <Stack.Screen name="esp32-raw-test" options={{ headerShown: false, title: 'Prueba WebSocket ESP32' }} />
               </Stack>
             </LevelsProgressProvider>
           </PatientSessionProvider>

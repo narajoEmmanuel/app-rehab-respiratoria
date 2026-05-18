@@ -144,9 +144,7 @@ export function SensorLivePreview({
         </Text>
       </View>
 
-      <Text style={styles.disclaimer}>
-        Visualización provisional, no representa volumen clínico
-      </Text>
+      <Text style={styles.disclaimer}>Vista de distancia (no es volumen estimado)</Text>
     </View>
   );
 }

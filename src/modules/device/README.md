@@ -17,7 +17,7 @@ Concentra el **único transporte WebSocket**, ingestión de mensajes, **calibrac
 | `volume-estimation/` | `useActiveVolumeEstimate`, compuerta de terapia |
 | `components/` | `SensorLivePreview`, etc. |
 | `screens/` | `SensorConnectionScreen`, `SensorCalibrationScreen`, `HardwareLabScreen` |
-| `mocks/` | `mock-sensor-readings` (desarrollo / modo simulado) |
+| `mocks/` | `mock-sensor-readings` (lecturas de prueba sin hardware; solo diagnóstico) |
 | `types/` | Contratos de lectura y conexión |
 
 ---
@@ -49,7 +49,7 @@ Concentra el **único transporte WebSocket**, ingestión de mensajes, **calibrac
 | Variable | Efecto en device |
 |----------|------------------|
 | `EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST` | Bypass consentimiento en rutas sensor (`__DEV__`) |
-| `EXPO_PUBLIC_ENABLE_SENSOR_DEBUG` | Mock, Hardware Lab, raw test en UI |
+| `EXPO_PUBLIC_ENABLE_SENSOR_DEBUG` | Diagnóstico avanzado, laboratorio de hardware y prueba WebSocket |
 | `EXPO_PUBLIC_ENABLE_CLOUD_AUTH` | Influencia acceso a Hardware Lab |
 
 ---

@@ -20,9 +20,6 @@ import type {
   TherapyReadinessStatus,
 } from '@/src/modules/device/volume-estimation/therapy-readiness-types';
 
-const CLINICAL_DISCLAIMER =
-  'El uso terapéutico real requiere validación clínica y supervisión profesional.';
-
 export type TherapyReadinessInputState = Pick<
   ActiveVolumeEstimationState,
   'loading' | 'context' | 'estimate' | 'status' | 'message'
@@ -304,7 +301,7 @@ export function showTherapyReadinessAlert(
 
   const alertCopy = copyForStatus(gate.status);
   const practiceNote = options?.onPracticeWithoutSensor ? `\n\n${TOUCH_PRACTICE_ALERT_NOTE}` : '';
-  const body = `${alertCopy.message}\n\n${CLINICAL_DISCLAIMER}${practiceNote}`;
+  const body = `${alertCopy.message}${practiceNote}`;
 
   const buttons: {
     text: string;

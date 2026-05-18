@@ -39,10 +39,9 @@ export function HardwareLabScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.blockedInner}>
-          <Text style={styles.blockedTitle}>Hardware Lab no disponible</Text>
+          <Text style={styles.blockedTitle}>Laboratorio de hardware no disponible</Text>
           <Text style={styles.blockedBody}>
-            En prototipo local (EXPO_PUBLIC_ENABLE_CLOUD_AUTH distinto de true) el lab está disponible. En
-            desarrollo con nube activada, define también EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST=true.
+            El laboratorio de hardware no está disponible en la configuración actual de la app.
           </Text>
           <Pressable
             style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
@@ -64,13 +63,8 @@ export function HardwareLabScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Hardware Lab</Text>
-        <Text style={styles.subtitle}>Modo local de prueba de sensor</Text>
-        <View style={styles.warningBox}>
-          <Text style={styles.warningText}>
-            Este laboratorio es experimental, no clínico y no sincroniza datos.
-          </Text>
-        </View>
+        <Text style={styles.title}>Laboratorio de hardware</Text>
+        <Text style={styles.subtitle}>Herramientas de diagnóstico del sensor</Text>
 
         <Pressable
           style={({ pressed }) => [styles.card, pressed && styles.pressed]}

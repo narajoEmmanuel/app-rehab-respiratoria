@@ -11,7 +11,7 @@ Documento de referencia para el recorrido **conexión → calibración → terap
 - **URL por defecto:** `ws://192.168.4.1:81`
 - El usuario se une al AP `RESPIRA_ESP32` del ESP32.
 
-En desarrollo, con `EXPO_PUBLIC_ENABLE_SENSOR_DEBUG=true`, pueden mostrarse mock, Hardware Lab y raw test.
+Con diagnóstico avanzado habilitado, pueden mostrarse el laboratorio de hardware y la prueba WebSocket directa.
 
 ---
 

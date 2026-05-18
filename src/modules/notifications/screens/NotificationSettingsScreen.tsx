@@ -51,7 +51,7 @@ function permissionLabel(status: PermissionStatus | null): string {
 }
 
 function describeWebLimitation(): string {
-  return 'En la versión web del prototipo no se pueden programar recordatorios locales de la misma forma que en iPhone o Android. Usa la app en un dispositivo móvil para recibir avisos diarios.';
+  return 'En la versión web no se pueden programar recordatorios locales como en iPhone o Android. Usa la app en un dispositivo móvil para recibir avisos diarios.';
 }
 
 export function NotificationSettingsScreen() {

@@ -47,7 +47,7 @@ El proyecto comenzó orientado a **EPOC**. Tras revisión con especialista en re
 - **Modelo activo** (`linear_regression` / `piecewise_linear`) por espirómetro.
 - **Estimación de volumen** en calibración y en sesión.
 - **Terapia guiada** (niveles) con validación al iniciar actividad.
-- **Modo práctica táctil** (solo desarrollo, flag de entorno).
+- **Modo práctica táctil** (opcional, según configuración del dispositivo).
 - **Historial**, **resumen** de sesión y **exportación clínica** (CSV / JSON, versión **2.1.0**).
 
 ---
@@ -187,7 +187,7 @@ Copiar `.env.example` → `.env` ( **no subir** `.env` a Git).
 |----------|-------------------|--------|
 | `EXPO_PUBLIC_ENABLE_CLOUD_AUTH` | `false` | `false` = local-first sin login obligatorio |
 | `EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST` | `false` | Bypass de consentimiento en rutas de sensor (solo `__DEV__`) |
-| `EXPO_PUBLIC_ENABLE_SENSOR_DEBUG` | `false` | Hardware Lab, raw test, mock en conexión (solo `__DEV__`) |
+| `EXPO_PUBLIC_ENABLE_SENSOR_DEBUG` | `false` | Laboratorio de hardware y diagnóstico avanzado del sensor (solo `__DEV__`) |
 | `EXPO_PUBLIC_ENABLE_TOUCH_PRACTICE_MODE` | `false` | Botón “Practicar sin sensor” en terapia |
 
 Opcionales para nube (solo si se reactiva auth):
@@ -284,10 +284,9 @@ docs/                         # sensor-flow, calibración, Supabase
 
 ## Seguridad, privacidad y límites
 
-- Puede tratarse **datos de salud**; usar solo en entornos controlados hasta validación formal.
+- Los **avisos legales**, límites de uso, consentimiento y privacidad se concentran en el **documento legal** (PDF) accesible desde la app (aceptación inicial y Perfil).
+- Las pantallas operativas muestran solo mensajes **funcionales** (sensor, calibración, práctica).
 - **Consentimiento** digital antes de Terapia, Historial y sensor.
-- La app **no diagnostica** ni prescribe.
-- **Pendiente de validación clínica**; uso académico y de ingeniería hasta nuevo aviso.
 - Supabase en modo desarrollo: leer [docs/supabase-security-notes.md](docs/supabase-security-notes.md).
 
 ---
@@ -295,7 +294,7 @@ docs/                         # sensor-flow, calibración, Supabase
 ## Roadmap técnico (sugerido)
 
 1. Pruebas de extremo a extremo (sensor → calibración → terapia → exportación).
-2. Optimización de UI y copy clínico (sin “prototipo” en flujos de paciente).
+2. Optimización de UI y copy clínico en flujos de paciente.
 3. Integración clínica final y política de datos en nube.
 4. Refinamiento de niveles 2–5 y dificultades.
 5. Validación con usuarios y especialistas.

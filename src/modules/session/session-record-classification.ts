@@ -54,10 +54,10 @@ export function sessionClassificationSummaryTitle(record: SessionRecord): string
 export function sessionClassificationSummaryNote(record: SessionRecord): string | null {
   const classification = resolveSessionClassification(record);
   if (!classification.isClassified) {
-    return 'Fuente de datos no clasificada.';
+    return null;
   }
   if (classification.isPracticeSession) {
-    return 'Esta sesión fue registrada como práctica sin sensor.';
+    return 'Práctica sin sensor';
   }
   return null;
 }

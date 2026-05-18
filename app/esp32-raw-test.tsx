@@ -246,9 +246,9 @@ export default function Esp32RawTestRoute() {
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator>
-        <Text style={styles.title}>ESP32 Raw WebSocket Test</Text>
+        <Text style={styles.title}>Prueba WebSocket ESP32</Text>
         <Text style={styles.subtitle}>
-          Conexión directa con `new WebSocket(url)`. Sin parseSensorMessage, sin mocks, sin reconexión.
+          Conexión directa al socket. Sin ingestión de la app ni reconexión automática.
         </Text>
 
         <Text style={styles.label}>URL WebSocket</Text>

@@ -1,5 +1,5 @@
 /**
- * Modo de entrada de sesión: medición con sensor (por defecto) o práctica táctil (desarrollo).
+ * Modo de entrada de sesión: medición con sensor (por defecto) o práctica táctil.
  */
 export type SessionInputMode = 'sensor' | 'touch_practice';
 
