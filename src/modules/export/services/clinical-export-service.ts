@@ -9,7 +9,7 @@ import { readPatientById } from '@/src/modules/patient/patient-repository';
 import type { ClinicalExportSnapshot } from '@/src/modules/export/types/export-record';
 import { getPatientExportData } from '@/src/modules/export/services/session-export-service';
 
-export const CLINICAL_EXPORT_FORMAT_VERSION = '2.0.0';
+export const CLINICAL_EXPORT_FORMAT_VERSION = '2.1.0';
 
 export async function getClinicalExportSnapshot(patientId: number): Promise<ClinicalExportSnapshot> {
   const [patient, allDiagnostics, allLevels, sessionBundle] = await Promise.all([

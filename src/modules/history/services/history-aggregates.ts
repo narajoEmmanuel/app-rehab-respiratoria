@@ -3,13 +3,25 @@
  * Module: history
  */
 import type { LevelId, LevelOneProgress } from '@/src/modules/levels/types/level-progress';
-import { isTherapeuticSessionRecord } from '@/src/modules/session/session-record-classification';
+import {
+  isSensorMeasuredSession,
+  isTherapeuticSessionRecord,
+  resolveSessionClassification,
+} from '@/src/modules/session/session-record-classification';
 import type { AttemptRecord, SessionRecord } from '@/src/modules/session/types/session-progress';
 import { addDaysLocal, getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 
 export const LEVEL1_DAILY_GOAL = 6;
 
 export type CalendarDayKind = 'none' | 'perfect' | 'good' | 'incomplete' | 'interrupted';
+
+export type DayClassificationMetrics = {
+  sensorSessionsCount: number;
+  practiceSessionsCount: number;
+  unclassifiedSessionsCount: number;
+  maxSensorEstimatedVolumeMl: number | null;
+  maxSensorU95Ml: number | null;
+};
 
 export type DayAggregate = {
   dateKey: string;
@@ -22,9 +34,55 @@ export type DayAggregate = {
   bestHoldSeconds: number | null;
   /** Máx. mL del día (sesiones + picos de intentos); null si no hay dato útil. */
   maxVolumeMl: number | null;
+  classification: DayClassificationMetrics;
   calendarKind: CalendarDayKind;
   statusLabel: string;
 };
+
+function finiteMl(value: number | null | undefined): number | null {
+  if (typeof value !== 'number' || Number.isNaN(value)) return null;
+  return value;
+}
+
+export function computeDayClassificationMetrics(
+  sessions: SessionRecord[],
+): DayClassificationMetrics {
+  let sensorSessionsCount = 0;
+  let practiceSessionsCount = 0;
+  let unclassifiedSessionsCount = 0;
+  let maxSensorEstimatedVolumeMl: number | null = null;
+  let maxSensorU95Ml: number | null = null;
+
+  for (const session of sessions) {
+    const c = resolveSessionClassification(session);
+    if (!c.isClassified) {
+      unclassifiedSessionsCount += 1;
+    } else if (c.isPracticeSession) {
+      practiceSessionsCount += 1;
+    } else if (c.inputMode === 'sensor') {
+      sensorSessionsCount += 1;
+    }
+
+    if (isSensorMeasuredSession(session)) {
+      const est = finiteMl(session.max_sensor_estimated_volume_ml);
+      const u95 = finiteMl(session.max_sensor_u95_ml);
+      if (est != null && (maxSensorEstimatedVolumeMl == null || est > maxSensorEstimatedVolumeMl)) {
+        maxSensorEstimatedVolumeMl = est;
+      }
+      if (u95 != null && (maxSensorU95Ml == null || u95 > maxSensorU95Ml)) {
+        maxSensorU95Ml = u95;
+      }
+    }
+  }
+
+  return {
+    sensorSessionsCount,
+    practiceSessionsCount,
+    unclassifiedSessionsCount,
+    maxSensorEstimatedVolumeMl,
+    maxSensorU95Ml,
+  };
+}
 
 export type AchievementDef = {
   id: string;
@@ -95,6 +153,7 @@ export function buildDayAggregate(dateKey: string, sessions: SessionRecord[]): D
   const validRepetitionsSum = norm.reduce((acc, s) => acc + (s.valid_attempts ?? 0), 0);
   const improveRepetitionsSum = norm.reduce((acc, s) => acc + (s.invalid_attempts ?? 0), 0);
   const calendarKind = classifyCalendarDay(norm);
+  const classification = computeDayClassificationMetrics(norm);
   return {
     dateKey,
     sessions: norm,
@@ -105,6 +164,7 @@ export function buildDayAggregate(dateKey: string, sessions: SessionRecord[]): D
     improveRepetitionsSum,
     bestHoldSeconds: null,
     maxVolumeMl: null,
+    classification,
     calendarKind,
     statusLabel: calendarKindLabel(calendarKind),
   };
@@ -125,7 +185,10 @@ export function attachBestHoldSeconds(
     for (const a of rows) {
       anyHold = true;
       if (a.hold_ms > maxMs) maxMs = a.hold_ms;
-      const peak = typeof a.peak_volume === 'number' && !Number.isNaN(a.peak_volume) ? a.peak_volume : 0;
+      const official = finiteMl(a.official_volume_ml);
+      const peak =
+        official ??
+        (typeof a.peak_volume === 'number' && !Number.isNaN(a.peak_volume) ? a.peak_volume : 0);
       if (peak > maxVol) maxVol = peak;
     }
   }
@@ -227,6 +290,7 @@ export function countCompletedToday(
     (s) =>
       s.patient_id === patientId &&
       s.level_id === levelId &&
+      isTherapeuticSessionRecord(s) &&
       s.completed &&
       s.interrupted !== true &&
       sessionRecordLocalDayKey(s.session_date) === todayKey,
@@ -242,7 +306,9 @@ export function hadUnlockPerfectDayForLevel(
   const byDay = groupSessionsByDay(sessions, patientId, levelId);
   for (const list of byDay.values()) {
     const norm = list.map(withLegacySessionDefaults);
-    const completed = norm.filter((s) => s.completed && s.interrupted !== true);
+    const completed = norm.filter(
+      (s) => isTherapeuticSessionRecord(s) && s.completed && s.interrupted !== true,
+    );
     const perfect = completed.filter((s) => s.perfect).length;
     if (perfect >= LEVEL1_DAILY_GOAL) return true;
   }
@@ -260,14 +326,16 @@ export function buildAchievements(input: {
     .filter((s) => s.patient_id === patientId && s.level_id === levelId)
     .map(withLegacySessionDefaults);
 
-  const firstCompleted = mine.some((s) => s.completed);
+  const firstCompleted = mine.some((s) => isTherapeuticSessionRecord(s) && s.completed);
   const activityDays = new Set<string>();
   for (const s of mine) {
     const k = sessionRecordLocalDayKey(s.session_date);
     if (k) activityDays.add(k);
   }
   const firstDayActivity = activityDays.size >= 1;
-  const perfectTotal = mine.filter((s) => s.completed && s.perfect).length;
+  const perfectTotal = mine.filter(
+    (s) => isTherapeuticSessionRecord(s) && s.completed && s.perfect,
+  ).length;
   const threePerfect = perfectTotal >= 3;
 
   const hasLevelActivity = mine.length > 0;
