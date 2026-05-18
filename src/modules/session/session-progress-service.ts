@@ -120,6 +120,11 @@ export async function persistSessionResult(result: SessionResult): Promise<Sessi
       sensor_attempt_status: attempt.sensorAttemptStatus ?? undefined,
     });
   }
+
+  if (result.isPracticeSession) {
+    return savedSession;
+  }
+
   await updatePatientLevelProgress(result.patientId, result.patientLevelId);
   await updateDailyProgress(result.patientId);
   await checkAndUnlockNextLevel(result.patientId);

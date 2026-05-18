@@ -1,7 +1,7 @@
 import type { SessionDataSource, SessionInputMode } from '@/src/modules/session/session-input-mode';
 import type { AttemptRecord, SessionRecord } from '@/src/modules/session/types/session-progress';
 
-export type SessionClassificationUiLabel = 'Sensor' | 'Práctica' | 'Sin clasificar';
+export type SessionClassificationUiLabel = 'Sensor' | 'Práctica sin sensor' | 'Sin clasificar';
 
 export type ResolvedSessionClassification = {
   inputMode: SessionInputMode | 'unclassified';
@@ -37,13 +37,13 @@ export function isTherapeuticSessionRecord(record: SessionRecord): boolean {
 export function sessionClassificationUiLabel(record: SessionRecord): SessionClassificationUiLabel {
   const classification = resolveSessionClassification(record);
   if (!classification.isClassified) return 'Sin clasificar';
-  return classification.isPracticeSession ? 'Práctica' : 'Sensor';
+  return classification.isPracticeSession ? 'Práctica sin sensor' : 'Sensor';
 }
 
 export function sessionClassificationMainTitle(record: SessionRecord): string {
   const classification = resolveSessionClassification(record);
   if (!classification.isClassified) return 'Sesión sin clasificar';
-  return classification.isPracticeSession ? 'Modo práctica táctil' : 'Sesión con sensor';
+  return classification.isPracticeSession ? 'Modo práctica' : 'Sesión con sensor';
 }
 
 /** @deprecated Prefer sessionClassificationMainTitle */

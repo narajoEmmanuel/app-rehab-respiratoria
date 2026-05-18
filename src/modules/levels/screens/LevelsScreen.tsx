@@ -12,6 +12,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import {
   evaluateTherapyReadinessOnDemand,
+  showLevelPlayModePicker,
   showTherapyReadinessAlert,
   useTherapyReadinessGate,
 } from '@/src/modules/device/volume-estimation';
@@ -21,10 +22,7 @@ import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progres
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { listLevels } from '@/src/modules/session/registry/level-registry';
-import {
-  isTouchPracticeModeEnabled,
-  type SessionInputMode,
-} from '@/src/modules/session/session-input-mode';
+import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
 import { TARGET_PERFECT_SESSIONS } from '@/src/modules/session/session-progress-service';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import type { TherapyLevelStatusChip } from '@/src/shared/ui/therapy-level-card';
@@ -124,10 +122,8 @@ export function LevelsScreen({
     [router, selectLevel],
   );
 
-  const onLevelPress = useCallback(
-    async (levelId: LevelId, progressionLocked: boolean) => {
-      if (progressionLocked || startingLevelId !== null) return;
-
+  const beginOfficialSensorSession = useCallback(
+    async (levelId: LevelId) => {
       setStartingLevelId(levelId);
       try {
         const distanceMm = lastReading?.distanceMm;
@@ -138,17 +134,7 @@ export function LevelsScreen({
         });
 
         if (!gate.canStartTherapy) {
-          const touchPracticeEnabled = isTouchPracticeModeEnabled();
-          showTherapyReadinessAlert(
-            gate,
-            (route) => router.push(route),
-            touchPracticeEnabled
-              ? {
-                  onPracticeWithoutSensor: () => navigateToSession(levelId, 'touch_practice'),
-                  practiceButtonLabel: 'Practicar sin sensor',
-                }
-              : undefined,
-          );
+          showTherapyReadinessAlert(gate, (route) => router.push(route));
           return;
         }
 
@@ -162,8 +148,30 @@ export function LevelsScreen({
       navigateToSession,
       router,
       sensorConnected,
-      startingLevelId,
     ],
+  );
+
+  const beginPracticeMode = useCallback(
+    (levelId: LevelId) => {
+      navigateToSession(levelId, 'touch_practice');
+    },
+    [navigateToSession],
+  );
+
+  const onPlayLevel = useCallback(
+    (levelId: LevelId, progressionLocked: boolean) => {
+      if (progressionLocked || startingLevelId !== null) return;
+
+      showLevelPlayModePicker({
+        onWithSensor: () => {
+          void beginOfficialSensorSession(levelId);
+        },
+        onPracticeMode: () => {
+          beginPracticeMode(levelId);
+        },
+      });
+    },
+    [beginOfficialSensorSession, beginPracticeMode, startingLevelId],
   );
 
   const scrollBottom = dashboardScrollBottomPadding(insets.bottom);
@@ -226,8 +234,9 @@ export function LevelsScreen({
                   : 'Completa 6 sesiones perfectas en el nivel activo para desbloquear el siguiente.'
               }
               locked={locked}
+              starting={startingLevelId === levelId}
               onPress={() => {
-                void onLevelPress(levelId, locked);
+                onPlayLevel(levelId, locked);
               }}
             />
           );

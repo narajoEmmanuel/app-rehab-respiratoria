@@ -460,8 +460,10 @@ export function SessionScreen() {
                     const totalAttemptsSnap = validSnap + failedSnap;
                     const shouldPersistInterrupted = totalAttemptsSnap > 0;
 
-                    if (shouldPersistInterrupted) {
+                    if (shouldPersistInterrupted && !isTouchPractice) {
                       interruptCurrentLevelOneSession();
+                      setSavingInterrupt(true);
+                    } else if (shouldPersistInterrupted && isTouchPractice) {
                       setSavingInterrupt(true);
                     }
                     stopSessionRuntimeState();
@@ -580,7 +582,9 @@ export function SessionScreen() {
                   inputMode: sessionInputMode,
                 });
                 const savedSession = await persistSessionResult(result);
-                finalizeCurrentLevelOneSession();
+                if (!isTouchPractice) {
+                  finalizeCurrentLevelOneSession();
+                }
                 levelOneEngine.stopSession();
                 setAttemptsRuntime([]);
                 setSummaryDismissedKind('completed');

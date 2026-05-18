@@ -34,10 +34,12 @@ export {
 export {
   buildTherapyReadinessGate,
   evaluateTherapyReadinessOnDemand,
+  showLevelPlayModePicker,
   showTherapyReadinessAlert,
   therapyReadinessCardStatusLabel,
   volumeEstimationStatusToTherapy,
   type EvaluateTherapyReadinessOnDemandParams,
+  type LevelPlayModePickerOptions,
   type TherapyReadinessAlertOptions,
   type TherapyReadinessInputState,
 } from '@/src/modules/device/volume-estimation/therapy-readiness-service';
