@@ -1,5 +1,7 @@
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import type { SessionDataSource, SessionInputMode } from '@/src/modules/session/session-input-mode';
+import type { SensorAttemptEvaluationStatus } from '@/src/modules/session/sensor-evaluation/sensor-attempt-evaluation-types';
+import type { OfficialAttemptValidationSource } from '@/src/modules/session/sensor-evaluation/session-attempt-validation-types';
 
 export type SessionRecord = {
   session_id: number;
@@ -22,6 +24,9 @@ export type SessionRecord = {
   input_mode?: SessionInputMode;
   data_source?: SessionDataSource;
   is_practice_session?: boolean;
+  official_validation_source?: OfficialAttemptValidationSource;
+  max_sensor_estimated_volume_ml?: number | null;
+  max_sensor_u95_ml?: number | null;
 };
 
 export type AttemptRecord = {
@@ -31,4 +36,12 @@ export type AttemptRecord = {
   peak_volume: number;
   valid: boolean;
   created_at: string;
+  input_mode?: SessionInputMode;
+  data_source?: SessionDataSource;
+  official_volume_ml?: number | null;
+  sensor_estimated_volume_ml?: number | null;
+  sensor_u95_ml?: number | null;
+  sensor_confidence_label?: string | null;
+  sensor_volume_reached_conservatively?: boolean;
+  sensor_attempt_status?: SensorAttemptEvaluationStatus | null;
 };

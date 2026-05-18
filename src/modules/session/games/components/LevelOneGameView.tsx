@@ -22,8 +22,12 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import type { LevelOnePhase } from '@/src/modules/session/engine/level-one/use-level-one-game';
-import { SensorAttemptVolumeHint } from '@/src/modules/session/games/components/SensorAttemptVolumeHint';
-import type { SensorAttemptEvaluation } from '@/src/modules/session/sensor-evaluation';
+import {
+  officialValidationModeLabel,
+  officialValidationStatusHint,
+  type OfficialAttemptValidationResult,
+  type SensorAttemptEvaluation,
+} from '@/src/modules/session/sensor-evaluation';
 import {
   isTouchPracticeSession,
   type SessionInputMode,
@@ -67,8 +71,9 @@ type LevelOneGameViewProps = {
   onIntroComplete?: () => void;
   /** Chip compacto de estado del sensor; no altera el juego. */
   sensorStatusSlot?: ReactNode;
-  /** Evaluación paralela por volumen del sensor; no altera repeticiones oficiales. */
   sensorAttemptEvaluation?: SensorAttemptEvaluation;
+  /** Criterio oficial de intento (sensor o táctil). */
+  officialAttemptValidation?: OfficialAttemptValidationResult;
 };
 
 export function LevelOneGameView({
@@ -98,6 +103,7 @@ export function LevelOneGameView({
   onIntroComplete,
   sensorStatusSlot,
   sensorAttemptEvaluation,
+  officialAttemptValidation,
 }: LevelOneGameViewProps) {
   const isTouchPractice = isTouchPracticeSession(sessionInputMode);
   const { width: layoutW } = useWindowDimensions();
@@ -485,12 +491,13 @@ export function LevelOneGameView({
                     : 'Mantén presionado para inspirar · suelta para exhalar'}
               </Text>
             </Pressable>
-            {!isTouchPractice && sensorAttemptEvaluation ? (
-              <SensorAttemptVolumeHint
-                evaluation={sensorAttemptEvaluation}
+            {officialAttemptValidation ? (
+              <OfficialValidationBanner
+                validation={officialAttemptValidation}
+                sensorStatus={sensorAttemptEvaluation?.status}
                 needsHoldTime={
-                  (sensorAttemptEvaluation.status === 'target_reached' ||
-                    sensorAttemptEvaluation.status === 'uncertain') &&
+                  !isTouchPractice &&
+                  sensorAttemptEvaluation?.reachesTargetConservatively === true &&
                   (phase === 'holding' || phase === 'ready') &&
                   holdMs < REQUIRED_HOLD_MS
                 }
@@ -502,6 +509,82 @@ export function LevelOneGameView({
     </View>
   );
 }
+
+function OfficialValidationBanner({
+  validation,
+  sensorStatus,
+  needsHoldTime,
+}: {
+  validation: OfficialAttemptValidationResult;
+  sensorStatus?: SensorAttemptEvaluation['status'];
+  needsHoldTime?: boolean;
+}) {
+  const modeLabel = officialValidationModeLabel(validation.source);
+  const statusHint = officialValidationStatusHint(validation, sensorStatus);
+  const isTouch = validation.source === 'touch_simulation';
+  const tone =
+    validation.attemptValid || statusHint === 'Objetivo confirmado'
+      ? 'ok'
+      : statusHint === 'Lectura cercana'
+        ? 'warn'
+        : 'muted';
+
+  const toneStyle = {
+    ok: { bg: 'rgba(52, 171, 165, 0.1)', border: 'rgba(52, 171, 165, 0.22)', text: wellness.primaryDark },
+    warn: { bg: 'rgba(201, 162, 39, 0.12)', border: 'rgba(201, 162, 39, 0.32)', text: '#7A5E12' },
+    muted: { bg: 'rgba(61, 90, 74, 0.06)', border: wellness.border, text: wellness.textSecondary },
+  }[tone];
+
+  const subtitle = isTouch
+    ? 'Modo práctica táctil'
+    : statusHint ?? (validation.volumeReached ? 'Sostén para confirmar' : null);
+
+  return (
+    <View
+      style={[validationBannerStyles.wrap, { backgroundColor: toneStyle.bg, borderColor: toneStyle.border }]}
+      accessibilityRole="text"
+      accessibilityLabel={[modeLabel, subtitle, needsHoldTime ? 'Sostén un poco más' : null]
+        .filter(Boolean)
+        .join('. ')}>
+      <Text style={[validationBannerStyles.mode, { color: toneStyle.text }]}>{modeLabel}</Text>
+      {subtitle ? (
+        <Text style={[validationBannerStyles.status, { color: toneStyle.text }]}>{subtitle}</Text>
+      ) : null}
+      {needsHoldTime ? (
+        <Text style={validationBannerStyles.holdHint}>Sostén un poco más</Text>
+      ) : null}
+    </View>
+  );
+}
+
+const validationBannerStyles = StyleSheet.create({
+  wrap: {
+    marginTop: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  mode: {
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  status: {
+    marginTop: 4,
+    fontSize: 13,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  holdHint: {
+    marginTop: 4,
+    fontSize: 11,
+    fontWeight: '700',
+    color: wellness.primaryDark,
+  },
+});
 
 function HudDashboard({
   levelLabel,

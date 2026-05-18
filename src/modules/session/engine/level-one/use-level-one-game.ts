@@ -26,10 +26,19 @@ export type LevelOnePhase =
   | 'interrupted'
   | 'level-complete';
 
+export type OfficialAttemptReleaseResolution = {
+  valid: boolean;
+};
+
 type UseLevelOneGameParams = {
   progress: LevelOneProgress;
   onProgressChange: (updater: (prev: LevelOneProgress) => LevelOneProgress) => void;
   onAttemptResolved?: (payload: { valid: boolean; holdMs: number }) => void;
+  /**
+   * Criterio oficial al soltar (p. ej. volumen sensor + tiempo).
+   * Si no se define, solo se exige REQUIRED_HOLD_MS (comportamiento legacy).
+   */
+  resolveOfficialAttemptOnRelease?: (heldMs: number) => OfficialAttemptReleaseResolution;
   /** Al cambiar (paciente distinto o nueva partida), el motor vuelve a `not-started` antes del pintado. */
   engineScopeKey?: string;
 };
@@ -40,6 +49,7 @@ export function useLevelOneGame({
   progress,
   onProgressChange,
   onAttemptResolved,
+  resolveOfficialAttemptOnRelease,
   engineScopeKey,
 }: UseLevelOneGameParams) {
   const [phase, setPhase] = useState<LevelOnePhase>('not-started');
@@ -198,8 +208,11 @@ export function useLevelOneGame({
       holdTickRef.current = null;
     }
 
-    closeAttempt(elapsed >= REQUIRED_HOLD_MS, elapsed);
-  }, [closeAttempt, phase]);
+    const official = resolveOfficialAttemptOnRelease?.(elapsed);
+    const valid =
+      official !== undefined ? official.valid : elapsed >= REQUIRED_HOLD_MS;
+    closeAttempt(valid, elapsed);
+  }, [closeAttempt, phase, resolveOfficialAttemptOnRelease]);
 
   useEffect(() => {
     if (progress.levelCompleted) {
