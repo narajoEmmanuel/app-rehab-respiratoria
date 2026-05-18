@@ -6,14 +6,16 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter, type Href } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { isCloudAuthEnabled } from '@/src/modules/app-mode/app-mode-config';
 import { getLatestDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
 import type { DiagnosticRecord } from '@/src/modules/diagnostics/types';
 import { formatDisplayDateEs } from '@/src/modules/history/services/history-aggregates';
 import {
   getAcceptedConsentRecord,
+  seedLocalPrototypeConsentForPatient,
   withdrawConsent,
 } from '@/src/modules/legal/consent-service';
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
@@ -21,6 +23,7 @@ import { openLegalDocument } from '@/src/modules/legal/open-legal-document';
 import type { AcceptedConsentRecord } from '@/src/modules/legal/types';
 import { getNotificationPreferences } from '@/src/modules/notifications/storage/notification-preferences-repository';
 import type { NotificationPreferences } from '@/src/modules/notifications/types/notification-preferences';
+import { DeletePatientConfirmModal } from '@/src/modules/patient/components/DeletePatientConfirmModal';
 import { ProfileActionRow } from '@/src/modules/patient/components/ProfileActionRow';
 import { ProfileAvatarPicker } from '@/src/modules/patient/components/ProfileAvatarPicker';
 import { ProfileInfoCard } from '@/src/modules/patient/components/ProfileInfoCard';
@@ -30,6 +33,11 @@ import {
   type ProfileConsentBadgeVariant,
 } from '@/src/modules/patient/components/ProfileStatusBadge';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+import { deleteCurrentPatientLocalData } from '@/src/modules/patient/patient-delete-service';
+import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
+import {
+  ensureLocalPrototypePatientRecord,
+} from '@/src/modules/patient/patient-service';
 import {
   getProfilePreferences,
   updateProfilePreferences,
@@ -98,12 +106,19 @@ function MetricTile({ label, value }: { label: string; value: string }) {
 
 export function ProfileScreen() {
   const router = useRouter();
-  const { patient, clearSession } = usePatientSession();
+  const { patient, clearSession, setSessionPatient, refreshSession } = usePatientSession();
   const [latestDiagnostic, setLatestDiagnostic] = useState<DiagnosticRecord | null>(null);
   const [consentRecord, setConsentRecord] = useState<AcceptedConsentRecord | null>(null);
   const [prefs, setPrefs] = useState<ProfilePreferences>(DEFAULT_PROFILE_PREFERENCES);
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences | null>(null);
   const [sessionQuickStats, setSessionQuickStats] = useState<SessionQuickStats | null>(null);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+
+  const patientDisplayName = useMemo(
+    () => (patient ? normalizePatientDisplayName(patient.nombre_completo) : ''),
+    [patient],
+  );
 
   const refreshConsent = useCallback(async () => {
     const r = await getAcceptedConsentRecord();
@@ -114,6 +129,7 @@ export function ProfileScreen() {
     useCallback(() => {
       let active = true;
       void (async () => {
+        await refreshSession();
         await refreshConsent();
         if (!active) return;
         if (!patient) {
@@ -138,7 +154,7 @@ export function ProfileScreen() {
       return () => {
         active = false;
       };
-    }, [patient, refreshConsent]),
+    }, [patient, refreshConsent, refreshSession]),
   );
 
   const onAvatarChange = useCallback(
@@ -183,6 +199,45 @@ export function ProfileScreen() {
 
   const consentUi = useMemo(() => consentPresentation(consentRecord), [consentRecord]);
 
+  const onRequestDeleteProfile = useCallback(() => {
+    Alert.alert(
+      'Eliminar perfil del paciente',
+      'Esta acción eliminará el perfil local, consentimiento, preferencias, notificaciones e historial de sesiones asociados a este paciente. La calibración del espirómetro se conservará.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Continuar',
+          style: 'destructive',
+          onPress: () => setDeleteModalVisible(true),
+        },
+      ],
+    );
+  }, []);
+
+  const onConfirmDeleteProfile = useCallback(() => {
+    void (async () => {
+      setDeleteBusy(true);
+      try {
+        await deleteCurrentPatientLocalData();
+        await clearSession();
+        setDeleteModalVisible(false);
+        if (!isCloudAuthEnabled()) {
+          const nextPatient = await ensureLocalPrototypePatientRecord();
+          await seedLocalPrototypeConsentForPatient(nextPatient.paciente_id);
+          await setSessionPatient(nextPatient);
+          router.replace('/(tabs)');
+        } else {
+          router.replace('/auth/login');
+        }
+        Alert.alert('Perfil eliminado', 'Perfil eliminado correctamente.');
+      } catch {
+        Alert.alert('Error', 'No se pudo eliminar el perfil. Inténtalo nuevamente.');
+      } finally {
+        setDeleteBusy(false);
+      }
+    })();
+  }, [clearSession, router, setSessionPatient]);
+
   const metrics = sessionQuickStats ?? {
     completedCount: 0,
     avgCompliance: null,
@@ -209,11 +264,11 @@ export function ProfileScreen() {
         <View style={styles.profileHeader}>
           <ProfileAvatarPicker
             patientId={patient.paciente_id}
-            displayName={patient.nombre_completo}
+            displayName={patientDisplayName}
             avatarUri={prefs.avatarUri}
             onAvatarUriChange={(uri) => void onAvatarChange(uri)}
           />
-          <Text style={styles.profileName}>{patient.nombre_completo}</Text>
+          <Text style={styles.profileName}>{patientDisplayName}</Text>
           <Text style={styles.profileMeta}>Clave · {patient.clave}</Text>
           <View style={styles.badgeRow}>
             <ProfileStatusBadge label={consentUi.badgeLabel} variant={consentUi.variant} />
@@ -239,7 +294,7 @@ export function ProfileScreen() {
           <ProfileInfoCard title="Identificación">
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Nombre</Text>
-              <Text style={styles.fieldValue}>{patient.nombre_completo}</Text>
+              <Text style={styles.fieldValue}>{patientDisplayName}</Text>
             </View>
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Edad</Text>
@@ -375,6 +430,37 @@ export function ProfileScreen() {
           </ProfileInfoCard>
         </ProfileSection>
 
+        <ProfileSection
+          title="Zona delicada"
+          subtitle="Acciones irreversibles sobre los datos locales de este paciente.">
+          <ProfileInfoCard>
+            <Text style={styles.deleteSectionTitle}>Eliminar perfil del paciente</Text>
+            <Text style={styles.deleteSectionBody}>
+              Eliminará los datos locales asociados a este paciente en este dispositivo.
+            </Text>
+            <Text style={styles.deleteSectionHint}>
+              No elimina la calibración del espirómetro, el modelo activo ni la configuración técnica del
+              sensor.
+            </Text>
+            <Pressable
+              style={({ pressed }) => [
+                styles.deleteProfileBtn,
+                deleteBusy && styles.deleteProfileBtnDisabled,
+                pressed && !deleteBusy && styles.deleteProfileBtnPressed,
+              ]}
+              onPress={onRequestDeleteProfile}
+              disabled={deleteBusy}
+              accessibilityRole="button"
+              accessibilityLabel="Eliminar perfil del paciente">
+              {deleteBusy ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.deleteProfileBtnText}>Eliminar perfil del paciente</Text>
+              )}
+            </Pressable>
+          </ProfileInfoCard>
+        </ProfileSection>
+
         <ProfileSection title="Cuenta en este dispositivo">
           <Pressable
             style={({ pressed }) => [styles.logoutBtn, pressed && styles.logoutPressed]}
@@ -388,6 +474,15 @@ export function ProfileScreen() {
           </Pressable>
         </ProfileSection>
       </ScrollView>
+
+      <DeletePatientConfirmModal
+        visible={deleteModalVisible}
+        busy={deleteBusy}
+        onCancel={() => {
+          if (!deleteBusy) setDeleteModalVisible(false);
+        }}
+        onConfirm={onConfirmDeleteProfile}
+      />
     </SafeAreaView>
   );
 }
@@ -502,6 +597,44 @@ const styles = StyleSheet.create({
   },
   withdrawOutlinePressed: {
     opacity: 0.92,
+  },
+  deleteSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: spacing.xs,
+  },
+  deleteSectionBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#4B5563',
+    marginBottom: spacing.sm,
+  },
+  deleteSectionHint: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#6B7280',
+    marginBottom: spacing.md,
+  },
+  deleteProfileBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+    borderRadius: wellnessRadii.pill,
+    backgroundColor: '#B91C1C',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  deleteProfileBtnPressed: {
+    opacity: 0.9,
+  },
+  deleteProfileBtnDisabled: {
+    opacity: 0.7,
+  },
+  deleteProfileBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   withdrawOutlineText: {
     fontSize: 15,

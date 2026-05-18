@@ -14,6 +14,10 @@ import {
   updatePatient,
   writeCurrentClave,
 } from '@/src/modules/patient/patient-repository';
+import {
+  isLegacyPatientDisplayName,
+  LOCAL_PATIENT_DISPLAY_NAME,
+} from '@/src/modules/patient/patient-display';
 import type { PatientRecord } from '@/src/modules/patient/types';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 
@@ -72,10 +76,24 @@ export async function saveCurrentPatient(patient: PatientRecord): Promise<void> 
   await writeCurrentClave(patient.clave);
 }
 
+async function persistLegacyDisplayNameMigration(patient: PatientRecord): Promise<PatientRecord> {
+  if (!isLegacyPatientDisplayName(patient.nombre_completo)) {
+    return patient;
+  }
+  const updated =
+    (await updatePatient(patient.paciente_id, (prev) => ({
+      ...prev,
+      nombre_completo: LOCAL_PATIENT_DISPLAY_NAME,
+    }))) ?? patient;
+  return updated;
+}
+
 export async function getCurrentPatient(): Promise<PatientRecord | null> {
   const clave = await readCurrentClave();
   if (!clave) return null;
-  return getPatientByClave(clave);
+  const found = await getPatientByClave(clave);
+  if (!found) return null;
+  return persistLegacyDisplayNameMigration(found);
 }
 
 export async function logoutPatient(): Promise<void> {
@@ -91,7 +109,7 @@ const LOCAL_PROTOTYPE_AGE = 30;
 export async function ensureLocalPrototypePatientRecord(): Promise<PatientRecord> {
   const current = await getCurrentPatient();
   if (current) return current;
-  const row = await createPatient('Paciente local', LOCAL_PROTOTYPE_AGE);
+  const row = await createPatient(LOCAL_PATIENT_DISPLAY_NAME, LOCAL_PROTOTYPE_AGE);
   await saveCurrentPatient(row);
   return row;
 }

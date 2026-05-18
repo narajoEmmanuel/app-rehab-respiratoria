@@ -5,6 +5,7 @@
  */
 
 import { LEVEL1_DAILY_GOAL } from '@/src/modules/history/services/history-aggregates';
+import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
 import type { ClinicalExportSnapshot } from '@/src/modules/export/types/export-record';
 import {
   attemptClassificationExportFields,
@@ -206,7 +207,7 @@ export function buildClinicalReportCsv(snapshot: ClinicalExportSnapshot): string
 
   const p = snapshot.patient;
   const patientCode = p?.clave ?? '';
-  const patientName = p?.nombre_completo ?? '';
+  const patientName = p?.nombre_completo != null ? normalizePatientDisplayName(p.nombre_completo) : '';
   const age = p != null ? String(p.edad) : '';
   const vimActual = latestVimMl(snapshot);
 

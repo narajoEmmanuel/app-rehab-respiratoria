@@ -19,6 +19,7 @@ import { HomeLastSessionCard } from '@/src/modules/home/components/HomeLastSessi
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { useConsentActive } from '@/src/modules/legal/use-consent-active';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 import { updateDailyProgress } from '@/src/modules/session/session-progress-service';
@@ -169,7 +170,8 @@ export function HomeScreen() {
     );
   }
 
-  const firstName = patient.nombre_completo.trim().split(/\s+/)[0] ?? patient.nombre_completo;
+  const displayName = normalizePatientDisplayName(patient.nombre_completo);
+  const firstName = displayName.trim().split(/\s+/)[0] ?? displayName;
   const therapyCtaDisabled =
     !hasCompletedDiagnostic || !consentUiReady || !consentActive;
   const heroSubtitle = hasCompletedDiagnostic
