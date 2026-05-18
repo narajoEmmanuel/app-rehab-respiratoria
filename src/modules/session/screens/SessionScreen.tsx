@@ -128,7 +128,6 @@ export function SessionScreen() {
   const [attemptsRuntime, setAttemptsRuntime] = useState<SessionAttemptResult[]>([]);
   const [savingSummary, setSavingSummary] = useState(false);
   const [savingInterrupt, setSavingInterrupt] = useState(false);
-  const [isExitingSession, setIsExitingSession] = useState(false);
   const [introAcknowledged, setIntroAcknowledged] = useState(false);
 
   const exitToTherapy = () => {
@@ -291,7 +290,6 @@ export function SessionScreen() {
     if (isLoading) return;
     prepareFreshLevelOneSessionRun();
     stopSession();
-    setIsExitingSession(false);
     setIntroAcknowledged(false);
     setSummaryDismissedKind(null);
     setAttemptsRuntime([]);
@@ -466,7 +464,6 @@ export function SessionScreen() {
                       interruptCurrentLevelOneSession();
                       setSavingInterrupt(true);
                     }
-                    setIsExitingSession(true);
                     stopSessionRuntimeState();
                     void (async () => {
                       try {
