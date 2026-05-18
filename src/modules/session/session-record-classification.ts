@@ -28,9 +28,10 @@ export function resolveSessionClassification(record: SessionRecord): ResolvedSes
   };
 }
 
-/** Sesiones terapéuticas con medición real; excluye práctica táctil explícita. */
+/** Sesiones terapéuticas con medición real por sensor; excluye práctica táctil y sin clasificar. */
 export function isTherapeuticSessionRecord(record: SessionRecord): boolean {
-  return record.is_practice_session !== true;
+  const c = resolveSessionClassification(record);
+  return c.isClassified && !c.isPracticeSession && c.inputMode === 'sensor';
 }
 
 export function sessionClassificationUiLabel(record: SessionRecord): SessionClassificationUiLabel {

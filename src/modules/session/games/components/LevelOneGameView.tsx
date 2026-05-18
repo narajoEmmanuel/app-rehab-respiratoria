@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   Platform,
   Pressable,
@@ -232,8 +232,6 @@ export function LevelOneGameView({
     );
   }, [feedbackPulse, inValidFeedback]);
 
-  const obstacleRunRef = useRef(0);
-
   useEffect(() => {
     if (!showObstacles) {
       cancelAnimation(obsMountain);
@@ -244,7 +242,6 @@ export function LevelOneGameView({
     }
 
     const w = layoutW;
-    const runId = ++obstacleRunRef.current;
     const duration = 3400;
 
     cancelAnimation(obsMountain);
@@ -255,7 +252,6 @@ export function LevelOneGameView({
     obsMountain.value = withTiming(-150, { duration, easing: Easing.linear });
 
     return () => {
-      if (obstacleRunRef.current !== runId) return;
       cancelAnimation(obsMountain);
     };
   }, [layoutW, obsMountain, obsMountainOpacity, showObstacles]);
