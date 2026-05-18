@@ -4,7 +4,7 @@
  * Dependencies: typography, spacing, theme tokens, @expo/vector-icons
  */
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { spacing } from '@/src/shared/theme/spacing';
 import { fontBold, fontMedium, fontSemiBold } from '@/src/shared/theme/typography';
@@ -24,6 +24,7 @@ type TherapyLevelCardProps = {
   sessionsText: string;
   helperText?: string;
   locked: boolean;
+  starting?: boolean;
   onPress: () => void;
 };
 
@@ -73,6 +74,7 @@ export function TherapyLevelCard({
   sessionsText,
   helperText,
   locked,
+  starting = false,
   onPress,
 }: TherapyLevelCardProps) {
   const chipStyle = CHIP_THEME[statusChip];
@@ -82,12 +84,12 @@ export function TherapyLevelCard({
       style={({ pressed }) => [
         styles.card,
         locked && styles.cardLocked,
-        pressed && !locked && styles.cardPressed,
+        pressed && !locked && !starting && styles.cardPressed,
       ]}
       onPress={onPress}
-      disabled={locked}
+      disabled={locked || starting}
       accessibilityRole="button"
-      accessibilityState={{ disabled: locked }}>
+      accessibilityState={{ disabled: locked || starting }}>
       <View style={[styles.accentStripe, { backgroundColor: accentColor }]} />
       <View style={styles.body}>
         <View style={styles.identityRow}>
@@ -130,9 +132,13 @@ export function TherapyLevelCard({
 
       <View style={styles.ctaCol}>
         <View style={[styles.ctaBtn, locked ? styles.ctaBtnLocked : styles.ctaBtnPlay]}>
-          <Text style={[styles.ctaBtnText, locked && styles.ctaBtnTextLocked]}>
-            {locked ? 'Pendiente' : 'Jugar'}
-          </Text>
+          {starting ? (
+            <ActivityIndicator color={locked ? '#6B7280' : '#FFFFFF'} size="small" />
+          ) : (
+            <Text style={[styles.ctaBtnText, locked && styles.ctaBtnTextLocked]}>
+              {locked ? 'Pendiente' : 'Jugar nivel'}
+            </Text>
+          )}
         </View>
       </View>
     </Pressable>

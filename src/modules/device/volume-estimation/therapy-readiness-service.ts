@@ -255,7 +255,7 @@ export type EvaluateTherapyReadinessOnDemandParams = {
   hasUnsavedChanges?: boolean;
 };
 
-/** Evalúa la compuerta al instante (p. ej. al pulsar iniciar actividad). */
+/** Evalúa la compuerta al instante (p. ej. tras elegir «Con sensor»). */
 export async function evaluateTherapyReadinessOnDemand(
   params: EvaluateTherapyReadinessOnDemandParams,
 ): Promise<TherapyReadinessGate> {
@@ -289,8 +289,28 @@ export type TherapyReadinessAlertOptions = {
   practiceButtonLabel?: string;
 };
 
+export type LevelPlayModePickerOptions = {
+  onWithSensor: () => void;
+  onPracticeMode: () => void;
+};
+
+const LEVEL_PLAY_MODE_TITLE = '¿Cómo quieres jugar este nivel?';
+const LEVEL_PLAY_MODE_MESSAGE =
+  'Elige si quieres iniciar una sesión oficial con sensor o practicar sin medición real.';
+
 const TOUCH_PRACTICE_ALERT_NOTE =
   'Puedes practicar la actividad sin sensor. Esta opción no usa medición real.';
+
+/** Pop-up tras «Jugar nivel»: elige Con sensor vs Modo práctica (sin validar calibración). */
+export function showLevelPlayModePicker(options: LevelPlayModePickerOptions): void {
+  const { onWithSensor, onPracticeMode } = options;
+
+  Alert.alert(LEVEL_PLAY_MODE_TITLE, LEVEL_PLAY_MODE_MESSAGE, [
+    { text: 'Con sensor', onPress: onWithSensor },
+    { text: 'Modo práctica', onPress: onPracticeMode },
+    { text: 'Cancelar', style: 'cancel' },
+  ]);
+}
 
 export function showTherapyReadinessAlert(
   gate: TherapyReadinessGate,
@@ -318,7 +338,7 @@ export function showTherapyReadinessAlert(
 
   if (options?.onPracticeWithoutSensor) {
     buttons.push({
-      text: options.practiceButtonLabel ?? 'Practicar sin sensor',
+      text: options.practiceButtonLabel ?? 'Modo práctica',
       onPress: options.onPracticeWithoutSensor,
     });
   }
