@@ -1,11 +1,12 @@
 /**
  * Conteos del día a partir de SessionRecord (fuente única para historial, niveles y desbloqueo).
  */
+import { isTherapeuticSessionRecord } from '@/src/modules/session/session-record-classification';
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 import { sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 
 function isCompletedSession(s: SessionRecord): boolean {
-  return s.completed && s.interrupted !== true;
+  return isTherapeuticSessionRecord(s) && s.completed && s.interrupted !== true;
 }
 
 export type TodaySessionStats = {

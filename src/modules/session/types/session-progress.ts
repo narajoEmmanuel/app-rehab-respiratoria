@@ -1,4 +1,5 @@
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
+import type { SessionDataSource, SessionInputMode } from '@/src/modules/session/session-input-mode';
 
 export type SessionRecord = {
   session_id: number;
@@ -17,6 +18,10 @@ export type SessionRecord = {
   perfect: boolean;
   /** Present when user stopped with STOP; omitted in legacy rows (= false). */
   interrupted?: boolean;
+  /** Fuente de entrada; omitido en filas anteriores a Fase 3A.9b. */
+  input_mode?: SessionInputMode;
+  data_source?: SessionDataSource;
+  is_practice_session?: boolean;
 };
 
 export type AttemptRecord = {

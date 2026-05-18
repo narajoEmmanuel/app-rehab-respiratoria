@@ -20,6 +20,10 @@ import {
   getSessionDetail,
   type SessionDetail,
 } from '@/src/modules/session/session-progress-service';
+import {
+  sessionClassificationSummaryNote,
+  sessionClassificationSummaryTitle,
+} from '@/src/modules/session/session-record-classification';
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 
 function getSummaryTitle(session: SessionRecord | null): string {
@@ -167,6 +171,8 @@ export function SummaryScreen() {
   }
 
   const session = sessionDetail.session;
+  const classificationTitle = sessionClassificationSummaryTitle(session);
+  const classificationNote = sessionClassificationSummaryNote(session);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -175,6 +181,14 @@ export function SummaryScreen() {
         <Text style={styles.screenTitle}>{getSummaryTitle(session)}</Text>
         <Text style={styles.screenSubtitle}>{getSummarySubtitle(session)}</Text>
         <Text style={styles.levelLine}>Nivel {levelNum}</Text>
+        {classificationTitle ? (
+          <View style={styles.classificationBanner}>
+            <Text style={styles.classificationTitle}>{classificationTitle}</Text>
+            {classificationNote ? (
+              <Text style={styles.classificationNote}>{classificationNote}</Text>
+            ) : null}
+          </View>
+        ) : null}
 
         <View style={styles.card}>
           <MetricTile label="Sesión completada" value={session.completed ? 'Sí' : 'No'} />
@@ -246,7 +260,28 @@ const styles = StyleSheet.create({
     color: wellness.primaryDark,
     fontSize: 14,
     fontWeight: '700',
-    marginBottom: 16,
+    marginBottom: 10,
+  },
+  classificationBanner: {
+    marginBottom: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: wellnessRadii.card,
+    backgroundColor: wellness.softGreen,
+    borderWidth: 1,
+    borderColor: wellness.border,
+  },
+  classificationTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+  },
+  classificationNote: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+    lineHeight: 18,
   },
   screenTitle: {
     color: wellness.text,

@@ -1,4 +1,5 @@
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
+import type { SessionDataSource, SessionInputMode } from '@/src/modules/session/session-input-mode';
 
 export type SessionResultStatus = 'completed' | 'interrupted';
 
@@ -24,4 +25,7 @@ export type SessionResult = {
   interrupted: boolean;
   perfect: boolean;
   attempts: SessionAttemptResult[];
+  inputMode: SessionInputMode;
+  dataSource: SessionDataSource;
+  isPracticeSession: boolean;
 };

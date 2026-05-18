@@ -106,7 +106,6 @@ export function SessionScreen() {
     attemptsSnapshot: { valid: boolean; holdMs: number; peakVolume: number }[],
   ) => {
     if (!patient || !patientLevelId) return;
-    // TODO: Las sesiones en modo práctica táctil deberán marcarse o excluirse del historial terapéutico en una fase posterior.
     const result = buildSessionResult({
       patientId: patient.paciente_id,
       patientLevelId,
@@ -115,6 +114,7 @@ export function SessionScreen() {
       validAttempts: valid,
       invalidAttempts: failed,
       attemptsRuntime: attemptsSnapshot,
+      inputMode: sessionInputMode,
     });
     await persistSessionResult(result);
   };
@@ -452,7 +452,6 @@ export function SessionScreen() {
               onPress={async () => {
                 if (!patient || !patientLevelId) return;
                 setSavingSummary(true);
-                // TODO: Las sesiones en modo práctica táctil deberán marcarse o excluirse del historial terapéutico en una fase posterior.
                 const result = buildSessionResult({
                   patientId: patient.paciente_id,
                   patientLevelId,
@@ -461,6 +460,7 @@ export function SessionScreen() {
                   validAttempts,
                   invalidAttempts: failedAttempts,
                   attemptsRuntime,
+                  inputMode: sessionInputMode,
                 });
                 const savedSession = await persistSessionResult(result);
                 finalizeCurrentLevelOneSession();

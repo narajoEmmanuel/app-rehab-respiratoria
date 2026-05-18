@@ -46,6 +46,7 @@ import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness } from '@/src/shared/theme/wellness-theme';
 import { dashboardScreen, dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
+import { sessionClassificationUiLabel } from '@/src/modules/session/session-record-classification';
 import { getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 
 const CAL_BG: Record<CalendarDayKind, string> = {
@@ -449,6 +450,26 @@ export function HistoryScreen() {
                     ? `${selectedDay.maxVolumeMl} mL`
                     : 'Pendiente'}
                 </Text>
+                {selectedDay.sessions.length > 0 ? (
+                  <View style={styles.modalSessionsBlock}>
+                    <Text style={styles.modalSessionsTitle}>Sesiones del día</Text>
+                    {selectedDay.sessions.map((session) => (
+                      <View key={session.session_id} style={styles.modalSessionRow}>
+                        <Text style={styles.modalSessionTime}>
+                          {new Date(session.session_date).toLocaleTimeString('es-MX', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </Text>
+                        <View style={styles.modalSessionChip}>
+                          <Text style={styles.modalSessionChipText}>
+                            {sessionClassificationUiLabel(session)}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
                 <Text style={styles.modalMotivation}>{dayDetailMotivation(selectedDay)}</Text>
                 <Pressable
                   style={styles.modalClose}
@@ -814,6 +835,39 @@ const styles = StyleSheet.create({
     color: dashboardScreen.textPrimary,
     marginBottom: 8,
     lineHeight: 24,
+  },
+  modalSessionsBlock: {
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    gap: 8,
+  },
+  modalSessionsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: dashboardScreen.textSecondary,
+  },
+  modalSessionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  modalSessionTime: {
+    fontSize: 15,
+    color: dashboardScreen.textPrimary,
+    minWidth: 52,
+  },
+  modalSessionChip: {
+    borderRadius: 8,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    backgroundColor: 'rgba(61, 90, 74, 0.08)',
+    borderWidth: 1,
+    borderColor: dashboardScreen.cardBorderColor,
+  },
+  modalSessionChipText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: wellness.primaryDark,
   },
   modalMotivation: {
     marginTop: spacing.md,

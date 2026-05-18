@@ -98,6 +98,9 @@ export async function persistSessionResult(result: SessionResult): Promise<Sessi
     completed,
     perfect,
     interrupted,
+    input_mode: result.inputMode,
+    data_source: result.dataSource,
+    is_practice_session: result.isPracticeSession,
   });
   for (const attempt of result.attempts) {
     await createAttempt(savedSession.session_id, {

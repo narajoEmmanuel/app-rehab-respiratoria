@@ -3,6 +3,7 @@
  * Module: history
  */
 import type { LevelId, LevelOneProgress } from '@/src/modules/levels/types/level-progress';
+import { isTherapeuticSessionRecord } from '@/src/modules/session/session-record-classification';
 import type { AttemptRecord, SessionRecord } from '@/src/modules/session/types/session-progress';
 import { addDaysLocal, getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 
@@ -44,8 +45,9 @@ export function withLegacySessionDefaults(s: SessionRecord): SessionRecord {
 export const sessionDayKey = sessionRecordLocalDayKey;
 
 export function classifyCalendarDay(sessions: SessionRecord[]): CalendarDayKind {
-  if (sessions.length === 0) return 'none';
-  const norm = sessions.map(withLegacySessionDefaults);
+  const therapeutic = sessions.filter(isTherapeuticSessionRecord);
+  if (therapeutic.length === 0) return 'none';
+  const norm = therapeutic.map(withLegacySessionDefaults);
   if (norm.some((s) => s.interrupted === true && !s.completed)) return 'interrupted';
 
   const completed = norm.filter((s) => s.completed);
@@ -87,7 +89,7 @@ export function calendarKindLabel(kind: CalendarDayKind): string {
 
 export function buildDayAggregate(dateKey: string, sessions: SessionRecord[]): DayAggregate {
   const norm = sessions.map(withLegacySessionDefaults);
-  const completed = norm.filter((s) => s.completed);
+  const completed = norm.filter((s) => isTherapeuticSessionRecord(s) && s.completed);
   const perfectCount = completed.filter((s) => s.perfect).length;
   const interruptedCount = norm.filter((s) => s.interrupted === true && !s.completed).length;
   const validRepetitionsSum = norm.reduce((acc, s) => acc + (s.valid_attempts ?? 0), 0);

@@ -6,6 +6,8 @@
 
 import { LEVEL1_DAILY_GOAL } from '@/src/modules/history/services/history-aggregates';
 import type { ClinicalExportSnapshot } from '@/src/modules/export/types/export-record';
+import { resolveSessionClassification } from '@/src/modules/session/session-record-classification';
+import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 import { addDaysLocal, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 
 function escapeCsvCell(value: string | number | boolean | null | undefined): string {
@@ -113,7 +115,30 @@ const HEADER: readonly string[] = [
   'volumen_promedio',
   'tiempo_maximo',
   'tiempo_promedio',
+  'input_mode',
+  'data_source',
+  'is_practice_session',
 ] as const;
+
+function isTherapeuticExportSession(session: SessionRecord): boolean {
+  return session.is_practice_session !== true;
+}
+
+function classificationExportFields(session: SessionRecord): {
+  input_mode: string;
+  data_source: string;
+  is_practice_session: string;
+} {
+  const c = resolveSessionClassification(session);
+  if (!c.isClassified) {
+    return { input_mode: '', data_source: '', is_practice_session: '' };
+  }
+  return {
+    input_mode: c.inputMode === 'unclassified' ? '' : c.inputMode,
+    data_source: c.dataSource === 'unclassified' ? '' : c.dataSource,
+    is_practice_session: c.isPracticeSession ? 'true' : 'false',
+  };
+}
 
 function emptyRow(): Record<(typeof HEADER)[number], string> {
   const row = {} as Record<(typeof HEADER)[number], string>;
@@ -152,7 +177,12 @@ export function buildClinicalReportCsv(snapshot: ClinicalExportSnapshot): string
 
   const activityDays = new Set<string>();
   for (const [day, list] of byDay) {
-    const hasCompleted = list.some((x) => x.session.completed && x.session.interrupted !== true);
+    const hasCompleted = list.some(
+      (x) =>
+        isTherapeuticExportSession(x.session) &&
+        x.session.completed &&
+        x.session.interrupted !== true,
+    );
     if (hasCompleted) activityDays.add(day);
   }
 
@@ -167,10 +197,17 @@ export function buildClinicalReportCsv(snapshot: ClinicalExportSnapshot): string
     );
 
     const completedSessions = sortedList.filter(
-      (x) => x.session.completed && x.session.interrupted !== true,
+      (x) =>
+        isTherapeuticExportSession(x.session) &&
+        x.session.completed &&
+        x.session.interrupted !== true,
     );
     const perfectSessions = sortedList.filter(
-      (x) => x.session.perfect && x.session.completed && x.session.interrupted !== true,
+      (x) =>
+        isTherapeuticExportSession(x.session) &&
+        x.session.perfect &&
+        x.session.completed &&
+        x.session.interrupted !== true,
     );
 
     let repsTot = 0;
@@ -182,6 +219,7 @@ export function buildClinicalReportCsv(snapshot: ClinicalExportSnapshot): string
     let timeAvgSum = 0;
     let nSessions = 0;
     for (const { session } of sortedList) {
+      if (!isTherapeuticExportSession(session)) continue;
       repsTot += session.total_attempts;
       repsVal += session.valid_attempts;
       repsInv += session.invalid_attempts;
@@ -249,6 +287,10 @@ export function buildClinicalReportCsv(snapshot: ClinicalExportSnapshot): string
       sr.volumen_promedio = String(session.avg_volume);
       sr.tiempo_maximo = tiempoMaximoStr;
       sr.tiempo_promedio = String(session.avg_hold_seconds);
+      const classification = classificationExportFields(session);
+      sr.input_mode = classification.input_mode;
+      sr.data_source = classification.data_source;
+      sr.is_practice_session = classification.is_practice_session;
 
       lines.push(rowToCsvLine(sr));
     }
