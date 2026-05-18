@@ -24,6 +24,11 @@ import {
   type SessionDisplayVolumeSource,
 } from '@/src/modules/session/games/components/SessionEstimatedVolumeCard';
 import { getLevelById } from '@/src/modules/session/registry/level-registry';
+import { evaluateSensorAttemptVolume } from '@/src/modules/session/sensor-evaluation';
+import {
+  isTouchPracticeSession,
+  parseSessionInputMode,
+} from '@/src/modules/session/session-input-mode';
 import { buildSessionResult } from '@/src/modules/session/session-result-factory';
 import { persistSessionResult, TARGET_ATTEMPTS } from '@/src/modules/session/session-progress-service';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
@@ -40,7 +45,13 @@ export function SessionScreen() {
   const router = useRouter();
   const isFocused = useIsFocused();
   const { patient } = usePatientSession();
-  const { levelId, sessionRunId } = useLocalSearchParams<{ levelId?: string; sessionRunId?: string }>();
+  const { levelId, sessionRunId, inputMode: inputModeParam } = useLocalSearchParams<{
+    levelId?: string;
+    sessionRunId?: string;
+    inputMode?: string;
+  }>();
+  const sessionInputMode = useMemo(() => parseSessionInputMode(inputModeParam), [inputModeParam]);
+  const isTouchPractice = isTouchPracticeSession(sessionInputMode);
   const {
     isLoading,
     progress,
@@ -64,7 +75,7 @@ export function SessionScreen() {
   const currentSessionData = progress.levelOne.sessions[progress.levelOne.currentSession - 1];
 
   const { estimate: activeVolumeEstimate, status: volumeEstimateStatus } = useActiveVolumeEstimate({
-    enabled: isFocused && isLevelOne,
+    enabled: isFocused && isLevelOne && !isTouchPractice,
   });
 
   const [summaryDismissedKind, setSummaryDismissedKind] = useState<SessionSummaryKind>(null);
@@ -95,6 +106,7 @@ export function SessionScreen() {
     attemptsSnapshot: { valid: boolean; holdMs: number; peakVolume: number }[],
   ) => {
     if (!patient || !patientLevelId) return;
+    // TODO: Las sesiones en modo práctica táctil deberán marcarse o excluirse del historial terapéutico en una fase posterior.
     const result = buildSessionResult({
       patientId: patient.paciente_id,
       patientLevelId,
@@ -193,6 +205,15 @@ export function SessionScreen() {
     sessionDisplayU95Ml,
     sessionDisplayStatus,
   } = useMemo(() => {
+    if (isTouchPractice) {
+      return {
+        sessionDisplayVolumeMl: simulatedVolume,
+        sessionDisplaySource: 'fallback' as SessionDisplayVolumeSource,
+        sessionDisplayU95Ml: null,
+        sessionDisplayStatus: undefined,
+      };
+    }
+
     const rounded = activeVolumeEstimate.roundedVolumeMl;
     const hasValidRoundedVolume =
       rounded !== null && Number.isFinite(rounded);
@@ -215,7 +236,22 @@ export function SessionScreen() {
       sessionDisplayU95Ml: null,
       sessionDisplayStatus: volumeEstimateStatus,
     };
-  }, [activeVolumeEstimate, simulatedVolume, volumeEstimateStatus]);
+  }, [activeVolumeEstimate, isTouchPractice, simulatedVolume, volumeEstimateStatus]);
+
+  // Fase 3A.9: evaluación paralela del intento con sensor. No modifica la lógica oficial de sesión todavía.
+  const sensorAttemptEvaluation = useMemo(() => {
+    if (isTouchPractice) return undefined;
+    return evaluateSensorAttemptVolume({
+      estimatedVolumeMl: activeVolumeEstimate.roundedVolumeMl,
+      u95Ml: activeVolumeEstimate.u95Ml,
+      lowerBoundMl: activeVolumeEstimate.lowerBoundMl,
+      upperBoundMl: activeVolumeEstimate.upperBoundMl,
+      targetVolumeMl: targetVolume,
+      estimationStatus: volumeEstimateStatus,
+      inCalibratedRange: activeVolumeEstimate.inCalibratedRange,
+      clamped: activeVolumeEstimate.clamped,
+    });
+  }, [activeVolumeEstimate, isTouchPractice, targetVolume, volumeEstimateStatus]);
 
   if (isLoading || !activeLevelLoaded) {
     return (
@@ -335,14 +371,17 @@ export function SessionScreen() {
           displayVolumeSource={sessionDisplaySource}
           displayU95Ml={sessionDisplayU95Ml}
           displayVolumeStatus={sessionDisplayStatus}
+          sessionInputMode={sessionInputMode}
           targetVolume={targetVolume}
           holdSeconds={levelOneEngine.holdMs / 1000}
           sensorStatusSlot={
             <SessionEstimatedVolumeCard
+              sessionInputMode={sessionInputMode}
               status={volumeEstimateStatus}
               displaySource={sessionDisplaySource}
             />
           }
+          sensorAttemptEvaluation={sensorAttemptEvaluation}
         />
       </View>
       <Modal
@@ -413,6 +452,7 @@ export function SessionScreen() {
               onPress={async () => {
                 if (!patient || !patientLevelId) return;
                 setSavingSummary(true);
+                // TODO: Las sesiones en modo práctica táctil deberán marcarse o excluirse del historial terapéutico en una fase posterior.
                 const result = buildSessionResult({
                   patientId: patient.paciente_id,
                   patientLevelId,

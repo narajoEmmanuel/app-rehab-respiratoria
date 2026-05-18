@@ -1,11 +1,13 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { VolumeEstimationReadinessStatus } from '@/src/modules/device/volume-estimation/volume-estimation-types';
+import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
 import { wellness } from '@/src/shared/theme/wellness-theme';
 
 export type SessionDisplayVolumeSource = 'sensor' | 'fallback';
 
 type SessionSensorStatusChipProps = {
+  sessionInputMode?: SessionInputMode;
   status: VolumeEstimationReadinessStatus;
   displaySource: SessionDisplayVolumeSource;
 };
@@ -56,11 +58,24 @@ const chipToneStyles = {
   muted: { bg: 'rgba(61, 90, 74, 0.08)', text: wellness.textSecondary, border: wellness.border },
 } as const;
 
-/** Chip compacto de estado del sensor; el volumen estimado se muestra en la barra del juego. */
+/** Chip compacto de estado del sensor o de práctica táctil. */
 export function SessionEstimatedVolumeCard({
+  sessionInputMode = 'sensor',
   status,
   displaySource,
 }: SessionSensorStatusChipProps) {
+  if (sessionInputMode === 'touch_practice') {
+    const tone = chipToneStyles.muted;
+    return (
+      <View style={styles.wrap}>
+        <View style={[styles.chip, { backgroundColor: tone.bg, borderColor: tone.border }]}>
+          <Text style={[styles.chipText, { color: tone.text }]}>Modo práctica táctil</Text>
+        </View>
+        <Text style={styles.clinicalNote}>Sin medición del sensor</Text>
+      </View>
+    );
+  }
+
   const presentation = resolveChipPresentation(status, displaySource);
   if (!presentation) return null;
 

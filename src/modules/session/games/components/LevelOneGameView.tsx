@@ -22,6 +22,12 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import type { LevelOnePhase } from '@/src/modules/session/engine/level-one/use-level-one-game';
+import { SensorAttemptVolumeHint } from '@/src/modules/session/games/components/SensorAttemptVolumeHint';
+import type { SensorAttemptEvaluation } from '@/src/modules/session/sensor-evaluation';
+import {
+  isTouchPracticeSession,
+  type SessionInputMode,
+} from '@/src/modules/session/session-input-mode';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 const REQUIRED_HOLD_MS = 3000;
@@ -52,6 +58,7 @@ type LevelOneGameViewProps = {
   displayVolumeSource: 'sensor' | 'fallback';
   displayU95Ml?: number | null;
   displayVolumeStatus?: string;
+  sessionInputMode?: SessionInputMode;
   targetVolume: number;
   holdSeconds: number;
   holdMs?: number;
@@ -60,6 +67,8 @@ type LevelOneGameViewProps = {
   onIntroComplete?: () => void;
   /** Chip compacto de estado del sensor; no altera el juego. */
   sensorStatusSlot?: ReactNode;
+  /** Evaluación paralela por volumen del sensor; no altera repeticiones oficiales. */
+  sensorAttemptEvaluation?: SensorAttemptEvaluation;
 };
 
 export function LevelOneGameView({
@@ -80,6 +89,7 @@ export function LevelOneGameView({
   displayVolumeSource,
   displayU95Ml = null,
   displayVolumeStatus,
+  sessionInputMode = 'sensor',
   targetVolume,
   holdSeconds,
   holdMs = 0,
@@ -87,7 +97,9 @@ export function LevelOneGameView({
   introMode = false,
   onIntroComplete,
   sensorStatusSlot,
+  sensorAttemptEvaluation,
 }: LevelOneGameViewProps) {
+  const isTouchPractice = isTouchPracticeSession(sessionInputMode);
   const { width: layoutW } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const rabbitIsHolding = phase === 'holding';
@@ -431,36 +443,60 @@ export function LevelOneGameView({
         </View>
 
         {!introMode ? (
-          <Pressable
-            style={styles.volumeBar}
-            onPressIn={onPressIn}
-            onPressOut={onPressOut}
-            accessibilityRole="adjustable"
-            accessibilityLabel={
-              displayVolumeSource === 'sensor'
-                ? `Volumen estimado ${Math.round(displayVolumeMl)} mililitros${
-                    displayVolumeStatus === 'out_of_range' ? ', fuera de rango calibrado' : ''
-                  }. Medido con sensor RESPIRA más.`
-                : `Volumen actual ${Math.round(displayVolumeMl)} mililitros. Mantén presionado en el juego o aquí para inspirar.`
-            }>
-            <Text style={styles.volumeBarLabel}>
-              {displayVolumeSource === 'sensor' ? 'Volumen estimado' : 'Volumen actual'}
-            </Text>
-            <View style={styles.volumeBarValueRow}>
-              <Text style={styles.volumeBarValue}>
-                {Math.round(displayVolumeMl)}
-                <Text style={styles.volumeBarUnit}> mL</Text>
+          <View style={styles.volumeSection}>
+            <Pressable
+              style={styles.volumeBar}
+              onPressIn={onPressIn}
+              onPressOut={onPressOut}
+              accessibilityRole="adjustable"
+              accessibilityLabel={
+                isTouchPractice
+                  ? `Volumen de práctica ${Math.round(displayVolumeMl)} mililitros. Modo práctica táctil sin medición del sensor.`
+                  : displayVolumeSource === 'sensor'
+                    ? `Volumen estimado ${Math.round(displayVolumeMl)} mililitros${
+                        displayVolumeStatus === 'out_of_range' ? ', fuera de rango calibrado' : ''
+                      }. Medido con sensor RESPIRA más.`
+                    : `Volumen actual ${Math.round(displayVolumeMl)} mililitros. Mantén presionado en el juego o aquí para inspirar.`
+              }>
+              <Text style={styles.volumeBarLabel}>
+                {isTouchPractice
+                  ? 'Volumen de práctica'
+                  : displayVolumeSource === 'sensor'
+                    ? 'Volumen estimado'
+                    : 'Volumen actual'}
               </Text>
-              {displayVolumeSource === 'sensor' && displayU95Ml !== null && Number.isFinite(displayU95Ml) ? (
-                <Text style={styles.volumeBarU95}>±{Math.round(displayU95Ml)} mL</Text>
-              ) : null}
-            </View>
-            <Text style={styles.volumeBarHint}>
-              {displayVolumeSource === 'sensor'
-                ? 'Medido con sensor RESPIRA+'
-                : 'Mantén presionado para inspirar · suelta para exhalar'}
-            </Text>
-          </Pressable>
+              <View style={styles.volumeBarValueRow}>
+                <Text style={styles.volumeBarValue}>
+                  {Math.round(displayVolumeMl)}
+                  <Text style={styles.volumeBarUnit}> mL</Text>
+                </Text>
+                {!isTouchPractice &&
+                displayVolumeSource === 'sensor' &&
+                displayU95Ml !== null &&
+                Number.isFinite(displayU95Ml) ? (
+                  <Text style={styles.volumeBarU95}>±{Math.round(displayU95Ml)} mL</Text>
+                ) : null}
+              </View>
+              <Text style={styles.volumeBarHint}>
+                {isTouchPractice
+                  ? 'Modo práctica táctil · sin medición del sensor'
+                  : displayVolumeSource === 'sensor'
+                    ? 'Medido con sensor RESPIRA+'
+                    : 'Mantén presionado para inspirar · suelta para exhalar'}
+              </Text>
+            </Pressable>
+            {!isTouchPractice && sensorAttemptEvaluation ? (
+              <SensorAttemptVolumeHint
+                evaluation={sensorAttemptEvaluation}
+                needsHoldTime={
+                  (sensorAttemptEvaluation.status === 'target_reached' ||
+                    sensorAttemptEvaluation.status === 'uncertain') &&
+                  (phase === 'holding' || phase === 'ready') &&
+                  holdMs < REQUIRED_HOLD_MS
+                }
+              />
+            ) : null}
+          </View>
         ) : null}
       </View>
     </View>
@@ -1014,11 +1050,13 @@ const styles = StyleSheet.create({
     zIndex: 12,
     backgroundColor: 'transparent',
   },
+  volumeSection: {
+    marginTop: 4,
+    marginBottom: 2,
+  },
   volumeBar: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 4,
-    marginBottom: 2,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 16,
