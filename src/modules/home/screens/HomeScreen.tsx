@@ -8,7 +8,7 @@
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -100,6 +100,10 @@ export function HomeScreen() {
       void loadProgress();
     }, [loadProgress]),
   );
+
+  useEffect(() => {
+    void loadProgress();
+  }, [patient?.paciente_id, patient?.clave, loadProgress]);
 
   const lastSession = useMemo(() => {
     if (patientSessions.length === 0) return null;

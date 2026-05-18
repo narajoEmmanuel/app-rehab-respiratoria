@@ -19,6 +19,7 @@ export {
 export {
   deleteCurrentPatientLocalData,
   deletePatientLocalData,
+  type DeletePatientLocalDataResult,
 } from '@/src/modules/patient/patient-delete-service';
 export {
   createPatient,

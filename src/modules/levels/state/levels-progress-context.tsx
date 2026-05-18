@@ -43,6 +43,8 @@ const LevelsProgressContext = createContext<LevelsProgressContextValue | null>(n
 export function LevelsProgressProvider({ children }: { children: React.ReactNode }) {
   const { patient } = usePatientSession();
   const patientId = patient?.paciente_id ?? null;
+  const patientScopeKey =
+    patient != null ? `${patient.paciente_id}:${patient.clave}` : null;
 
   const [progress, setProgress] = useState<LevelsProgress>(createInitialLevelsProgress());
   const [isLoading, setIsLoading] = useState(true);
@@ -70,7 +72,7 @@ export function LevelsProgressProvider({ children }: { children: React.ReactNode
     return () => {
       isActive = false;
     };
-  }, [patientId]);
+  }, [patientScopeKey, patientId]);
 
   const updateProgress = useCallback((updater: (prev: LevelsProgress) => LevelsProgress) => {
     setProgress((prev) => {

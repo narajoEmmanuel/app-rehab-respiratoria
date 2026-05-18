@@ -61,6 +61,8 @@ export function useLevelOneGame({
   const attemptEndedSessionRef = useRef(false);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const holdTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pendingPrepReadyRef = useRef(false);
+  const pendingRestAdvanceRef = useRef(false);
 
   const currentSessionData = useMemo<LevelOneSessionProgress | undefined>(
     () => progress.sessions[progress.currentSession - 1],
@@ -90,6 +92,8 @@ export function useLevelOneGame({
 
   useLayoutEffect(() => {
     if (engineScopeKey === undefined) return;
+    pendingPrepReadyRef.current = false;
+    pendingRestAdvanceRef.current = false;
     stopSession();
   }, [engineScopeKey, stopSession]);
 
@@ -174,6 +178,23 @@ export function useLevelOneGame({
     [onAttemptResolved, onProgressChange]
   );
 
+  useEffect(() => {
+    if (phase !== 'preparing' || !pendingPrepReadyRef.current) {
+      return;
+    }
+    pendingPrepReadyRef.current = false;
+    setPhase('ready');
+  }, [phase, countdownMs]);
+
+  useEffect(() => {
+    if (phase !== 'resting' || !pendingRestAdvanceRef.current) {
+      return;
+    }
+    pendingRestAdvanceRef.current = false;
+    advanceRepetition();
+    setPhase('ready');
+  }, [advanceRepetition, phase, countdownMs]);
+
   const onInhaleStart = useCallback(() => {
     if (phase !== 'ready') {
       return;
@@ -237,7 +258,7 @@ export function useLevelOneGame({
               clearInterval(countdownRef.current);
               countdownRef.current = null;
             }
-            setPhase('ready');
+            pendingPrepReadyRef.current = true;
             return 0;
           }
           return next;
@@ -268,8 +289,7 @@ export function useLevelOneGame({
               clearInterval(countdownRef.current);
               countdownRef.current = null;
             }
-            advanceRepetition();
-            setPhase('ready');
+            pendingRestAdvanceRef.current = true;
             return 0;
           }
           return next;

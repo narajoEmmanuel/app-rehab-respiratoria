@@ -5,17 +5,15 @@
  */
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter, type Href } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { isCloudAuthEnabled } from '@/src/modules/app-mode/app-mode-config';
 import { getLatestDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
 import type { DiagnosticRecord } from '@/src/modules/diagnostics/types';
 import { formatDisplayDateEs } from '@/src/modules/history/services/history-aggregates';
 import {
   getAcceptedConsentRecord,
-  seedLocalPrototypeConsentForPatient,
   withdrawConsent,
 } from '@/src/modules/legal/consent-service';
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
@@ -35,9 +33,6 @@ import {
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { deleteCurrentPatientLocalData } from '@/src/modules/patient/patient-delete-service';
 import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
-import {
-  ensureLocalPrototypePatientRecord,
-} from '@/src/modules/patient/patient-service';
 import {
   getProfilePreferences,
   updateProfilePreferences,
@@ -125,6 +120,14 @@ export function ProfileScreen() {
     setConsentRecord(r);
   }, []);
 
+  const resetProfileLocalState = useCallback(() => {
+    setLatestDiagnostic(null);
+    setSessionQuickStats(null);
+    setPrefs(DEFAULT_PROFILE_PREFERENCES);
+    setNotificationPrefs(null);
+    setConsentRecord(null);
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -156,6 +159,12 @@ export function ProfileScreen() {
       };
     }, [patient, refreshConsent, refreshSession]),
   );
+
+  useEffect(() => {
+    if (!patient) {
+      resetProfileLocalState();
+    }
+  }, [patient?.paciente_id, patient?.clave, patient, resetProfileLocalState]);
 
   const onAvatarChange = useCallback(
     async (uri: string | null) => {
@@ -218,17 +227,18 @@ export function ProfileScreen() {
     void (async () => {
       setDeleteBusy(true);
       try {
-        await deleteCurrentPatientLocalData();
-        await clearSession();
+        const result = await deleteCurrentPatientLocalData();
         setDeleteModalVisible(false);
-        if (!isCloudAuthEnabled()) {
-          const nextPatient = await ensureLocalPrototypePatientRecord();
-          await seedLocalPrototypeConsentForPatient(nextPatient.paciente_id);
-          await setSessionPatient(nextPatient);
-          router.replace('/(tabs)');
+        resetProfileLocalState();
+
+        if (result.nextPatient) {
+          await setSessionPatient(result.nextPatient);
+          router.replace('/');
         } else {
+          await clearSession();
           router.replace('/auth/login');
         }
+
         Alert.alert('Perfil eliminado', 'Perfil eliminado correctamente.');
       } catch {
         Alert.alert('Error', 'No se pudo eliminar el perfil. Inténtalo nuevamente.');
@@ -236,7 +246,7 @@ export function ProfileScreen() {
         setDeleteBusy(false);
       }
     })();
-  }, [clearSession, router, setSessionPatient]);
+  }, [clearSession, resetProfileLocalState, router, setSessionPatient]);
 
   const metrics = sessionQuickStats ?? {
     completedCount: 0,

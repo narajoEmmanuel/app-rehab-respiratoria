@@ -18,6 +18,8 @@ import {
   clearNotificationPreferences,
   getNotificationPreferences,
 } from '@/src/modules/notifications/storage/notification-preferences-repository';
+import { isCloudAuthEnabled } from '@/src/modules/app-mode/app-mode-config';
+import { seedLocalPrototypeConsentForPatient } from '@/src/modules/legal/consent-service';
 import {
   clearCurrentClave,
   normalizeClave,
@@ -27,7 +29,11 @@ import {
   writeAllPatients,
 } from '@/src/modules/patient/patient-repository';
 import { clearProfilePreferences } from '@/src/modules/patient/storage/profile-preferences-repository';
-import { getCurrentPatient } from '@/src/modules/patient/patient-service';
+import {
+  ensureLocalPrototypePatientRecord,
+  getCurrentPatient,
+} from '@/src/modules/patient/patient-service';
+import type { PatientRecord } from '@/src/modules/patient/types';
 import {
   readAllAttempts,
   readAllSessions,
@@ -93,10 +99,31 @@ export async function deletePatientLocalData(patientId: number): Promise<void> {
   }
 }
 
-export async function deleteCurrentPatientLocalData(): Promise<void> {
+export type DeletePatientLocalDataResult = {
+  deletedPatientId: number;
+  mode: 'local_first' | 'cloud_auth';
+  nextPatient: PatientRecord | null;
+};
+
+export async function deleteCurrentPatientLocalData(): Promise<DeletePatientLocalDataResult> {
   const patient = await getCurrentPatient();
   if (!patient) {
     throw new Error('No hay perfil local activo.');
   }
-  await deletePatientLocalData(patient.paciente_id);
+
+  const deletedPatientId = patient.paciente_id;
+  await deletePatientLocalData(deletedPatientId);
+  await clearCurrentClave();
+
+  const mode: DeletePatientLocalDataResult['mode'] = isCloudAuthEnabled()
+    ? 'cloud_auth'
+    : 'local_first';
+
+  if (mode === 'local_first') {
+    const nextPatient = await ensureLocalPrototypePatientRecord();
+    await seedLocalPrototypeConsentForPatient(nextPatient.paciente_id);
+    return { deletedPatientId, mode, nextPatient };
+  }
+
+  return { deletedPatientId, mode, nextPatient: null };
 }

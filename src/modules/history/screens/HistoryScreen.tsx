@@ -7,7 +7,7 @@
  */
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -157,6 +157,10 @@ export function HistoryScreen() {
       void load();
     }, [load]),
   );
+
+  useEffect(() => {
+    void load();
+  }, [patient?.paciente_id, patient?.clave, load]);
 
   const patientId = patient?.paciente_id ?? -1;
   const todayKey = getLocalDateKey();
