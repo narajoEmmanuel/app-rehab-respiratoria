@@ -21,6 +21,10 @@ import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progres
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { listLevels } from '@/src/modules/session/registry/level-registry';
+import {
+  isTouchPracticeModeEnabled,
+  type SessionInputMode,
+} from '@/src/modules/session/session-input-mode';
 import { TARGET_PERFECT_SESSIONS } from '@/src/modules/session/session-progress-service';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import type { TherapyLevelStatusChip } from '@/src/shared/ui/therapy-level-card';
@@ -105,6 +109,21 @@ export function LevelsScreen({
     }, [patient, refreshTherapyGate]),
   );
 
+  const navigateToSession = useCallback(
+    (levelId: LevelId, inputMode: SessionInputMode) => {
+      selectLevel(levelId);
+      router.push({
+        pathname: '/(tabs)/sesion',
+        params: {
+          levelId,
+          sessionRunId: `${levelId}-${Date.now()}`,
+          inputMode,
+        },
+      });
+    },
+    [router, selectLevel],
+  );
+
   const onLevelPress = useCallback(
     async (levelId: LevelId, progressionLocked: boolean) => {
       if (progressionLocked || startingLevelId !== null) return;
@@ -119,23 +138,32 @@ export function LevelsScreen({
         });
 
         if (!gate.canStartTherapy) {
-          showTherapyReadinessAlert(gate, (route) => router.push(route));
+          const touchPracticeEnabled = isTouchPracticeModeEnabled();
+          showTherapyReadinessAlert(
+            gate,
+            (route) => router.push(route),
+            touchPracticeEnabled
+              ? {
+                  onPracticeWithoutSensor: () => navigateToSession(levelId, 'touch_practice'),
+                  practiceButtonLabel: 'Practicar sin sensor',
+                }
+              : undefined,
+          );
           return;
         }
 
-        selectLevel(levelId);
-        router.push({
-          pathname: '/(tabs)/sesion',
-          params: {
-            levelId,
-            sessionRunId: `${levelId}-${Date.now()}`,
-          },
-        });
+        navigateToSession(levelId, 'sensor');
       } finally {
         setStartingLevelId(null);
       }
     },
-    [lastReading?.distanceMm, router, selectLevel, sensorConnected, startingLevelId],
+    [
+      lastReading?.distanceMm,
+      navigateToSession,
+      router,
+      sensorConnected,
+      startingLevelId,
+    ],
   );
 
   const scrollBottom = dashboardScrollBottomPadding(insets.bottom);

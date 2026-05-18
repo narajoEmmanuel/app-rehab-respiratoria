@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   Platform,
   Pressable,
@@ -22,6 +22,16 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import type { LevelOnePhase } from '@/src/modules/session/engine/level-one/use-level-one-game';
+import {
+  officialValidationModeLabel,
+  officialValidationStatusHint,
+  type OfficialAttemptValidationResult,
+  type SensorAttemptEvaluation,
+} from '@/src/modules/session/sensor-evaluation';
+import {
+  isTouchPracticeSession,
+  type SessionInputMode,
+} from '@/src/modules/session/session-input-mode';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 const REQUIRED_HOLD_MS = 3000;
@@ -48,14 +58,22 @@ type LevelOneGameViewProps = {
   onPressOut: () => void;
   onPressStop: () => void;
   simulatedVolume: number;
+  displayVolumeMl: number;
+  displayVolumeSource: 'sensor' | 'fallback';
+  displayU95Ml?: number | null;
+  displayVolumeStatus?: string;
+  sessionInputMode?: SessionInputMode;
   targetVolume: number;
   holdSeconds: number;
   holdMs?: number;
   levelLabel?: string;
   introMode?: boolean;
   onIntroComplete?: () => void;
-  /** Bloque informativo de volumen estimado (sensor); no altera el juego. */
-  estimatedVolumeSlot?: ReactNode;
+  /** Chip compacto de estado del sensor; no altera el juego. */
+  sensorStatusSlot?: ReactNode;
+  sensorAttemptEvaluation?: SensorAttemptEvaluation;
+  /** Criterio oficial de intento (sensor o táctil). */
+  officialAttemptValidation?: OfficialAttemptValidationResult;
 };
 
 export function LevelOneGameView({
@@ -71,15 +89,23 @@ export function LevelOneGameView({
   onPressIn,
   onPressOut,
   onPressStop,
-  simulatedVolume,
+  simulatedVolume: _simulatedVolume,
+  displayVolumeMl,
+  displayVolumeSource,
+  displayU95Ml = null,
+  displayVolumeStatus,
+  sessionInputMode = 'sensor',
   targetVolume,
   holdSeconds,
   holdMs = 0,
   levelLabel = 'Nivel 1',
   introMode = false,
   onIntroComplete,
-  estimatedVolumeSlot,
+  sensorStatusSlot,
+  sensorAttemptEvaluation,
+  officialAttemptValidation,
 }: LevelOneGameViewProps) {
+  const isTouchPractice = isTouchPracticeSession(sessionInputMode);
   const { width: layoutW } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const rabbitIsHolding = phase === 'holding';
@@ -206,8 +232,6 @@ export function LevelOneGameView({
     );
   }, [feedbackPulse, inValidFeedback]);
 
-  const obstacleRunRef = useRef(0);
-
   useEffect(() => {
     if (!showObstacles) {
       cancelAnimation(obsMountain);
@@ -218,7 +242,6 @@ export function LevelOneGameView({
     }
 
     const w = layoutW;
-    const runId = ++obstacleRunRef.current;
     const duration = 3400;
 
     cancelAnimation(obsMountain);
@@ -229,7 +252,6 @@ export function LevelOneGameView({
     obsMountain.value = withTiming(-150, { duration, easing: Easing.linear });
 
     return () => {
-      if (obstacleRunRef.current !== runId) return;
       cancelAnimation(obsMountain);
     };
   }, [layoutW, obsMountain, obsMountainOpacity, showObstacles]);
@@ -322,7 +344,7 @@ export function LevelOneGameView({
           </View>
         )}
 
-        {!introMode && estimatedVolumeSlot ? estimatedVolumeSlot : null}
+        {!introMode && sensorStatusSlot ? sensorStatusSlot : null}
 
         <View style={styles.scene}>
           <View style={styles.parallaxClip}>
@@ -423,24 +445,142 @@ export function LevelOneGameView({
         </View>
 
         {!introMode ? (
-          <Pressable
-            style={styles.volumeBar}
-            onPressIn={onPressIn}
-            onPressOut={onPressOut}
-            accessibilityRole="adjustable"
-            accessibilityLabel={`Volumen actual ${Math.round(simulatedVolume)} mililitros. Mantén presionado en el juego o aquí para inspirar.`}>
-            <Text style={styles.volumeBarLabel}>Volumen actual</Text>
-            <Text style={styles.volumeBarValue}>
-              {Math.round(simulatedVolume)}
-              <Text style={styles.volumeBarUnit}> mL</Text>
-            </Text>
-            <Text style={styles.volumeBarHint}>Mantén presionado para inspirar · suelta para exhalar</Text>
-          </Pressable>
+          <View style={styles.volumeSection}>
+            <Pressable
+              style={styles.volumeBar}
+              onPressIn={onPressIn}
+              onPressOut={onPressOut}
+              accessibilityRole="adjustable"
+              accessibilityLabel={
+                isTouchPractice
+                  ? `Volumen de práctica ${Math.round(displayVolumeMl)} mililitros. Modo práctica táctil sin medición del sensor.`
+                  : displayVolumeSource === 'sensor'
+                    ? `Volumen estimado ${Math.round(displayVolumeMl)} mililitros${
+                        displayVolumeStatus === 'out_of_range' ? ', fuera de rango calibrado' : ''
+                      }. Medido con sensor RESPIRA más.`
+                    : `Volumen actual ${Math.round(displayVolumeMl)} mililitros. Mantén presionado en el juego o aquí para inspirar.`
+              }>
+              <Text style={styles.volumeBarLabel}>
+                {isTouchPractice
+                  ? 'Volumen de práctica'
+                  : displayVolumeSource === 'sensor'
+                    ? 'Volumen estimado'
+                    : 'Volumen actual'}
+              </Text>
+              <View style={styles.volumeBarValueRow}>
+                <Text style={styles.volumeBarValue}>
+                  {Math.round(displayVolumeMl)}
+                  <Text style={styles.volumeBarUnit}> mL</Text>
+                </Text>
+                {!isTouchPractice &&
+                displayVolumeSource === 'sensor' &&
+                displayU95Ml !== null &&
+                Number.isFinite(displayU95Ml) ? (
+                  <Text style={styles.volumeBarU95}>±{Math.round(displayU95Ml)} mL</Text>
+                ) : null}
+              </View>
+              <Text style={styles.volumeBarHint}>
+                {isTouchPractice
+                  ? 'Modo práctica táctil · sin medición del sensor'
+                  : displayVolumeSource === 'sensor'
+                    ? 'Medido con sensor RESPIRA+'
+                    : 'Mantén presionado para inspirar · suelta para exhalar'}
+              </Text>
+            </Pressable>
+            {officialAttemptValidation ? (
+              <OfficialValidationBanner
+                validation={officialAttemptValidation}
+                sensorStatus={sensorAttemptEvaluation?.status}
+                needsHoldTime={
+                  !isTouchPractice &&
+                  sensorAttemptEvaluation?.reachesTargetConservatively === true &&
+                  (phase === 'holding' || phase === 'ready') &&
+                  holdMs < REQUIRED_HOLD_MS
+                }
+              />
+            ) : null}
+          </View>
         ) : null}
       </View>
     </View>
   );
 }
+
+function OfficialValidationBanner({
+  validation,
+  sensorStatus,
+  needsHoldTime,
+}: {
+  validation: OfficialAttemptValidationResult;
+  sensorStatus?: SensorAttemptEvaluation['status'];
+  needsHoldTime?: boolean;
+}) {
+  const modeLabel = officialValidationModeLabel(validation.source);
+  const statusHint = officialValidationStatusHint(validation, sensorStatus);
+  const isTouch = validation.source === 'touch_simulation';
+  const tone =
+    validation.attemptValid || statusHint === 'Objetivo confirmado'
+      ? 'ok'
+      : statusHint === 'Lectura cercana'
+        ? 'warn'
+        : 'muted';
+
+  const toneStyle = {
+    ok: { bg: 'rgba(52, 171, 165, 0.1)', border: 'rgba(52, 171, 165, 0.22)', text: wellness.primaryDark },
+    warn: { bg: 'rgba(201, 162, 39, 0.12)', border: 'rgba(201, 162, 39, 0.32)', text: '#7A5E12' },
+    muted: { bg: 'rgba(61, 90, 74, 0.06)', border: wellness.border, text: wellness.textSecondary },
+  }[tone];
+
+  const subtitle = isTouch
+    ? 'Modo práctica táctil'
+    : statusHint ?? (validation.volumeReached ? 'Sostén para confirmar' : null);
+
+  return (
+    <View
+      style={[validationBannerStyles.wrap, { backgroundColor: toneStyle.bg, borderColor: toneStyle.border }]}
+      accessibilityRole="text"
+      accessibilityLabel={[modeLabel, subtitle, needsHoldTime ? 'Sostén un poco más' : null]
+        .filter(Boolean)
+        .join('. ')}>
+      <Text style={[validationBannerStyles.mode, { color: toneStyle.text }]}>{modeLabel}</Text>
+      {subtitle ? (
+        <Text style={[validationBannerStyles.status, { color: toneStyle.text }]}>{subtitle}</Text>
+      ) : null}
+      {needsHoldTime ? (
+        <Text style={validationBannerStyles.holdHint}>Sostén un poco más</Text>
+      ) : null}
+    </View>
+  );
+}
+
+const validationBannerStyles = StyleSheet.create({
+  wrap: {
+    marginTop: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  mode: {
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  status: {
+    marginTop: 4,
+    fontSize: 13,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  holdHint: {
+    marginTop: 4,
+    fontSize: 11,
+    fontWeight: '700',
+    color: wellness.primaryDark,
+  },
+});
 
 function HudDashboard({
   levelLabel,
@@ -989,11 +1129,13 @@ const styles = StyleSheet.create({
     zIndex: 12,
     backgroundColor: 'transparent',
   },
+  volumeSection: {
+    marginTop: 4,
+    marginBottom: 2,
+  },
   volumeBar: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 4,
-    marginBottom: 2,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 16,
@@ -1008,11 +1150,22 @@ const styles = StyleSheet.create({
     color: wellness.textSecondary,
     letterSpacing: 0.3,
   },
-  volumeBarValue: {
+  volumeBarValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'center',
+    gap: 10,
     marginTop: 4,
+  },
+  volumeBarValue: {
     fontSize: 28,
     fontWeight: '900',
     color: wellness.primaryDark,
+  },
+  volumeBarU95: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: wellness.textSecondary,
   },
   volumeBarUnit: {
     fontSize: 16,

@@ -1,81 +1,62 @@
 # Módulo `device` (sensor / ESP32)
 
-Este módulo concentra el **transporte WebSocket**, la **ingestión de mensajes**, los **adaptadores de UI**, **mocks** de desarrollo, **componentes** de visualización y **pantallas** relacionadas con el hardware de distancia (ESP32 + VL53L0X). La app se construye con **Expo**, **React Native** y **TypeScript**; el firmware de referencia vive en el repo (`RESPIRA_WebSocket/`, `arduino_codes/`).
+Concentra el **único transporte WebSocket**, ingestión de mensajes, **calibración**, **perfiles de espirómetro**, **estimación de volumen** y pantallas de conexión/calibración. La conexión es **global** vía `SensorConnectionProvider` en `app/_layout.tsx`.
 
 ---
 
-## Arquitectura de carpetas
+## Carpetas
 
 | Carpeta | Rol |
 |---------|-----|
-| `websocket/` | Cliente WebSocket (`Esp32WebSocketClient`). |
-| `ingestion/` | Parseo de payloads JSON del ESP32 hacia tipos seguros (`parseSensorMessage`, etc.). |
-| `adapters/` | Hooks que unen transporte + estado con la UI (`useEsp32WebSocketSensor`). |
-| `mocks/` | Datos y lecturas simuladas para desarrollo sin hardware. |
-| `components/` | UI reutilizable (p. ej. preview en vivo de distancia). |
-| `screens/` | Pantallas del dominio dispositivo (conexión, **Hardware Lab**). |
-| `types/` | Contratos de lectura y estados de conexión. |
-
-Las rutas de Expo Router en `app/` reexportan o componen estas piezas; la lógica de dominio del sensor debe seguir viviendo bajo `src/modules/device/`.
-
-### Rutas de desarrollo y Hardware Lab
-
-| Ruta | Rol |
-|------|-----|
-| **`/hardware-lab`** | Hub de **desarrollo** (`HardwareLabScreen`): enlaces a pruebas de hardware cuando el modo lo permite. No sustituye flujo clínico ni nube. |
-| **`/esp32-raw-test`** | Prueba **mínima de respaldo**: WebSocket directo al ESP32, sin el pipeline de ingestión de la app. |
-| **`/sensor-connection`** | Pantalla **integrada**: conexión, estado y vista previa basada en `distanceMm` (cliente WebSocket + `parseSensorMessage` + UI). |
+| `websocket/` | `Esp32WebSocketClient` — no crear otro cliente en la app |
+| `ingestion/` | `parseSensorMessage` → `SensorReading` |
+| `adapters/` | `useEsp32WebSocketSensor` (mock / websocket) |
+| `state/` | `SensorConnectionProvider`, `useCalibrationSnapshot` |
+| `spirometer/` | Perfiles 5000 / 3000 mL y dispositivos físicos |
+| `calibration/` | Captura, modelos, incertidumbre, storage activo |
+| `volume-estimation/` | `useActiveVolumeEstimate`, compuerta de terapia |
+| `components/` | `SensorLivePreview`, etc. |
+| `screens/` | `SensorConnectionScreen`, `SensorCalibrationScreen`, `HardwareLabScreen` |
+| `mocks/` | `mock-sensor-readings` (lecturas de prueba sin hardware; solo diagnóstico) |
+| `types/` | Contratos de lectura y conexión |
 
 ---
 
-## Flujo de datos (implementado)
+## Flujo de datos
 
-Cadena principal cuando la app habla con el ESP32 en modo Access Point (WebSocket típico `ws://192.168.4.1:81`):
-
-1. **ESP32** emite mensajes JSON por **WebSocket** (p. ej. `source`, `distanceMm`, `rawDistanceMm`, `distanceValid`, `timestamp`).
-2. **`Esp32WebSocketClient`** (`websocket/esp32-websocket-client.ts`) abre el socket, recibe texto y delega el parseo en cada mensaje.
-3. **`parseSensorMessage`** (`ingestion/parse-sensor-message.ts`) convierte el JSON crudo en un **`SensorReading`** tipado (tolera campos opcionales y rellena numéricos faltantes donde aplica).
-4. **`useEsp32WebSocketSensor`** (`adapters/use-esp32-websocket-sensor.ts`) mantiene estado de conexión, URL, métricas básicas y alterna entre modo **mock** y **websocket** para la UI.
-5. **`SensorConnectionScreen`** (`screens/SensorConnectionScreen.tsx`) orquesta la pantalla integrada de conexión y diagnóstico.
-6. **`SensorLivePreview`** (`components/SensorLivePreview.tsx`) muestra una **barra visual** a partir de `distanceMm` (mapeo 0–100 % con rangos configurables; **no** es volumen espiratorio clínico).
-
-Si `WebSocket` no está disponible en el entorno, el cliente notifica error sin bloquear el resto de la app.
+1. ESP32 envía JSON por WebSocket.
+2. `Esp32WebSocketClient` recibe y parsea con `parseSensorMessage`.
+3. `useEsp32WebSocketSensor` actualiza estado (modo `mock` o `websocket`).
+4. `SensorConnectionProvider` expone lectura y controles a toda la app.
+5. `useActiveVolumeEstimate` aplica el **modelo activo** del espirómetro seleccionado.
+6. Terapia y calibración consumen el mismo stream; **no abren sockets adicionales**.
 
 ---
 
-## Cliente WebSocket
+## Rutas
 
-El cliente está en `websocket/esp32-websocket-client.ts`: encapsula conexión, desconexión, callbacks (`onOpen`, `onReading`, `onRawMessage`, errores y cierre) y usa `parseSensorMessage` para no propagar JSON inválido como lecturas.
-
-Los **mocks** siguen siendo necesarios para desarrollo sin ESP32 y para el modo simulado en el hook.
-
----
-
-## Calibración y límites actuales
-
-- La **calibración** del sensor (mapeo distancia → esfuerzo/volumen, compensaciones, etc.) será una **fase aparte**; no debe documentarse aquí como flujo cerrado.
-- Cualquier calibración futura debe tratarse primero en **ámbito local / de laboratorio**; **no** integrarla a **Supabase**, historial clínico ni sesión real hasta que el hardware y el protocolo estén **estables** y el equipo lo apruebe explícitamente.
+| Ruta | Pantalla |
+|------|----------|
+| `/sensor-connection` | Conexión, selección de espirómetro, enlace a calibración |
+| `/sensor-calibration` | Calibración, repetibilidad, U95, modelo activo |
+| `/hardware-lab` | Hub de diagnóstico (acceso según `app-mode`) |
+| `/esp32-raw-test` | Prueba mínima WS (solo con `EXPO_PUBLIC_ENABLE_SENSOR_DEBUG`) |
 
 ---
 
-## Separación respecto a nube y sesión
+## Variables de entorno (relacionadas)
 
-El módulo **`device`** debe **permanecer acotado** respecto a:
-
-- **Supabase** y persistencia en nube,
-- **Historial** y métricas clínicas agregadas,
-- **Sesión terapéutica** real (flujos de juego, guardado de avance, etc.),
-
-hasta que el flujo de sensor esté **estable** y exista un diseño acordado de integración. Hoy la conexión real se valida desde **`/hardware-lab`** (hub), **`/esp32-raw-test`** (respaldo mínimo) y **`/sensor-connection`** (integrada); enlazar eso con terapia e historial es trabajo **posterior** y deliberado.
+| Variable | Efecto en device |
+|----------|------------------|
+| `EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST` | Bypass consentimiento en rutas sensor (`__DEV__`) |
+| `EXPO_PUBLIC_ENABLE_SENSOR_DEBUG` | Diagnóstico avanzado, laboratorio de hardware y prueba WebSocket |
+| `EXPO_PUBLIC_ENABLE_CLOUD_AUTH` | Influencia acceso a Hardware Lab |
 
 ---
 
-## Prueba offline en desarrollo
+## Separación con sesión e historial
 
-La variable `EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST` (ver `.env.example` en la raíz del repo) activa en **desarrollo** un camino de prueba de sensor sin hardware, según `offline-sensor-test.ts`. Esto **no** equivale al modo producto **offline_sensor_test** global descrito en el README principal; sirve para no bloquear el desarrollo de UI mientras se formaliza el producto.
+- **Calibración y modelos** viven aquí; la sesión solo consume estimaciones y valida intentos.
+- **Historial/exportación** leen campos persistidos en `session` (`input_mode`, volúmenes sensor, U95).
 
----
-
-## Referencia rápida de tipos
-
-Los campos relevantes del ESP32 en **`SensorReading`** incluyen `distanceMm`, `rawDistanceMm`, `distanceValid`, `timestamp` y `source`. Otros campos del tipo pueden venir a **cero** o por defecto si el firmware solo envía el subconjunto “raw_sensor”. **No** se expone en el contrato actual un campo dedicado `estimatedVolumeMl`.
+Ver también: [docs/sensor-flow.md](../../../docs/sensor-flow.md), [docs/calibration/README.md](../../../docs/calibration/README.md).

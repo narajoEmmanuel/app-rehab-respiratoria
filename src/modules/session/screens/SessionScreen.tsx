@@ -4,30 +4,79 @@
  * Dependencies: expo-router, levels persistence, game engine
  * Notes: Touch adapter is isolated so a WebSocket / WiFi-local sensor adapter can replace it later.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useIsFocused } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getCurrentActiveLevel } from '@/src/modules/diagnostics/diagnostic-service';
-import {
-  toTherapyVolumeEstimateSnapshot,
-  useActiveVolumeEstimate,
-} from '@/src/modules/device/volume-estimation';
+import { useActiveVolumeEstimate } from '@/src/modules/device/volume-estimation';
+import type { VolumeEstimationReadinessStatus } from '@/src/modules/device/volume-estimation/volume-estimation-types';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { useLevelOneGame } from '@/src/modules/session/engine/level-one/use-level-one-game';
 import { useTouchInputAdapter } from '@/src/modules/session/engine/touch/use-touch-input-adapter';
 import { LevelOneGameView } from '@/src/modules/session/games/components/LevelOneGameView';
-import { SessionEstimatedVolumeCard } from '@/src/modules/session/games/components/SessionEstimatedVolumeCard';
+import {
+  SessionEstimatedVolumeCard,
+  type SessionDisplayVolumeSource,
+} from '@/src/modules/session/games/components/SessionEstimatedVolumeCard';
 import { getLevelById } from '@/src/modules/session/registry/level-registry';
+import {
+  evaluateOfficialAttempt,
+  evaluateSensorAttemptVolume,
+  type OfficialAttemptValidationResult,
+} from '@/src/modules/session/sensor-evaluation';
+import {
+  isTouchPracticeSession,
+  parseSessionInputMode,
+} from '@/src/modules/session/session-input-mode';
 import { buildSessionResult } from '@/src/modules/session/session-result-factory';
 import { persistSessionResult, TARGET_ATTEMPTS } from '@/src/modules/session/session-progress-service';
+import type { SessionAttemptResult } from '@/src/modules/session/types/session-result';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 type SessionSummaryKind = 'completed' | 'interrupted' | null;
+
+const REQUIRED_HOLD_MS = 3000;
+
+function simulatedVolumeForHold(targetVolumeMl: number, holdMs: number): number {
+  return Math.round(Math.max(0, targetVolumeMl * Math.min(1.15, holdMs / REQUIRED_HOLD_MS)));
+}
+
+function attemptFromOfficialValidation(
+  valid: boolean,
+  holdMs: number,
+  validation: OfficialAttemptValidationResult,
+  inputMode: ReturnType<typeof parseSessionInputMode>,
+  sensorEvaluation?: ReturnType<typeof evaluateSensorAttemptVolume>,
+): SessionAttemptResult {
+  const peakVolume = Math.round(
+    validation.officialVolumeMl ??
+      simulatedVolumeForHold(validation.targetVolumeMl, holdMs),
+  );
+  const base: SessionAttemptResult = {
+    valid,
+    holdMs,
+    peakVolume,
+    inputMode,
+    dataSource: validation.source,
+    officialVolumeMl: validation.officialVolumeMl,
+  };
+  if (validation.source !== 'sensor_model' || !sensorEvaluation) {
+    return base;
+  }
+  return {
+    ...base,
+    sensorEstimatedVolumeMl: sensorEvaluation.estimatedVolumeMl,
+    sensorU95Ml: sensorEvaluation.u95Ml,
+    sensorConfidenceLabel: sensorEvaluation.confidenceLabel,
+    sensorVolumeReachedConservatively: sensorEvaluation.reachesTargetConservatively,
+    sensorAttemptStatus: sensorEvaluation.status,
+  };
+}
 
 function sessionSummaryModalTitle(kind: SessionSummaryKind, sessionNumber: number): string {
   return kind === 'interrupted'
@@ -39,7 +88,13 @@ export function SessionScreen() {
   const router = useRouter();
   const isFocused = useIsFocused();
   const { patient } = usePatientSession();
-  const { levelId, sessionRunId } = useLocalSearchParams<{ levelId?: string; sessionRunId?: string }>();
+  const { levelId, sessionRunId, inputMode: inputModeParam } = useLocalSearchParams<{
+    levelId?: string;
+    sessionRunId?: string;
+    inputMode?: string;
+  }>();
+  const sessionInputMode = useMemo(() => parseSessionInputMode(inputModeParam), [inputModeParam]);
+  const isTouchPractice = isTouchPracticeSession(sessionInputMode);
   const {
     isLoading,
     progress,
@@ -62,38 +117,17 @@ export function SessionScreen() {
   const isLevelOne = useMemo(() => selectedLevelId === 'level-1', [selectedLevelId]);
   const currentSessionData = progress.levelOne.sessions[progress.levelOne.currentSession - 1];
 
-  const {
-    estimate: activeVolumeEstimate,
-    status: volumeEstimateStatus,
-    message: volumeEstimateMessage,
-    context: volumeEstimateContext,
-    sensorStatus: volumeSensorStatus,
-  } = useActiveVolumeEstimate({ enabled: isFocused && isLevelOne });
-
-  // Visualización informativa. La integración con métricas de sesión se realizará en una fase posterior.
-  const _therapyEstimateSnapshot = useMemo(
-    () =>
-      toTherapyVolumeEstimateSnapshot({
-        readinessStatus: volumeEstimateStatus,
-        estimate: activeVolumeEstimate,
-      }),
-    [activeVolumeEstimate, volumeEstimateStatus],
-  );
-  void _therapyEstimateSnapshot;
-  void volumeEstimateMessage;
-  void volumeEstimateContext;
-  void volumeSensorStatus;
+  const { estimate: activeVolumeEstimate, status: volumeEstimateStatus } = useActiveVolumeEstimate({
+    enabled: isFocused && isLevelOne && !isTouchPractice,
+  });
 
   const [summaryDismissedKind, setSummaryDismissedKind] = useState<SessionSummaryKind>(null);
   const [activeLevelLoaded, setActiveLevelLoaded] = useState(false);
   const [targetVolume, setTargetVolume] = useState(1200);
   const [patientLevelId, setPatientLevelId] = useState<number | null>(null);
-  const [attemptsRuntime, setAttemptsRuntime] = useState<
-    { valid: boolean; holdMs: number; peakVolume: number }[]
-  >([]);
+  const [attemptsRuntime, setAttemptsRuntime] = useState<SessionAttemptResult[]>([]);
   const [savingSummary, setSavingSummary] = useState(false);
   const [savingInterrupt, setSavingInterrupt] = useState(false);
-  const [isExitingSession, setIsExitingSession] = useState(false);
   const [introAcknowledged, setIntroAcknowledged] = useState(false);
 
   const exitToTherapy = () => {
@@ -109,7 +143,7 @@ export function SessionScreen() {
   const persistInterruptedSessionToHistory = async (
     valid: number,
     failed: number,
-    attemptsSnapshot: { valid: boolean; holdMs: number; peakVolume: number }[],
+    attemptsSnapshot: SessionAttemptResult[],
   ) => {
     if (!patient || !patientLevelId) return;
     const result = buildSessionResult({
@@ -120,21 +154,96 @@ export function SessionScreen() {
       validAttempts: valid,
       invalidAttempts: failed,
       attemptsRuntime: attemptsSnapshot,
+      inputMode: sessionInputMode,
     });
     await persistSessionResult(result);
   };
 
   const levelOneEngineScopeKey = `${patient?.paciente_id ?? ''}|${String(sessionRunId ?? '')}`;
 
+  const sensorAttemptEvaluation = useMemo(() => {
+    if (isTouchPractice) return undefined;
+    return evaluateSensorAttemptVolume({
+      estimatedVolumeMl: activeVolumeEstimate.roundedVolumeMl,
+      u95Ml: activeVolumeEstimate.u95Ml,
+      lowerBoundMl: activeVolumeEstimate.lowerBoundMl,
+      upperBoundMl: activeVolumeEstimate.upperBoundMl,
+      targetVolumeMl: targetVolume,
+      estimationStatus: volumeEstimateStatus,
+      inCalibratedRange: activeVolumeEstimate.inCalibratedRange,
+      clamped: activeVolumeEstimate.clamped,
+    });
+  }, [activeVolumeEstimate, isTouchPractice, targetVolume, volumeEstimateStatus]);
+
+  const officialValidationDepsRef = useRef({
+    sessionInputMode,
+    targetVolume,
+    sensorAttemptEvaluation: undefined as ReturnType<typeof evaluateSensorAttemptVolume> | undefined,
+    activeVolumeEstimate,
+    isTouchPractice,
+  });
+
+  officialValidationDepsRef.current = {
+    sessionInputMode,
+    targetVolume,
+    sensorAttemptEvaluation,
+    activeVolumeEstimate,
+    isTouchPractice,
+  };
+
+  const resolveOfficialAttemptOnRelease = useCallback(
+    (heldMs: number) => {
+      const deps = officialValidationDepsRef.current;
+      const simulatedAtRelease = simulatedVolumeForHold(deps.targetVolume, heldMs);
+      const validation = evaluateOfficialAttempt({
+        inputMode: deps.sessionInputMode,
+        targetVolumeMl: deps.targetVolume,
+        requiredHoldMs: REQUIRED_HOLD_MS,
+        currentHoldMs: heldMs,
+        simulatedVolumeMl: simulatedAtRelease,
+        sensorAttemptEvaluation: deps.sensorAttemptEvaluation,
+        activeVolumeEstimate: deps.activeVolumeEstimate,
+      });
+      return { valid: validation.attemptValid, validation };
+    },
+    [],
+  );
+
+  const lastResolvedValidationRef = useRef<OfficialAttemptValidationResult | null>(null);
+
   const levelOneEngine = useLevelOneGame({
     progress: progress.levelOne,
     engineScopeKey: levelOneEngineScopeKey,
     onProgressChange: updateLevelOne,
+    resolveOfficialAttemptOnRelease: (heldMs) => {
+      const { valid, validation } = resolveOfficialAttemptOnRelease(heldMs);
+      lastResolvedValidationRef.current = validation;
+      return { valid };
+    },
     onAttemptResolved: ({ valid, holdMs }) => {
-      const peakVolume = Math.round(
-        targetVolume * Math.max(0.55, Math.min(1.25, holdMs / 3000)) + Math.random() * 35,
-      );
-      setAttemptsRuntime((prev) => [...prev, { valid, holdMs, peakVolume }]);
+      const deps = officialValidationDepsRef.current;
+      const validation =
+        lastResolvedValidationRef.current ??
+        evaluateOfficialAttempt({
+          inputMode: deps.sessionInputMode,
+          targetVolumeMl: deps.targetVolume,
+          requiredHoldMs: REQUIRED_HOLD_MS,
+          currentHoldMs: holdMs,
+          simulatedVolumeMl: simulatedVolumeForHold(deps.targetVolume, holdMs),
+          sensorAttemptEvaluation: deps.sensorAttemptEvaluation,
+          activeVolumeEstimate: deps.activeVolumeEstimate,
+        });
+      setAttemptsRuntime((prev) => [
+        ...prev,
+        attemptFromOfficialValidation(
+          valid,
+          holdMs,
+          validation,
+          deps.sessionInputMode,
+          deps.sensorAttemptEvaluation,
+        ),
+      ]);
+      lastResolvedValidationRef.current = null;
     },
   });
   const { restartCurrentSession, stopSession } = levelOneEngine;
@@ -181,7 +290,6 @@ export function SessionScreen() {
     if (isLoading) return;
     prepareFreshLevelOneSessionRun();
     stopSession();
-    setIsExitingSession(false);
     setIntroAcknowledged(false);
     setSummaryDismissedKind(null);
     setAttemptsRuntime([]);
@@ -196,6 +304,71 @@ export function SessionScreen() {
       restartCurrentSession();
     }, 0);
   }, [prepareFreshLevelOneSessionRun, restartCurrentSession]);
+
+  const simulatedVolume = useMemo(
+    () => simulatedVolumeForHold(targetVolume, levelOneEngine.holdMs),
+    [targetVolume, levelOneEngine.holdMs],
+  );
+
+  const {
+    sessionDisplayVolumeMl,
+    sessionDisplaySource,
+    sessionDisplayU95Ml,
+    sessionDisplayStatus,
+  } = useMemo(() => {
+    if (isTouchPractice) {
+      return {
+        sessionDisplayVolumeMl: simulatedVolume,
+        sessionDisplaySource: 'fallback' as SessionDisplayVolumeSource,
+        sessionDisplayU95Ml: null,
+        sessionDisplayStatus: undefined,
+      };
+    }
+
+    const rounded = activeVolumeEstimate.roundedVolumeMl;
+    const hasValidRoundedVolume =
+      rounded !== null && Number.isFinite(rounded);
+    const sensorVisualStatuses: VolumeEstimationReadinessStatus[] = ['ready', 'out_of_range'];
+    const useSensorDisplay =
+      hasValidRoundedVolume && sensorVisualStatuses.includes(volumeEstimateStatus);
+
+    if (useSensorDisplay) {
+      return {
+        sessionDisplayVolumeMl: rounded as number,
+        sessionDisplaySource: 'sensor' as SessionDisplayVolumeSource,
+        sessionDisplayU95Ml: activeVolumeEstimate.u95Ml,
+        sessionDisplayStatus: volumeEstimateStatus,
+      };
+    }
+
+    return {
+      sessionDisplayVolumeMl: simulatedVolume,
+      sessionDisplaySource: 'fallback' as SessionDisplayVolumeSource,
+      sessionDisplayU95Ml: null,
+      sessionDisplayStatus: volumeEstimateStatus,
+    };
+  }, [activeVolumeEstimate, isTouchPractice, simulatedVolume, volumeEstimateStatus]);
+
+  const officialAttemptValidation = useMemo(
+    () =>
+      evaluateOfficialAttempt({
+        inputMode: sessionInputMode,
+        targetVolumeMl: targetVolume,
+        requiredHoldMs: REQUIRED_HOLD_MS,
+        currentHoldMs: levelOneEngine.holdMs,
+        simulatedVolumeMl: simulatedVolume,
+        sensorAttemptEvaluation,
+        activeVolumeEstimate,
+      }),
+    [
+      activeVolumeEstimate,
+      levelOneEngine.holdMs,
+      sensorAttemptEvaluation,
+      sessionInputMode,
+      simulatedVolume,
+      targetVolume,
+    ],
+  );
 
   if (isLoading || !activeLevelLoaded) {
     return (
@@ -224,9 +397,6 @@ export function SessionScreen() {
     );
   }
 
-  const simulatedVolume = Math.round(
-    Math.max(0, targetVolume * Math.min(1.15, levelOneEngine.holdMs / 3000)),
-  );
   const validAttempts = currentSessionData?.validRepetitions ?? 0;
   const failedAttempts = currentSessionData?.failedRepetitions ?? 0;
   const totalAttempts = validAttempts + failedAttempts;
@@ -294,7 +464,6 @@ export function SessionScreen() {
                       interruptCurrentLevelOneSession();
                       setSavingInterrupt(true);
                     }
-                    setIsExitingSession(true);
                     stopSessionRuntimeState();
                     void (async () => {
                       try {
@@ -314,16 +483,22 @@ export function SessionScreen() {
             );
           }}
           simulatedVolume={simulatedVolume}
+          displayVolumeMl={sessionDisplayVolumeMl}
+          displayVolumeSource={sessionDisplaySource}
+          displayU95Ml={sessionDisplayU95Ml}
+          displayVolumeStatus={sessionDisplayStatus}
+          sessionInputMode={sessionInputMode}
           targetVolume={targetVolume}
           holdSeconds={levelOneEngine.holdMs / 1000}
-          estimatedVolumeSlot={
+          sensorStatusSlot={
             <SessionEstimatedVolumeCard
+              sessionInputMode={sessionInputMode}
               status={volumeEstimateStatus}
-              estimate={activeVolumeEstimate}
-              onConnectSensor={() => router.push('/sensor-connection')}
-              onGoCalibration={() => router.push('/sensor-calibration')}
+              displaySource={sessionDisplaySource}
             />
           }
+          sensorAttemptEvaluation={sensorAttemptEvaluation}
+          officialAttemptValidation={officialAttemptValidation}
         />
       </View>
       <Modal
@@ -402,6 +577,7 @@ export function SessionScreen() {
                   validAttempts,
                   invalidAttempts: failedAttempts,
                   attemptsRuntime,
+                  inputMode: sessionInputMode,
                 });
                 const savedSession = await persistSessionResult(result);
                 finalizeCurrentLevelOneSession();

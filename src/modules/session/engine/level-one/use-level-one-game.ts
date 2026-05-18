@@ -26,10 +26,19 @@ export type LevelOnePhase =
   | 'interrupted'
   | 'level-complete';
 
+export type OfficialAttemptReleaseResolution = {
+  valid: boolean;
+};
+
 type UseLevelOneGameParams = {
   progress: LevelOneProgress;
   onProgressChange: (updater: (prev: LevelOneProgress) => LevelOneProgress) => void;
   onAttemptResolved?: (payload: { valid: boolean; holdMs: number }) => void;
+  /**
+   * Criterio oficial al soltar (p. ej. volumen sensor + tiempo).
+   * Si no se define, solo se exige REQUIRED_HOLD_MS (comportamiento legacy).
+   */
+  resolveOfficialAttemptOnRelease?: (heldMs: number) => OfficialAttemptReleaseResolution;
   /** Al cambiar (paciente distinto o nueva partida), el motor vuelve a `not-started` antes del pintado. */
   engineScopeKey?: string;
 };
@@ -40,6 +49,7 @@ export function useLevelOneGame({
   progress,
   onProgressChange,
   onAttemptResolved,
+  resolveOfficialAttemptOnRelease,
   engineScopeKey,
 }: UseLevelOneGameParams) {
   const [phase, setPhase] = useState<LevelOnePhase>('not-started');
@@ -51,6 +61,8 @@ export function useLevelOneGame({
   const attemptEndedSessionRef = useRef(false);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const holdTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pendingPrepReadyRef = useRef(false);
+  const pendingRestAdvanceRef = useRef(false);
 
   const currentSessionData = useMemo<LevelOneSessionProgress | undefined>(
     () => progress.sessions[progress.currentSession - 1],
@@ -80,6 +92,8 @@ export function useLevelOneGame({
 
   useLayoutEffect(() => {
     if (engineScopeKey === undefined) return;
+    pendingPrepReadyRef.current = false;
+    pendingRestAdvanceRef.current = false;
     stopSession();
   }, [engineScopeKey, stopSession]);
 
@@ -164,6 +178,23 @@ export function useLevelOneGame({
     [onAttemptResolved, onProgressChange]
   );
 
+  useEffect(() => {
+    if (phase !== 'preparing' || !pendingPrepReadyRef.current) {
+      return;
+    }
+    pendingPrepReadyRef.current = false;
+    setPhase('ready');
+  }, [phase, countdownMs]);
+
+  useEffect(() => {
+    if (phase !== 'resting' || !pendingRestAdvanceRef.current) {
+      return;
+    }
+    pendingRestAdvanceRef.current = false;
+    advanceRepetition();
+    setPhase('ready');
+  }, [advanceRepetition, phase, countdownMs]);
+
   const onInhaleStart = useCallback(() => {
     if (phase !== 'ready') {
       return;
@@ -198,8 +229,11 @@ export function useLevelOneGame({
       holdTickRef.current = null;
     }
 
-    closeAttempt(elapsed >= REQUIRED_HOLD_MS, elapsed);
-  }, [closeAttempt, phase]);
+    const official = resolveOfficialAttemptOnRelease?.(elapsed);
+    const valid =
+      official !== undefined ? official.valid : elapsed >= REQUIRED_HOLD_MS;
+    closeAttempt(valid, elapsed);
+  }, [closeAttempt, phase, resolveOfficialAttemptOnRelease]);
 
   useEffect(() => {
     if (progress.levelCompleted) {
@@ -224,7 +258,7 @@ export function useLevelOneGame({
               clearInterval(countdownRef.current);
               countdownRef.current = null;
             }
-            setPhase('ready');
+            pendingPrepReadyRef.current = true;
             return 0;
           }
           return next;
@@ -255,8 +289,7 @@ export function useLevelOneGame({
               clearInterval(countdownRef.current);
               countdownRef.current = null;
             }
-            advanceRepetition();
-            setPhase('ready');
+            pendingRestAdvanceRef.current = true;
             return 0;
           }
           return next;

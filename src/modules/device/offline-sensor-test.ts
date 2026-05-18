@@ -1,12 +1,12 @@
 export type OfflineSensorTestUser = {
   id: 'local-sensor-test-user';
-  name: 'Sensor Test User';
+  name: 'Paciente local';
   source: 'offline_dev';
 };
 
 export const OFFLINE_SENSOR_TEST_USER: OfflineSensorTestUser = {
   id: 'local-sensor-test-user',
-  name: 'Sensor Test User',
+  name: 'Paciente local',
   source: 'offline_dev',
 };
 

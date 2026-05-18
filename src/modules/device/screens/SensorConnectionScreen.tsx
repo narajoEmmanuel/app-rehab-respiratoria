@@ -343,68 +343,67 @@ export function SensorConnectionScreen() {
           />
         ) : null}
 
-        {/* Zone C — Detalles técnicos expandibles */}
-        <Pressable
-          onPress={() => {
-            hapticLight();
-            setTechExpanded((prev) => !prev);
-          }}
-          style={({ pressed }) => [styles.accordionHeader, pressed && styles.accordionHeaderPressed]}
-          accessibilityRole="button"
-          accessibilityLabel={techExpanded ? 'Ocultar detalles técnicos' : 'Mostrar detalles técnicos'}>
-          <Text style={styles.accordionTitle}>Detalles técnicos</Text>
-          <Text style={styles.accordionChevron}>{techExpanded ? '▾' : '▸'}</Text>
-        </Pressable>
+        {debug ? (
+          <>
+            <Pressable
+              onPress={() => {
+                hapticLight();
+                setTechExpanded((prev) => !prev);
+              }}
+              style={({ pressed }) => [styles.accordionHeader, pressed && styles.accordionHeaderPressed]}
+              accessibilityRole="button"
+              accessibilityLabel={techExpanded ? 'Ocultar detalles técnicos' : 'Mostrar detalles técnicos'}>
+              <Text style={styles.accordionTitle}>Detalles técnicos</Text>
+              <Text style={styles.accordionChevron}>{techExpanded ? '▾' : '▸'}</Text>
+            </Pressable>
 
-        {techExpanded ? (
-          <View style={styles.techCard}>
-            <View style={styles.techHeaderRow}>
-              <View style={styles.techHeaderIcon}>
-                <IconSymbol name="gearshape.fill" size={16} color={wellness.textSecondary} />
-              </View>
-              <Text style={styles.techSection}>Conexión y diagnóstico</Text>
-            </View>
-            <TextInput
-              value={url}
-              onChangeText={setUrl}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              style={styles.urlInput}
-              placeholder="ws://192.168.4.1:81"
-              placeholderTextColor={wellness.textSecondary}
-            />
-            <Text style={styles.urlHint}>
-              URL del WebSocket del ESP32. Cambia solo si tu firmware usa otra dirección.
-            </Text>
+            {techExpanded ? (
+              <View style={styles.techCard}>
+                <View style={styles.techHeaderRow}>
+                  <View style={styles.techHeaderIcon}>
+                    <IconSymbol name="gearshape.fill" size={16} color={wellness.textSecondary} />
+                  </View>
+                  <Text style={styles.techSection}>Conexión y diagnóstico</Text>
+                </View>
+                <TextInput
+                  value={url}
+                  onChangeText={setUrl}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  style={styles.urlInput}
+                  placeholder="ws://192.168.4.1:81"
+                  placeholderTextColor={wellness.textSecondary}
+                />
+                <Text style={styles.urlHint}>
+                  URL del WebSocket del ESP32. Cambia solo si tu firmware usa otra dirección.
+                </Text>
 
-            <View style={styles.techDivider} />
-            <Text style={styles.techSection}>Telemetría</Text>
-            <DiagRow label="status" value={statusLabel(status)} />
-            <DiagRow label="source" value={formatScalar(lastReading?.source)} />
-            <DiagRow label="distanceMm" value={formatScalar(lastReading?.distanceMm)} />
-            <DiagRow label="rawDistanceMm" value={formatScalar(lastReading?.rawDistanceMm)} />
-            <DiagRow label="distanceValid" value={formatScalar(lastReading?.distanceValid)} />
-            <DiagRow label="timestamp" value={formatScalar(lastReading?.timestamp)} />
-            <DiagRow
-              label="mensajes"
-              value={`${messageCount} (${messagesPerSecond.toFixed(1)} mps)`}
-            />
-            <DiagRow label="closeCode" value={closeCode === null ? '—' : String(closeCode)} />
-            <DiagRow label="closeReason" value={closeReason ?? '—'} />
-            <DiagRow label="errorMessage" value={errorMessage ?? '—'} />
-
-            <Text style={styles.techJsonLabel}>Último JSON crudo</Text>
-            <Text style={styles.techJson} numberOfLines={6}>
-              {lastRawMessage ? truncateJson(lastRawMessage) : 'Sin mensajes recibidos aún.'}
-            </Text>
-
-            {debug ? (
-              <>
                 <View style={styles.techDivider} />
-                <Text style={styles.techSection}>Herramientas de desarrollo</Text>
+                <Text style={styles.techSection}>Telemetría</Text>
+                <DiagRow label="status" value={statusLabel(status)} />
+                <DiagRow label="source" value={formatScalar(lastReading?.source)} />
+                <DiagRow label="distanceMm" value={formatScalar(lastReading?.distanceMm)} />
+                <DiagRow label="rawDistanceMm" value={formatScalar(lastReading?.rawDistanceMm)} />
+                <DiagRow label="distanceValid" value={formatScalar(lastReading?.distanceValid)} />
+                <DiagRow label="timestamp" value={formatScalar(lastReading?.timestamp)} />
+                <DiagRow
+                  label="mensajes"
+                  value={`${messageCount} (${messagesPerSecond.toFixed(1)} mps)`}
+                />
+                <DiagRow label="closeCode" value={closeCode === null ? '—' : String(closeCode)} />
+                <DiagRow label="closeReason" value={closeReason ?? '—'} />
+                <DiagRow label="errorMessage" value={errorMessage ?? '—'} />
+
+                <Text style={styles.techJsonLabel}>Último JSON crudo</Text>
+                <Text style={styles.techJson} numberOfLines={6}>
+                  {lastRawMessage ? truncateJson(lastRawMessage) : 'Sin mensajes recibidos aún.'}
+                </Text>
+
+                <View style={styles.techDivider} />
+                <Text style={styles.techSection}>Diagnóstico avanzado</Text>
                 <Text style={styles.techDebugHint}>
-                  Solo visibles en desarrollo con EXPO_PUBLIC_ENABLE_SENSOR_DEBUG=true.
+                  Opciones para verificación técnica del sensor en este dispositivo.
                 </Text>
                 <Pressable
                   style={({ pressed }) => [styles.debugBtn, pressed && styles.debugBtnPressed]}
@@ -414,9 +413,9 @@ export function SensorConnectionScreen() {
                     else startMock();
                   }}
                   accessibilityRole="button"
-                  accessibilityLabel={isMock ? 'Detener modo simulado' : 'Iniciar modo simulado'}>
+                  accessibilityLabel={isMock ? 'Detener lectura de prueba' : 'Iniciar lectura de prueba'}>
                   <Text style={styles.debugBtnText}>
-                    {isMock ? 'Detener modo simulado' : 'Iniciar modo simulado'}
+                    {isMock ? 'Detener lectura de prueba' : 'Iniciar lectura de prueba'}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -426,8 +425,8 @@ export function SensorConnectionScreen() {
                     router.push('/hardware-lab');
                   }}
                   accessibilityRole="button"
-                  accessibilityLabel="Abrir Hardware Lab">
-                  <Text style={styles.debugBtnText}>Abrir Hardware Lab</Text>
+                  accessibilityLabel="Abrir laboratorio de hardware">
+                  <Text style={styles.debugBtnText}>Laboratorio de hardware</Text>
                 </Pressable>
                 <Pressable
                   style={({ pressed }) => [styles.debugBtn, pressed && styles.debugBtnPressed]}
@@ -439,9 +438,9 @@ export function SensorConnectionScreen() {
                   accessibilityLabel="Prueba raw WebSocket">
                   <Text style={styles.debugBtnText}>Prueba raw WebSocket</Text>
                 </Pressable>
-              </>
+              </View>
             ) : null}
-          </View>
+          </>
         ) : null}
       </ScrollView>
     </SafeAreaView>

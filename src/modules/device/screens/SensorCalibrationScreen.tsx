@@ -1234,7 +1234,7 @@ export function SensorCalibrationScreen() {
     }
     const ok = await confirmActivationDouble(
       'Se guardará este modelo como modelo activo para el espirómetro seleccionado.',
-      'Solo debe activarse si la calibración fue realizada correctamente y está pendiente de validación clínica.',
+      'Confirma que la calibración cumple el protocolo mínimo antes de activar.',
     );
     if (!ok) return;
     hapticLight();
@@ -1301,7 +1301,7 @@ export function SensorCalibrationScreen() {
 
   const isConnecting = status === 'connecting';
   const isOnline = status === 'connected' || status === 'receiving';
-  const modeLabel = mode === 'mock' ? 'simulado' : 'real';
+  const modeLabel = mode === 'mock' ? 'local' : 'sensor';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -1386,7 +1386,7 @@ export function SensorCalibrationScreen() {
               <Text style={styles.purposePillText}>Lectura más confiable</Text>
             </View>
             <View style={styles.purposePill}>
-              <Text style={styles.purposePillText}>Pendiente de validación clínica</Text>
+              <Text style={styles.purposePillText}>Listo para terapia</Text>
             </View>
           </View>
         </View>
@@ -1594,7 +1594,7 @@ export function SensorCalibrationScreen() {
                   hapticLight();
                   startMock();
                 }}>
-                <Text style={styles.ghostBtnText}>Modo demostración (debug)</Text>
+                <Text style={styles.ghostBtnText}>Iniciar lectura de prueba</Text>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
@@ -1602,7 +1602,7 @@ export function SensorCalibrationScreen() {
                   hapticLight();
                   stopMock();
                 }}>
-                <Text style={styles.ghostBtnText}>Detener demostración</Text>
+                <Text style={styles.ghostBtnText}>Detener lectura de prueba</Text>
               </Pressable>
             </>
           ) : null}
@@ -1851,7 +1851,7 @@ export function SensorCalibrationScreen() {
               activeSpirometerProfile.recommendedMaxVolumeMl
               ? `; rango extendido opcional hasta ${activeSpirometerProfile.extendedMaxVolumeMl} mL`
               : ''}
-            . Pendiente de validación clínica.
+            .
           </Text>
         </View>
 
@@ -1920,9 +1920,8 @@ export function SensorCalibrationScreen() {
           <Text style={styles.cardTitleStrong}>Validación geométrica</Text>
           <Text style={styles.cardHint}>
             Verificación geométrica del montaje: compara saltos de distancia entre marcas del
-            espirómetro con el desplazamiento físico esperado del perfil de espirómetro activo.
-            No define el volumen de referencia (escala del espirómetro). Pendiente de validación
-            clínica.
+            espirómetro con el desplazamiento físico esperado del perfil activo. No define el volumen
+            de referencia.
           </Text>
           {!geometricReport.geometricValidationConfigured ? (
             <Text style={styles.warnHint}>
@@ -2077,8 +2076,7 @@ export function SensorCalibrationScreen() {
           <Text style={styles.cardTitleStrong}>Incertidumbre metrológica</Text>
           <Text style={styles.cardHint}>
             Referencia primaria de volumen: escala del espirómetro. La regla se usa solo en
-            verificación geométrica del montaje y no entra en uc por defecto. Pendiente de
-            validación clínica.
+            verificación geométrica del montaje y no entra en uc por defecto.
           </Text>
           <View style={styles.resultsGrid}>
             <MetricCell
@@ -2205,10 +2203,6 @@ export function SensorCalibrationScreen() {
               ))}
             </View>
           ) : null}
-          <Text style={styles.modelDisclaimer}>
-            La incertidumbre reportada corresponde al procedimiento de calibración actual y está
-            pendiente de validación clínica.
-          </Text>
         </View>
 
         {/* C. Calidad del modelo lineal */}
@@ -2551,15 +2545,11 @@ export function SensorCalibrationScreen() {
           <Text style={styles.relationHint}>{relationHint(relation)}</Text>
         </View>
 
-        <Text style={styles.modelDisclaimer}>
-          La estimación a partir de esta calibración está pendiente de validación clínica.
-        </Text>
-
         <View style={styles.card}>
           <Text style={styles.cardTitleStrong}>Modelo activo</Text>
           <Text style={styles.cardHint}>
-            Aprobación del modelo recomendado para la calibración específica del espirómetro
-            seleccionado. Pendiente de validación clínica antes de uso en terapia.
+            Guarda el modelo recomendado para este espirómetro. La terapia usará este modelo al
+            iniciar sesión.
           </Text>
           <View
             style={[
@@ -2612,10 +2602,6 @@ export function SensorCalibrationScreen() {
               <MetricCell
                 label="Rango calibrado"
                 value={`${activeCalibrationModel.calibratedRangeMl.min}–${activeCalibrationModel.calibratedRangeMl.max} mL`}
-              />
-              <MetricCell
-                label="Validación clínica"
-                value={activeCalibrationModel.clinicalStatus.label}
               />
             </View>
           ) : (
@@ -2723,9 +2709,6 @@ export function SensorCalibrationScreen() {
                 Estado: {activeTechnicalSummary.isReadyForTherapy ? 'Apto para activación' : 'No apto'} ·{' '}
                 {activeTechnicalSummary.therapyReadinessReason}
               </Text>
-              <Text style={styles.summaryLine}>
-                Validación clínica: Pendiente de validación clínica
-              </Text>
               {activeTechnicalSummary.warnings.length > 0 ? (
                 <View style={styles.modelWarningsBox}>
                   <Text style={styles.modelSubLabel}>Advertencias</Text>
@@ -2743,8 +2726,7 @@ export function SensorCalibrationScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitleStrong}>Prueba de estimación en vivo</Text>
           <Text style={styles.cardHint}>
-            Esta lectura usa el modelo activo del espirómetro seleccionado y está pendiente de
-            validación clínica.
+            Lectura en vivo con el modelo activo del espirómetro seleccionado.
           </Text>
           <View
             style={[

@@ -20,9 +20,6 @@ import type {
   TherapyReadinessStatus,
 } from '@/src/modules/device/volume-estimation/therapy-readiness-types';
 
-const CLINICAL_DISCLAIMER =
-  'El uso terapéutico real requiere validación clínica y supervisión profesional.';
-
 export type TherapyReadinessInputState = Pick<
   ActiveVolumeEstimationState,
   'loading' | 'context' | 'estimate' | 'status' | 'message'
@@ -287,20 +284,47 @@ export async function evaluateTherapyReadinessOnDemand(
   });
 }
 
+export type TherapyReadinessAlertOptions = {
+  onPracticeWithoutSensor?: () => void;
+  practiceButtonLabel?: string;
+};
+
+const TOUCH_PRACTICE_ALERT_NOTE =
+  'Puedes practicar la actividad sin sensor. Esta opción no usa medición real.';
+
 export function showTherapyReadinessAlert(
   gate: TherapyReadinessGate,
   onNavigate: (route: TherapyReadinessActionRoute) => void,
+  options?: TherapyReadinessAlertOptions,
 ): void {
   if (gate.canStartTherapy) return;
 
   const alertCopy = copyForStatus(gate.status);
-  const body = `${alertCopy.message}\n\n${CLINICAL_DISCLAIMER}`;
+  const practiceNote = options?.onPracticeWithoutSensor ? `\n\n${TOUCH_PRACTICE_ALERT_NOTE}` : '';
+  const body = `${alertCopy.message}${practiceNote}`;
+
+  const buttons: {
+    text: string;
+    style?: 'cancel' | 'default' | 'destructive';
+    onPress?: () => void;
+  }[] = [{ text: 'Cancelar', style: 'cancel' }];
 
   if (alertCopy.actionLabel && alertCopy.actionRoute) {
-    Alert.alert(alertCopy.title, body, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: alertCopy.actionLabel, onPress: () => onNavigate(alertCopy.actionRoute!) },
-    ]);
+    buttons.push({
+      text: alertCopy.actionLabel,
+      onPress: () => onNavigate(alertCopy.actionRoute!),
+    });
+  }
+
+  if (options?.onPracticeWithoutSensor) {
+    buttons.push({
+      text: options.practiceButtonLabel ?? 'Practicar sin sensor',
+      onPress: options.onPracticeWithoutSensor,
+    });
+  }
+
+  if (buttons.length > 1) {
+    Alert.alert(alertCopy.title, body, buttons);
     return;
   }
 

@@ -98,12 +98,26 @@ export async function persistSessionResult(result: SessionResult): Promise<Sessi
     completed,
     perfect,
     interrupted,
+    input_mode: result.inputMode,
+    data_source: result.dataSource,
+    is_practice_session: result.isPracticeSession,
+    official_validation_source: result.officialValidationSource,
+    max_sensor_estimated_volume_ml: result.maxSensorEstimatedVolumeMl ?? undefined,
+    max_sensor_u95_ml: result.maxSensorU95Ml ?? undefined,
   });
   for (const attempt of result.attempts) {
     await createAttempt(savedSession.session_id, {
       hold_ms: attempt.holdMs,
       peak_volume: attempt.peakVolume,
       valid: attempt.valid,
+      input_mode: attempt.inputMode,
+      data_source: attempt.dataSource,
+      official_volume_ml: attempt.officialVolumeMl ?? undefined,
+      sensor_estimated_volume_ml: attempt.sensorEstimatedVolumeMl ?? undefined,
+      sensor_u95_ml: attempt.sensorU95Ml ?? undefined,
+      sensor_confidence_label: attempt.sensorConfidenceLabel ?? undefined,
+      sensor_volume_reached_conservatively: attempt.sensorVolumeReachedConservatively,
+      sensor_attempt_status: attempt.sensorAttemptStatus ?? undefined,
     });
   }
   await updatePatientLevelProgress(result.patientId, result.patientLevelId);

@@ -68,3 +68,12 @@ export async function loadLevelsProgress(patientId: number): Promise<LevelsProgr
 export async function saveLevelsProgress(patientId: number, progress: LevelsProgress): Promise<void> {
   await AsyncStorage.setItem(storageKeyForPatient(patientId), JSON.stringify(progress));
 }
+
+export async function clearLevelsProgress(patientId: number): Promise<void> {
+  await AsyncStorage.removeItem(storageKeyForPatient(patientId));
+}
+
+export async function hasLevelsProgress(patientId: number): Promise<boolean> {
+  const raw = await AsyncStorage.getItem(storageKeyForPatient(patientId));
+  return raw != null && raw !== '';
+}

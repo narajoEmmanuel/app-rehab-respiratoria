@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import { Redirect } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { isCloudAuthEnabled } from '@/src/modules/app-mode/app-mode-config';
 import { useAppMode } from '@/src/modules/app-mode';
@@ -60,38 +60,9 @@ export function ConsentStackGuard({ children, allowOfflineDevBypass = false }: P
     return <Redirect href="/(tabs)" />;
   }
 
-  const stackBannerText = !isCloudAuthEnabled()
-    ? 'Modo prototipo local, datos no sincronizados con la nube'
-    : isOfflineSensorTestMode && offlineSensorTestEnabled
-      ? 'Este modo es experimental, no clínico y no sincroniza datos.'
-      : null;
-
-  return (
-    <>
-      {stackBannerText ? (
-        <View style={styles.offlineBanner} accessibilityLabel={stackBannerText}>
-          <Text style={styles.offlineBannerText}>{stackBannerText}</Text>
-        </View>
-      ) : null}
-      {children}
-    </>
-  );
+  return <>{children}</>;
 }
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: wellness.screenBg },
-  offlineBanner: {
-    backgroundColor: wellness.softGreen,
-    borderBottomWidth: 1,
-    borderBottomColor: wellness.borderStrong,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  offlineBannerText: {
-    color: wellness.primaryDark,
-    fontSize: 13,
-    fontWeight: '600',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
 });

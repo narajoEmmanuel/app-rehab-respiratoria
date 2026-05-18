@@ -124,6 +124,7 @@ export default function RootLayout() {
               <Stack>
                 <Stack.Screen name="index" options={{ headerShown: false }} />
                 <Stack.Screen name="auth/login" options={{ headerShown: false, title: 'Acceso' }} />
+                <Stack.Screen name="auth/local-profile" options={{ headerShown: false, title: 'Perfil local' }} />
                 <Stack.Screen name="auth/registro" options={{ headerShown: false, title: 'Registro' }} />
                 <Stack.Screen name="legal/accept" options={{ headerShown: false, title: 'Consentimiento' }} />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -131,10 +132,11 @@ export default function RootLayout() {
                 <Stack.Screen name="data-export" options={{ headerShown: false, title: 'Datos y exportación' }} />
                 <Stack.Screen name="notification-settings" options={{ headerShown: false, title: 'Recordatorios' }} />
                 <Stack.Screen name="sensor-connection" options={{ headerShown: false }} />
-                <Stack.Screen name="hardware-lab" options={{ headerShown: false, title: 'Hardware Lab' }} />
+                <Stack.Screen name="sensor-calibration" options={{ headerShown: false }} />
+                <Stack.Screen name="hardware-lab" options={{ headerShown: false, title: 'Laboratorio de hardware' }} />
                 <Stack.Screen name="diagnostico" options={{ headerShown: false }} />
                 <Stack.Screen name="diagnostico-resumen" options={{ headerShown: false }} />
-                <Stack.Screen name="esp32-raw-test" options={{ headerShown: false, title: 'ESP32 Raw WS Test' }} />
+                <Stack.Screen name="esp32-raw-test" options={{ headerShown: false, title: 'Prueba WebSocket ESP32' }} />
               </Stack>
             </LevelsProgressProvider>
           </PatientSessionProvider>

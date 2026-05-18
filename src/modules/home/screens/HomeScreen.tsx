@@ -8,7 +8,7 @@
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -19,6 +19,7 @@ import { HomeLastSessionCard } from '@/src/modules/home/components/HomeLastSessi
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { useConsentActive } from '@/src/modules/legal/use-consent-active';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 import { updateDailyProgress } from '@/src/modules/session/session-progress-service';
@@ -100,6 +101,10 @@ export function HomeScreen() {
     }, [loadProgress]),
   );
 
+  useEffect(() => {
+    void loadProgress();
+  }, [patient?.paciente_id, patient?.clave, loadProgress]);
+
   const lastSession = useMemo(() => {
     if (patientSessions.length === 0) return null;
     return [...patientSessions].sort(compareSessionRecency)[0] ?? null;
@@ -169,7 +174,8 @@ export function HomeScreen() {
     );
   }
 
-  const firstName = patient.nombre_completo.trim().split(/\s+/)[0] ?? patient.nombre_completo;
+  const displayName = normalizePatientDisplayName(patient.nombre_completo);
+  const firstName = displayName.trim().split(/\s+/)[0] ?? displayName;
   const therapyCtaDisabled =
     !hasCompletedDiagnostic || !consentUiReady || !consentActive;
   const heroSubtitle = hasCompletedDiagnostic

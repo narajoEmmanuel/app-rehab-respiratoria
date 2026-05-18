@@ -5,11 +5,14 @@
  * Notes: Legacy tab routes stay hidden with href: null. Consent gate uses tabPress listeners
  *        (no custom tabBarButton for blocking). HapticTab is only for optional haptics.
  */
-import { Tabs, useRouter } from 'expo-router';
+import { Redirect, Tabs, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Alert, Platform, StyleSheet } from 'react-native';
 
+import { LOCAL_PROFILE_HREF } from '@/src/modules/auth/local-profile-hrefs';
+import { isCloudAuthEnabled } from '@/src/modules/app-mode/app-mode-config';
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
+import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { useConsentActive } from '@/src/modules/legal/use-consent-active';
 import { wellness } from '@/src/shared/theme/wellness-theme';
 import { HapticTab } from '@/src/shared/ui/haptic-tab';
@@ -32,6 +35,7 @@ function tabBarIconFor(name: TabIconName) {
 
 export default function TabLayout() {
   const router = useRouter();
+  const { patient, hydrated } = usePatientSession();
   const { ready, active } = useConsentActive();
 
   const protectedTabListeners = useMemo(
@@ -59,6 +63,10 @@ export default function TabLayout() {
     }),
     [active, ready, router],
   );
+
+  if (hydrated && !isCloudAuthEnabled() && patient == null) {
+    return <Redirect href={LOCAL_PROFILE_HREF} />;
+  }
 
   return (
     <Tabs

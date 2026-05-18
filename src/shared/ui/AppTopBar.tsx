@@ -6,6 +6,7 @@ import { useRouter, type Href } from 'expo-router';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { ProfileAvatarView } from '@/src/modules/patient/components/ProfileAvatarView';
+import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
 import { getProfilePreferences } from '@/src/modules/patient/storage/profile-preferences-repository';
 import { appBrand } from '@/src/shared/branding/app-brand';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -110,7 +111,7 @@ export function AppTopBar({
               style={({ pressed }) => [styles.avatarBtn, pressed && styles.actionBtnPressed]}>
               {patient ? (
                 <ProfileAvatarView
-                  displayName={patient.nombre_completo}
+                  displayName={normalizePatientDisplayName(patient.nombre_completo)}
                   avatarUri={avatarUri}
                   size={36}
                 />

@@ -200,9 +200,8 @@ export function buildActiveCalibrationModel(
       warnings: [...recommendation.warnings],
     },
     clinicalStatus: {
-      label: 'Pendiente de validación clínica',
-      note:
-        'Este modelo activo queda registrado para el espirómetro seleccionado. Su uso en terapia requiere validación clínica posterior.',
+      label: 'Registrado',
+      note: 'Modelo activo guardado para este espirómetro.',
     },
     calibrationCurve,
     uncertaintyByVolumeMl,

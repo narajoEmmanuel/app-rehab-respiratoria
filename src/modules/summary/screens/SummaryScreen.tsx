@@ -20,6 +20,11 @@ import {
   getSessionDetail,
   type SessionDetail,
 } from '@/src/modules/session/session-progress-service';
+import {
+  sessionClassificationMainTitle,
+  sessionClassificationSummaryNote,
+  sessionSensorDataCardVisible,
+} from '@/src/modules/session/session-record-classification';
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 
 function getSummaryTitle(session: SessionRecord | null): string {
@@ -167,6 +172,11 @@ export function SummaryScreen() {
   }
 
   const session = sessionDetail.session;
+  const classificationTitle = sessionClassificationMainTitle(session);
+  const classificationNote = sessionClassificationSummaryNote(session);
+  const showSensorCard = sessionSensorDataCardVisible(session);
+  const sensorMaxMl = session.max_sensor_estimated_volume_ml;
+  const sensorU95Ml = session.max_sensor_u95_ml;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -175,6 +185,42 @@ export function SummaryScreen() {
         <Text style={styles.screenTitle}>{getSummaryTitle(session)}</Text>
         <Text style={styles.screenSubtitle}>{getSummarySubtitle(session)}</Text>
         <Text style={styles.levelLine}>Nivel {levelNum}</Text>
+        <View style={styles.classificationBanner}>
+          <Text style={styles.classificationTitle}>{classificationTitle}</Text>
+          {classificationNote ? (
+            <Text style={styles.classificationNote}>{classificationNote}</Text>
+          ) : null}
+        </View>
+
+        {showSensorCard ? (
+          <View style={styles.sensorCard}>
+            <Text style={styles.sensorCardTitle}>Datos del sensor</Text>
+            <SensorDataRow label="Fuente" value={session.data_source ?? 'sensor_model'} />
+            <SensorDataRow
+              label="Validación"
+              value={session.official_validation_source ?? 'sensor_model'}
+            />
+            <SensorDataRow
+              label="Volumen máx. estimado"
+              value={
+                typeof sensorMaxMl === 'number' && Number.isFinite(sensorMaxMl)
+                  ? `${Math.round(sensorMaxMl)} mL`
+                  : '—'
+              }
+            />
+            <SensorDataRow
+              label="U95 máximo"
+              value={
+                typeof sensorU95Ml === 'number' && Number.isFinite(sensorU95Ml)
+                  ? `±${Math.round(sensorU95Ml)} mL`
+                  : '—'
+              }
+            />
+            <Text style={styles.sensorCardNote}>
+              Datos calculados con el modelo activo del espirómetro seleccionado.
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.card}>
           <MetricTile label="Sesión completada" value={session.completed ? 'Sí' : 'No'} />
@@ -215,6 +261,15 @@ function MetricTile({ label, value }: { label: string; value: string }) {
   );
 }
 
+function SensorDataRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.sensorDataRow}>
+      <Text style={styles.sensorDataLabel}>{label}</Text>
+      <Text style={styles.sensorDataValue}>{value}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
@@ -246,7 +301,70 @@ const styles = StyleSheet.create({
     color: wellness.primaryDark,
     fontSize: 14,
     fontWeight: '700',
-    marginBottom: 16,
+    marginBottom: 10,
+  },
+  classificationBanner: {
+    marginBottom: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: wellnessRadii.card,
+    backgroundColor: wellness.softGreen,
+    borderWidth: 1,
+    borderColor: wellness.border,
+  },
+  classificationTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+  },
+  classificationNote: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+    lineHeight: 18,
+  },
+  sensorCard: {
+    marginBottom: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: wellnessRadii.card,
+    backgroundColor: wellness.card,
+    borderWidth: 1,
+    borderColor: wellness.border,
+  },
+  sensorCardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+    marginBottom: 10,
+  },
+  sensorDataRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 6,
+  },
+  sensorDataLabel: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    color: wellness.textSecondary,
+  },
+  sensorDataValue: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: wellness.text,
+    textAlign: 'right',
+  },
+  sensorCardNote: {
+    marginTop: 8,
+    fontSize: 11,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+    lineHeight: 16,
   },
   screenTitle: {
     color: wellness.text,

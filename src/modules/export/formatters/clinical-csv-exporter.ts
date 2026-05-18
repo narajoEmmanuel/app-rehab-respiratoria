@@ -5,7 +5,15 @@
  */
 
 import { LEVEL1_DAILY_GOAL } from '@/src/modules/history/services/history-aggregates';
+import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
 import type { ClinicalExportSnapshot } from '@/src/modules/export/types/export-record';
+import {
+  attemptClassificationExportFields,
+  classificationExportFields,
+  isTherapeuticSessionRecord,
+  resolveSessionClassification,
+} from '@/src/modules/session/session-record-classification';
+import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 import { addDaysLocal, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 
 function escapeCsvCell(value: string | number | boolean | null | undefined): string {
@@ -113,7 +121,72 @@ const HEADER: readonly string[] = [
   'volumen_promedio',
   'tiempo_maximo',
   'tiempo_promedio',
+  'input_mode',
+  'data_source',
+  'is_practice_session',
+  'official_validation_source',
+  'max_sensor_estimated_volume_ml',
+  'max_sensor_u95_ml',
+  'therapeutic_sessions_count',
+  'practice_sessions_count',
+  'sensor_sessions_count',
+  'unclassified_sessions_count',
+  'official_volume_ml',
+  'sensor_estimated_volume_ml',
+  'sensor_u95_ml',
+  'sensor_confidence_label',
+  'sensor_volume_reached_conservatively',
+  'sensor_attempt_status',
 ] as const;
+
+function isTherapeuticExportSession(session: SessionRecord): boolean {
+  return isTherapeuticSessionRecord(session);
+}
+
+function countSessionsByClassification(list: ClinicalExportSnapshot['sessions']): {
+  therapeutic_sessions_count: number;
+  practice_sessions_count: number;
+  sensor_sessions_count: number;
+  unclassified_sessions_count: number;
+  max_sensor_estimated_volume_ml: number;
+  max_sensor_u95_ml: number;
+} {
+  let therapeutic = 0;
+  let practice = 0;
+  let sensor = 0;
+  let unclassified = 0;
+  let maxEst = 0;
+  let maxU95 = 0;
+
+  for (const { session } of list) {
+    const c = resolveSessionClassification(session);
+    if (!c.isClassified) unclassified += 1;
+    else if (c.isPracticeSession) practice += 1;
+    else if (c.inputMode === 'sensor') sensor += 1;
+
+    if (
+      isTherapeuticExportSession(session) &&
+      session.completed &&
+      session.interrupted !== true
+    ) {
+      therapeutic += 1;
+    }
+
+    const est = session.max_sensor_estimated_volume_ml;
+    const u95 = session.max_sensor_u95_ml;
+    if (typeof est === 'number' && !Number.isNaN(est)) maxEst = Math.max(maxEst, est);
+    if (typeof u95 === 'number' && !Number.isNaN(u95)) maxU95 = Math.max(maxU95, u95);
+  }
+
+  return {
+    therapeutic_sessions_count: therapeutic,
+    practice_sessions_count: practice,
+    sensor_sessions_count: sensor,
+    unclassified_sessions_count: unclassified,
+    max_sensor_estimated_volume_ml: maxEst,
+    max_sensor_u95_ml: maxU95,
+  };
+}
 
 function emptyRow(): Record<(typeof HEADER)[number], string> {
   const row = {} as Record<(typeof HEADER)[number], string>;
@@ -134,7 +207,7 @@ export function buildClinicalReportCsv(snapshot: ClinicalExportSnapshot): string
 
   const p = snapshot.patient;
   const patientCode = p?.clave ?? '';
-  const patientName = p?.nombre_completo ?? '';
+  const patientName = p?.nombre_completo != null ? normalizePatientDisplayName(p.nombre_completo) : '';
   const age = p != null ? String(p.edad) : '';
   const vimActual = latestVimMl(snapshot);
 
@@ -152,7 +225,12 @@ export function buildClinicalReportCsv(snapshot: ClinicalExportSnapshot): string
 
   const activityDays = new Set<string>();
   for (const [day, list] of byDay) {
-    const hasCompleted = list.some((x) => x.session.completed && x.session.interrupted !== true);
+    const hasCompleted = list.some(
+      (x) =>
+        isTherapeuticExportSession(x.session) &&
+        x.session.completed &&
+        x.session.interrupted !== true,
+    );
     if (hasCompleted) activityDays.add(day);
   }
 
@@ -167,10 +245,17 @@ export function buildClinicalReportCsv(snapshot: ClinicalExportSnapshot): string
     );
 
     const completedSessions = sortedList.filter(
-      (x) => x.session.completed && x.session.interrupted !== true,
+      (x) =>
+        isTherapeuticExportSession(x.session) &&
+        x.session.completed &&
+        x.session.interrupted !== true,
     );
     const perfectSessions = sortedList.filter(
-      (x) => x.session.perfect && x.session.completed && x.session.interrupted !== true,
+      (x) =>
+        isTherapeuticExportSession(x.session) &&
+        x.session.perfect &&
+        x.session.completed &&
+        x.session.interrupted !== true,
     );
 
     let repsTot = 0;
@@ -182,6 +267,7 @@ export function buildClinicalReportCsv(snapshot: ClinicalExportSnapshot): string
     let timeAvgSum = 0;
     let nSessions = 0;
     for (const { session } of sortedList) {
+      if (!isTherapeuticExportSession(session)) continue;
       repsTot += session.total_attempts;
       repsVal += session.valid_attempts;
       repsInv += session.invalid_attempts;
@@ -200,6 +286,7 @@ export function buildClinicalReportCsv(snapshot: ClinicalExportSnapshot): string
     const nivelActivo = lastSessionOfDay ? nivelEtiqueta(lastSessionOfDay.level_id) : '';
 
     const metaOk = completedSessions.length >= LEVEL1_DAILY_GOAL;
+    const dayClassification = countSessionsByClassification(sortedList);
 
     const daily = emptyRow();
     daily.row_type = 'daily_summary';
@@ -220,6 +307,16 @@ export function buildClinicalReportCsv(snapshot: ClinicalExportSnapshot): string
     daily.volumen_promedio_dia = String(volPromDia);
     daily.tiempo_promedio_dia = String(tiempoPromDia);
     daily.racha = String(streakEndingOnDay(dayKey, activityDays));
+    daily.therapeutic_sessions_count = String(dayClassification.therapeutic_sessions_count);
+    daily.practice_sessions_count = String(dayClassification.practice_sessions_count);
+    daily.sensor_sessions_count = String(dayClassification.sensor_sessions_count);
+    daily.unclassified_sessions_count = String(dayClassification.unclassified_sessions_count);
+    daily.max_sensor_estimated_volume_ml =
+      dayClassification.max_sensor_estimated_volume_ml > 0
+        ? String(dayClassification.max_sensor_estimated_volume_ml)
+        : '';
+    daily.max_sensor_u95_ml =
+      dayClassification.max_sensor_u95_ml > 0 ? String(dayClassification.max_sensor_u95_ml) : '';
 
     lines.push(rowToCsvLine(daily));
 
@@ -249,8 +346,42 @@ export function buildClinicalReportCsv(snapshot: ClinicalExportSnapshot): string
       sr.volumen_promedio = String(session.avg_volume);
       sr.tiempo_maximo = tiempoMaximoStr;
       sr.tiempo_promedio = String(session.avg_hold_seconds);
+      const classification = classificationExportFields(session);
+      sr.input_mode = classification.input_mode;
+      sr.data_source = classification.data_source;
+      sr.is_practice_session = classification.is_practice_session;
+      sr.official_validation_source = classification.official_validation_source;
+      sr.max_sensor_estimated_volume_ml = classification.max_sensor_estimated_volume_ml;
+      sr.max_sensor_u95_ml = classification.max_sensor_u95_ml;
 
       lines.push(rowToCsvLine(sr));
+
+      for (const attempt of attempts) {
+        const ar = emptyRow();
+        ar.row_type = 'attempt';
+        ar.patient_code = patientCode;
+        ar.patient_name = patientName;
+        ar.age = age;
+        ar.fecha = sessionRecordLocalDayKey(session.session_date) ?? '';
+        ar.hora = horaLocalDesdeIso(session.session_date);
+        ar.nivel = nivelEtiqueta(session.level_id);
+        ar.sesion_numero_dia = String(dayIndex.get(session.session_id) ?? '');
+        ar.reps_totales = '1';
+        ar.reps_validas = attempt.valid ? '1' : '0';
+        ar.reps_invalidas = attempt.valid ? '0' : '1';
+        ar.tiempo_maximo = String(Math.round((attempt.hold_ms / 1000) * 100) / 100);
+        const attemptFields = attemptClassificationExportFields(attempt);
+        ar.input_mode = attemptFields.input_mode;
+        ar.data_source = attemptFields.data_source;
+        ar.official_volume_ml = attemptFields.official_volume_ml;
+        ar.sensor_estimated_volume_ml = attemptFields.sensor_estimated_volume_ml;
+        ar.sensor_u95_ml = attemptFields.sensor_u95_ml;
+        ar.sensor_confidence_label = attemptFields.sensor_confidence_label;
+        ar.sensor_volume_reached_conservatively =
+          attemptFields.sensor_volume_reached_conservatively;
+        ar.sensor_attempt_status = attemptFields.sensor_attempt_status;
+        lines.push(rowToCsvLine(ar));
+      }
     }
   }
 

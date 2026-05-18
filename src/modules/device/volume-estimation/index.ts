@@ -38,6 +38,7 @@ export {
   therapyReadinessCardStatusLabel,
   volumeEstimationStatusToTherapy,
   type EvaluateTherapyReadinessOnDemandParams,
+  type TherapyReadinessAlertOptions,
   type TherapyReadinessInputState,
 } from '@/src/modules/device/volume-estimation/therapy-readiness-service';
 
