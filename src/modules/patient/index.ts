@@ -22,10 +22,18 @@ export {
   type DeletePatientLocalDataResult,
 } from '@/src/modules/patient/patient-delete-service';
 export {
+  assertPatientFullyRemoved,
+  verifyPatientFullyRemoved,
+  type PatientDeletionVerification,
+} from '@/src/modules/patient/patient-delete-verification';
+export { allocateNextPatientId, bumpPatientIdSequenceFloor } from '@/src/modules/patient/patient-id-allocation';
+export {
+  createLocalPatientProfile,
   createPatient,
   generatePatientKey,
   getCurrentPatient,
   getPatientByClave,
+  listLocalPatientProfiles,
   logoutPatient,
   normalizeClave,
   saveCurrentPatient,

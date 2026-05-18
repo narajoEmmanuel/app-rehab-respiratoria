@@ -59,6 +59,7 @@ export function LevelsProgressProvider({ children }: { children: React.ReactNode
         if (!isActive) return;
         setProgress(createInitialLevelsProgress());
         setIsLoading(false);
+        patientIdRef.current = null;
         return;
       }
       setIsLoading(true);

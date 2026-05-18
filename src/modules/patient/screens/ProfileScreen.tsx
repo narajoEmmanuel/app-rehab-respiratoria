@@ -31,6 +31,7 @@ import {
   type ProfileConsentBadgeVariant,
 } from '@/src/modules/patient/components/ProfileStatusBadge';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+import { LOCAL_PROFILE_HREF } from '@/src/modules/auth/local-profile-hrefs';
 import { deleteCurrentPatientLocalData } from '@/src/modules/patient/patient-delete-service';
 import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
 import {
@@ -101,7 +102,7 @@ function MetricTile({ label, value }: { label: string; value: string }) {
 
 export function ProfileScreen() {
   const router = useRouter();
-  const { patient, clearSession, setSessionPatient, refreshSession } = usePatientSession();
+  const { patient, clearSession, refreshSession } = usePatientSession();
   const [latestDiagnostic, setLatestDiagnostic] = useState<DiagnosticRecord | null>(null);
   const [consentRecord, setConsentRecord] = useState<AcceptedConsentRecord | null>(null);
   const [prefs, setPrefs] = useState<ProfilePreferences>(DEFAULT_PROFILE_PREFERENCES);
@@ -230,23 +231,25 @@ export function ProfileScreen() {
         const result = await deleteCurrentPatientLocalData();
         setDeleteModalVisible(false);
         resetProfileLocalState();
+        await clearSession();
 
-        if (result.nextPatient) {
-          await setSessionPatient(result.nextPatient);
-          router.replace('/');
+        if (result.shouldSignOut && result.mode === 'local_first') {
+          router.replace(LOCAL_PROFILE_HREF);
         } else {
-          await clearSession();
           router.replace('/auth/login');
         }
 
-        Alert.alert('Perfil eliminado', 'Perfil eliminado correctamente.');
+        Alert.alert(
+          'Perfil eliminado',
+          'Tu perfil y datos asociados se eliminaron de este dispositivo. Para volver a usar la app, crea un perfil nuevo o accede con una clave existente.',
+        );
       } catch {
         Alert.alert('Error', 'No se pudo eliminar el perfil. Inténtalo nuevamente.');
       } finally {
         setDeleteBusy(false);
       }
     })();
-  }, [clearSession, resetProfileLocalState, router, setSessionPatient]);
+  }, [clearSession, resetProfileLocalState, router]);
 
   const metrics = sessionQuickStats ?? {
     completedCount: 0,

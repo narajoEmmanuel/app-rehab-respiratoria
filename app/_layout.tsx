@@ -124,6 +124,7 @@ export default function RootLayout() {
               <Stack>
                 <Stack.Screen name="index" options={{ headerShown: false }} />
                 <Stack.Screen name="auth/login" options={{ headerShown: false, title: 'Acceso' }} />
+                <Stack.Screen name="auth/local-profile" options={{ headerShown: false, title: 'Perfil local' }} />
                 <Stack.Screen name="auth/registro" options={{ headerShown: false, title: 'Registro' }} />
                 <Stack.Screen name="legal/accept" options={{ headerShown: false, title: 'Consentimiento' }} />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

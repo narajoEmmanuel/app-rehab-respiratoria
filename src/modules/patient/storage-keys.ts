@@ -6,6 +6,8 @@
 
 export const PATIENT_STORAGE_KEYS = {
   patientsJson: '@rehab/patients_v1',
+  /** Contador monotónico; no baja al eliminar pacientes. */
+  patientIdSequence: '@rehab/patient_id_sequence_v1',
   currentPatientClave: '@rehab/current_patient_clave_v1',
   diagnosticsJson: '@rehab/diagnostics_v1',
   patientLevelsJson: '@rehab/patient_levels_v1',

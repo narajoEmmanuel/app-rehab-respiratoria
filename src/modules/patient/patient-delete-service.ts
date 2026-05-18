@@ -19,7 +19,8 @@ import {
   getNotificationPreferences,
 } from '@/src/modules/notifications/storage/notification-preferences-repository';
 import { isCloudAuthEnabled } from '@/src/modules/app-mode/app-mode-config';
-import { seedLocalPrototypeConsentForPatient } from '@/src/modules/legal/consent-service';
+import { bumpPatientIdSequenceFloor } from '@/src/modules/patient/patient-id-allocation';
+import { assertPatientFullyRemoved } from '@/src/modules/patient/patient-delete-verification';
 import {
   clearCurrentClave,
   normalizeClave,
@@ -29,11 +30,7 @@ import {
   writeAllPatients,
 } from '@/src/modules/patient/patient-repository';
 import { clearProfilePreferences } from '@/src/modules/patient/storage/profile-preferences-repository';
-import {
-  ensureLocalPrototypePatientRecord,
-  getCurrentPatient,
-} from '@/src/modules/patient/patient-service';
-import type { PatientRecord } from '@/src/modules/patient/types';
+import { getCurrentPatient } from '@/src/modules/patient/patient-service';
 import {
   readAllAttempts,
   readAllSessions,
@@ -97,12 +94,14 @@ export async function deletePatientLocalData(patientId: number): Promise<void> {
   if (currentClave && normalizeClave(currentClave) === normalizeClave(patient.clave)) {
     await clearCurrentClave();
   }
+
+  await bumpPatientIdSequenceFloor(patientId);
 }
 
 export type DeletePatientLocalDataResult = {
   deletedPatientId: number;
   mode: 'local_first' | 'cloud_auth';
-  nextPatient: PatientRecord | null;
+  shouldSignOut: true;
 };
 
 export async function deleteCurrentPatientLocalData(): Promise<DeletePatientLocalDataResult> {
@@ -114,16 +113,11 @@ export async function deleteCurrentPatientLocalData(): Promise<DeletePatientLoca
   const deletedPatientId = patient.paciente_id;
   await deletePatientLocalData(deletedPatientId);
   await clearCurrentClave();
+  await assertPatientFullyRemoved(deletedPatientId);
 
-  const mode: DeletePatientLocalDataResult['mode'] = isCloudAuthEnabled()
-    ? 'cloud_auth'
-    : 'local_first';
-
-  if (mode === 'local_first') {
-    const nextPatient = await ensureLocalPrototypePatientRecord();
-    await seedLocalPrototypeConsentForPatient(nextPatient.paciente_id);
-    return { deletedPatientId, mode, nextPatient };
-  }
-
-  return { deletedPatientId, mode, nextPatient: null };
+  return {
+    deletedPatientId,
+    mode: isCloudAuthEnabled() ? 'cloud_auth' : 'local_first',
+    shouldSignOut: true,
+  };
 }

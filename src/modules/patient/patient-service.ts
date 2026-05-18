@@ -4,6 +4,7 @@
  * Dependencies: patient-repository
  */
 
+import { allocateNextPatientId } from '@/src/modules/patient/patient-id-allocation';
 import {
   appendPatient,
   clearCurrentClave,
@@ -51,9 +52,7 @@ export async function getPatientByCode(code: string): Promise<PatientRecord | nu
 
 export async function createPatient(nombreCompleto: string, edad: number): Promise<PatientRecord> {
   const trimmedName = nombreCompleto.trim();
-  const patients = await readAllPatients();
-  const nextId =
-    patients.length === 0 ? 1 : Math.max(...patients.map((p) => p.paciente_id)) + 1;
+  const nextId = await allocateNextPatientId();
   const clave = await generatePatientKey();
   const now = new Date().toISOString();
 
@@ -92,8 +91,23 @@ export async function getCurrentPatient(): Promise<PatientRecord | null> {
   const clave = await readCurrentClave();
   if (!clave) return null;
   const found = await getPatientByClave(clave);
-  if (!found) return null;
+  if (!found) {
+    await clearCurrentClave();
+    return null;
+  }
   return persistLegacyDisplayNameMigration(found);
+}
+
+export async function listLocalPatientProfiles(): Promise<PatientRecord[]> {
+  const patients = await readAllPatients();
+  return [...patients].sort((a, b) => Date.parse(b.fecha_creacion) - Date.parse(a.fecha_creacion));
+}
+
+/** Crea un perfil local nuevo y lo deja como paciente actual (solo por acción explícita del usuario). */
+export async function createLocalPatientProfile(): Promise<PatientRecord> {
+  const row = await createPatient(LOCAL_PATIENT_DISPLAY_NAME, LOCAL_PROTOTYPE_AGE);
+  await saveCurrentPatient(row);
+  return row;
 }
 
 export async function logoutPatient(): Promise<void> {
@@ -103,15 +117,10 @@ export async function logoutPatient(): Promise<void> {
 const LOCAL_PROTOTYPE_AGE = 30;
 
 /**
- * Ensures a persisted local patient session for local-first prototype builds (cloud auth off).
- * Creates one PAC record and sets it as current when none exists.
+ * @deprecated No usar en bootstrap. Preferir createLocalPatientProfile() tras acción del usuario.
  */
 export async function ensureLocalPrototypePatientRecord(): Promise<PatientRecord> {
-  const current = await getCurrentPatient();
-  if (current) return current;
-  const row = await createPatient(LOCAL_PATIENT_DISPLAY_NAME, LOCAL_PROTOTYPE_AGE);
-  await saveCurrentPatient(row);
-  return row;
+  return createLocalPatientProfile();
 }
 
 export async function updatePatientCurrentLevel(patientId: number, levelId: LevelId): Promise<PatientRecord | null> {
