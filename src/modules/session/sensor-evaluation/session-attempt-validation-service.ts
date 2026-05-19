@@ -1,4 +1,5 @@
 import type { ActiveVolumeEstimateResult } from '@/src/modules/device/calibration/active-volume-estimation-types';
+import type { LevelOneAttemptReleaseResult } from '@/src/modules/session/engine/level-one/level-one-repetition-rules';
 import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
 import { isTouchPracticeSession } from '@/src/modules/session/session-input-mode';
 import type { SensorAttemptEvaluation } from '@/src/modules/session/sensor-evaluation/sensor-attempt-evaluation-types';
@@ -67,6 +68,34 @@ function sensorUnavailableReason(evaluation: SensorAttemptEvaluation): string {
     default:
       return evaluation.message || 'El sensor aún no confirma el volumen objetivo.';
   }
+}
+
+/** Mapea el resultado por fases (ascenso/sostén) al formato clínico del intento. */
+export function buildOfficialValidationFromLevelOneRelease(params: {
+  release: LevelOneAttemptReleaseResult;
+  targetVolumeMl: number;
+  officialVolumeMl: number;
+  inputMode: SessionInputMode;
+  u95Ml?: number | null;
+  confidenceLabel?: OfficialAttemptConfidenceLabel;
+}): OfficialAttemptValidationResult {
+  const { release, targetVolumeMl, officialVolumeMl, inputMode, u95Ml = null, confidenceLabel = 'no_disponible' } =
+    params;
+  const source: OfficialAttemptValidationSource = isTouchPracticeSession(inputMode)
+    ? 'touch_simulation'
+    : 'sensor_model';
+
+  return {
+    source,
+    volumeReached: release.volumeReached,
+    holdReached: release.holdReached,
+    attemptValid: release.valid,
+    officialVolumeMl,
+    targetVolumeMl,
+    u95Ml,
+    confidenceLabel,
+    reason: release.reason,
+  };
 }
 
 export function evaluateOfficialAttempt(

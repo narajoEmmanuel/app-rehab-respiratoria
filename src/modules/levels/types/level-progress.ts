@@ -152,3 +152,14 @@ export function prepareLevelOneForNewSessionRun(levelOne: LevelOneProgress): Lev
   const ensured = ensureLevelOnePointsAtPlayableSession(levelOne);
   return resetCurrentLevelSessionSlotForNewRun(ensured);
 }
+
+/**
+ * Descarta progreso temporal del slot actual (reps a medias, interrumpida, puntero de rep).
+ * No borra sesiones completadas del nivel ni totales de sesiones ya cerradas en otros slots.
+ */
+export function discardInProgressLevelOneRun(levelOne: LevelOneProgress): LevelOneProgress {
+  if (levelOne.levelCompleted) return levelOne;
+  return resetCurrentLevelSessionSlotForNewRun(
+    ensureLevelOnePointsAtPlayableSession(levelOne),
+  );
+}

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Platform,
   Pressable,
@@ -16,25 +16,53 @@ import Animated, {
   interpolate,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withRepeat,
   withSequence,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 
-import type { LevelOnePhase } from '@/src/modules/session/engine/level-one/use-level-one-game';
 import {
-  officialValidationModeLabel,
-  officialValidationStatusHint,
-  type OfficialAttemptValidationResult,
-  type SensorAttemptEvaluation,
-} from '@/src/modules/session/sensor-evaluation';
+  LEVEL_ONE_CLEAR_MIN_NORM,
+  LEVEL_ONE_HOLD_PREP_MS,
+  LEVEL_ONE_MAX_INHALE_MS,
+  LEVEL_ONE_OBSTACLE_TOP_NORM,
+  LEVEL_ONE_OFFICIAL_EVAL_MS,
+} from '@/src/modules/session/engine/level-one/level-one-repetition-rules';
+import type { LevelOnePhase } from '@/src/modules/session/engine/level-one/use-level-one-game';
 import {
   isTouchPracticeSession,
   type SessionInputMode,
 } from '@/src/modules/session/session-input-mode';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
-const REQUIRED_HOLD_MS = 3000;
+const REQUIRED_EVAL_MS = LEVEL_ONE_OFFICIAL_EVAL_MS;
+const HOLD_PREP_MS = LEVEL_ONE_HOLD_PREP_MS;
+/** Altura mínima de salto (px) y rango adicional hasta la meta de inspiración. */
+const JUMP_BASE_PX = 14;
+const JUMP_RANGE_PX = 90;
+const MAX_JUMP_PX = JUMP_BASE_PX + JUMP_RANGE_PX;
+/** Escala solo visual del protagonista (conejo + colina); la lógica sigue en MAX_JUMP_PX. */
+const GAME_VISUAL_SCALE = 1.26;
+const RABBIT_ANCHOR_BOTTOM = 52;
+const OBSTACLE_TOP_NORM = LEVEL_ONE_OBSTACLE_TOP_NORM;
+/** Duración máxima esperada de una inspiración (subida + prep + eval). */
+const MAX_INSPIRATION_MS =
+  LEVEL_ONE_MAX_INHALE_MS + LEVEL_ONE_HOLD_PREP_MS + LEVEL_ONE_OFFICIAL_EVAL_MS;
+/** Ancho de la colina-meta (escala visual). */
+const META_HILL_WIDTH = Math.round(128 * GAME_VISUAL_SCALE);
+/** Altura visual de la colina: base + cima alineada al salto máximo del conejo. */
+const META_HILL_VISUAL_H = Math.round((MAX_JUMP_PX + 28) * GAME_VISUAL_SCALE);
+/** Duración del mensaje «¡Ups!» y nube de impacto. */
+const CRASH_UPS_TOAST_MS = 1500;
+/** Fin del choque: conejo normal y obstáculo fuera antes de DESCANSA. */
+const CRASH_RECOVER_MS = 1900;
+/** Altura aproximada del sprite del conejo (cuerpo + orejas, escala visual). */
+const RABBIT_FIGURE_HEIGHT_PX = Math.round(88 * GAME_VISUAL_SCALE);
+const RABBIT_VISUAL_WIDTH_PX = Math.round(72 * GAME_VISUAL_SCALE);
+/** Altura mínima de la escena en pantallas pequeñas. */
+const GAME_SCENE_MIN_FLOOR_PX = 252;
 
 const wellnessShadowsSafe = {
   shadowColor: '#3D5A4A',
@@ -64,16 +92,17 @@ type LevelOneGameViewProps = {
   displayVolumeStatus?: string;
   sessionInputMode?: SessionInputMode;
   targetVolume: number;
-  holdSeconds: number;
   holdMs?: number;
+  sustainMs?: number;
+  targetReached?: boolean;
+  obstacleActive?: boolean;
+  holdPrepSecondsRemaining?: number;
+  liveCrashSignal?: number;
   levelLabel?: string;
   introMode?: boolean;
   onIntroComplete?: () => void;
   /** Chip compacto de estado del sensor; no altera el juego. */
   sensorStatusSlot?: ReactNode;
-  sensorAttemptEvaluation?: SensorAttemptEvaluation;
-  /** Criterio oficial de intento (sensor o táctil). */
-  officialAttemptValidation?: OfficialAttemptValidationResult;
 };
 
 export function LevelOneGameView({
@@ -96,28 +125,41 @@ export function LevelOneGameView({
   displayVolumeStatus,
   sessionInputMode = 'sensor',
   targetVolume,
-  holdSeconds,
   holdMs = 0,
+  sustainMs = 0,
+  targetReached = false,
+  obstacleActive = false,
+  holdPrepSecondsRemaining = 0,
+  liveCrashSignal = 0,
   levelLabel = 'Nivel 1',
   introMode = false,
   onIntroComplete,
   sensorStatusSlot,
-  sensorAttemptEvaluation,
-  officialAttemptValidation,
 }: LevelOneGameViewProps) {
   const isTouchPractice = isTouchPracticeSession(sessionInputMode);
-  const { width: layoutW } = useWindowDimensions();
+  const { width: layoutW, height: layoutH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const rabbitIsHolding = phase === 'holding';
-  const showObstacles = phase === 'ready' || phase === 'holding';
+  const gameSceneMinHeight = useMemo(() => {
+    const jumpEnvelope = RABBIT_ANCHOR_BOTTOM + RABBIT_FIGURE_HEIGHT_PX + MAX_JUMP_PX + 24;
+    const responsiveFloor = Math.round(layoutH * 0.46);
+    return Math.max(GAME_SCENE_MIN_FLOOR_PX, jumpEnvelope, responsiveFloor);
+  }, [layoutH]);
+  const [crashFxVisible, setCrashFxVisible] = useState(false);
+  const [crashToastVisible, setCrashToastVisible] = useState(false);
+  const crashSequenceRef = useRef(0);
+  const rabbitIsInspiring = phase === 'inhaling' || phase === 'evaluating';
+  /** Solo durante los 3 s oficiales de sostén. */
+  const showGoalBarrier = obstacleActive;
+  const inEvaluating = phase === 'evaluating';
   const inRest = phase === 'resting';
   const inFailedFeedback = phase === 'exhale' && attemptFeedback === 'failed';
   const inValidFeedback = phase === 'exhale' && attemptFeedback === 'valid';
-  const [failedObstacleFlash, setFailedObstacleFlash] = useState(false);
+  const showGameFeedback = inRest || crashToastVisible || inValidFeedback;
 
   const status = getStatusText({
     phase,
     holdSecondsRemaining,
+    holdPrepSecondsRemaining,
     prepSecondsRemaining,
     restSecondsRemaining,
     attemptFeedback,
@@ -125,14 +167,36 @@ export function LevelOneGameView({
 
   const estadoLabel = (() => {
     if (phase === 'preparing') return 'Prepárate';
-    if (phase === 'ready' || phase === 'holding') return 'Sostén';
+    if (phase === 'ready') return 'Listo';
+    if (phase === 'inhaling') return 'Inspira';
+    if (phase === 'evaluating') return 'Sostén';
     if (phase === 'resting') return 'Descansa';
     if (phase === 'exhale') return attemptFeedback === 'failed' ? 'Ajusta' : 'Exhala';
     return status.primary;
   })();
 
-  const holdProgress =
-    phase === 'holding' ? Math.min(1, holdMs / REQUIRED_HOLD_MS) : phase === 'ready' ? 0 : 0;
+  const evalProgress =
+    phase === 'evaluating' ? Math.min(1, sustainMs / REQUIRED_EVAL_MS) : 0;
+  const playCenterX = layoutW * 0.5;
+  const rabbitLeft = Math.max(10, playCenterX - RABBIT_VISUAL_WIDTH_PX * 0.48);
+  const metaHillLeft = Math.max(6, playCenterX - META_HILL_WIDTH * 0.36);
+
+  const inspirationNormTarget = useMemo(() => {
+    if (!rabbitIsInspiring) return 0;
+    if (targetVolume > 0 && displayVolumeMl > 0) {
+      return Math.min(1.15, displayVolumeMl / targetVolume);
+    }
+    return Math.min(1.15, holdMs / MAX_INSPIRATION_MS);
+  }, [displayVolumeMl, holdMs, rabbitIsInspiring, targetVolume]);
+
+  const rabbitClearsObstacle = inspirationNormTarget >= LEVEL_ONE_CLEAR_MIN_NORM;
+  const isTouchingGoal = inEvaluating && !rabbitClearsObstacle;
+
+  /** Cima visual del obstáculo alineada al salto norm = 1 (escala de pantalla). */
+  const metaPassVisualPx = Math.round(MAX_JUMP_PX * OBSTACLE_TOP_NORM * GAME_VISUAL_SCALE);
+  const metaHillBottom = RABBIT_ANCHOR_BOTTOM - 18;
+  const collisionImpactLeft = rabbitLeft + Math.round(28 * GAME_VISUAL_SCALE);
+  const maxVisualLiftPx = Math.round(MAX_JUMP_PX * GAME_VISUAL_SCALE);
 
   const tileW = Math.max(320, Math.ceil(layoutW));
 
@@ -142,13 +206,30 @@ export function LevelOneGameView({
   const nearX = useSharedValue(0);
 
   const bobY = useSharedValue(0);
-  const jumpOffset = useSharedValue(0);
-  const rabbitRot = useSharedValue(0);
+  /** 0–1: inspiración visual (hold o volumen); preparado para sensor dinámico. */
+  const inspirationLevel = useSharedValue(0);
   const feedbackPulse = useSharedValue(0);
+  const feedbackOverlayOpacity = useSharedValue(0);
+  const crashPulse = useSharedValue(0);
+  const impactBurst = useSharedValue(0);
+  const rabbitKnockbackX = useSharedValue(0);
+  const rabbitSquash = useSharedValue(1);
+  const sceneShakeX = useSharedValue(0);
 
-  /** Montaña-obstáculo: un solo cuerpo que cruza la pantalla (SOSTÉN). */
-  const obsMountain = useSharedValue(layoutW + 120);
-  const obsMountainOpacity = useSharedValue(0);
+  const metaHillOpacity = useSharedValue(0);
+  const metaHillTranslateY = useSharedValue(16);
+
+  useEffect(() => {
+    if (
+      phase === 'ready' ||
+      phase === 'inhaling' ||
+      phase === 'evaluating' ||
+      phase === 'preparing'
+    ) {
+      setCrashFxVisible(false);
+      setCrashToastVisible(false);
+    }
+  }, [phase]);
 
   useEffect(() => {
     const dM = 26000;
@@ -211,18 +292,21 @@ export function LevelOneGameView({
   }, [bobY]);
 
   useEffect(() => {
-    if (rabbitIsHolding) {
-      const target = -(22 + Math.min(1, holdMs / REQUIRED_HOLD_MS) * 76);
-      jumpOffset.value = withTiming(target, { duration: 90, easing: Easing.out(Easing.quad) });
-      rabbitRot.value = withTiming(-10, { duration: 110, easing: Easing.out(Easing.cubic) });
-    } else {
-      jumpOffset.value = withTiming(0, {
-        duration: 320,
-        easing: Easing.out(Easing.cubic),
-      });
-      rabbitRot.value = withTiming(0, { duration: 260, easing: Easing.out(Easing.quad) });
-    }
-  }, [holdMs, jumpOffset, rabbitIsHolding, rabbitRot]);
+    inspirationLevel.value = withSpring(inspirationNormTarget, {
+      damping: 20,
+      stiffness: 165,
+      mass: 0.85,
+    });
+  }, [inspirationLevel, inspirationNormTarget]);
+
+  useEffect(() => {
+    if (rabbitIsInspiring) return;
+    const restingDescent =
+      phase === 'resting' || inValidFeedback
+        ? { damping: 24, stiffness: 95, mass: 1 }
+        : { damping: 22, stiffness: 140, mass: 0.9 };
+    inspirationLevel.value = withSpring(0, restingDescent);
+  }, [inspirationLevel, inValidFeedback, phase, rabbitIsInspiring]);
 
   useEffect(() => {
     if (!inValidFeedback) return;
@@ -233,38 +317,111 @@ export function LevelOneGameView({
   }, [feedbackPulse, inValidFeedback]);
 
   useEffect(() => {
-    if (!showObstacles) {
-      cancelAnimation(obsMountain);
-      cancelAnimation(obsMountainOpacity);
-      obsMountainOpacity.value = 0;
-      obsMountain.value = layoutW + 160;
-      return;
-    }
-
-    const w = layoutW;
-    const duration = 3400;
-
-    cancelAnimation(obsMountain);
-    obsMountainOpacity.value = 0;
-    obsMountainOpacity.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) });
-
-    obsMountain.value = w + 24;
-    obsMountain.value = withTiming(-150, { duration, easing: Easing.linear });
-
-    return () => {
-      cancelAnimation(obsMountain);
-    };
-  }, [layoutW, obsMountain, obsMountainOpacity, showObstacles]);
+    feedbackOverlayOpacity.value = withTiming(showGameFeedback ? 1 : 0, {
+      duration: showGameFeedback ? 220 : 180,
+      easing: Easing.out(Easing.quad),
+    });
+  }, [feedbackOverlayOpacity, showGameFeedback]);
 
   useEffect(() => {
-    if (!inFailedFeedback) return;
-    setFailedObstacleFlash(true);
-    cancelAnimation(obsMountain);
-    obsMountain.value = 40;
-    obsMountainOpacity.value = 1;
-    const t = setTimeout(() => setFailedObstacleFlash(false), 280);
-    return () => clearTimeout(t);
-  }, [inFailedFeedback, obsMountain, obsMountainOpacity]);
+    if (obstacleActive) {
+      metaHillTranslateY.value = 24;
+      metaHillOpacity.value = 0;
+      metaHillTranslateY.value = withTiming(0, {
+        duration: 480,
+        easing: Easing.out(Easing.cubic),
+      });
+      metaHillOpacity.value = withTiming(1, {
+        duration: 400,
+        easing: Easing.out(Easing.cubic),
+      });
+      return;
+    }
+    if (!crashFxVisible) {
+      metaHillOpacity.value = withTiming(0, {
+        duration: 360,
+        easing: Easing.bezier(0.4, 0, 0.6, 1),
+      });
+      metaHillTranslateY.value = withTiming(22, {
+        duration: 360,
+        easing: Easing.in(Easing.cubic),
+      });
+    }
+  }, [crashFxVisible, metaHillOpacity, metaHillTranslateY, obstacleActive, repetition, session]);
+
+  const lastCrashSignalHandledRef = useRef(0);
+
+  const runCrashFx = useCallback(() => {
+    const seq = crashSequenceRef.current + 1;
+    crashSequenceRef.current = seq;
+
+    setCrashFxVisible(true);
+    setCrashToastVisible(true);
+
+    crashPulse.value = 0;
+    crashPulse.value = withSequence(
+      withTiming(1, { duration: 100, easing: Easing.out(Easing.quad) }),
+      withDelay(380, withTiming(0, { duration: 280, easing: Easing.inOut(Easing.quad) })),
+    );
+
+    impactBurst.value = 0;
+    impactBurst.value = withSequence(
+      withTiming(1, { duration: 90, easing: Easing.out(Easing.back(1.6)) }),
+      withDelay(CRASH_UPS_TOAST_MS - 200, withTiming(0, { duration: 220, easing: Easing.in(Easing.quad) })),
+    );
+
+    rabbitKnockbackX.value = withSequence(
+      withTiming(-10, { duration: 70, easing: Easing.out(Easing.quad) }),
+      withSpring(0, { damping: 11, stiffness: 220 }),
+    );
+
+    rabbitSquash.value = withSequence(
+      withTiming(0.88, { duration: 70 }),
+      withSpring(1, { damping: 14, stiffness: 280 }),
+    );
+
+    sceneShakeX.value = withSequence(
+      withTiming(5, { duration: 45 }),
+      withTiming(-4, { duration: 45 }),
+      withTiming(2, { duration: 40 }),
+      withTiming(0, { duration: 50, easing: Easing.out(Easing.quad) }),
+    );
+
+    inspirationLevel.value = withSpring(0, { damping: 18, stiffness: 130 });
+
+    const hideUpsToast = setTimeout(() => {
+      if (crashSequenceRef.current !== seq) return;
+      setCrashToastVisible(false);
+    }, CRASH_UPS_TOAST_MS);
+
+    const endCrashRecover = setTimeout(() => {
+      if (crashSequenceRef.current !== seq) return;
+      setCrashFxVisible(false);
+      metaHillOpacity.value = withTiming(0, { duration: 280, easing: Easing.in(Easing.cubic) });
+      metaHillTranslateY.value = withTiming(16, { duration: 280 });
+    }, CRASH_RECOVER_MS);
+
+    return () => {
+      clearTimeout(hideUpsToast);
+      clearTimeout(endCrashRecover);
+    };
+  }, [
+    crashPulse,
+    impactBurst,
+    inspirationLevel,
+    metaHillOpacity,
+    metaHillTranslateY,
+    rabbitKnockbackX,
+    rabbitSquash,
+    sceneShakeX,
+  ]);
+
+  useEffect(() => {
+    if (liveCrashSignal <= 0) return;
+    if (lastCrashSignalHandledRef.current === liveCrashSignal) return;
+    lastCrashSignalHandledRef.current = liveCrashSignal;
+    return runCrashFx();
+  }, [liveCrashSignal, runCrashFx]);
 
   const mountainStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: mountainX.value }],
@@ -279,15 +436,42 @@ export function LevelOneGameView({
     transform: [{ translateX: nearX.value }],
   }));
 
-  const rabbitStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: bobY.value + jumpOffset.value }, { rotate: `${rabbitRot.value}deg` }],
+  const rabbitStyle = useAnimatedStyle(() => {
+    const lift = interpolate(inspirationLevel.value, [0, 1], [0, -maxVisualLiftPx]);
+    const tilt = interpolate(inspirationLevel.value, [0, 1], [0, -11]);
+    return {
+      transform: [
+        { translateX: rabbitKnockbackX.value },
+        { translateY: bobY.value + lift },
+        { rotate: `${tilt}deg` },
+        { scaleY: rabbitSquash.value },
+        { scaleX: interpolate(rabbitSquash.value, [0.88, 1], [1.06, 1]) },
+      ],
+    };
+  });
+
+  const rabbitShadowStyle = useAnimatedStyle(() => {
+    const lift = interpolate(inspirationLevel.value, [0, 1], [0, -maxVisualLiftPx]);
+    const liftMid = -maxVisualLiftPx * 0.48;
+    return {
+      opacity: interpolate(lift, [0, liftMid, -maxVisualLiftPx], [0.24, 0.15, 0.08]),
+      transform: [
+        { translateX: rabbitKnockbackX.value * 0.5 },
+        { translateY: interpolate(lift, [0, -maxVisualLiftPx], [0, -8]) },
+        { scaleX: interpolate(lift, [0, -maxVisualLiftPx], [1, 0.7]) },
+      ],
+    };
+  });
+
+  const sceneShakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: sceneShakeX.value }],
   }));
 
-  const rabbitShadowStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(jumpOffset.value, [0, -40, -98], [0.2, 0.14, 0.09]),
+  const impactBurstStyle = useAnimatedStyle(() => ({
+    opacity: impactBurst.value,
     transform: [
-      { translateY: interpolate(jumpOffset.value, [0, -98], [0, -5]) },
-      { scaleX: interpolate(jumpOffset.value, [0, -98], [1, 0.78]) },
+      { scale: interpolate(impactBurst.value, [0, 1], [0.4, 1.15]) },
+      { translateY: interpolate(impactBurst.value, [0, 1], [8, -4]) },
     ],
   }));
 
@@ -295,18 +479,30 @@ export function LevelOneGameView({
     transform: [{ scale: 1 + feedbackPulse.value * 0.08 }],
   }));
 
-  const obstacleMountainStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: obsMountain.value }],
-    opacity: obsMountainOpacity.value,
+  const feedbackOverlayStyle = useAnimatedStyle(() => ({
+    opacity: feedbackOverlayOpacity.value,
+    transform: [{ translateY: interpolate(feedbackOverlayOpacity.value, [0, 1], [-8, 0]) }],
+  }));
+
+  const metaHillStyle = useAnimatedStyle(() => ({
+    opacity: metaHillOpacity.value,
+    transform: [{ translateY: metaHillTranslateY.value }],
   }));
 
   const statusHero = (() => {
     if (phase === 'preparing') return 'PREPÁRATE';
-    if (phase === 'ready' || phase === 'holding') return 'SOSTÉN';
+    if (phase === 'ready') return 'LISTO';
+    if (phase === 'inhaling') return 'INSPIRA';
+    if (phase === 'evaluating') {
+      if (!rabbitClearsObstacle) return 'SUBE';
+      return targetReached ? 'META ✓' : 'SOSTÉN';
+    }
     if (phase === 'resting') return 'DESCANSA';
     if (phase === 'exhale') {
       if (attemptFeedback === 'valid') return 'VÁLIDA';
-      if (attemptFeedback === 'failed') return 'SIGUE ASÍ';
+      if (attemptFeedback === 'failed') {
+        return crashToastVisible ? '¡UPS!' : 'EXHALA';
+      }
       return 'EXHALA';
     }
     if (phase === 'session-complete') return 'LISTO';
@@ -323,17 +519,31 @@ export function LevelOneGameView({
       />
       <View style={[styles.playfield, { paddingBottom: Math.max(insets.bottom, 10) + 4 }]}>
         {!introMode ? (
-          <HudDashboard
-            levelLabel={levelLabel}
-            session={session}
-            repetition={repetition}
-            valid={valid}
-            failed={failed}
-            targetVolume={targetVolume}
-            holdSeconds={holdSeconds}
-            estadoLabel={estadoLabel}
-            onPause={onPressStop}
-          />
+          <View style={styles.infoZone}>
+            <HudDashboard
+              levelLabel={levelLabel}
+              session={session}
+              repetition={repetition}
+              valid={valid}
+              failed={failed}
+              targetVolume={targetVolume}
+              showPracticeBadge={isTouchPractice}
+              onPause={onPressStop}
+            />
+            {!isTouchPractice && sensorStatusSlot ? sensorStatusSlot : null}
+            <PhaseStatusStrip
+              title={statusHero}
+              secondary={status.secondary}
+              phase={phase}
+              inFailedFeedback={inFailedFeedback}
+              holdPrepSecondsRemaining={holdPrepSecondsRemaining}
+              inEvaluating={inEvaluating}
+              evalProgress={evalProgress}
+              holdSecondsRemaining={holdSecondsRemaining}
+              rabbitClearsObstacle={rabbitClearsObstacle}
+              estadoLabel={estadoLabel}
+            />
+          </View>
         ) : (
           <View style={styles.introHudRow}>
             <Text style={styles.introHudLevel}>{levelLabel}</Text>
@@ -344,10 +554,9 @@ export function LevelOneGameView({
           </View>
         )}
 
-        {!introMode && sensorStatusSlot ? sensorStatusSlot : null}
-
-        <View style={styles.scene}>
-          <View style={styles.parallaxClip}>
+        <View style={[styles.gameStage, { minHeight: gameSceneMinHeight }]}>
+          <View style={styles.scene}>
+          <Animated.View style={[styles.parallaxClip, sceneShakeStyle]}>
             <Animated.View style={[styles.mountainStrip, mountainStyle]}>
               <MountainSilhouette width={tileW} />
               <MountainSilhouette width={tileW} />
@@ -372,44 +581,74 @@ export function LevelOneGameView({
             </Animated.View>
 
             <View style={styles.runnerLane}>
-              <Animated.View style={[styles.rabbitShadow, rabbitShadowStyle]} />
-              <Animated.View style={[styles.rabbitAnchor, rabbitStyle]}>
-                <RunnerRabbit />
+              <Animated.View
+                style={[
+                  styles.rabbitShadow,
+                  { left: rabbitLeft + Math.round(20 * GAME_VISUAL_SCALE), bottom: RABBIT_ANCHOR_BOTTOM - 8 },
+                  rabbitShadowStyle,
+                ]}
+              />
+              <Animated.View
+                style={[
+                  styles.rabbitAnchor,
+                  { left: rabbitLeft, bottom: RABBIT_ANCHOR_BOTTOM },
+                  rabbitStyle,
+                ]}>
+                <View style={styles.rabbitVisualScale}>
+                  <RunnerRabbit crashed={crashFxVisible} />
+                </View>
               </Animated.View>
 
-              {showObstacles || failedObstacleFlash ? (
-                <Animated.View style={[styles.obstacleSlot, obstacleMountainStyle]}>
-                  <ObstacleMountain />
+              {showGoalBarrier ? (
+                <Animated.View
+                  style={[
+                    styles.metaHillSlot,
+                    {
+                      left: metaHillLeft,
+                      bottom: metaHillBottom,
+                      width: META_HILL_WIDTH,
+                      height: META_HILL_VISUAL_H,
+                    },
+                    metaHillStyle,
+                  ]}>
+                  <InspirationMetaHill
+                    passHeightPx={metaPassVisualPx}
+                    evaluating={inEvaluating}
+                    cleared={rabbitClearsObstacle}
+                    touching={isTouchingGoal}
+                  />
+                </Animated.View>
+              ) : null}
+
+              {crashToastVisible ? (
+                <Animated.View
+                  style={[styles.crashImpactAnchor, { left: collisionImpactLeft }, impactBurstStyle]}
+                  pointerEvents="none">
+                  <CrashImpactFx />
                 </Animated.View>
               ) : null}
             </View>
-          </View>
+          </Animated.View>
 
           {!introMode ? (
-            <View style={styles.phaseBanner}>
-              <Text style={styles.phaseBannerTitle}>{statusHero}</Text>
-              {status.secondary ? <Text style={styles.phaseBannerSub}>{status.secondary}</Text> : null}
-              {phase === 'holding' && !inFailedFeedback ? (
-                <View style={styles.phaseTrack}>
-                  <View style={[styles.phaseFill, { width: `${holdProgress * 100}%` }]} />
+            <Animated.View
+              style={[styles.gameFeedbackOverlay, feedbackOverlayStyle]}
+              pointerEvents="none">
+              {inRest ? (
+                <View style={styles.toastSoft}>
+                  <Text style={styles.toastSoftText}>Descansa · paisaje tranquilo</Text>
                 </View>
               ) : null}
-            </View>
-          ) : null}
-
-          {inRest ? (
-            <View style={styles.toastSoft}>
-              <Text style={styles.toastSoftText}>Descansa · paisaje tranquilo</Text>
-            </View>
-          ) : null}
-          {inFailedFeedback ? (
-            <View style={styles.toastWarn}>
-              <Text style={styles.toastWarnText}>Casi… un poco más la próxima</Text>
-            </View>
-          ) : null}
-          {inValidFeedback ? (
-            <Animated.View style={[styles.toastOk, feedbackStyle]}>
-              <Text style={styles.toastOkText}>Bien hecho</Text>
+              {crashToastVisible ? (
+                <View style={styles.toastWarn}>
+                  <Text style={styles.toastWarnText}>¡Ups! Sube un poco más la próxima</Text>
+                </View>
+              ) : null}
+              {inValidFeedback ? (
+                <Animated.View style={[styles.toastOk, feedbackStyle]}>
+                  <Text style={styles.toastOkText}>Bien hecho</Text>
+                </Animated.View>
+              ) : null}
             </Animated.View>
           ) : null}
 
@@ -428,10 +667,12 @@ export function LevelOneGameView({
               <View style={styles.introCard}>
                 <Text style={styles.introKicker}>Terapia respiratoria</Text>
                 <Text style={styles.introLine}>
-                  Cuando aparezca <Text style={styles.introStrong}>SOSTÉN</Text>, inspira hasta el volumen
-                  objetivo.
+                  Con <Text style={styles.introStrong}>INSPIRA</Text>, sube hasta la meta.
                 </Text>
-                <Text style={styles.introLine}>Al sostener, el conejo salta los obstáculos.</Text>
+                <Text style={styles.introLine}>
+                  Con <Text style={styles.introStrong}>SOSTÉN</Text>, prepárate 2 s y luego supera el
+                  obstáculo 3 s.
+                </Text>
                 <Text style={styles.introLine}>
                   Con <Text style={styles.introStrong}>DESCANSA</Text>, exhala y prepárate otra vez.
                 </Text>
@@ -442,6 +683,7 @@ export function LevelOneGameView({
               </View>
             </View>
           ) : null}
+          </View>
         </View>
 
         {!introMode ? (
@@ -479,26 +721,14 @@ export function LevelOneGameView({
                   <Text style={styles.volumeBarU95}>±{Math.round(displayU95Ml)} mL</Text>
                 ) : null}
               </View>
-              <Text style={styles.volumeBarHint}>
-                {isTouchPractice
-                  ? 'Modo práctica táctil · sin medición del sensor'
-                  : displayVolumeSource === 'sensor'
+              {!isTouchPractice ? (
+                <Text style={styles.volumeBarHint}>
+                  {displayVolumeSource === 'sensor'
                     ? 'Medido con sensor RESPIRA+'
                     : 'Mantén presionado para inspirar · suelta para exhalar'}
-              </Text>
+                </Text>
+              ) : null}
             </Pressable>
-            {officialAttemptValidation ? (
-              <OfficialValidationBanner
-                validation={officialAttemptValidation}
-                sensorStatus={sensorAttemptEvaluation?.status}
-                needsHoldTime={
-                  !isTouchPractice &&
-                  sensorAttemptEvaluation?.reachesTargetConservatively === true &&
-                  (phase === 'holding' || phase === 'ready') &&
-                  holdMs < REQUIRED_HOLD_MS
-                }
-              />
-            ) : null}
           </View>
         ) : null}
       </View>
@@ -506,81 +736,58 @@ export function LevelOneGameView({
   );
 }
 
-function OfficialValidationBanner({
-  validation,
-  sensorStatus,
-  needsHoldTime,
+function PhaseStatusStrip({
+  title,
+  secondary,
+  phase,
+  inFailedFeedback,
+  holdPrepSecondsRemaining,
+  inEvaluating,
+  evalProgress,
+  holdSecondsRemaining,
+  rabbitClearsObstacle,
+  estadoLabel,
 }: {
-  validation: OfficialAttemptValidationResult;
-  sensorStatus?: SensorAttemptEvaluation['status'];
-  needsHoldTime?: boolean;
+  title: string;
+  secondary: string | null;
+  phase: LevelOnePhase;
+  inFailedFeedback: boolean;
+  holdPrepSecondsRemaining: number;
+  inEvaluating: boolean;
+  evalProgress: number;
+  holdSecondsRemaining: number;
+  rabbitClearsObstacle: boolean;
+  estadoLabel: string;
 }) {
-  const modeLabel = officialValidationModeLabel(validation.source);
-  const statusHint = officialValidationStatusHint(validation, sensorStatus);
-  const isTouch = validation.source === 'touch_simulation';
-  const tone =
-    validation.attemptValid || statusHint === 'Objetivo confirmado'
-      ? 'ok'
-      : statusHint === 'Lectura cercana'
-        ? 'warn'
-        : 'muted';
-
-  const toneStyle = {
-    ok: { bg: 'rgba(52, 171, 165, 0.1)', border: 'rgba(52, 171, 165, 0.22)', text: wellness.primaryDark },
-    warn: { bg: 'rgba(201, 162, 39, 0.12)', border: 'rgba(201, 162, 39, 0.32)', text: '#7A5E12' },
-    muted: { bg: 'rgba(61, 90, 74, 0.06)', border: wellness.border, text: wellness.textSecondary },
-  }[tone];
-
-  const subtitle = isTouch
-    ? 'Modo práctica táctil'
-    : statusHint ?? (validation.volumeReached ? 'Sostén para confirmar' : null);
-
   return (
     <View
-      style={[validationBannerStyles.wrap, { backgroundColor: toneStyle.bg, borderColor: toneStyle.border }]}
+      style={styles.phaseStrip}
       accessibilityRole="text"
-      accessibilityLabel={[modeLabel, subtitle, needsHoldTime ? 'Sostén un poco más' : null]
-        .filter(Boolean)
-        .join('. ')}>
-      <Text style={[validationBannerStyles.mode, { color: toneStyle.text }]}>{modeLabel}</Text>
-      {subtitle ? (
-        <Text style={[validationBannerStyles.status, { color: toneStyle.text }]}>{subtitle}</Text>
+      accessibilityLabel={[title, secondary, estadoLabel].filter(Boolean).join('. ')}>
+      <Text style={styles.phaseStripTitle}>{title}</Text>
+      {secondary && phase !== 'inhaling' && !inEvaluating ? (
+        <Text style={styles.phaseStripSub}>{secondary}</Text>
       ) : null}
-      {needsHoldTime ? (
-        <Text style={validationBannerStyles.holdHint}>Sostén un poco más</Text>
+      {phase === 'inhaling' && !inFailedFeedback ? (
+        <Text style={styles.phaseStripSub}>
+          Inspira para subir · {holdPrepSecondsRemaining}s
+        </Text>
+      ) : null}
+      {inEvaluating && !inFailedFeedback ? (
+        <>
+          <View style={styles.phaseTrack}>
+            <View style={[styles.phaseFill, { width: `${evalProgress * 100}%` }]} />
+          </View>
+          <Text style={styles.phaseStripSub}>
+            {rabbitClearsObstacle
+              ? 'Mantente arriba del obstáculo'
+              : 'Sube por encima del obstáculo'}
+          </Text>
+        </>
       ) : null}
     </View>
   );
 }
-
-const validationBannerStyles = StyleSheet.create({
-  wrap: {
-    marginTop: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  mode: {
-    fontSize: 11,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  status: {
-    marginTop: 4,
-    fontSize: 13,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  holdHint: {
-    marginTop: 4,
-    fontSize: 11,
-    fontWeight: '700',
-    color: wellness.primaryDark,
-  },
-});
 
 function HudDashboard({
   levelLabel,
@@ -589,8 +796,7 @@ function HudDashboard({
   valid,
   failed,
   targetVolume,
-  holdSeconds,
-  estadoLabel,
+  showPracticeBadge,
   onPause,
 }: {
   levelLabel: string;
@@ -599,8 +805,7 @@ function HudDashboard({
   valid: number;
   failed: number;
   targetVolume: number;
-  holdSeconds: number;
-  estadoLabel: string;
+  showPracticeBadge?: boolean;
   onPause: () => void;
 }) {
   const BlurOrFallback =
@@ -617,26 +822,26 @@ function HudDashboard({
         <View style={styles.hudSolidOverlay}>
           <View style={styles.hudHeaderRow}>
             <Text style={styles.hudTitleMini}>Sesión activa</Text>
+            {showPracticeBadge ? (
+              <View style={styles.practiceBadge} accessibilityLabel="Modo práctica">
+                <Text style={styles.practiceBadgeText}>Práctica</Text>
+              </View>
+            ) : null}
+            <View style={{ flex: 1 }} />
             <Pressable onPress={onPause} style={styles.hudPause} accessibilityRole="button">
               <Text style={styles.hudPauseText}>Pausar</Text>
             </Pressable>
           </View>
           <View style={styles.hudGrid}>
-            <View style={styles.hudRow2}>
+            <View style={styles.hudRow3}>
               <HudCell compact label="Nivel" value={levelLabel} />
               <HudCell compact label="Sesión" value={`${session}/6`} />
-            </View>
-            <View style={styles.hudRow2}>
               <HudCell compact label="Rep." value={`${repetition}/10`} />
-              <HudCell compact label="Objetivo" value={`${targetVolume} mL`} />
             </View>
-            <View style={styles.hudRow2}>
-              <HudCell label="Válidas" value={String(valid)} accent />
-              <HudCell label="Fallidas" value={String(failed)} />
-            </View>
-            <View style={styles.hudRow2}>
-              <HudCell label="Tiempo" value={`${holdSeconds.toFixed(1)} s`} />
-              <HudCell label="Estado" value={estadoLabel} accent />
+            <View style={styles.hudRow3}>
+              <HudCell compact label="Objetivo" value={`${targetVolume}`} unit="mL" />
+              <HudCell compact label="Válidas" value={String(valid)} accent />
+              <HudCell compact label="Fallidas" value={String(failed)} />
             </View>
           </View>
         </View>
@@ -648,11 +853,13 @@ function HudDashboard({
 function HudCell({
   label,
   value,
+  unit,
   accent,
   compact,
 }: {
   label: string;
   value: string;
+  unit?: string;
   accent?: boolean;
   compact?: boolean;
 }) {
@@ -663,6 +870,7 @@ function HudCell({
         style={[styles.hudCellValue, compact && styles.hudCellValueCompact, accent && styles.hudCellValueAccent]}
         numberOfLines={1}>
         {value}
+        {unit ? <Text style={styles.hudCellUnit}> {unit}</Text> : null}
       </Text>
     </View>
   );
@@ -718,33 +926,80 @@ function NearGroundDecor({ width }: { width: number }) {
   );
 }
 
-/** Montaña que se acerca desde la derecha durante SOSTÉN (mismo ritmo que el fondo lejano). */
-function ObstacleMountain() {
+/**
+ * Colina orgánica: la cima visual coincide con el salto del conejo a norm = 1 (sin etiquetas).
+ */
+function InspirationMetaHill({
+  passHeightPx,
+  evaluating,
+  cleared,
+  touching,
+}: {
+  passHeightPx: number;
+  evaluating: boolean;
+  cleared: boolean;
+  touching: boolean;
+}) {
+  const isAlert = touching || (evaluating && !cleared);
+  const moundHeight = Math.min(passHeightPx + 40, META_HILL_VISUAL_H - 4);
+
+  const slopeColors = isAlert
+    ? (['#8FAF8E', '#6F9174', '#5A7A62', '#4D6B55'] as const)
+    : (['#A8CEB0', '#85B490', '#6B9D78', '#5C8E6A'] as const);
+
   return (
-    <View style={styles.mtnObsWrap} pointerEvents="none">
-      <View style={styles.mtnObsFog} />
-      <View style={styles.mtnObsShadowGround} />
-      <View style={styles.mtnObsPeaks}>
+    <View style={styles.metaHillRoot} pointerEvents="none">
+      <View style={styles.metaHillGroundShadow} />
+
+      <View style={[styles.metaHillMound, { height: moundHeight }]}>
         <LinearGradient
-          colors={['#A8C4B4', '#7A9A86', '#5F7A68']}
-          style={styles.mtnObsPeakLeft}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
+          colors={[...slopeColors]}
+          locations={[0, 0.38, 0.72, 1]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.5, y: 1 }}
+          end={{ x: 0.5, y: 0 }}
         />
         <LinearGradient
-          colors={['#9BB8AA', '#6D8C78', '#4F6A56']}
-          style={styles.mtnObsPeakRight}
+          colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0.06)', 'transparent']}
+          locations={[0, 0.35, 1]}
+          style={styles.metaHillLightFace}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+        />
+        <LinearGradient
+          colors={['transparent', 'rgba(42, 62, 48, 0.12)']}
+          style={styles.metaHillShadeFace}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+        />
+        <LinearGradient
+          colors={['rgba(255,255,255,0.2)', 'transparent']}
+          style={[styles.metaHillSummitBand, { bottom: passHeightPx - 8 }]}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
         />
       </View>
-      <View style={styles.mtnObsRidge} />
+
+      {cleared && evaluating ? (
+        <View style={[styles.metaHillClearedGlow, { bottom: passHeightPx - 10 }]} />
+      ) : null}
+      {touching ? <View style={styles.metaHillContactTint} /> : null}
+    </View>
+  );
+}
+
+function CrashImpactFx() {
+  return (
+    <View style={styles.crashFxWrap} pointerEvents="none">
+      <View style={styles.crashFxPuffOuter} />
+      <View style={styles.crashFxPuffInner} />
+      <Text style={styles.crashFxBoom}>¡Ups!</Text>
     </View>
   );
 }
 
 /** Conejo unificado: una sola jerarquía, proporciones fijas, estilo minimal. */
-function RunnerRabbit() {
+function RunnerRabbit({ crashed = false }: { crashed?: boolean }) {
   const fur = '#FAFAF7';
   const outline = '#7A8A82';
   const innerEar = '#E8B8C8';
@@ -752,16 +1007,33 @@ function RunnerRabbit() {
   return (
     <View style={styles.bunnyRoot} pointerEvents="none">
       <View style={styles.bunnyEarsRow}>
-        <View style={[styles.bunnyEar, { borderColor: outline, backgroundColor: fur }]}>
+        <View
+          style={[
+            styles.bunnyEar,
+            { borderColor: outline, backgroundColor: fur },
+            crashed && styles.bunnyEarCrashed,
+          ]}>
           <View style={[styles.bunnyEarInner, { backgroundColor: innerEar }]} />
         </View>
-        <View style={[styles.bunnyEar, { borderColor: outline, backgroundColor: fur }]}>
+        <View
+          style={[
+            styles.bunnyEar,
+            { borderColor: outline, backgroundColor: fur },
+            crashed && styles.bunnyEarCrashed,
+          ]}>
           <View style={[styles.bunnyEarInner, { backgroundColor: innerEar }]} />
         </View>
       </View>
       <View style={[styles.bunnyTorso, { borderColor: outline, backgroundColor: fur }]}>
         <View style={styles.bunnyBelly} />
-        <View style={styles.bunnyEye} />
+        {crashed ? (
+          <>
+            <View style={styles.bunnyEyeCrashedLeft} />
+            <View style={styles.bunnyEyeCrashedRight} />
+          </>
+        ) : (
+          <View style={styles.bunnyEye} />
+        )}
         <View style={styles.bunnyNose} />
       </View>
       <View style={styles.bunnyFeetRow}>
@@ -775,12 +1047,14 @@ function RunnerRabbit() {
 function getStatusText({
   phase,
   holdSecondsRemaining,
+  holdPrepSecondsRemaining,
   prepSecondsRemaining,
   restSecondsRemaining,
   attemptFeedback,
 }: {
   phase: LevelOnePhase;
   holdSecondsRemaining: number;
+  holdPrepSecondsRemaining: number;
   prepSecondsRemaining: number;
   restSecondsRemaining: number;
   attemptFeedback: 'idle' | 'valid' | 'failed';
@@ -789,10 +1063,13 @@ function getStatusText({
     return { primary: 'Prepárate', secondary: `Listo en ${prepSecondsRemaining}s` };
   }
   if (phase === 'ready') {
-    return { primary: 'Sostén', secondary: 'Inspira y mantén 3 s' };
+    return { primary: 'Listo', secondary: 'Inspira cuando estés preparado' };
   }
-  if (phase === 'holding') {
-    return { primary: 'Sostén', secondary: `Mantén el aire… ${holdSecondsRemaining}s` };
+  if (phase === 'inhaling') {
+    return { primary: 'Inspira', secondary: null };
+  }
+  if (phase === 'evaluating') {
+    return { primary: 'Sostén', secondary: null };
   }
   if (phase === 'exhale') {
     if (attemptFeedback === 'valid') {
@@ -832,6 +1109,11 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     paddingTop: 4,
   },
+  infoZone: {
+    flexShrink: 0,
+    width: '100%',
+    zIndex: 2,
+  },
   hudOuter: {
     borderRadius: 14,
     overflow: 'hidden',
@@ -846,8 +1128,8 @@ const styles = StyleSheet.create({
   hudSolidOverlay: {
     backgroundColor: Platform.OS === 'web' ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.58)',
     paddingHorizontal: 10,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingTop: 6,
+    paddingBottom: 6,
   },
   hudHeaderRow: {
     flexDirection: 'row',
@@ -875,12 +1157,31 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: wellness.primaryDark,
   },
+  practiceBadge: {
+    marginLeft: 8,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(61, 90, 74, 0.08)',
+    borderWidth: 1,
+    borderColor: wellness.border,
+  },
+  practiceBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: wellness.textSecondary,
+    letterSpacing: 0.3,
+  },
   hudGrid: {
-    gap: 6,
+    gap: 5,
   },
   hudRow2: {
     flexDirection: 'row',
     gap: 6,
+  },
+  hudRow3: {
+    flexDirection: 'row',
+    gap: 5,
   },
   hudCell: {
     flex: 1,
@@ -894,9 +1195,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   hudCellCompact: {
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    minHeight: 40,
+    paddingVertical: 4,
+    paddingHorizontal: 7,
+    minHeight: 36,
     borderRadius: 10,
   },
   hudCellAccent: {
@@ -922,6 +1223,11 @@ const styles = StyleSheet.create({
   hudCellValueCompact: {
     fontSize: 12,
     fontWeight: '800',
+  },
+  hudCellUnit: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: wellness.textSecondary,
   },
   hudCellValueAccent: {
     color: wellness.primaryDark,
@@ -949,9 +1255,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: wellness.primaryDark,
   },
+  gameStage: {
+    flex: 1,
+    width: '100%',
+    minHeight: 0,
+  },
   scene: {
     flex: 1,
-    minHeight: 248,
+    width: '100%',
     borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(79, 111, 82, 0.14)',
@@ -1123,6 +1434,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 5,
     pointerEvents: 'box-none',
+    alignItems: 'center',
   },
   gameTouchLayer: {
     ...StyleSheet.absoluteFillObject,
@@ -1130,13 +1442,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   volumeSection: {
-    marginTop: 4,
+    flexShrink: 0,
+    marginTop: 6,
     marginBottom: 2,
   },
   volumeBar: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.96)',
@@ -1181,86 +1494,119 @@ const styles = StyleSheet.create({
   },
   rabbitAnchor: {
     position: 'absolute',
-    left: '18%',
-    bottom: 56,
     zIndex: 8,
+  },
+  rabbitVisualScale: {
+    transform: [{ scale: GAME_VISUAL_SCALE }],
   },
   rabbitShadow: {
     position: 'absolute',
-    left: '18%',
-    marginLeft: 18,
-    bottom: 48,
-    width: 44,
-    height: 9,
+    width: Math.round(44 * GAME_VISUAL_SCALE),
+    height: 10,
     borderRadius: 6,
     backgroundColor: 'rgba(35, 55, 42, 0.2)',
     zIndex: 7,
   },
-  obstacleSlot: {
+  metaHillSlot: {
     position: 'absolute',
-    bottom: 42,
-    left: 0,
     zIndex: 6,
+    overflow: 'visible',
   },
-  mtnObsWrap: {
-    width: 132,
-    height: 86,
+  metaHillRoot: {
+    flex: 1,
+    width: '100%',
     justifyContent: 'flex-end',
-    alignItems: 'center',
   },
-  mtnObsFog: {
+  metaHillGroundShadow: {
     position: 'absolute',
-    bottom: 12,
-    width: 118,
-    height: 54,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-  },
-  mtnObsShadowGround: {
-    position: 'absolute',
-    bottom: 4,
-    width: 108,
+    left: '8%',
+    right: '6%',
+    bottom: 2,
     height: 10,
-    borderRadius: 5,
-    backgroundColor: 'rgba(35, 55, 42, 0.18)',
+    borderRadius: 8,
+    backgroundColor: 'rgba(35, 55, 42, 0.14)',
   },
-  mtnObsPeaks: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    marginBottom: 2,
-    marginLeft: -6,
-  },
-  mtnObsPeakLeft: {
-    width: 46,
-    height: 52,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 10,
-    borderBottomLeftRadius: 6,
-    borderBottomRightRadius: 4,
-    borderWidth: 1.5,
-    borderColor: 'rgba(61, 90, 74, 0.45)',
-    marginRight: -14,
-  },
-  mtnObsPeakRight: {
-    width: 58,
-    height: 68,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 26,
-    borderBottomLeftRadius: 5,
-    borderBottomRightRadius: 8,
-    borderWidth: 1.5,
-    borderColor: 'rgba(52, 72, 58, 0.5)',
-  },
-  mtnObsRidge: {
+  metaHillMound: {
     position: 'absolute',
-    top: 18,
-    right: 28,
-    width: 22,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.45)',
-    opacity: 0.85,
+    left: 0,
+    right: 0,
+    bottom: 8,
+    borderTopLeftRadius: 72,
+    borderTopRightRadius: 56,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 14,
+    overflow: 'hidden',
+  },
+  metaHillLightFace: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: '48%',
+  },
+  metaHillShadeFace: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: '38%',
+  },
+  metaHillSummitBand: {
+    position: 'absolute',
+    left: '12%',
+    right: '14%',
+    height: 20,
+    borderRadius: 12,
+  },
+  metaHillClearedGlow: {
+    position: 'absolute',
+    left: 8,
+    right: 10,
+    height: 26,
+    borderRadius: 16,
+    backgroundColor: 'rgba(52, 171, 165, 0.18)',
+    zIndex: 2,
+  },
+  metaHillContactTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(180, 95, 80, 0.12)',
+    zIndex: 4,
+  },
+  crashImpactAnchor: {
+    position: 'absolute',
+    bottom: 88,
+    zIndex: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  crashFxWrap: {
+    width: 88,
+    height: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  crashFxPuffOuter: {
+    position: 'absolute',
+    width: 72,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+    borderWidth: 2,
+    borderColor: 'rgba(201, 162, 39, 0.35)',
+  },
+  crashFxPuffInner: {
+    position: 'absolute',
+    width: 48,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 235, 200, 0.9)',
+  },
+  crashFxBoom: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#8C3A42',
+    letterSpacing: 0.5,
+    zIndex: 2,
   },
   bunnyRoot: {
     width: 72,
@@ -1314,6 +1660,29 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: '#2C3834',
   },
+  bunnyEyeCrashedLeft: {
+    position: 'absolute',
+    top: 20,
+    left: 12,
+    width: 8,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: '#2C3834',
+    transform: [{ rotate: '18deg' }],
+  },
+  bunnyEyeCrashedRight: {
+    position: 'absolute',
+    top: 20,
+    right: 12,
+    width: 8,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: '#2C3834',
+    transform: [{ rotate: '-18deg' }],
+  },
+  bunnyEarCrashed: {
+    transform: [{ rotate: '-12deg' }],
+  },
   bunnyNose: {
     position: 'absolute',
     top: 26,
@@ -1335,24 +1704,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F2EF',
     borderWidth: 1,
   },
-  phaseBanner: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    right: 12,
+  phaseStrip: {
+    marginTop: 4,
+    marginBottom: 2,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(61, 90, 74, 0.08)',
     alignItems: 'center',
-    zIndex: 20,
-    pointerEvents: 'none',
   },
-  phaseBannerTitle: {
-    fontSize: 20,
+  phaseStripTitle: {
+    fontSize: 17,
     fontWeight: '900',
     color: wellness.primaryDark,
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
-  phaseBannerSub: {
-    marginTop: 4,
-    fontSize: 12,
+  phaseStripSub: {
+    marginTop: 2,
+    fontSize: 11,
     fontWeight: '600',
     color: wellness.textSecondary,
     textAlign: 'center',
@@ -1371,17 +1742,21 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: wellness.primary,
   },
-  toastSoft: {
+  gameFeedbackOverlay: {
     position: 'absolute',
-    top: 96,
+    top: 16,
     left: 12,
+    right: 12,
+    alignItems: 'center',
+    zIndex: 22,
+  },
+  toastSoft: {
     backgroundColor: 'rgba(255,255,255,0.94)',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: wellness.border,
-    zIndex: 18,
   },
   toastSoftText: {
     fontSize: 12,
@@ -1389,16 +1764,12 @@ const styles = StyleSheet.create({
     color: wellness.primaryDark,
   },
   toastWarn: {
-    position: 'absolute',
-    top: 96,
-    left: 12,
     backgroundColor: wellness.errorBg,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: 'rgba(140, 58, 66, 0.2)',
-    zIndex: 18,
   },
   toastWarnText: {
     fontSize: 12,
@@ -1406,16 +1777,12 @@ const styles = StyleSheet.create({
     color: wellness.errorText,
   },
   toastOk: {
-    position: 'absolute',
-    top: 96,
-    right: 12,
     backgroundColor: wellness.successBg,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: wellness.border,
-    zIndex: 18,
   },
   toastOkText: {
     fontSize: 12,

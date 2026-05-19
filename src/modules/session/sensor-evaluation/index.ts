@@ -11,6 +11,7 @@ export type {
   SensorAttemptEvaluationStatus,
 } from '@/src/modules/session/sensor-evaluation/sensor-attempt-evaluation-types';
 export {
+  buildOfficialValidationFromLevelOneRelease,
   evaluateOfficialAttempt,
   officialValidationModeLabel,
   officialValidationStatusHint,

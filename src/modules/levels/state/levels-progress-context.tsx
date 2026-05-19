@@ -12,12 +12,17 @@ import React, {
 } from 'react';
 
 import {
+  clearLevelOneActiveRun,
+  loadLevelOneActiveRun,
+} from '@/src/modules/levels/storage/level-one-active-run-storage';
+import {
   loadLevelsProgress,
   saveLevelsProgress,
 } from '@/src/modules/levels/storage/levels-progress-storage';
 import {
   advanceLevelOneIfCurrentSessionCompleted,
   createInitialLevelsProgress,
+  discardInProgressLevelOneRun,
   prepareLevelOneForNewSessionRun,
   type LevelId,
   type LevelOneProgress,
@@ -33,6 +38,10 @@ type LevelsProgressContextValue = {
   finalizeCurrentLevelOneSession: () => void;
   /** Nueva partida / pantalla sesión: puntero correcto + slot actual en cero (no continúa a medias). */
   prepareFreshLevelOneSessionRun: () => void;
+  /** Descarta reps/interrupción del slot actual sin tocar historial clínico. */
+  discardInProgressLevelOneRun: () => void;
+  /** Borra la marca de partida activa en AsyncStorage (salida limpia). */
+  clearLevelOneActiveRunMarker: () => Promise<void>;
   repeatCurrentLevelOneSession: () => void;
   resetInterruptedCurrentLevelOneSession: () => void;
   interruptCurrentLevelOneSession: () => void;
@@ -64,8 +73,23 @@ export function LevelsProgressProvider({ children }: { children: React.ReactNode
       }
       setIsLoading(true);
       const persisted = await loadLevelsProgress(patientId);
+      const activeRun = await loadLevelOneActiveRun(patientId);
+      const levelOne =
+        activeRun != null
+          ? discardInProgressLevelOneRun(persisted.levelOne)
+          : persisted.levelOne;
+      const merged =
+        levelOne === persisted.levelOne
+          ? persisted
+          : { ...persisted, levelOne };
+      if (activeRun != null) {
+        await clearLevelOneActiveRun(patientId);
+        if (merged !== persisted) {
+          await saveLevelsProgress(patientId, merged);
+        }
+      }
       if (isActive) {
-        setProgress(persisted);
+        setProgress(merged);
         setIsLoading(false);
       }
     };
@@ -121,6 +145,20 @@ export function LevelsProgressProvider({ children }: { children: React.ReactNode
       return { ...prev, levelOne: nextLevelOne };
     });
   }, [updateProgress]);
+
+  const discardInProgressLevelOneRunState = useCallback(() => {
+    updateProgress((prev) => {
+      const nextLevelOne = discardInProgressLevelOneRun(prev.levelOne);
+      if (nextLevelOne === prev.levelOne) return prev;
+      return { ...prev, levelOne: nextLevelOne };
+    });
+  }, [updateProgress]);
+
+  const clearLevelOneActiveRunMarker = useCallback(async () => {
+    const id = patientIdRef.current;
+    if (id == null) return;
+    await clearLevelOneActiveRun(id);
+  }, []);
 
   const repeatCurrentLevelOneSession = useCallback(() => {
     updateProgress((prev) => {
@@ -225,6 +263,8 @@ export function LevelsProgressProvider({ children }: { children: React.ReactNode
       updateLevelOne,
       finalizeCurrentLevelOneSession,
       prepareFreshLevelOneSessionRun,
+      discardInProgressLevelOneRun: discardInProgressLevelOneRunState,
+      clearLevelOneActiveRunMarker,
       repeatCurrentLevelOneSession,
       resetInterruptedCurrentLevelOneSession,
       interruptCurrentLevelOneSession,
@@ -236,6 +276,8 @@ export function LevelsProgressProvider({ children }: { children: React.ReactNode
       updateLevelOne,
       finalizeCurrentLevelOneSession,
       prepareFreshLevelOneSessionRun,
+      discardInProgressLevelOneRunState,
+      clearLevelOneActiveRunMarker,
       repeatCurrentLevelOneSession,
       resetInterruptedCurrentLevelOneSession,
       interruptCurrentLevelOneSession,
