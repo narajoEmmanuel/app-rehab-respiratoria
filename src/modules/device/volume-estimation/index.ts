@@ -34,11 +34,13 @@ export {
 export {
   buildTherapyReadinessGate,
   evaluateTherapyReadinessOnDemand,
+  showDiagnosticPlayModePicker,
   showLevelPlayModePicker,
   showTherapyReadinessAlert,
   therapyReadinessCardStatusLabel,
   volumeEstimationStatusToTherapy,
   type EvaluateTherapyReadinessOnDemandParams,
+  type DiagnosticPlayModePickerOptions,
   type LevelPlayModePickerOptions,
   type TherapyReadinessAlertOptions,
   type TherapyReadinessInputState,
