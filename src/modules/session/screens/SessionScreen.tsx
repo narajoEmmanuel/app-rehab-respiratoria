@@ -5,7 +5,7 @@
  * Notes: Touch adapter is isolated so a WebSocket / WiFi-local sensor adapter can replace it later.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useIsFocused } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -187,6 +187,7 @@ export function SessionScreen() {
     selectedLevelId,
     sessionInputMode,
     String(sessionRunId ?? ''),
+    String(targetVolume),
   ].join('|');
 
   const sensorAttemptEvaluation = useMemo(() => {
@@ -325,30 +326,29 @@ export function SessionScreen() {
     onInhaleEnd: levelOneEngine.onInhaleEnd,
   });
 
-  useEffect(() => {
-    let active = true;
-    setActiveLevelLoaded(false);
-    const loadActiveLevel = async () => {
-      if (!patient) {
-        if (active) {
-          setPatientLevelId(null);
-          setTargetVolume(1200);
-          setActiveLevelLoaded(true);
-        }
-        return;
-      }
-      const activeLevel = await getCurrentActiveLevel(patient.paciente_id);
-      if (active) {
-        setTargetVolume(activeLevel?.target_volume ?? 1200);
-        setPatientLevelId(activeLevel?.patient_level_id ?? null);
-        setActiveLevelLoaded(true);
-      }
-    };
-    void loadActiveLevel();
-    return () => {
-      active = false;
-    };
+  const reloadActiveLevelTargets = useCallback(async () => {
+    if (!patient) {
+      setPatientLevelId(null);
+      setTargetVolume(1200);
+      setActiveLevelLoaded(true);
+      return;
+    }
+    const activeLevel = await getCurrentActiveLevel(patient.paciente_id);
+    setTargetVolume(activeLevel?.target_volume ?? 1200);
+    setPatientLevelId(activeLevel?.patient_level_id ?? null);
+    setActiveLevelLoaded(true);
   }, [patient]);
+
+  useEffect(() => {
+    setActiveLevelLoaded(false);
+    void reloadActiveLevelTargets();
+  }, [reloadActiveLevelTargets]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void reloadActiveLevelTargets();
+    }, [reloadActiveLevelTargets]),
+  );
 
   const sessionEntryScopeKey = [
     patient?.paciente_id ?? '',

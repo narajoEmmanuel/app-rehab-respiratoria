@@ -13,6 +13,12 @@ import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from '
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
+import {
+  evaluateTherapyReadinessOnDemand,
+  showDiagnosticPlayModePicker,
+  showTherapyReadinessAlert,
+  useTherapyReadinessGate,
+} from '@/src/modules/device/volume-estimation';
 import { useCalibrationSnapshot } from '@/src/modules/device/state/use-calibration-snapshot';
 import { getCurrentActiveLevel, hasDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
 import { HomeLastSessionCard } from '@/src/modules/home/components/HomeLastSessionCard';
@@ -153,10 +159,31 @@ export function HomeScreen() {
     router.push('/sensor-connection');
   }, [consentActive, consentUiReady, router]);
 
+  const { lastReading, sensorConnected } = useTherapyReadinessGate();
+
   const goDiagnostico = useCallback(() => {
     onLightImpact();
-    router.push('/diagnostico');
-  }, [router]);
+    showDiagnosticPlayModePicker({
+      onWithSensor: () => {
+        void (async () => {
+          const distanceMm = lastReading?.distanceMm;
+          const distanceIsFinite = typeof distanceMm === 'number' && Number.isFinite(distanceMm);
+          const gate = await evaluateTherapyReadinessOnDemand({
+            distanceMm: sensorConnected && distanceIsFinite ? distanceMm : null,
+            sensorConnected,
+          });
+          if (!gate.canStartTherapy) {
+            showTherapyReadinessAlert(gate, (route) => router.push(route));
+            return;
+          }
+          router.push({ pathname: '/diagnostico', params: { inputMode: 'sensor' } });
+        })();
+      },
+      onPracticeMode: () => {
+        router.push({ pathname: '/diagnostico', params: { inputMode: 'touch_practice' } });
+      },
+    });
+  }, [lastReading?.distanceMm, router, sensorConnected]);
 
   if (!hydrated || !patient) {
     return (

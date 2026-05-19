@@ -25,11 +25,20 @@ export async function hasDiagnostic(patientId: number): Promise<boolean> {
   return diagnostics.some((item) => item.patient_id === patientId);
 }
 
+function compareDiagnosticsNewestFirst(a: DiagnosticRecord, b: DiagnosticRecord): number {
+  const dateDiff = Date.parse(b.diagnostic_date) - Date.parse(a.diagnostic_date);
+  if (dateDiff !== 0 && !Number.isNaN(dateDiff)) return dateDiff;
+  if (b.diagnostic_number !== a.diagnostic_number) {
+    return b.diagnostic_number - a.diagnostic_number;
+  }
+  return b.diagnostic_id - a.diagnostic_id;
+}
+
 export async function getLatestDiagnostic(patientId: number): Promise<DiagnosticRecord | null> {
   const diagnostics = await readAllDiagnostics();
   const patientDiagnostics = diagnostics
     .filter((item) => item.patient_id === patientId)
-    .sort((a, b) => b.diagnostic_number - a.diagnostic_number);
+    .sort(compareDiagnosticsNewestFirst);
   return patientDiagnostics[0] ?? null;
 }
 
@@ -78,6 +87,46 @@ export async function generatePatientLevels(
   await writeAllPatientLevels([...withoutPatient, ...generated]);
   await updatePatientCurrentLevel(patientId, 'level-1');
   return generated;
+}
+
+/** Recalcula metas dinámicas con el VIM más reciente sin reiniciar progreso de niveles. */
+export async function applyDiagnosticVimToPatientLevels(
+  patientId: number,
+  diagnosticId: number,
+  vim: number,
+): Promise<PatientLevelRecord[]> {
+  const all = await readAllPatientLevels();
+  const hasPatientRows = all.some((row) => row.patient_id === patientId);
+  if (!hasPatientRows) {
+    return generatePatientLevels(patientId, diagnosticId, vim);
+  }
+
+  const updated = all.map((row) => {
+    if (row.patient_id !== patientId) return row;
+    const factor = LEVEL_FACTORS.find((lv) => lv.levelId === row.level_id)?.factor ?? 0.5;
+    return {
+      ...row,
+      diagnostic_id: diagnosticId,
+      target_volume: Math.round(vim * factor),
+    };
+  });
+
+  await writeAllPatientLevels(updated);
+  return getPatientLevels(patientId);
+}
+
+/** Persiste diagnóstico oficial y propaga VIM a metas (primera vez o repetición). */
+export async function persistOfficialDiagnosticResult(
+  patientId: number,
+  vim: number,
+): Promise<{ diagnostic: DiagnosticRecord; levels: PatientLevelRecord[] }> {
+  const diagnostic = await createDiagnostic(patientId, vim);
+  const allLevels = await readAllPatientLevels();
+  const hasExistingLevels = allLevels.some((row) => row.patient_id === patientId);
+  const levels = hasExistingLevels
+    ? await applyDiagnosticVimToPatientLevels(patientId, diagnostic.diagnostic_id, vim)
+    : await generatePatientLevels(patientId, diagnostic.diagnostic_id, vim);
+  return { diagnostic, levels };
 }
 
 export async function getPatientLevels(patientId: number): Promise<PatientLevelRecord[]> {

@@ -495,7 +495,12 @@ export function LevelOneGameView({
     if (phase === 'inhaling') return 'INSPIRA';
     if (phase === 'evaluating') {
       if (!rabbitClearsObstacle) return 'SUBE';
-      return targetReached ? 'META ✓' : 'SOSTÉN';
+      if (targetReached) {
+        return holdSecondsRemaining > 0
+          ? `META ✓ · ${holdSecondsRemaining}s`
+          : 'META ✓';
+      }
+      return 'SOSTÉN';
     }
     if (phase === 'resting') return 'DESCANSA';
     if (phase === 'exhale') {
@@ -541,6 +546,7 @@ export function LevelOneGameView({
               evalProgress={evalProgress}
               holdSecondsRemaining={holdSecondsRemaining}
               rabbitClearsObstacle={rabbitClearsObstacle}
+              targetReached={targetReached}
               estadoLabel={estadoLabel}
             />
           </View>
@@ -746,6 +752,7 @@ function PhaseStatusStrip({
   evalProgress,
   holdSecondsRemaining,
   rabbitClearsObstacle,
+  targetReached,
   estadoLabel,
 }: {
   title: string;
@@ -757,6 +764,7 @@ function PhaseStatusStrip({
   evalProgress: number;
   holdSecondsRemaining: number;
   rabbitClearsObstacle: boolean;
+  targetReached: boolean;
   estadoLabel: string;
 }) {
   return (
@@ -779,9 +787,11 @@ function PhaseStatusStrip({
             <View style={[styles.phaseFill, { width: `${evalProgress * 100}%` }]} />
           </View>
           <Text style={styles.phaseStripSub}>
-            {rabbitClearsObstacle
-              ? 'Mantente arriba del obstáculo'
-              : 'Sube por encima del obstáculo'}
+            {targetReached
+              ? `Mantente arriba del obstáculo · ${holdSecondsRemaining}s`
+              : rabbitClearsObstacle
+                ? 'Mantente arriba del obstáculo'
+                : 'Sube por encima del obstáculo'}
           </Text>
         </>
       ) : null}
