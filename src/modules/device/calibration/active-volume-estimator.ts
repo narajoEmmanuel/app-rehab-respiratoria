@@ -247,7 +247,7 @@ export function estimateVolumeFromActiveModel(
     });
   }
 
-  if (!activeModel.isReadyForTherapy) {
+  if (!activeModel.isReadyForTherapy && !activeModel.canEstimateWithinCalibratedRange) {
     return emptyResult({
       ...baseMeta,
       status: 'not_ready_for_therapy',

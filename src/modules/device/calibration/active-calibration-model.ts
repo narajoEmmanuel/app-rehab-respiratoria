@@ -100,15 +100,25 @@ export function hasActiveCalibrationCurveSnapshot(model: ActiveCalibrationModel)
   );
 }
 
+export type BuildActiveCalibrationModelOptions = {
+  /** Diagnóstico: permite modelo si puede estimar volumen aunque no cumpla todos los criterios de terapia. */
+  allowEstimateWithoutTherapyReady?: boolean;
+};
+
 export function buildActiveCalibrationModel(
   params: BuildActiveCalibrationModelParams,
+  options?: BuildActiveCalibrationModelOptions,
 ): ActiveCalibrationModel {
   const { calibrationProfile, recommendation, linearModel, piecewiseModel } = params;
 
   if (recommendation.recommendedKind === 'none') {
     throw new Error(ACTIVATION_ERROR_MESSAGE);
   }
-  if (!recommendation.isReadyForTherapy) {
+  const canActivate =
+    recommendation.isReadyForTherapy ||
+    (options?.allowEstimateWithoutTherapyReady === true &&
+      recommendation.canEstimateWithinCalibratedRange);
+  if (!canActivate) {
     throw new Error(ACTIVATION_ERROR_MESSAGE);
   }
 

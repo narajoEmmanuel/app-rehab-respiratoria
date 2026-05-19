@@ -5,14 +5,14 @@ import {
   useMemo,
   useRef,
   useState,
-  type Dispatch,
-  type MutableRefObject,
-  type SetStateAction,
 } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useActiveVolumeEstimate } from '@/src/modules/device/volume-estimation';
+import {
+  evaluateDiagnosticSensorReadinessOnDemand,
+  showTherapyReadinessAlert,
+} from '@/src/modules/device/volume-estimation';
 import {
   decayDiagnosticVolume,
   simulatedDiagnosticVolumeForHold,
@@ -21,43 +21,44 @@ import {
   isTouchPracticeDiagnostic,
   parseDiagnosticInputMode,
 } from '@/src/modules/diagnostics/diagnostic-input-mode';
+import { useDiagnosticSensorVolume } from '@/src/modules/diagnostics/use-diagnostic-sensor-volume';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellness, wellnessFloatingTabBarInset, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 const TEST_SECONDS = 5;
 const ATTEMPT_MS = TEST_SECONDS * 1000;
 const REST_MS = 7000;
-const TICK_MS = 200;
+const TOUCH_VOLUME_TICK_MS = 50;
+const BALLOON_ANIM_MS = 85;
 const MAX_SIMULATED_VOLUME = 4200;
-const BALLOON_MIN_SCALE = 0.7;
-const BALLOON_MAX_SCALE = 1.35;
+/** Volumen al que el globo alcanza su tamaño visual máximo en pantalla. */
+const BALLOON_VISUAL_MAX_ML = 3200;
+const BALLOON_MIN_SCALE = 0.38;
+const BALLOON_MAX_SCALE = 1.95;
+const BALLOON_BASE_WIDTH = 88;
+const BALLOON_BASE_HEIGHT = 108;
 
 type DiagnosticPhase = 'idle' | 'attempt-1' | 'rest' | 'attempt-2';
 
-function applyVolumeSample(
-  nextMl: number,
-  setCurrentVolume: (v: number) => void,
-  setMaxVolume: Dispatch<SetStateAction<number>>,
-  maxVolumeRef: MutableRefObject<number>,
-  balloonProgress: Animated.Value,
-) {
-  const clamped = Math.max(0, Math.min(MAX_SIMULATED_VOLUME, nextMl));
-  setCurrentVolume(clamped);
-  setMaxVolume((oldMax) => {
-    const nextMax = Math.max(oldMax, clamped);
-    maxVolumeRef.current = nextMax;
-    return nextMax;
-  });
-  const normalized = Math.max(0, Math.min(clamped / MAX_SIMULATED_VOLUME, 1));
+/** Progreso 0–1 con curva perceptual: más contraste entre 0, 1000, 2000 y 3000+ mL. */
+function volumeMlToBalloonProgress(volumeMl: number): number {
+  const linear = Math.max(0, Math.min(volumeMl / BALLOON_VISUAL_MAX_ML, 1));
+  return Math.pow(linear, 0.68);
+}
+
+function updateBalloonScale(balloonProgress: Animated.Value, volumeMl: number): void {
+  const progress = volumeMlToBalloonProgress(volumeMl);
+  balloonProgress.stopAnimation();
   Animated.timing(balloonProgress, {
-    toValue: normalized,
-    duration: TICK_MS + 30,
+    toValue: progress,
+    duration: BALLOON_ANIM_MS,
     useNativeDriver: true,
   }).start();
 }
 
 export function DiagnosticExamScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { inputMode: inputModeParam } = useLocalSearchParams<{ inputMode?: string }>();
   const inputMode = useMemo(() => parseDiagnosticInputMode(inputModeParam), [inputModeParam]);
@@ -71,15 +72,38 @@ export function DiagnosticExamScreen() {
   const [attemptOneMax, setAttemptOneMax] = useState(0);
   const [attemptTwoMax, setAttemptTwoMax] = useState(0);
   const [isPressing, setIsPressing] = useState(false);
+  const [sensorEntryReady, setSensorEntryReady] = useState(isTouchPractice);
   const pressStartedAtRef = useRef<number | null>(null);
   const balloonProgress = useRef(new Animated.Value(0)).current;
   const maxVolumeRef = useRef(0);
   const isPressingRef = useRef(false);
-  const sensorVolumeRef = useRef(0);
+  const phaseDeadlineRef = useRef(0);
+  const timerRafRef = useRef<number | null>(null);
+  const phaseTransitionLockRef = useRef(false);
 
   const inAttempt = phase === 'attempt-1' || phase === 'attempt-2';
-  const { estimate: activeVolumeEstimate } = useActiveVolumeEstimate({
-    enabled: !isTouchPractice && inAttempt,
+
+  const ingestVolumeMl = useCallback(
+    (ml: number) => {
+      const clamped = Math.max(0, Math.min(MAX_SIMULATED_VOLUME, ml));
+      if (clamped > maxVolumeRef.current) {
+        maxVolumeRef.current = clamped;
+        setMaxVolume(clamped);
+      }
+      setCurrentVolume(clamped);
+      updateBalloonScale(balloonProgress, clamped);
+    },
+    [balloonProgress],
+  );
+
+  const {
+    modelReady: sensorModelReady,
+    sensorConnected,
+    spirometerLabel,
+  } = useDiagnosticSensorVolume({
+    enabled: !isTouchPractice,
+    sampling: inAttempt,
+    onVolumeSample: ingestVolumeMl,
   });
 
   useEffect(() => {
@@ -87,60 +111,97 @@ export function DiagnosticExamScreen() {
   }, [isPressing]);
 
   useEffect(() => {
-    if (!isTouchPractice && inAttempt) {
-      sensorVolumeRef.current = activeVolumeEstimate.roundedVolumeMl ?? 0;
-    }
-  }, [activeVolumeEstimate.roundedVolumeMl, inAttempt, isTouchPractice]);
-
-  const balloonScale = useMemo(
-    () =>
-      balloonProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [BALLOON_MIN_SCALE, BALLOON_MAX_SCALE],
-        extrapolate: 'clamp',
-      }),
-    [balloonProgress],
-  );
-
-  const resolveAttemptVolume = useCallback((): number => {
     if (isTouchPractice) {
-      const holdMs = isPressingRef.current && pressStartedAtRef.current != null
-        ? Date.now() - pressStartedAtRef.current
-        : 0;
-      return simulatedDiagnosticVolumeForHold(MAX_SIMULATED_VOLUME, holdMs);
+      setSensorEntryReady(true);
+      return;
     }
-    return Math.max(0, sensorVolumeRef.current);
-  }, [isTouchPractice]);
+    let cancelled = false;
+    void (async () => {
+      const gate = await evaluateDiagnosticSensorReadinessOnDemand({ sensorConnected });
+      if (cancelled) return;
+      if (!gate.canStartDiagnostic) {
+        showTherapyReadinessAlert(gate, (route) => router.replace(route));
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/(tabs)');
+        }
+        return;
+      }
+      setSensorEntryReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isTouchPractice, router, sensorConnected]);
 
+  const armPhaseDeadline = useCallback((durationMs: number) => {
+    phaseDeadlineRef.current = Date.now() + durationMs;
+    setTimeLeftMs(durationMs);
+    setSecondsLeft(Math.ceil(durationMs / 1000));
+  }, []);
+
+  /** Reloj de fase desacoplado del sensor: tiempo real por deadline. */
   useEffect(() => {
     if (phase === 'idle') return;
-    const intervalId = setInterval(() => {
-      setTimeLeftMs((prev) => Math.max(prev - TICK_MS, 0));
 
-      if (phase === 'attempt-1' || phase === 'attempt-2') {
-        const next = resolveAttemptVolume();
-        applyVolumeSample(next, setCurrentVolume, setMaxVolume, maxVolumeRef, balloonProgress);
-      } else {
-        setCurrentVolume((prev) => {
-          const next = decayDiagnosticVolume(prev);
-          const normalized = Math.max(0, Math.min(next / MAX_SIMULATED_VOLUME, 1));
-          Animated.timing(balloonProgress, {
-            toValue: normalized,
-            duration: TICK_MS + 30,
-            useNativeDriver: true,
-          }).start();
-          return next;
-        });
+    const tick = () => {
+      const remaining = Math.max(0, phaseDeadlineRef.current - Date.now());
+      setTimeLeftMs(remaining);
+      setSecondsLeft(Math.max(0, Math.ceil(remaining / 1000)));
+      if (remaining > 0) {
+        timerRafRef.current = requestAnimationFrame(tick);
       }
-    }, TICK_MS);
+    };
 
-    return () => clearInterval(intervalId);
-  }, [balloonProgress, phase, resolveAttemptVolume]);
+    timerRafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (timerRafRef.current != null) {
+        cancelAnimationFrame(timerRafRef.current);
+        timerRafRef.current = null;
+      }
+    };
+  }, [phase]);
+
+  /** Modo práctica: volumen táctil en tick fijo, independiente del reloj. */
+  useEffect(() => {
+    if (!isTouchPractice || !inAttempt) return;
+
+    const id = setInterval(() => {
+      const holdMs =
+        isPressingRef.current && pressStartedAtRef.current != null
+          ? Date.now() - pressStartedAtRef.current
+          : 0;
+      const ml = simulatedDiagnosticVolumeForHold(MAX_SIMULATED_VOLUME, holdMs);
+      ingestVolumeMl(ml);
+    }, TOUCH_VOLUME_TICK_MS);
+
+    return () => clearInterval(id);
+  }, [inAttempt, ingestVolumeMl, isTouchPractice]);
+
+  /** Descanso: decaimiento visual del globo sin afectar el reloj. */
+  useEffect(() => {
+    if (phase !== 'rest') return;
+
+    const id = setInterval(() => {
+      setCurrentVolume((prev) => {
+        const next = decayDiagnosticVolume(prev);
+        updateBalloonScale(balloonProgress, next);
+        return next;
+      });
+    }, TOUCH_VOLUME_TICK_MS);
+
+    return () => clearInterval(id);
+  }, [balloonProgress, phase]);
 
   useEffect(() => {
-    const nextSeconds = Math.ceil(timeLeftMs / 1000);
-    setSecondsLeft(nextSeconds);
+    phaseTransitionLockRef.current = false;
+  }, [phase]);
+
+  useEffect(() => {
     if (phase === 'idle' || timeLeftMs > 0) return;
+    if (phaseTransitionLockRef.current) return;
+    phaseTransitionLockRef.current = true;
 
     if (phase === 'attempt-1') {
       const first = maxVolumeRef.current;
@@ -150,7 +211,7 @@ export function DiagnosticExamScreen() {
       setIsPressing(false);
       pressStartedAtRef.current = null;
       setPhase('rest');
-      setTimeLeftMs(REST_MS);
+      armPhaseDeadline(REST_MS);
       return;
     }
 
@@ -158,8 +219,9 @@ export function DiagnosticExamScreen() {
       maxVolumeRef.current = 0;
       setCurrentVolume(0);
       setMaxVolume(0);
+      updateBalloonScale(balloonProgress, 0);
       setPhase('attempt-2');
-      setTimeLeftMs(ATTEMPT_MS);
+      armPhaseDeadline(ATTEMPT_MS);
       return;
     }
 
@@ -177,32 +239,54 @@ export function DiagnosticExamScreen() {
         },
       });
     }
-  }, [attemptOneMax, inputMode, phase, router, timeLeftMs]);
+  }, [
+    armPhaseDeadline,
+    attemptOneMax,
+    balloonProgress,
+    inputMode,
+    phase,
+    router,
+    timeLeftMs,
+  ]);
 
-  const instruction = useMemo(() => {
+  const balloonScale = useMemo(
+    () =>
+      balloonProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [BALLOON_MIN_SCALE, BALLOON_MAX_SCALE],
+        extrapolate: 'clamp',
+      }),
+    [balloonProgress],
+  );
+
+  const phaseActionLabel = useMemo(() => {
     if (phase === 'attempt-1' || phase === 'attempt-2') {
-      return isTouchPractice
-        ? 'Mantén presionado para inspirar. Suelta para bajar el volumen.'
-        : 'Inhala profundo hacia el sensor';
+      return 'Inhala al máximo';
     }
-    if (phase === 'rest') return 'Descansa y prepárate para el siguiente intento';
+    if (phase === 'rest') return 'Descansa';
+    return 'Diagnóstico respiratorio';
+  }, [phase]);
+
+  const phaseHint = useMemo(() => {
+    if (phase === 'attempt-1') return 'Intento 1 de 2 · 5 segundos';
+    if (phase === 'attempt-2') return 'Intento 2 de 2 · 5 segundos';
+    if (phase === 'rest') return 'Prepárate para la segunda inspiración';
     return isTouchPractice
-      ? 'Prueba el flujo con 2 intentos de 5 segundos. No es una medición real.'
-      : 'Realizaremos 2 intentos de inspiración máxima de 5 segundos cada uno.';
+      ? 'Modo práctica · 2 intentos de 5 s'
+      : '2 intentos de inspiración máxima · 5 s cada uno';
   }, [isTouchPractice, phase]);
 
-  const phaseTitle =
-    phase === 'attempt-1'
-      ? 'Intento 1 de 2'
-      : phase === 'attempt-2'
-        ? 'Intento 2 de 2'
-        : phase === 'rest'
-          ? 'Descanso'
-          : 'Diagnóstico respiratorio';
+  const phaseCommandVariant = useMemo((): 'inhale' | 'rest' | 'idle' => {
+    if (phase === 'rest') return 'rest';
+    if (phase === 'attempt-1' || phase === 'attempt-2') return 'inhale';
+    return 'idle';
+  }, [phase]);
 
   const currentPhaseDuration = phase === 'rest' ? REST_MS : ATTEMPT_MS;
-  const elapsedRatio = 1 - timeLeftMs / currentPhaseDuration;
-  const progressRatio = Math.max(0, Math.min(elapsedRatio, 1));
+  const progressRatio = Math.max(
+    0,
+    Math.min(1, 1 - timeLeftMs / currentPhaseDuration),
+  );
 
   const onPressIn = () => {
     if (!isTouchPractice || !inAttempt) return;
@@ -216,6 +300,22 @@ export function DiagnosticExamScreen() {
     pressStartedAtRef.current = null;
   };
 
+  if (!isTouchPractice && (!sensorEntryReady || !sensorModelReady)) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <AppTopBar
+          showBackButton
+          backFallbackHref="/(tabs)/index"
+          onPressProfile={() => router.push('/profile')}
+        />
+        <View style={styles.centeredLoading}>
+          <ActivityIndicator size="large" color={wellness.primary} />
+          <Text style={styles.loadingText}>Verificando sensor y calibración…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const startAttempt = () => {
     maxVolumeRef.current = 0;
     setAttemptOneMax(0);
@@ -224,102 +324,143 @@ export function DiagnosticExamScreen() {
     setMaxVolume(0);
     setIsPressing(false);
     pressStartedAtRef.current = null;
-    setTimeLeftMs(ATTEMPT_MS);
-    setSecondsLeft(TEST_SECONDS);
     setPhase('attempt-1');
-    Animated.timing(balloonProgress, {
-      toValue: 0,
-      duration: 250,
-      useNativeDriver: true,
-    }).start();
+    armPhaseDeadline(ATTEMPT_MS);
+    updateBalloonScale(balloonProgress, 0);
   };
 
+  const gameCardInner = (
+    <View style={styles.gameCardInner}>
+      <View style={styles.cardTopSection}>
+        <View
+          style={[
+            styles.phaseCommand,
+            phaseCommandVariant === 'inhale' && styles.phaseCommandInhale,
+            phaseCommandVariant === 'rest' && styles.phaseCommandRest,
+          ]}
+          accessibilityRole="header">
+          <Text
+            style={[
+              styles.phaseCommandText,
+              phaseCommandVariant === 'rest' && styles.phaseCommandTextRest,
+            ]}>
+            {phaseActionLabel}
+          </Text>
+          <Text style={styles.phaseCommandHint}>{phaseHint}</Text>
+        </View>
+
+        <View style={styles.timerRow}>
+          <View style={styles.timerBlock}>
+            <Text style={styles.timerLabel}>Tiempo</Text>
+            <Text style={styles.timerValueCompact}>{secondsLeft}s</Text>
+          </View>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${progressRatio * 100}%` }]} />
+          </View>
+        </View>
+
+        {phase !== 'idle' ? (
+          <Text style={styles.activeCardMeta}>
+            {isTouchPractice
+              ? 'Mantén presionado en el globo'
+              : spirometerLabel
+                ? `Medición en vivo · ${spirometerLabel}`
+                : 'Medición en vivo'}
+          </Text>
+        ) : null}
+      </View>
+
+      <View style={styles.balloonZone}>
+        <View style={styles.balloonStage}>
+          <View style={styles.balloonThread} />
+          <Animated.View style={[styles.balloonBody, { transform: [{ scale: balloonScale }] }]}>
+            <View style={styles.balloonHighlight} />
+          </Animated.View>
+        </View>
+      </View>
+
+      <View style={styles.cardBottomSection}>
+        <View style={styles.metricsRow}>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>Volumen actual</Text>
+            <Text style={styles.metricValue}>{Math.round(currentVolume)} mL</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>Máximo intento</Text>
+            <Text style={styles.metricValue}>{Math.round(maxVolume)} mL</Text>
+          </View>
+        </View>
+
+        <View style={styles.attemptsRow}>
+          <View style={[styles.attemptChip, phase === 'attempt-1' && styles.attemptChipActive]}>
+            <Text style={styles.attemptChipLabel}>Intento 1</Text>
+            <Text style={styles.attemptChipValue}>{Math.round(attemptOneMax)} mL</Text>
+          </View>
+          <View style={[styles.attemptChip, phase === 'attempt-2' && styles.attemptChipActive]}>
+            <Text style={styles.attemptChipLabel}>Intento 2</Text>
+            <Text style={styles.attemptChipValue}>{Math.round(attemptTwoMax)} mL</Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+
+  const screenBottomInset = insets.bottom + spacing.md;
+
+  const gameCard = isTouchPractice ? (
+    <Pressable
+      style={styles.gameCardFlexFill}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      disabled={!inAttempt}>
+      {gameCardInner}
+    </Pressable>
+  ) : (
+    <View style={styles.gameCardFlexFill}>{gameCardInner}</View>
+  );
+
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { paddingBottom: screenBottomInset }]} edges={['top']}>
       <AppTopBar
         showBackButton
         backFallbackHref="/(tabs)/index"
         onPressProfile={() => router.push('/profile')}
       />
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Mini juego de diagnóstico</Text>
-        <View style={styles.modeBadgeRow}>
-          <View style={[styles.modeBadge, isTouchPractice && styles.modeBadgePractice]}>
-            <Text style={[styles.modeBadgeText, isTouchPractice && styles.modeBadgeTextPractice]}>
-              {isTouchPractice ? 'Modo práctica' : 'Con sensor'}
-            </Text>
-          </View>
-        </View>
-        <Text style={styles.phaseTitle}>{phaseTitle}</Text>
-        <Text style={styles.subtitle}>{instruction}</Text>
 
+      <View style={styles.contentArea}>
         {phase === 'idle' ? (
-          <Pressable
-            style={({ pressed }) => [styles.primaryBtnTop, pressed && styles.primaryBtnTopPressed]}
-            onPress={startAttempt}
-            accessibilityRole="button"
-            accessibilityLabel="Iniciar intento">
-            <Text style={styles.primaryBtnTopText}>Iniciar intento</Text>
-          </Pressable>
-        ) : null}
-
-        <Pressable
-          onPressIn={onPressIn}
-          onPressOut={onPressOut}
-          disabled={!isTouchPractice || !inAttempt}
-          style={styles.gameCardPressable}>
-          <View style={styles.gameCard}>
-            <View style={styles.timerBadge}>
-              <Text style={styles.timerLabel}>Tiempo restante</Text>
-              <Text style={styles.timerValue}>{secondsLeft}</Text>
-            </View>
-
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${progressRatio * 100}%` }]} />
-            </View>
-
-            <View style={styles.balloonStage}>
-              <View style={styles.balloonThread} />
-              <Animated.View style={[styles.balloonBody, { transform: [{ scale: balloonScale }] }]}>
-                <View style={styles.balloonHighlight} />
-              </Animated.View>
-            </View>
-
-            <View style={styles.metricsRow}>
-              <View style={styles.metricCard}>
-                <Text style={styles.metricLabel}>Volumen actual</Text>
-                <Text style={styles.metricValue}>{Math.round(currentVolume)} mL</Text>
-              </View>
-              <View style={styles.metricCard}>
-                <Text style={styles.metricLabel}>Máximo intento</Text>
-                <Text style={styles.metricValue}>{Math.round(maxVolume)} mL</Text>
+          <View style={styles.headerZone}>
+            <Text style={styles.titleCompact}>Diagnóstico respiratorio</Text>
+            <View style={styles.modeBadgeRow}>
+              <View style={[styles.modeBadge, isTouchPractice && styles.modeBadgePractice]}>
+                <Text
+                  style={[
+                    styles.modeBadgeText,
+                    isTouchPractice && styles.modeBadgeTextPractice,
+                  ]}>
+                  {isTouchPractice ? 'Modo práctica' : 'Con sensor'}
+                </Text>
               </View>
             </View>
-            <View style={styles.attemptsRow}>
-              <View style={styles.attemptChip}>
-                <Text style={styles.attemptChipLabel}>Intento 1</Text>
-                <Text style={styles.attemptChipValue}>{Math.round(attemptOneMax)} mL</Text>
-              </View>
-              <View style={styles.attemptChip}>
-                <Text style={styles.attemptChipLabel}>Intento 2</Text>
-                <Text style={styles.attemptChipValue}>{Math.round(attemptTwoMax)} mL</Text>
-              </View>
-            </View>
-          </View>
-        </Pressable>
-
-        {phase !== 'idle' ? (
-          <View style={styles.runningHintCard}>
-            <Text style={styles.runningHintText}>
-              {phase === 'rest'
-                ? 'Recupera tu respiración. El segundo intento inicia automáticamente.'
-                : isTouchPractice
-                  ? 'Mantén presionado en el globo para llenarlo. Suelta para que baje.'
-                  : 'Sigue inhalando mientras el globo aumenta de tamaño.'}
-            </Text>
+            <Text style={styles.idleIntro}>{phaseHint}</Text>
+            {!isTouchPractice && spirometerLabel ? (
+              <Text style={styles.sensorReadyInline}>Sensor listo · {spirometerLabel}</Text>
+            ) : null}
+            <Pressable
+              style={({ pressed }) => [
+                styles.primaryBtnTop,
+                pressed && styles.primaryBtnTopPressed,
+              ]}
+              onPress={startAttempt}
+              accessibilityRole="button"
+              accessibilityLabel="Iniciar intento">
+              <Text style={styles.primaryBtnTopText}>Empezar diagnóstico</Text>
+            </Pressable>
           </View>
         ) : null}
-      </ScrollView>
+
+        <View style={styles.gameCardShell}>{gameCard}</View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -328,26 +469,45 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: wellness.screenBg,
-    paddingBottom: wellnessFloatingTabBarInset,
   },
-  container: {
-    flexGrow: 1,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    gap: spacing.md,
+  contentArea: {
+    flex: 1,
+    minHeight: 0,
+    paddingHorizontal: spacing.md,
   },
-  title: {
-    fontSize: 30,
+  headerZone: {
+    flexShrink: 0,
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  activeCardMeta: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+    textAlign: 'center',
+  },
+  titleCompact: {
+    fontSize: 22,
     fontWeight: '800',
     color: wellness.text,
+  },
+  idleIntro: {
+    fontSize: 15,
+    lineHeight: 21,
+    color: wellness.textSecondary,
+  },
+  sensorReadyInline: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: wellness.primaryDark,
   },
   modeBadgeRow: {
     flexDirection: 'row',
   },
   modeBadge: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 10,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 8,
     backgroundColor: 'rgba(52, 171, 165, 0.12)',
     borderWidth: 1,
     borderColor: 'rgba(52, 171, 165, 0.28)',
@@ -357,7 +517,7 @@ const styles = StyleSheet.create({
     borderColor: wellness.border,
   },
   modeBadgeText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
     color: wellness.primaryDark,
     letterSpacing: 0.2,
@@ -365,27 +525,26 @@ const styles = StyleSheet.create({
   modeBadgeTextPractice: {
     color: wellness.textSecondary,
   },
-  phaseTitle: {
-    marginTop: spacing.xs,
-    fontSize: 20,
-    fontWeight: '700',
-    color: wellness.primaryDark,
+  centeredLoading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
   },
-  subtitle: {
-    fontSize: 17,
-    lineHeight: 25,
+  loadingText: {
+    fontSize: 16,
     color: wellness.textSecondary,
-    marginBottom: spacing.sm,
+    textAlign: 'center',
   },
   primaryBtnTop: {
     backgroundColor: wellness.primary,
     borderRadius: wellnessRadii.pill,
-    paddingVertical: spacing.md + 6,
-    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 56,
-    marginBottom: spacing.md,
+    minHeight: 50,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
   },
@@ -397,138 +556,197 @@ const styles = StyleSheet.create({
     fontSize: 19,
     fontWeight: '800',
   },
-  gameCardPressable: {
+  gameCardShell: {
+    flex: 1,
+    minHeight: 0,
     width: '100%',
+    alignSelf: 'stretch',
   },
-  gameCard: {
+  gameCardFlexFill: {
+    flex: 1,
+    minHeight: 0,
+    width: '100%',
+    alignSelf: 'stretch',
+  },
+  gameCardInner: {
+    flex: 1,
+    minHeight: 0,
     backgroundColor: wellness.card,
     borderRadius: wellnessRadii.cardLarge,
     borderWidth: 1,
     borderColor: wellness.border,
-    padding: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    justifyContent: 'space-between',
   },
-  timerBadge: {
-    alignSelf: 'center',
+  cardTopSection: {
+    flexShrink: 0,
+    gap: spacing.sm,
+  },
+  cardBottomSection: {
+    flexShrink: 0,
+    gap: spacing.sm,
+    paddingTop: spacing.xs,
+  },
+  phaseCommand: {
+    flexShrink: 0,
+    borderRadius: wellnessRadii.card,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: 'rgba(52, 171, 165, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.22)',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+  },
+  phaseCommandInhale: {
+    backgroundColor: 'rgba(52, 171, 165, 0.14)',
+    borderColor: 'rgba(52, 171, 165, 0.35)',
+  },
+  phaseCommandRest: {
+    backgroundColor: 'rgba(255, 193, 94, 0.12)',
+    borderColor: 'rgba(210, 150, 50, 0.35)',
+  },
+  phaseCommandText: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  phaseCommandTextRest: {
+    color: '#9A6B12',
+  },
+  phaseCommandHint: {
+    marginTop: 2,
+    fontSize: 13,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+    textAlign: 'center',
+  },
+  timerRow: {
+    flexShrink: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  timerBlock: {
+    minWidth: 52,
+    alignItems: 'center',
   },
   timerLabel: {
-    fontSize: 13,
+    fontSize: 10,
     color: wellness.textSecondary,
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    letterSpacing: 0.35,
   },
-  timerValue: {
-    fontSize: 44,
-    lineHeight: 52,
+  timerValueCompact: {
+    fontSize: 28,
+    lineHeight: 32,
     fontWeight: '800',
     color: wellness.primaryDark,
   },
   progressTrack: {
-    width: '100%',
-    height: 10,
+    flex: 1,
+    height: 8,
     borderRadius: wellnessRadii.full,
     backgroundColor: '#E3EEE3',
     overflow: 'hidden',
-    marginBottom: spacing.md,
   },
   progressFill: {
     height: '100%',
     borderRadius: wellnessRadii.full,
     backgroundColor: wellness.primary,
   },
+  balloonZone: {
+    flex: 1,
+    minHeight: 0,
+    overflow: 'hidden',
+    marginVertical: spacing.xs,
+  },
   balloonStage: {
+    flex: 1,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 230,
-    marginBottom: spacing.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
     overflow: 'hidden',
   },
   balloonThread: {
     width: 2,
-    height: 30,
+    height: 18,
     backgroundColor: '#9AB89B',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   balloonBody: {
-    width: 120,
-    height: 148,
-    borderRadius: 60,
+    width: BALLOON_BASE_WIDTH,
+    height: BALLOON_BASE_HEIGHT,
+    borderRadius: BALLOON_BASE_WIDTH / 2,
     backgroundColor: '#7EC8E3',
     borderWidth: 2,
     borderColor: '#5BA8C4',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    paddingTop: 18,
+    paddingTop: 14,
   },
   balloonHighlight: {
-    width: 28,
-    height: 36,
-    borderRadius: 14,
+    width: 22,
+    height: 28,
+    borderRadius: 11,
     backgroundColor: 'rgba(255,255,255,0.45)',
-    marginLeft: -36,
+    marginLeft: -28,
   },
   metricsRow: {
+    flexShrink: 0,
     flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
+    gap: spacing.xs,
   },
   metricCard: {
     flex: 1,
     backgroundColor: wellness.softGreen,
     borderRadius: wellnessRadii.card,
-    padding: spacing.sm,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.sm,
     borderWidth: 1,
     borderColor: wellness.border,
   },
   metricLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: wellness.textSecondary,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   metricValue: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '800',
     color: wellness.text,
   },
   attemptsRow: {
+    flexShrink: 0,
     flexDirection: 'row',
     gap: spacing.sm,
   },
   attemptChip: {
     flex: 1,
     borderRadius: wellnessRadii.card,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    paddingHorizontal: spacing.xs,
     backgroundColor: 'rgba(255,255,255,0.9)',
     borderWidth: 1,
     borderColor: wellness.border,
   },
+  attemptChipActive: {
+    borderColor: wellness.primary,
+    backgroundColor: 'rgba(52, 171, 165, 0.08)',
+  },
   attemptChipLabel: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '600',
     color: wellness.textSecondary,
   },
   attemptChipValue: {
-    marginTop: 2,
-    fontSize: 18,
+    marginTop: 1,
+    fontSize: 15,
     fontWeight: '800',
     color: wellness.primaryDark,
-  },
-  runningHintCard: {
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.card,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    padding: spacing.md,
-  },
-  runningHintText: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: wellness.textSecondary,
-    textAlign: 'center',
   },
 });

@@ -33,12 +33,17 @@ export {
 
 export {
   buildTherapyReadinessGate,
+  evaluateDiagnosticSensorReadinessOnDemand,
   evaluateTherapyReadinessOnDemand,
   showDiagnosticPlayModePicker,
+  showDiagnosticSensorReadyConfirmation,
   showLevelPlayModePicker,
   showTherapyReadinessAlert,
   therapyReadinessCardStatusLabel,
   volumeEstimationStatusToTherapy,
+  type DiagnosticSensorReadinessGate,
+  type DiagnosticSensorReadyConfirmationOptions,
+  type EvaluateDiagnosticSensorReadinessParams,
   type EvaluateTherapyReadinessOnDemandParams,
   type DiagnosticPlayModePickerOptions,
   type LevelPlayModePickerOptions,

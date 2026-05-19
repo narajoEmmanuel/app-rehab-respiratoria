@@ -8,6 +8,7 @@ import {
   CALIBRATION_PROFILE_VERSION,
   type CalibrationProfile,
 } from '@/src/modules/device/calibration/calibration-types';
+import { logCalibrationProfileSaved } from '@/src/modules/device/calibration/diagnostic-calibration-debug';
 import {
   getActiveSpirometerDevice,
   getSpirometerProfileById,
@@ -152,6 +153,7 @@ export async function saveCalibrationProfileForSpirometer(
   map[spirometerDeviceId] = payload;
   try {
     await writeProfilesMap(map);
+    logCalibrationProfileSaved(spirometerDeviceId, payload);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Error desconocido';
     throw new Error(`No se pudo guardar la calibración local: ${message}`);

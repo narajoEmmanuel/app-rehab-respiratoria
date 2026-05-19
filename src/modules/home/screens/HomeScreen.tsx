@@ -14,11 +14,12 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
 import {
-  evaluateTherapyReadinessOnDemand,
+  evaluateDiagnosticSensorReadinessOnDemand,
   showDiagnosticPlayModePicker,
+  showDiagnosticSensorReadyConfirmation,
   showTherapyReadinessAlert,
-  useTherapyReadinessGate,
 } from '@/src/modules/device/volume-estimation';
+import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import { useCalibrationSnapshot } from '@/src/modules/device/state/use-calibration-snapshot';
 import { getCurrentActiveLevel, hasDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
 import { HomeLastSessionCard } from '@/src/modules/home/components/HomeLastSessionCard';
@@ -159,31 +160,42 @@ export function HomeScreen() {
     router.push('/sensor-connection');
   }, [consentActive, consentUiReady, router]);
 
-  const { lastReading, sensorConnected } = useTherapyReadinessGate();
+  const { status: sensorStatus, mode: sensorMode } = useSensorConnection();
+  const sensorConnected =
+    sensorStatus === 'connected' || sensorStatus === 'receiving' || sensorMode === 'mock';
 
   const goDiagnostico = useCallback(() => {
     onLightImpact();
     showDiagnosticPlayModePicker({
       onWithSensor: () => {
         void (async () => {
-          const distanceMm = lastReading?.distanceMm;
-          const distanceIsFinite = typeof distanceMm === 'number' && Number.isFinite(distanceMm);
-          const gate = await evaluateTherapyReadinessOnDemand({
-            distanceMm: sensorConnected && distanceIsFinite ? distanceMm : null,
+          const gate = await evaluateDiagnosticSensorReadinessOnDemand({
             sensorConnected,
+            patientId: patient?.paciente_id ?? null,
           });
-          if (!gate.canStartTherapy) {
-            showTherapyReadinessAlert(gate, (route) => router.push(route));
+          if (!gate.canStartDiagnostic) {
+            showTherapyReadinessAlert(gate, (route) => router.push(route), {
+              onPracticeWithoutSensor: () => {
+                router.push({ pathname: '/diagnostico', params: { inputMode: 'touch_practice' } });
+              },
+              practiceButtonLabel: 'Modo práctica',
+            });
             return;
           }
-          router.push({ pathname: '/diagnostico', params: { inputMode: 'sensor' } });
+          showDiagnosticSensorReadyConfirmation({
+            gate,
+            isRepeat: hasCompletedDiagnostic,
+            onConfirm: () => {
+              router.push({ pathname: '/diagnostico', params: { inputMode: 'sensor' } });
+            },
+          });
         })();
       },
       onPracticeMode: () => {
         router.push({ pathname: '/diagnostico', params: { inputMode: 'touch_practice' } });
       },
     });
-  }, [lastReading?.distanceMm, router, sensorConnected]);
+  }, [hasCompletedDiagnostic, router, sensorConnected, sensorMode, sensorStatus]);
 
   if (!hydrated || !patient) {
     return (

@@ -3,11 +3,16 @@
  */
 import { Alert } from 'react-native';
 
+import {
+  resolveDiagnosticCalibration,
+  type DiagnosticCalibrationBlockReason,
+} from '@/src/modules/device/calibration/diagnostic-calibration-readiness';
 import type { ActiveVolumeEstimateResult } from '@/src/modules/device/calibration/active-volume-estimation-types';
 import {
   deriveVolumeEstimationReadiness,
   estimateVolumeForCurrentSensorReading,
   loadActiveVolumeEstimationContext,
+  type LoadActiveVolumeEstimationContextResult,
 } from '@/src/modules/device/volume-estimation/volume-estimation-service';
 import type {
   ActiveVolumeEstimationContext,
@@ -17,8 +22,20 @@ import type {
 import type {
   TherapyReadinessActionRoute,
   TherapyReadinessGate,
+  TherapyReadinessGateEstimate,
   TherapyReadinessStatus,
 } from '@/src/modules/device/volume-estimation/therapy-readiness-types';
+
+export type DiagnosticSensorReadinessGate = TherapyReadinessGate & {
+  canStartDiagnostic: boolean;
+};
+
+const EMPTY_GATE_ESTIMATE: TherapyReadinessGateEstimate = {
+  estimatedVolumeMl: null,
+  u95Ml: null,
+  inCalibratedRange: false,
+  clamped: false,
+};
 
 export type TherapyReadinessInputState = Pick<
   ActiveVolumeEstimationState,
@@ -282,6 +299,111 @@ export async function evaluateTherapyReadinessOnDemand(
     message: '',
     loadError: null,
   });
+}
+
+function buildDiagnosticSensorReadinessGate(
+  status: TherapyReadinessStatus,
+  loaded: LoadActiveVolumeEstimationContextResult,
+  options?: { notEligibleReason?: string },
+): DiagnosticSensorReadinessGate {
+  const canStart = status === 'ready';
+  const copy = copyForStatus(status);
+  const spirometerLabel = loaded.context.spirometerLabel;
+  const deviceSuffix = spirometerLabel ? ` para ${spirometerLabel}` : '';
+
+  return {
+    status,
+    canStartTherapy: canStart,
+    canStartDiagnostic: canStart,
+    title: canStart ? 'Sensor conectado' : copy.title,
+    message: canStart
+      ? `Calibraci?n activa detectada${deviceSuffix}. Puedes iniciar el diagn?stico con medici?n real.`
+      : (options?.notEligibleReason ?? copy.message),
+    actionLabel: canStart ? null : copy.actionLabel,
+    actionRoute: canStart ? null : copy.actionRoute,
+    estimate: EMPTY_GATE_ESTIMATE,
+    context: gateContextFromVolume(loaded.context),
+  };
+}
+
+export type EvaluateDiagnosticSensorReadinessParams = {
+  spirometerDeviceId?: string;
+  sensorConnected: boolean;
+  patientId?: number | null;
+};
+
+function mapBlockReasonToTherapyStatus(
+  reason: DiagnosticCalibrationBlockReason,
+): TherapyReadinessStatus {
+  switch (reason) {
+    case 'no_spirometer':
+      return 'no_spirometer';
+    case 'sensor_disconnected':
+      return 'sensor_disconnected';
+    case 'no_saved_calibration':
+    case 'no_active_model':
+      return 'no_active_model';
+    case 'model_stale':
+      return 'model_stale';
+    case 'model_missing_curve':
+      return 'missing_curve';
+    case 'model_not_ready':
+    case 'profile_not_eligible':
+    case 'activation_failed':
+      return 'model_not_ready_for_therapy';
+    default:
+      return 'error';
+  }
+}
+
+/** Eval?a si el diagn?stico con sensor puede iniciarse (calibraci?n guardada + modelo usable + sensor). */
+export async function evaluateDiagnosticSensorReadinessOnDemand(
+  params: EvaluateDiagnosticSensorReadinessParams,
+): Promise<DiagnosticSensorReadinessGate> {
+  const audit = await resolveDiagnosticCalibration({
+    preferredSpirometerDeviceId: params.spirometerDeviceId,
+    sensorConnected: params.sensorConnected,
+    patientId: params.patientId,
+  });
+
+  const loaded = await loadActiveVolumeEstimationContext(
+    audit.resolvedSpirometerId ?? params.spirometerDeviceId,
+  );
+
+  if (audit.canStartDiagnostic && audit.activeModel) {
+    return buildDiagnosticSensorReadinessGate('ready', {
+      ...loaded,
+      activeModel: audit.activeModel,
+      isModelStale: false,
+    });
+  }
+
+  const status = audit.blockReason
+    ? mapBlockReasonToTherapyStatus(audit.blockReason)
+    : 'no_active_model';
+
+  return buildDiagnosticSensorReadinessGate(status, loaded, {
+    notEligibleReason: audit.blockDetail ?? undefined,
+  });
+}
+
+export type DiagnosticSensorReadyConfirmationOptions = {
+  gate: DiagnosticSensorReadinessGate;
+  isRepeat: boolean;
+  onConfirm: () => void;
+};
+
+/** Confirmaci?n cuando sensor y calibraci?n est?n listos antes de entrar al diagn?stico. */
+export function showDiagnosticSensorReadyConfirmation(
+  options: DiagnosticSensorReadyConfirmationOptions,
+): void {
+  const { gate, isRepeat, onConfirm } = options;
+  const confirmLabel = isRepeat ? 'Repetir diagn?stico' : 'Iniciar diagn?stico';
+
+  Alert.alert(gate.title, gate.message, [
+    { text: 'Cancelar', style: 'cancel' },
+    { text: confirmLabel, onPress: onConfirm },
+  ]);
 }
 
 export type TherapyReadinessAlertOptions = {

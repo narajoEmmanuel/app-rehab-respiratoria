@@ -8,6 +8,7 @@ import {
   ACTIVE_CALIBRATION_MODEL_VERSION,
   type ActiveCalibrationModel,
 } from '@/src/modules/device/calibration/active-calibration-types';
+import { logActiveCalibrationModelSaved } from '@/src/modules/device/calibration/diagnostic-calibration-debug';
 
 export const ACTIVE_CALIBRATION_BY_SPIROMETER_STORAGE_KEY =
   '@respira_active_calibration_models_by_spirometer_v1';
@@ -90,6 +91,7 @@ export async function saveActiveCalibrationModelForSpirometer(
   map[model.spirometerDeviceId] = payload;
   try {
     await writeModelsMap(map);
+    logActiveCalibrationModelSaved(payload);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Error desconocido';
     throw new Error(`No se pudo guardar el modelo activo: ${message}`);
