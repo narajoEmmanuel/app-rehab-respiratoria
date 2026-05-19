@@ -82,22 +82,20 @@ export function AppTopBar({
           )}
         </View>
 
-        <View style={styles.centerSlot} accessibilityRole="header">
-          <View
-            style={styles.leftBadge}
-            accessibilityRole="image"
-            accessibilityLabel={appBrand.name}>
-            <Image
-              source={appBrand.logo}
-              style={styles.logoImg}
-              resizeMode="contain"
-            />
-          </View>
-          <View style={styles.brandBlock}>
-            <Text style={styles.brandLine} accessibilityLabel="Respira+">
-              <Text style={styles.brandWord}>Respira</Text>
-              <Text style={styles.brandPlus}>+</Text>
-            </Text>
+        <View style={styles.centerSlot}>
+          <View style={styles.brandCluster} accessibilityRole="header">
+            <View
+              style={styles.leftBadge}
+              accessibilityRole="image"
+              accessibilityLabel={appBrand.name}>
+              <Image source={appBrand.logo} style={styles.logoImg} resizeMode="contain" />
+            </View>
+            <View style={styles.brandBlock}>
+              <Text style={styles.brandLine} accessibilityLabel="Respira+">
+                <Text style={styles.brandWord}>Respira</Text>
+                <Text style={styles.brandPlus}>+</Text>
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -147,10 +145,16 @@ const styles = StyleSheet.create({
   },
   centerSlot: {
     flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandCluster: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
+    maxWidth: '100%',
   },
   rightSlot: {
     width: SLOT_WIDTH,
@@ -168,6 +172,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   leftBadge: {
+    flexShrink: 0,
     width: 56,
     height: 38,
     borderRadius: wellnessRadii.full,
@@ -192,6 +197,7 @@ const styles = StyleSheet.create({
     height: 32,
   },
   brandBlock: {
+    flexShrink: 1,
     justifyContent: 'center',
   },
   brandLine: {
