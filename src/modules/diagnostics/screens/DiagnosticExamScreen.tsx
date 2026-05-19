@@ -39,7 +39,17 @@ const BALLOON_MAX_SCALE = 1.95;
 const BALLOON_BASE_WIDTH = 88;
 const BALLOON_BASE_HEIGHT = 108;
 
-type DiagnosticPhase = 'idle' | 'attempt-1' | 'rest' | 'attempt-2';
+type DiagnosticPhase = 'idle' | 'attempt-1' | 'rest' | 'attempt-2' | 'rest-2' | 'attempt-3';
+
+const DIAGNOSTIC_ATTEMPT_COUNT = 3;
+
+function isDiagnosticAttemptPhase(phase: DiagnosticPhase): boolean {
+  return phase === 'attempt-1' || phase === 'attempt-2' || phase === 'attempt-3';
+}
+
+function isDiagnosticRestPhase(phase: DiagnosticPhase): boolean {
+  return phase === 'rest' || phase === 'rest-2';
+}
 
 /** Progreso 0–1 con curva perceptual: más contraste entre 0, 1000, 2000 y 3000+ mL. */
 function volumeMlToBalloonProgress(volumeMl: number): number {
@@ -71,6 +81,7 @@ export function DiagnosticExamScreen() {
   const [maxVolume, setMaxVolume] = useState(0);
   const [attemptOneMax, setAttemptOneMax] = useState(0);
   const [attemptTwoMax, setAttemptTwoMax] = useState(0);
+  const [attemptThreeMax, setAttemptThreeMax] = useState(0);
   const [isPressing, setIsPressing] = useState(false);
   const [sensorEntryReady, setSensorEntryReady] = useState(isTouchPractice);
   const pressStartedAtRef = useRef<number | null>(null);
@@ -81,7 +92,7 @@ export function DiagnosticExamScreen() {
   const timerRafRef = useRef<number | null>(null);
   const phaseTransitionLockRef = useRef(false);
 
-  const inAttempt = phase === 'attempt-1' || phase === 'attempt-2';
+  const inAttempt = isDiagnosticAttemptPhase(phase);
 
   const ingestVolumeMl = useCallback(
     (ml: number) => {
@@ -181,7 +192,7 @@ export function DiagnosticExamScreen() {
 
   /** Descanso: decaimiento visual del globo sin afectar el reloj. */
   useEffect(() => {
-    if (phase !== 'rest') return;
+    if (!isDiagnosticRestPhase(phase)) return;
 
     const id = setInterval(() => {
       setCurrentVolume((prev) => {
@@ -227,13 +238,40 @@ export function DiagnosticExamScreen() {
 
     if (phase === 'attempt-2') {
       const second = maxVolumeRef.current;
-      const finalVim = Math.max(attemptOneMax, second);
       setAttemptTwoMax(second);
+      setCurrentVolume(second);
+      setMaxVolume(second);
+      setIsPressing(false);
+      pressStartedAtRef.current = null;
+      maxVolumeRef.current = 0;
+      setCurrentVolume(0);
+      setMaxVolume(0);
+      updateBalloonScale(balloonProgress, 0);
+      setPhase('rest-2');
+      armPhaseDeadline(REST_MS);
+      return;
+    }
+
+    if (phase === 'rest-2') {
+      maxVolumeRef.current = 0;
+      setCurrentVolume(0);
+      setMaxVolume(0);
+      updateBalloonScale(balloonProgress, 0);
+      setPhase('attempt-3');
+      armPhaseDeadline(ATTEMPT_MS);
+      return;
+    }
+
+    if (phase === 'attempt-3') {
+      const third = maxVolumeRef.current;
+      const finalVim = Math.max(attemptOneMax, attemptTwoMax, third);
+      setAttemptThreeMax(third);
       router.replace({
         pathname: '/diagnostico-resumen',
         params: {
           attempt1: String(attemptOneMax),
-          attempt2: String(second),
+          attempt2: String(attemptTwoMax),
+          attempt3: String(third),
           vim: String(finalVim),
           inputMode,
         },
@@ -242,6 +280,7 @@ export function DiagnosticExamScreen() {
   }, [
     armPhaseDeadline,
     attemptOneMax,
+    attemptTwoMax,
     balloonProgress,
     inputMode,
     phase,
@@ -260,29 +299,31 @@ export function DiagnosticExamScreen() {
   );
 
   const phaseActionLabel = useMemo(() => {
-    if (phase === 'attempt-1' || phase === 'attempt-2') {
+    if (isDiagnosticAttemptPhase(phase)) {
       return 'Inhala al máximo';
     }
-    if (phase === 'rest') return 'Descansa';
+    if (isDiagnosticRestPhase(phase)) return 'Descansa';
     return 'Diagnóstico respiratorio';
   }, [phase]);
 
   const phaseHint = useMemo(() => {
-    if (phase === 'attempt-1') return 'Intento 1 de 2 · 5 segundos';
-    if (phase === 'attempt-2') return 'Intento 2 de 2 · 5 segundos';
+    if (phase === 'attempt-1') return `Intento 1 de ${DIAGNOSTIC_ATTEMPT_COUNT} · 5 segundos`;
+    if (phase === 'attempt-2') return `Intento 2 de ${DIAGNOSTIC_ATTEMPT_COUNT} · 5 segundos`;
+    if (phase === 'attempt-3') return `Intento 3 de ${DIAGNOSTIC_ATTEMPT_COUNT} · 5 segundos`;
     if (phase === 'rest') return 'Prepárate para la segunda inspiración';
+    if (phase === 'rest-2') return 'Prepárate para la tercera inspiración';
     return isTouchPractice
-      ? 'Modo práctica · 2 intentos de 5 s'
-      : '2 intentos de inspiración máxima · 5 s cada uno';
+      ? `Modo práctica · ${DIAGNOSTIC_ATTEMPT_COUNT} intentos de 5 s`
+      : `${DIAGNOSTIC_ATTEMPT_COUNT} intentos de inspiración máxima · 5 s cada uno`;
   }, [isTouchPractice, phase]);
 
   const phaseCommandVariant = useMemo((): 'inhale' | 'rest' | 'idle' => {
-    if (phase === 'rest') return 'rest';
-    if (phase === 'attempt-1' || phase === 'attempt-2') return 'inhale';
+    if (isDiagnosticRestPhase(phase)) return 'rest';
+    if (isDiagnosticAttemptPhase(phase)) return 'inhale';
     return 'idle';
   }, [phase]);
 
-  const currentPhaseDuration = phase === 'rest' ? REST_MS : ATTEMPT_MS;
+  const currentPhaseDuration = isDiagnosticRestPhase(phase) ? REST_MS : ATTEMPT_MS;
   const progressRatio = Math.max(
     0,
     Math.min(1, 1 - timeLeftMs / currentPhaseDuration),
@@ -320,6 +361,7 @@ export function DiagnosticExamScreen() {
     maxVolumeRef.current = 0;
     setAttemptOneMax(0);
     setAttemptTwoMax(0);
+    setAttemptThreeMax(0);
     setCurrentVolume(0);
     setMaxVolume(0);
     setIsPressing(false);
@@ -399,6 +441,10 @@ export function DiagnosticExamScreen() {
           <View style={[styles.attemptChip, phase === 'attempt-2' && styles.attemptChipActive]}>
             <Text style={styles.attemptChipLabel}>Intento 2</Text>
             <Text style={styles.attemptChipValue}>{Math.round(attemptTwoMax)} mL</Text>
+          </View>
+          <View style={[styles.attemptChip, phase === 'attempt-3' && styles.attemptChipActive]}>
+            <Text style={styles.attemptChipLabel}>Intento 3</Text>
+            <Text style={styles.attemptChipValue}>{Math.round(attemptThreeMax)} mL</Text>
           </View>
         </View>
       </View>
@@ -723,13 +769,14 @@ const styles = StyleSheet.create({
   attemptsRow: {
     flexShrink: 0,
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   attemptChip: {
     flex: 1,
+    minWidth: 0,
     borderRadius: wellnessRadii.card,
     paddingVertical: 5,
-    paddingHorizontal: spacing.xs,
+    paddingHorizontal: 4,
     backgroundColor: 'rgba(255,255,255,0.9)',
     borderWidth: 1,
     borderColor: wellness.border,
@@ -739,13 +786,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(52, 171, 165, 0.08)',
   },
   attemptChipLabel: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '600',
     color: wellness.textSecondary,
   },
   attemptChipValue: {
     marginTop: 1,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: wellness.primaryDark,
   },

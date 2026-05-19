@@ -1,5 +1,5 @@
 /**
- * Compuerta de seguridad para iniciar terapia (sensor + modelo activo + estimaci?n en rango).
+ * Compuerta de seguridad para iniciar terapia (sensor + modelo activo + estimación en rango).
  */
 import { Alert } from 'react-native';
 
@@ -109,26 +109,26 @@ function copyForStatus(status: TherapyReadinessStatus): GateCopy {
     case 'loading':
       return {
         canStartTherapy: false,
-        title: 'Preparaci?n necesaria',
-        message: 'Comprobando sensor y calibraci?n���',
+        title: 'Preparación necesaria',
+        message: 'Comprobando sensor y calibración…',
         actionLabel: null,
         actionRoute: null,
       };
     case 'no_spirometer':
       return {
         canStartTherapy: false,
-        title: 'Revisa la calibraci?n',
-        message: 'Selecciona el espir?metro que vas a usar antes de comenzar.',
-        actionLabel: 'Ir a calibraci?n',
+        title: 'Revisa la calibración',
+        message: 'Selecciona el espirómetro que vas a usar antes de comenzar.',
+        actionLabel: 'Ir a calibración',
         actionRoute: '/sensor-calibration',
       };
     case 'no_active_model':
       return {
         canStartTherapy: false,
-        title: 'Revisa la calibraci?n',
+        title: 'Revisa la calibración',
         message:
-          'Antes de iniciar, activa un modelo de calibraci?n para el espir?metro seleccionado.',
-        actionLabel: 'Ir a calibraci?n',
+          'Antes de iniciar, activa un modelo de calibración para el espirómetro seleccionado.',
+        actionLabel: 'Ir a calibración',
         actionRoute: '/sensor-calibration',
       };
     case 'model_stale':
@@ -136,16 +136,16 @@ function copyForStatus(status: TherapyReadinessStatus): GateCopy {
         canStartTherapy: false,
         title: 'Modelo desactualizado',
         message:
-          'El modelo activo est? desactualizado. Revisa la calibraci?n antes de comenzar.',
-        actionLabel: 'Actualizar calibraci?n',
+          'El modelo activo está desactualizado. Revisa la calibración antes de comenzar.',
+        actionLabel: 'Actualizar calibración',
         actionRoute: '/sensor-calibration',
       };
     case 'model_not_ready_for_therapy':
       return {
         canStartTherapy: false,
-        title: 'Revisa la calibraci?n',
-        message: 'Esta actividad requiere sensor y calibraci?n activa.',
-        actionLabel: 'Ir a calibraci?n',
+        title: 'Revisa la calibración',
+        message: 'Esta actividad requiere sensor y calibración activa.',
+        actionLabel: 'Ir a calibración',
         actionRoute: '/sensor-calibration',
       };
     case 'sensor_disconnected':
@@ -159,17 +159,17 @@ function copyForStatus(status: TherapyReadinessStatus): GateCopy {
     case 'invalid_sensor_reading':
       return {
         canStartTherapy: false,
-        title: 'Preparaci?n necesaria',
-        message: 'La lectura del sensor no es v?lida. Revisa la conexi?n antes de comenzar.',
+        title: 'Preparación necesaria',
+        message: 'La lectura del sensor no es válida. Revisa la conexión antes de comenzar.',
         actionLabel: 'Revisar sensor',
         actionRoute: '/sensor-connection',
       };
     case 'missing_curve':
       return {
         canStartTherapy: false,
-        title: 'Revisa la calibraci?n',
-        message: 'El modelo activo requiere reactivaci?n antes de comenzar.',
-        actionLabel: 'Ir a calibraci?n',
+        title: 'Revisa la calibración',
+        message: 'El modelo activo requiere reactivación antes de comenzar.',
+        actionLabel: 'Ir a calibración',
         actionRoute: '/sensor-calibration',
       };
     case 'out_of_range':
@@ -177,8 +177,8 @@ function copyForStatus(status: TherapyReadinessStatus): GateCopy {
         canStartTherapy: false,
         title: 'Lectura fuera de rango',
         message:
-          'La lectura actual est? fuera del rango calibrado. Ajusta el espir?metro o revisa el montaje.',
-        actionLabel: 'Revisar calibraci?n',
+          'La lectura actual está fuera del rango calibrado. Ajusta el espirómetro o revisa el montaje.',
+        actionLabel: 'Revisar calibración',
         actionRoute: '/sensor-calibration',
       };
     case 'ready':
@@ -193,8 +193,8 @@ function copyForStatus(status: TherapyReadinessStatus): GateCopy {
     default:
       return {
         canStartTherapy: false,
-        title: 'Preparaci?n necesaria',
-        message: 'Esta actividad requiere sensor y calibraci?n activa.',
+        title: 'Preparación necesaria',
+        message: 'Esta actividad requiere sensor y calibración activa.',
         actionLabel: 'Conectar sensor',
         actionRoute: '/sensor-connection',
       };
@@ -225,7 +225,7 @@ export function therapyReadinessCardStatusLabel(status: TherapyReadinessStatus):
     case 'sensor_disconnected':
       return 'Conectar sensor';
     case 'no_spirometer':
-      return 'Seleccionar espir?metro';
+      return 'Seleccionar espirómetro';
     case 'no_active_model':
       return 'Sin modelo activo';
     case 'model_stale':
@@ -233,21 +233,21 @@ export function therapyReadinessCardStatusLabel(status: TherapyReadinessStatus):
     case 'model_not_ready_for_therapy':
       return 'Modelo no apto';
     case 'invalid_sensor_reading':
-      return 'Lectura no v?lida';
+      return 'Lectura no válida';
     case 'missing_curve':
       return 'Reactivar modelo';
     case 'out_of_range':
       return 'Fuera de rango';
     case 'loading':
-      return 'Revisando���';
+      return 'Revisando…';
     case 'error':
-      return 'Error de verificaci?n';
+      return 'Error de verificación';
     default:
       return 'Preparar dispositivo';
   }
 }
 
-/** Mapea el estado de estimaci?n al estado de la compuerta (prioridad terapia). */
+/** Mapea el estado de estimación al estado de la compuerta (prioridad terapia). */
 export function volumeEstimationStatusToTherapy(
   volumeStatus: VolumeEstimationReadinessStatus,
   context: ActiveVolumeEstimationContext,
@@ -272,7 +272,7 @@ export type EvaluateTherapyReadinessOnDemandParams = {
   hasUnsavedChanges?: boolean;
 };
 
-/** Eval?a la compuerta al instante (p. ej. tras elegir ?Con sensor?). */
+/** Evalúa la compuerta al instante (p. ej. tras elegir «Con sensor»). */
 export async function evaluateTherapyReadinessOnDemand(
   params: EvaluateTherapyReadinessOnDemandParams,
 ): Promise<TherapyReadinessGate> {
@@ -317,7 +317,7 @@ function buildDiagnosticSensorReadinessGate(
     canStartDiagnostic: canStart,
     title: canStart ? 'Sensor conectado' : copy.title,
     message: canStart
-      ? `Calibraci?n activa detectada${deviceSuffix}. Puedes iniciar el diagn?stico con medici?n real.`
+      ? `Calibración activa detectada${deviceSuffix}. Puedes iniciar el diagnóstico con medición real.`
       : (options?.notEligibleReason ?? copy.message),
     actionLabel: canStart ? null : copy.actionLabel,
     actionRoute: canStart ? null : copy.actionRoute,
@@ -356,7 +356,7 @@ function mapBlockReasonToTherapyStatus(
   }
 }
 
-/** Eval?a si el diagn?stico con sensor puede iniciarse (calibraci?n guardada + modelo usable + sensor). */
+/** Evalúa si el diagnóstico con sensor puede iniciarse (calibración guardada + modelo usable + sensor). */
 export async function evaluateDiagnosticSensorReadinessOnDemand(
   params: EvaluateDiagnosticSensorReadinessParams,
 ): Promise<DiagnosticSensorReadinessGate> {
@@ -393,12 +393,12 @@ export type DiagnosticSensorReadyConfirmationOptions = {
   onConfirm: () => void;
 };
 
-/** Confirmaci?n cuando sensor y calibraci?n est?n listos antes de entrar al diagn?stico. */
+/** Confirmación cuando sensor y calibración están listos antes de entrar al diagnóstico. */
 export function showDiagnosticSensorReadyConfirmation(
   options: DiagnosticSensorReadyConfirmationOptions,
 ): void {
   const { gate, isRepeat, onConfirm } = options;
-  const confirmLabel = isRepeat ? 'Repetir diagn?stico' : 'Iniciar diagn?stico';
+  const confirmLabel = isRepeat ? 'Repetir diagnóstico' : 'Iniciar diagnóstico';
 
   Alert.alert(gate.title, gate.message, [
     { text: 'Cancelar', style: 'cancel' },
@@ -421,35 +421,35 @@ export type DiagnosticPlayModePickerOptions = {
   onPracticeMode: () => void;
 };
 
-const LEVEL_PLAY_MODE_TITLE = '\u00bfC\u00f3mo quieres jugar este nivel?';
+const LEVEL_PLAY_MODE_TITLE = '¿Cómo quieres jugar este nivel?';
 const LEVEL_PLAY_MODE_MESSAGE =
-  'Elige si quieres iniciar una sesi\u00f3n oficial con sensor o practicar sin medici\u00f3n real.';
+  'Elige si quieres iniciar una sesión oficial con sensor o practicar sin medición real.';
 
-const DIAGNOSTIC_PLAY_MODE_TITLE = '\u00bfC\u00f3mo quieres realizar el diagn\u00f3stico?';
+const DIAGNOSTIC_PLAY_MODE_TITLE = '¿Cómo quieres realizar el diagnóstico?';
 const DIAGNOSTIC_PLAY_MODE_MESSAGE =
-  'Con sensor mide tu volumen real. Modo pr\u00e1ctica simula el flujo con el dedo, sin medici\u00f3n cl\u00ednica.';
+  'Con sensor mide tu volumen real. Modo práctica simula el flujo con el dedo, sin medición clínica.';
 
 const TOUCH_PRACTICE_ALERT_NOTE =
-  'Puedes practicar la actividad sin sensor. Esta opci\u00f3n no usa medici\u00f3n real.';
+  'Puedes practicar la actividad sin sensor. Esta opción no usa medición real.';
 
-/** Pop-up tras ?Jugar nivel?: elige Con sensor vs Modo pr?ctica (sin validar calibraci?n). */
+/** Pop-up tras «Jugar nivel»: elige Con sensor vs Modo práctica (sin validar calibración). */
 export function showLevelPlayModePicker(options: LevelPlayModePickerOptions): void {
   const { onWithSensor, onPracticeMode } = options;
 
   Alert.alert(LEVEL_PLAY_MODE_TITLE, LEVEL_PLAY_MODE_MESSAGE, [
     { text: 'Con sensor', onPress: onWithSensor },
-    { text: 'Modo pr\u00e1ctica', onPress: onPracticeMode },
+    { text: 'Modo práctica', onPress: onPracticeMode },
     { text: 'Cancelar', style: 'cancel' },
   ]);
 }
 
-/** Antes de entrar al diagn?stico: sensor oficial vs pr?ctica t?ctil. */
+/** Antes de entrar al diagnóstico: sensor oficial vs práctica táctil. */
 export function showDiagnosticPlayModePicker(options: DiagnosticPlayModePickerOptions): void {
   const { onWithSensor, onPracticeMode } = options;
 
   Alert.alert(DIAGNOSTIC_PLAY_MODE_TITLE, DIAGNOSTIC_PLAY_MODE_MESSAGE, [
     { text: 'Con sensor', onPress: onWithSensor },
-    { text: 'Modo pr\u00e1ctica', onPress: onPracticeMode },
+    { text: 'Modo práctica', onPress: onPracticeMode },
     { text: 'Cancelar', style: 'cancel' },
   ]);
 }
@@ -480,7 +480,7 @@ export function showTherapyReadinessAlert(
 
   if (options?.onPracticeWithoutSensor) {
     buttons.push({
-      text: options.practiceButtonLabel ?? 'Modo pr?ctica',
+      text: options.practiceButtonLabel ?? 'Modo práctica',
       onPress: options.onPracticeWithoutSensor,
     });
   }

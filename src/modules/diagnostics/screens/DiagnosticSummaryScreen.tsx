@@ -16,10 +16,11 @@ import { wellness, wellnessFloatingTabBarInset, wellnessRadii } from '@/src/shar
 export function DiagnosticSummaryScreen() {
   const router = useRouter();
   const { patient } = usePatientSession();
-  const { vim, attempt1, attempt2, inputMode: inputModeParam } = useLocalSearchParams<{
+  const { vim, attempt1, attempt2, attempt3, inputMode: inputModeParam } = useLocalSearchParams<{
     vim?: string;
     attempt1?: string;
     attempt2?: string;
+    attempt3?: string;
     inputMode?: string;
   }>();
   const inputMode = useMemo(() => parseDiagnosticInputMode(inputModeParam), [inputModeParam]);
@@ -27,6 +28,7 @@ export function DiagnosticSummaryScreen() {
   const [saving, setSaving] = useState(false);
   const attemptOne = Math.max(0, Number(attempt1 ?? 0) || 0);
   const attemptTwo = Math.max(0, Number(attempt2 ?? 0) || 0);
+  const attemptThree = Math.max(0, Number(attempt3 ?? 0) || 0);
   const vimNumber = Math.max(0, Number(vim ?? 0) || 0);
 
   const onContinueOfficial = async () => {
@@ -58,7 +60,7 @@ export function DiagnosticSummaryScreen() {
         <Text style={styles.subtitle}>
           {isTouchPractice
             ? 'Estos valores son simulados con el dedo. No se guardan como diagnóstico oficial.'
-            : 'Resultados de tus 2 intentos de inspiración máxima.'}
+            : 'Resultados de tus 3 intentos de inspiración máxima.'}
         </Text>
 
         {isTouchPractice ? (
@@ -79,6 +81,11 @@ export function DiagnosticSummaryScreen() {
           <View style={styles.resultRow}>
             <Text style={styles.resultLabel}>Intento 2</Text>
             <Text style={styles.resultValue}>{Math.round(attemptTwo)} mL</Text>
+          </View>
+          <View style={styles.resultDivider} />
+          <View style={styles.resultRow}>
+            <Text style={styles.resultLabel}>Intento 3</Text>
+            <Text style={styles.resultValue}>{Math.round(attemptThree)} mL</Text>
           </View>
           <View style={styles.finalVimWrap}>
             <Text style={styles.finalVimLabel}>VIM {isTouchPractice ? 'simulado' : 'final'}</Text>
