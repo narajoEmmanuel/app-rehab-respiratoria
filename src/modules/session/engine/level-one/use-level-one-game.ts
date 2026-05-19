@@ -1,45 +1,67 @@
 /**
- * Purpose: Level 1 gameplay engine for touch-simulated breathing.
- * Module: session/engine/level-one
- * Dependencies: react, levels/types
- * Notes: Pure gameplay transitions with UI-agnostic state.
+ * Motor Nivel 1: ascenso 2 s → sostén oficial 3 s (obstáculo) → resultado → descanso.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
+import {
+  createLevelOneAttemptRuntime,
+  enterOfficialEvalPhase,
+  evaluateLevelOneAttemptComplete,
+  evaluateLevelOneAttemptRelease,
+  LEVEL_ONE_ASCENT_MS,
+  LEVEL_ONE_OFFICIAL_EVAL_MS,
+  type LevelOneAttemptRuntime,
+  type LevelOneFailReason,
+  tickLevelOneRepetition,
+} from '@/src/modules/session/engine/level-one/level-one-repetition-rules';
+import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
 import type {
   LevelOneProgress,
   LevelOneSessionProgress,
 } from '@/src/modules/levels/types/level-progress';
 
-const REQUIRED_HOLD_MS = 3000;
 const REST_MS = 3000;
 const PREP_MS = 3000;
+const FAILED_EXHALE_MS = 2100;
+const VALID_EXHALE_MS = 700;
 const MAX_REPS = 10;
+const HOLD_TICK_MS = 100;
+
 export type LevelOnePhase =
   | 'not-started'
   | 'preparing'
   | 'ready'
-  | 'holding'
+  | 'inhaling'
+  | 'hold-prep'
+  | 'evaluating'
   | 'exhale'
   | 'resting'
   | 'session-complete'
   | 'interrupted'
   | 'level-complete';
 
+export type OfficialAttemptReleasePayload = {
+  heldMs: number;
+  sustainMs: number;
+  targetReached: boolean;
+  peakNorm: number;
+  liveFail: LevelOneFailReason | null;
+};
+
 export type OfficialAttemptReleaseResolution = {
   valid: boolean;
+  failReason?: LevelOneFailReason | null;
 };
 
 type UseLevelOneGameParams = {
   progress: LevelOneProgress;
   onProgressChange: (updater: (prev: LevelOneProgress) => LevelOneProgress) => void;
   onAttemptResolved?: (payload: { valid: boolean; holdMs: number }) => void;
-  /**
-   * Criterio oficial al soltar (p. ej. volumen sensor + tiempo).
-   * Si no se define, solo se exige REQUIRED_HOLD_MS (comportamiento legacy).
-   */
-  resolveOfficialAttemptOnRelease?: (heldMs: number) => OfficialAttemptReleaseResolution;
-  /** Al cambiar (paciente distinto o nueva partida), el motor vuelve a `not-started` antes del pintado. */
+  getInspirationNorm?: () => number;
+  sessionInputMode?: SessionInputMode;
+  resolveOfficialAttemptOnRelease?: (
+    payload: OfficialAttemptReleasePayload,
+  ) => OfficialAttemptReleaseResolution;
   engineScopeKey?: string;
 };
 
@@ -49,24 +71,35 @@ export function useLevelOneGame({
   progress,
   onProgressChange,
   onAttemptResolved,
+  getInspirationNorm,
+  sessionInputMode = 'sensor',
   resolveOfficialAttemptOnRelease,
   engineScopeKey,
 }: UseLevelOneGameParams) {
   const [phase, setPhase] = useState<LevelOnePhase>('not-started');
   const [countdownMs, setCountdownMs] = useState(PREP_MS);
+  const [phaseCountdownMs, setPhaseCountdownMs] = useState(LEVEL_ONE_ASCENT_MS);
   const [holdMs, setHoldMs] = useState(0);
+  const [clearMs, setClearMs] = useState(0);
+  const [obstacleActive, setObstacleActive] = useState(false);
+  const [everClearedObstacle, setEverClearedObstacle] = useState(false);
   const [attemptFeedback, setAttemptFeedback] = useState<AttemptFeedback>('idle');
+  const [lastFailReason, setLastFailReason] = useState<LevelOneFailReason | null>(null);
+  const [liveCrashSignal, setLiveCrashSignal] = useState(0);
 
   const holdStartRef = useRef<number | null>(null);
+  const attemptRuntimeRef = useRef<LevelOneAttemptRuntime>(createLevelOneAttemptRuntime());
+  const liveFailRef = useRef<LevelOneFailReason | null>(null);
   const attemptEndedSessionRef = useRef(false);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const holdTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingPrepReadyRef = useRef(false);
   const pendingRestAdvanceRef = useRef(false);
+  const attemptClosedRef = useRef(false);
 
   const currentSessionData = useMemo<LevelOneSessionProgress | undefined>(
     () => progress.sessions[progress.currentSession - 1],
-    [progress.currentSession, progress.sessions]
+    [progress.currentSession, progress.sessions],
   );
 
   const clearTimers = useCallback(() => {
@@ -80,15 +113,27 @@ export function useLevelOneGame({
     }
   }, []);
 
+  const resetAttemptRuntime = useCallback(() => {
+    attemptRuntimeRef.current = createLevelOneAttemptRuntime();
+    liveFailRef.current = null;
+    attemptClosedRef.current = false;
+    setClearMs(0);
+    setObstacleActive(false);
+    setEverClearedObstacle(false);
+    setLastFailReason(null);
+    setPhaseCountdownMs(LEVEL_ONE_ASCENT_MS);
+  }, []);
+
   const stopSession = useCallback(() => {
     clearTimers();
     holdStartRef.current = null;
     setHoldMs(0);
+    resetAttemptRuntime();
     setAttemptFeedback('idle');
     attemptEndedSessionRef.current = false;
     setCountdownMs(PREP_MS);
     setPhase('not-started');
-  }, [clearTimers]);
+  }, [clearTimers, resetAttemptRuntime]);
 
   useLayoutEffect(() => {
     if (engineScopeKey === undefined) return;
@@ -103,9 +148,10 @@ export function useLevelOneGame({
     attemptEndedSessionRef.current = false;
     setAttemptFeedback('idle');
     setHoldMs(0);
+    resetAttemptRuntime();
     setCountdownMs(PREP_MS);
     setPhase('preparing');
-  }, [clearTimers]);
+  }, [clearTimers, resetAttemptRuntime]);
 
   const startSession = useCallback(() => {
     if (phase === 'not-started') {
@@ -141,8 +187,8 @@ export function useLevelOneGame({
     });
   }, [onProgressChange]);
 
-  const closeAttempt = useCallback(
-    (valid: boolean, heldMs: number) => {
+  const finishAttempt = useCallback(
+    (valid: boolean, heldMs: number, failReason: LevelOneFailReason | null, triggerLiveCrash: boolean) => {
       onProgressChange((prev) => {
         const sessionIndex = prev.currentSession - 1;
         const session = prev.sessions[sessionIndex];
@@ -159,8 +205,7 @@ export function useLevelOneGame({
 
         const sessions = [...prev.sessions];
         sessions[sessionIndex] = updatedSession;
-        attemptEndedSessionRef.current =
-          sessionCompletedNow;
+        attemptEndedSessionRef.current = sessionCompletedNow;
 
         return {
           ...prev,
@@ -170,13 +215,171 @@ export function useLevelOneGame({
         };
       });
 
+      setObstacleActive(false);
+      setLastFailReason(failReason);
       setAttemptFeedback(valid ? 'valid' : 'failed');
       setHoldMs(heldMs);
+      if (triggerLiveCrash) {
+        setLiveCrashSignal((n) => n + 1);
+      }
       setPhase('exhale');
       onAttemptResolved?.({ valid, holdMs: heldMs });
     },
-    [onAttemptResolved, onProgressChange]
+    [onAttemptResolved, onProgressChange],
   );
+
+  const stopAttemptTick = useCallback(() => {
+    holdStartRef.current = null;
+    if (holdTickRef.current) {
+      clearInterval(holdTickRef.current);
+      holdTickRef.current = null;
+    }
+  }, []);
+
+  const resolveAndCloseAttempt = useCallback(
+    (heldMs: number, options?: { releasedDuringEval?: boolean; liveFailOverride?: LevelOneFailReason }) => {
+      if (attemptClosedRef.current) {
+        return;
+      }
+      attemptClosedRef.current = true;
+      stopAttemptTick();
+
+      const runtime = attemptRuntimeRef.current;
+      const liveFail = options?.liveFailOverride ?? liveFailRef.current;
+
+      const releaseEval =
+        runtime.subPhase === 'official_eval' && !options?.releasedDuringEval
+          ? evaluateLevelOneAttemptComplete({ runtime, liveFail, inputMode: sessionInputMode })
+          : evaluateLevelOneAttemptRelease({
+              runtime,
+              liveFail,
+              inputMode: sessionInputMode,
+              releasedDuringEval: options?.releasedDuringEval,
+            });
+
+      const custom = resolveOfficialAttemptOnRelease?.({
+        heldMs,
+        sustainMs: runtime.clearMs,
+        targetReached: runtime.everClearedObstacle,
+        peakNorm: runtime.peakNorm,
+        liveFail,
+      });
+
+      const valid = custom !== undefined ? custom.valid : releaseEval.valid;
+      const failReason =
+        custom?.failReason !== undefined
+          ? custom.failReason
+          : valid
+            ? null
+            : releaseEval.failReason;
+
+      const shouldCrash =
+        !valid &&
+        (liveFail === 'hit_obstacle' ||
+          liveFail === 'released_during_eval' ||
+          options?.releasedDuringEval === true);
+
+      finishAttempt(valid, heldMs, failReason ?? releaseEval.failReason, shouldCrash);
+    },
+    [finishAttempt, resolveOfficialAttemptOnRelease, sessionInputMode, stopAttemptTick],
+  );
+
+  const beginOfficialEval = useCallback(() => {
+    attemptRuntimeRef.current = enterOfficialEvalPhase(attemptRuntimeRef.current);
+    setPhase('evaluating');
+    setPhaseCountdownMs(LEVEL_ONE_OFFICIAL_EVAL_MS);
+    setObstacleActive(true);
+  }, []);
+
+  const runAttemptTick = useCallback(() => {
+    if (attemptClosedRef.current) return;
+
+    const startedAt = holdStartRef.current;
+    if (!startedAt) return;
+
+    const elapsed = Date.now() - startedAt;
+    setHoldMs(elapsed);
+
+    const norm = getInspirationNorm?.() ?? 0;
+    const runtime = attemptRuntimeRef.current;
+
+    if (runtime.subPhase === 'ascending') {
+      const tick = tickLevelOneRepetition(runtime, norm, HOLD_TICK_MS);
+      attemptRuntimeRef.current = tick.runtime;
+      setPhaseCountdownMs(
+        Math.max(0, LEVEL_ONE_ASCENT_MS - tick.runtime.subPhaseElapsedMs),
+      );
+
+      if (tick.shouldBeginOfficialEval) {
+        beginOfficialEval();
+        return;
+      }
+    } else if (runtime.subPhase === 'official_eval') {
+      const tick = tickLevelOneRepetition(runtime, norm, HOLD_TICK_MS);
+      attemptRuntimeRef.current = tick.runtime;
+      setClearMs(tick.runtime.clearMs);
+      setEverClearedObstacle(tick.runtime.everClearedObstacle);
+      setPhaseCountdownMs(
+        Math.max(0, LEVEL_ONE_OFFICIAL_EVAL_MS - tick.runtime.subPhaseElapsedMs),
+      );
+
+      if (tick.liveFail) {
+        liveFailRef.current = tick.liveFail;
+        setObstacleActive(false);
+        resolveAndCloseAttempt(elapsed, { liveFailOverride: tick.liveFail });
+        return;
+      }
+
+      if (tick.runtime.subPhaseElapsedMs >= LEVEL_ONE_OFFICIAL_EVAL_MS) {
+        setObstacleActive(false);
+        resolveAndCloseAttempt(elapsed);
+      }
+    }
+  }, [
+    beginOfficialEval,
+    getInspirationNorm,
+    resolveAndCloseAttempt,
+    stopAttemptTick,
+  ]);
+
+  const onInhaleStart = useCallback(() => {
+    if (phase !== 'ready') {
+      return;
+    }
+
+    setAttemptFeedback('idle');
+    resetAttemptRuntime();
+    setHoldMs(0);
+    setPhase('inhaling');
+    setObstacleActive(false);
+    holdStartRef.current = Date.now();
+
+    holdTickRef.current = setInterval(() => {
+      runAttemptTick();
+    }, HOLD_TICK_MS);
+  }, [phase, resetAttemptRuntime, runAttemptTick]);
+
+  const onInhaleEnd = useCallback(() => {
+    if (phase !== 'inhaling' && phase !== 'evaluating') {
+      return;
+    }
+    if (attemptClosedRef.current) {
+      return;
+    }
+
+    const startedAt = holdStartRef.current;
+    const elapsed = startedAt ? Date.now() - startedAt : 0;
+    const currentPhase = phase;
+
+    if (currentPhase === 'evaluating') {
+      liveFailRef.current = 'released_during_eval';
+      setObstacleActive(false);
+      resolveAndCloseAttempt(elapsed, { releasedDuringEval: true });
+      return;
+    }
+
+    resolveAndCloseAttempt(elapsed, { releasedDuringEval: false });
+  }, [phase, resolveAndCloseAttempt]);
 
   useEffect(() => {
     if (phase !== 'preparing' || !pendingPrepReadyRef.current) {
@@ -194,46 +397,6 @@ export function useLevelOneGame({
     advanceRepetition();
     setPhase('ready');
   }, [advanceRepetition, phase, countdownMs]);
-
-  const onInhaleStart = useCallback(() => {
-    if (phase !== 'ready') {
-      return;
-    }
-
-    setAttemptFeedback('idle');
-    setHoldMs(0);
-    setPhase('holding');
-    holdStartRef.current = Date.now();
-
-    holdTickRef.current = setInterval(() => {
-      const startedAt = holdStartRef.current;
-      if (!startedAt) {
-        return;
-      }
-      const elapsed = Date.now() - startedAt;
-      setHoldMs(elapsed);
-    }, 100);
-  }, [phase]);
-
-  const onInhaleEnd = useCallback(() => {
-    if (phase !== 'holding') {
-      return;
-    }
-
-    const startedAt = holdStartRef.current;
-    const elapsed = startedAt ? Date.now() - startedAt : 0;
-    holdStartRef.current = null;
-
-    if (holdTickRef.current) {
-      clearInterval(holdTickRef.current);
-      holdTickRef.current = null;
-    }
-
-    const official = resolveOfficialAttemptOnRelease?.(elapsed);
-    const valid =
-      official !== undefined ? official.valid : elapsed >= REQUIRED_HOLD_MS;
-    closeAttempt(valid, elapsed);
-  }, [closeAttempt, phase, resolveOfficialAttemptOnRelease]);
 
   useEffect(() => {
     if (progress.levelCompleted) {
@@ -267,6 +430,7 @@ export function useLevelOneGame({
     }
 
     if (phase === 'exhale') {
+      const exhaleDelayMs = attemptFeedback === 'failed' ? FAILED_EXHALE_MS : VALID_EXHALE_MS;
       const timeout = setTimeout(() => {
         if (attemptEndedSessionRef.current) {
           attemptEndedSessionRef.current = false;
@@ -275,12 +439,13 @@ export function useLevelOneGame({
         }
         setPhase('resting');
         setCountdownMs(REST_MS);
-      }, 700);
+      }, exhaleDelayMs);
 
       return () => clearTimeout(timeout);
     }
 
     if (phase === 'resting') {
+      setObstacleActive(false);
       countdownRef.current = setInterval(() => {
         setCountdownMs((prev) => {
           const next = prev - 1000;
@@ -311,26 +476,43 @@ export function useLevelOneGame({
       }
     };
   }, [
-    advanceRepetition,
+    attemptFeedback,
     clearTimers,
     currentSessionData?.completed,
     phase,
     progress,
-    restartCurrentSession,
   ]);
 
   useEffect(() => () => clearTimers(), [clearTimers]);
 
-  const holdSecondsRemaining = Math.max(0, Math.ceil((REQUIRED_HOLD_MS - holdMs) / 1000));
+  const evalSecondsRemaining = Math.max(0, Math.ceil(phaseCountdownMs / 1000));
+  const ascentSecondsRemaining =
+    phase === 'inhaling'
+      ? Math.max(0, Math.ceil((LEVEL_ONE_ASCENT_MS - holdMs) / 1000))
+      : 0;
+  const holdPrepSecondsRemaining = ascentSecondsRemaining;
+  const sustainSecondsRemaining =
+    phase === 'evaluating' ? evalSecondsRemaining : 0;
   const restSecondsRemaining = Math.max(0, Math.ceil(countdownMs / 1000));
   const prepSecondsRemaining = Math.max(0, Math.ceil(countdownMs / 1000));
 
   return {
     phase,
     holdMs,
+    sustainMs: clearMs,
+    clearMs,
+    targetReached: everClearedObstacle,
+    everClearedObstacle,
+    obstacleActive,
+    lastFailReason,
     attemptFeedback,
+    liveCrashSignal,
     currentSessionData,
-    holdSecondsRemaining,
+    holdSecondsRemaining: sustainSecondsRemaining,
+    holdPrepSecondsRemaining,
+    ascentSecondsRemaining,
+    sustainSecondsRemaining,
+    evalSecondsRemaining,
     restSecondsRemaining,
     prepSecondsRemaining,
     onInhaleStart,

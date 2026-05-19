@@ -4,7 +4,7 @@
  * Dependencies: expo-router, levels persistence, game engine
  * Notes: Touch adapter is isolated so a WebSocket / WiFi-local sensor adapter can replace it later.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useIsFocused } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -14,9 +14,17 @@ import { getCurrentActiveLevel } from '@/src/modules/diagnostics/diagnostic-serv
 import { useActiveVolumeEstimate } from '@/src/modules/device/volume-estimation';
 import type { VolumeEstimationReadinessStatus } from '@/src/modules/device/volume-estimation/volume-estimation-types';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
+import { saveLevelOneActiveRun } from '@/src/modules/levels/storage/level-one-active-run-storage';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
-import { useLevelOneGame } from '@/src/modules/session/engine/level-one/use-level-one-game';
+import {
+  computeInspirationNorm,
+  evaluateLevelOneAttemptRelease,
+} from '@/src/modules/session/engine/level-one/level-one-repetition-rules';
+import {
+  useLevelOneGame,
+  type OfficialAttemptReleasePayload,
+} from '@/src/modules/session/engine/level-one/use-level-one-game';
 import { useTouchInputAdapter } from '@/src/modules/session/engine/touch/use-touch-input-adapter';
 import { LevelOneGameView } from '@/src/modules/session/games/components/LevelOneGameView';
 import {
@@ -25,6 +33,7 @@ import {
 } from '@/src/modules/session/games/components/SessionEstimatedVolumeCard';
 import { getLevelById } from '@/src/modules/session/registry/level-registry';
 import {
+  buildOfficialValidationFromLevelOneRelease,
   evaluateOfficialAttempt,
   evaluateSensorAttemptVolume,
   type OfficialAttemptValidationResult,
@@ -41,9 +50,14 @@ import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 type SessionSummaryKind = 'completed' | 'interrupted' | null;
 
 const REQUIRED_HOLD_MS = 3000;
+/** En práctica, alcanzar la meta antes del countdown de 3 s si mantiene presionado. */
+/** A los 2 s de presión el volumen simulado alcanza la meta (antes del sostén 3 s). */
+const PRACTICE_VOLUME_RAMP_MS = 2000;
 
 function simulatedVolumeForHold(targetVolumeMl: number, holdMs: number): number {
-  return Math.round(Math.max(0, targetVolumeMl * Math.min(1.15, holdMs / REQUIRED_HOLD_MS)));
+  return Math.round(
+    Math.max(0, targetVolumeMl * Math.min(1.18, holdMs / PRACTICE_VOLUME_RAMP_MS)),
+  );
 }
 
 function attemptFromOfficialValidation(
@@ -102,6 +116,8 @@ export function SessionScreen() {
     updateLevelOne,
     finalizeCurrentLevelOneSession,
     prepareFreshLevelOneSessionRun,
+    discardInProgressLevelOneRun,
+    clearLevelOneActiveRunMarker,
     repeatCurrentLevelOneSession,
     interruptCurrentLevelOneSession,
   } = useLevelsProgress();
@@ -129,16 +145,23 @@ export function SessionScreen() {
   const [savingSummary, setSavingSummary] = useState(false);
   const [savingInterrupt, setSavingInterrupt] = useState(false);
   const [introAcknowledged, setIntroAcknowledged] = useState(false);
+  const sessionCleanExitRef = useRef(false);
+  const stopSessionRef = useRef<() => void>(() => {});
 
   const exitToTherapy = () => {
     router.replace('/(tabs)/terapia');
   };
 
-  const stopSessionRuntimeState = () => {
-    levelOneEngine.stopSession();
+  const markSessionCleanExit = useCallback(() => {
+    sessionCleanExitRef.current = true;
+    void clearLevelOneActiveRunMarker();
+  }, [clearLevelOneActiveRunMarker]);
+
+  const stopSessionRuntimeState = useCallback(() => {
+    stopSessionRef.current();
     setSummaryDismissedKind(null);
     setAttemptsRuntime([]);
-  };
+  }, []);
 
   const persistInterruptedSessionToHistory = async (
     valid: number,
@@ -159,7 +182,12 @@ export function SessionScreen() {
     await persistSessionResult(result);
   };
 
-  const levelOneEngineScopeKey = `${patient?.paciente_id ?? ''}|${String(sessionRunId ?? '')}`;
+  const levelOneEngineScopeKey = [
+    patient?.paciente_id ?? '',
+    selectedLevelId,
+    sessionInputMode,
+    String(sessionRunId ?? ''),
+  ].join('|');
 
   const sensorAttemptEvaluation = useMemo(() => {
     if (isTouchPractice) return undefined;
@@ -191,23 +219,55 @@ export function SessionScreen() {
     isTouchPractice,
   };
 
-  const resolveOfficialAttemptOnRelease = useCallback(
-    (heldMs: number) => {
-      const deps = officialValidationDepsRef.current;
-      const simulatedAtRelease = simulatedVolumeForHold(deps.targetVolume, heldMs);
-      const validation = evaluateOfficialAttempt({
-        inputMode: deps.sessionInputMode,
-        targetVolumeMl: deps.targetVolume,
-        requiredHoldMs: REQUIRED_HOLD_MS,
-        currentHoldMs: heldMs,
-        simulatedVolumeMl: simulatedAtRelease,
-        sensorAttemptEvaluation: deps.sensorAttemptEvaluation,
-        activeVolumeEstimate: deps.activeVolumeEstimate,
-      });
-      return { valid: validation.attemptValid, validation };
-    },
+  const inspirationInputsRef = useRef({
+    displayVolumeMl: 0,
+    targetVolume: 1200,
+    holdMs: 0,
+  });
+
+  const getInspirationNorm = useCallback(
+    () =>
+      computeInspirationNorm({
+        displayVolumeMl: inspirationInputsRef.current.displayVolumeMl,
+        targetVolumeMl: inspirationInputsRef.current.targetVolume,
+        holdMs: inspirationInputsRef.current.holdMs,
+      }),
     [],
   );
+
+  const resolveOfficialAttemptOnRelease = useCallback((payload: OfficialAttemptReleasePayload) => {
+    const deps = officialValidationDepsRef.current;
+    const simulatedAtRelease = simulatedVolumeForHold(deps.targetVolume, payload.heldMs);
+    const releaseEval = evaluateLevelOneAttemptRelease({
+      runtime: {
+        subPhase: payload.targetReached ? 'official_eval' : 'ascending',
+        totalElapsedMs: payload.heldMs,
+        subPhaseElapsedMs: payload.sustainMs,
+        clearMs: payload.sustainMs,
+        belowClearMs: 0,
+        peakNorm: payload.peakNorm,
+        everClearedObstacle: payload.targetReached,
+      },
+      liveFail: payload.liveFail,
+      inputMode: deps.sessionInputMode,
+      releasedDuringEval:
+        payload.liveFail === 'released_during_eval' || payload.liveFail === 'hit_obstacle',
+    });
+    const officialVolumeMl = isTouchPracticeSession(deps.sessionInputMode)
+      ? simulatedAtRelease
+      : (deps.activeVolumeEstimate.roundedVolumeMl ?? simulatedAtRelease);
+    const validation = buildOfficialValidationFromLevelOneRelease({
+      release: releaseEval,
+      targetVolumeMl: deps.targetVolume,
+      officialVolumeMl,
+      inputMode: deps.sessionInputMode,
+      u95Ml: deps.activeVolumeEstimate.u95Ml,
+      confidenceLabel: deps.sensorAttemptEvaluation?.confidenceLabel as
+        | OfficialAttemptValidationResult['confidenceLabel']
+        | undefined,
+    });
+    return { valid: releaseEval.valid, failReason: releaseEval.failReason, validation };
+  }, []);
 
   const lastResolvedValidationRef = useRef<OfficialAttemptValidationResult | null>(null);
 
@@ -215,10 +275,12 @@ export function SessionScreen() {
     progress: progress.levelOne,
     engineScopeKey: levelOneEngineScopeKey,
     onProgressChange: updateLevelOne,
-    resolveOfficialAttemptOnRelease: (heldMs) => {
-      const { valid, validation } = resolveOfficialAttemptOnRelease(heldMs);
+    sessionInputMode,
+    getInspirationNorm,
+    resolveOfficialAttemptOnRelease: (payload) => {
+      const { valid, failReason, validation } = resolveOfficialAttemptOnRelease(payload);
       lastResolvedValidationRef.current = validation;
-      return { valid };
+      return { valid, failReason };
     },
     onAttemptResolved: ({ valid, holdMs }) => {
       const deps = officialValidationDepsRef.current;
@@ -247,6 +309,8 @@ export function SessionScreen() {
     },
   });
   const { restartCurrentSession, stopSession } = levelOneEngine;
+  stopSessionRef.current = stopSession;
+
   const summaryKind: SessionSummaryKind =
     levelOneEngine.phase === 'session-complete' ? 'completed' : null;
 
@@ -286,14 +350,47 @@ export function SessionScreen() {
     };
   }, [patient]);
 
-  useEffect(() => {
-    if (isLoading) return;
+  const sessionEntryScopeKey = [
+    patient?.paciente_id ?? '',
+    selectedLevelId,
+    sessionInputMode,
+    String(sessionRunId ?? ''),
+  ].join('|');
+
+  useLayoutEffect(() => {
+    if (isLoading || !isLevelOne) return;
+    sessionCleanExitRef.current = false;
     prepareFreshLevelOneSessionRun();
     stopSession();
     setIntroAcknowledged(false);
     setSummaryDismissedKind(null);
     setAttemptsRuntime([]);
-  }, [sessionRunId, patient?.paciente_id, isLoading, prepareFreshLevelOneSessionRun, stopSession]);
+  }, [
+    sessionEntryScopeKey,
+    isLoading,
+    isLevelOne,
+    prepareFreshLevelOneSessionRun,
+    stopSession,
+  ]);
+
+  useEffect(() => {
+    if (isLoading || !patient || !isLevelOne || !sessionRunId) return;
+    void saveLevelOneActiveRun(patient.paciente_id, {
+      sessionRunId: String(sessionRunId),
+      levelId: selectedLevelId,
+      inputMode: sessionInputMode,
+      updatedAt: Date.now(),
+    });
+  }, [sessionEntryScopeKey, isLoading, patient, isLevelOne, sessionRunId, selectedLevelId, sessionInputMode]);
+
+  useEffect(() => {
+    return () => {
+      stopSessionRef.current();
+      if (!sessionCleanExitRef.current) {
+        return;
+      }
+    };
+  }, []);
 
   const handleIntroComplete = useCallback(() => {
     prepareFreshLevelOneSessionRun();
@@ -305,10 +402,66 @@ export function SessionScreen() {
     }, 0);
   }, [prepareFreshLevelOneSessionRun, restartCurrentSession]);
 
+  const abandonSessionAndExit = useCallback(
+    (options: {
+      persistInterruptedToHistory: boolean;
+      markLevelSlotInterrupted: boolean;
+      valid: number;
+      failed: number;
+      attempts: SessionAttemptResult[];
+    }) => {
+      const { persistInterruptedToHistory, markLevelSlotInterrupted, valid, failed, attempts } = options;
+      stopSessionRuntimeState();
+
+      if (markLevelSlotInterrupted) {
+        interruptCurrentLevelOneSession();
+      } else {
+        discardInProgressLevelOneRun();
+      }
+
+      markSessionCleanExit();
+
+      if (!persistInterruptedToHistory) {
+        exitToTherapy();
+        return;
+      }
+
+      setSavingInterrupt(true);
+      void (async () => {
+        try {
+          await persistInterruptedSessionToHistory(valid, failed, attempts);
+        } catch {
+          /* historial opcional: no bloquear salida */
+        } finally {
+          setSavingInterrupt(false);
+          exitToTherapy();
+        }
+      })();
+    },
+    [
+      discardInProgressLevelOneRun,
+      exitToTherapy,
+      interruptCurrentLevelOneSession,
+      markSessionCleanExit,
+      persistInterruptedSessionToHistory,
+      stopSessionRuntimeState,
+    ],
+  );
+
   const simulatedVolume = useMemo(
     () => simulatedVolumeForHold(targetVolume, levelOneEngine.holdMs),
     [targetVolume, levelOneEngine.holdMs],
   );
+
+  const inspirationDisplayMl = isTouchPractice
+    ? simulatedVolume
+    : (activeVolumeEstimate.roundedVolumeMl ?? simulatedVolume);
+
+  inspirationInputsRef.current = {
+    displayVolumeMl: inspirationDisplayMl,
+    targetVolume,
+    holdMs: levelOneEngine.holdMs,
+  };
 
   const {
     sessionDisplayVolumeMl,
@@ -348,27 +501,6 @@ export function SessionScreen() {
       sessionDisplayStatus: volumeEstimateStatus,
     };
   }, [activeVolumeEstimate, isTouchPractice, simulatedVolume, volumeEstimateStatus]);
-
-  const officialAttemptValidation = useMemo(
-    () =>
-      evaluateOfficialAttempt({
-        inputMode: sessionInputMode,
-        targetVolumeMl: targetVolume,
-        requiredHoldMs: REQUIRED_HOLD_MS,
-        currentHoldMs: levelOneEngine.holdMs,
-        simulatedVolumeMl: simulatedVolume,
-        sensorAttemptEvaluation,
-        activeVolumeEstimate,
-      }),
-    [
-      activeVolumeEstimate,
-      levelOneEngine.holdMs,
-      sensorAttemptEvaluation,
-      sessionInputMode,
-      simulatedVolume,
-      targetVolume,
-    ],
-  );
 
   if (isLoading || !activeLevelLoaded) {
     return (
@@ -429,6 +561,11 @@ export function SessionScreen() {
           introMode={levelOneEngine.phase === 'not-started' && !introAcknowledged}
           onIntroComplete={handleIntroComplete}
           holdMs={levelOneEngine.holdMs}
+          sustainMs={levelOneEngine.sustainMs}
+          targetReached={levelOneEngine.targetReached}
+          obstacleActive={levelOneEngine.obstacleActive}
+          holdPrepSecondsRemaining={levelOneEngine.holdPrepSecondsRemaining}
+          liveCrashSignal={levelOneEngine.liveCrashSignal}
           phase={levelOneEngine.phase}
           session={progress.levelOne.currentSession}
           repetition={progress.levelOne.currentRepetition}
@@ -458,27 +595,14 @@ export function SessionScreen() {
                     const failedSnap = currentSessionData?.failedRepetitions ?? 0;
                     const attemptsSnap = [...attemptsRuntime];
                     const totalAttemptsSnap = validSnap + failedSnap;
-                    const shouldPersistInterrupted = totalAttemptsSnap > 0;
-
-                    if (shouldPersistInterrupted && !isTouchPractice) {
-                      interruptCurrentLevelOneSession();
-                      setSavingInterrupt(true);
-                    } else if (shouldPersistInterrupted && isTouchPractice) {
-                      setSavingInterrupt(true);
-                    }
-                    stopSessionRuntimeState();
-                    void (async () => {
-                      try {
-                        if (shouldPersistInterrupted) {
-                          await persistInterruptedSessionToHistory(validSnap, failedSnap, attemptsSnap);
-                        }
-                      } catch {
-                        /* historial opcional: no bloquear salida */
-                      } finally {
-                        setSavingInterrupt(false);
-                      }
-                      exitToTherapy();
-                    })();
+                    const hadAttempts = totalAttemptsSnap > 0;
+                    abandonSessionAndExit({
+                      persistInterruptedToHistory: hadAttempts,
+                      markLevelSlotInterrupted: hadAttempts && !isTouchPractice,
+                      valid: validSnap,
+                      failed: failedSnap,
+                      attempts: attemptsSnap,
+                    });
                   },
                 },
               ]
@@ -491,16 +615,15 @@ export function SessionScreen() {
           displayVolumeStatus={sessionDisplayStatus}
           sessionInputMode={sessionInputMode}
           targetVolume={targetVolume}
-          holdSeconds={levelOneEngine.holdMs / 1000}
           sensorStatusSlot={
-            <SessionEstimatedVolumeCard
-              sessionInputMode={sessionInputMode}
-              status={volumeEstimateStatus}
-              displaySource={sessionDisplaySource}
-            />
+            isTouchPractice ? null : (
+              <SessionEstimatedVolumeCard
+                sessionInputMode={sessionInputMode}
+                status={volumeEstimateStatus}
+                displaySource={sessionDisplaySource}
+              />
+            )
           }
-          sensorAttemptEvaluation={sensorAttemptEvaluation}
-          officialAttemptValidation={officialAttemptValidation}
         />
       </View>
       <Modal
@@ -585,6 +708,7 @@ export function SessionScreen() {
                 if (!isTouchPractice) {
                   finalizeCurrentLevelOneSession();
                 }
+                markSessionCleanExit();
                 levelOneEngine.stopSession();
                 setAttemptsRuntime([]);
                 setSummaryDismissedKind('completed');

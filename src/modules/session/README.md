@@ -52,6 +52,20 @@ La validación conservadora con sensor exige, entre otros criterios, **`lowerBou
 
 ---
 
+## AsyncStorage relevante (Nivel 1)
+
+| Clave | Contenido | ¿Historial oficial? |
+|-------|-----------|---------------------|
+| `rehab.levels.progress.v1.u{patientId}` | Progreso de niveles: sesión/rep actual, válidas/fallidas por slot, `interrupted` | Progreso terapéutico del nivel (no borrar al limpiar partida) |
+| `rehab.levels.level_one_active_run.v1.u{patientId}` | Marca efímera: `sessionRunId`, `levelId`, `inputMode` | No — se borra al salir limpio; si queda tras cierre abrupto, al abrir la app se descarta el slot a medias |
+| `@rehab/sessions_v1` / `@rehab/attempts_v1` | Historial de sesiones e intentos guardados | Sí — no se tocan al reiniciar partida |
+
+**No se persiste en disco:** `phase`, countdown, `holdMs` del motor (solo memoria; se reinicia con `engineScopeKey` y `stopSession`).
+
+**Limpieza de partida en curso:** `prepareFreshLevelOneSessionRun` / `discardInProgressLevelOneRun` (slot actual a cero). Al reentrar con nuevo `sessionRunId`, al abandonar sin marcar slot interrumpido, o al reabrir la app si quedó `level_one_active_run`.
+
+---
+
 ## Estado
 
 Nivel 1 con juego visual y validación por sensor implementados. Niveles 2–5 en catálogo con bloqueo progresivo (`comingSoon` / diagnóstico).
