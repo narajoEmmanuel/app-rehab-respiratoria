@@ -85,6 +85,8 @@ type LevelOneGameViewProps = {
   onPressIn: () => void;
   onPressOut: () => void;
   onPressStop: () => void;
+  /** En modo sensor el juego no usa dedo; solo práctica táctil. */
+  touchInputEnabled?: boolean;
   simulatedVolume: number;
   displayVolumeMl: number;
   displayVolumeSource: 'sensor' | 'fallback';
@@ -118,6 +120,7 @@ export function LevelOneGameView({
   onPressIn,
   onPressOut,
   onPressStop,
+  touchInputEnabled = true,
   simulatedVolume: _simulatedVolume,
   displayVolumeMl,
   displayVolumeSource,
@@ -186,8 +189,11 @@ export function LevelOneGameView({
     if (targetVolume > 0 && displayVolumeMl > 0) {
       return Math.min(1.15, displayVolumeMl / targetVolume);
     }
-    return Math.min(1.15, holdMs / MAX_INSPIRATION_MS);
-  }, [displayVolumeMl, holdMs, rabbitIsInspiring, targetVolume]);
+    if (isTouchPractice) {
+      return Math.min(1.15, holdMs / MAX_INSPIRATION_MS);
+    }
+    return 0;
+  }, [displayVolumeMl, holdMs, isTouchPractice, rabbitIsInspiring, targetVolume]);
 
   const rabbitClearsObstacle = inspirationNormTarget >= LEVEL_ONE_CLEAR_MIN_NORM;
   const isTouchingGoal = inEvaluating && !rabbitClearsObstacle;
@@ -658,7 +664,7 @@ export function LevelOneGameView({
             </Animated.View>
           ) : null}
 
-          {!introMode ? (
+          {!introMode && touchInputEnabled ? (
             <Pressable
               style={styles.gameTouchLayer}
               onPressIn={onPressIn}
@@ -694,47 +700,51 @@ export function LevelOneGameView({
 
         {!introMode ? (
           <View style={styles.volumeSection}>
-            <Pressable
-              style={styles.volumeBar}
-              onPressIn={onPressIn}
-              onPressOut={onPressOut}
-              accessibilityRole="adjustable"
-              accessibilityLabel={
-                isTouchPractice
-                  ? `Volumen de práctica ${Math.round(displayVolumeMl)} mililitros. Modo práctica táctil sin medición del sensor.`
-                  : displayVolumeSource === 'sensor'
-                    ? `Volumen estimado ${Math.round(displayVolumeMl)} mililitros${
-                        displayVolumeStatus === 'out_of_range' ? ', fuera de rango calibrado' : ''
-                      }. Medido con sensor RESPIRA más.`
-                    : `Volumen actual ${Math.round(displayVolumeMl)} mililitros. Mantén presionado en el juego o aquí para inspirar.`
-              }>
-              <Text style={styles.volumeBarLabel}>
-                {isTouchPractice
-                  ? 'Volumen de práctica'
-                  : displayVolumeSource === 'sensor'
-                    ? 'Volumen estimado'
-                    : 'Volumen actual'}
-              </Text>
-              <View style={styles.volumeBarValueRow}>
-                <Text style={styles.volumeBarValue}>
-                  {Math.round(displayVolumeMl)}
-                  <Text style={styles.volumeBarUnit}> mL</Text>
+            {touchInputEnabled ? (
+              <Pressable
+                style={styles.volumeBar}
+                onPressIn={onPressIn}
+                onPressOut={onPressOut}
+                accessibilityRole="adjustable"
+                accessibilityLabel={`Volumen de práctica ${Math.round(displayVolumeMl)} mililitros. Modo práctica táctil sin medición del sensor.`}>
+                <Text style={styles.volumeBarLabel}>Volumen de práctica</Text>
+                <View style={styles.volumeBarValueRow}>
+                  <Text style={styles.volumeBarValue}>
+                    {Math.round(displayVolumeMl)}
+                    <Text style={styles.volumeBarUnit}> mL</Text>
+                  </Text>
+                </View>
+              </Pressable>
+            ) : (
+              <View
+                style={styles.volumeBar}
+                accessibilityRole="text"
+                accessibilityLabel={
+                  displayVolumeSource === 'sensor'
+                    ? `Volumen estimado ${Math.round(displayVolumeMl)} mililitros. Medido con sensor RESPIRA más.`
+                    : `Volumen estimado ${Math.round(displayVolumeMl)} mililitros. Esperando lectura del sensor.`
+                }>
+                <Text style={styles.volumeBarLabel}>
+                  {displayVolumeSource === 'sensor' ? 'Volumen estimado' : 'Volumen estimado'}
                 </Text>
-                {!isTouchPractice &&
-                displayVolumeSource === 'sensor' &&
-                displayU95Ml !== null &&
-                Number.isFinite(displayU95Ml) ? (
-                  <Text style={styles.volumeBarU95}>±{Math.round(displayU95Ml)} mL</Text>
-                ) : null}
-              </View>
-              {!isTouchPractice ? (
+                <View style={styles.volumeBarValueRow}>
+                  <Text style={styles.volumeBarValue}>
+                    {Math.round(displayVolumeMl)}
+                    <Text style={styles.volumeBarUnit}> mL</Text>
+                  </Text>
+                  {displayVolumeSource === 'sensor' &&
+                  displayU95Ml !== null &&
+                  Number.isFinite(displayU95Ml) ? (
+                    <Text style={styles.volumeBarU95}>±{Math.round(displayU95Ml)} mL</Text>
+                  ) : null}
+                </View>
                 <Text style={styles.volumeBarHint}>
                   {displayVolumeSource === 'sensor'
-                    ? 'Medido con sensor RESPIRA+'
-                    : 'Mantén presionado para inspirar · suelta para exhalar'}
+                    ? 'Inspira con el espirómetro · el conejo sigue tu volumen'
+                    : 'Esperando datos del sensor…'}
                 </Text>
-              ) : null}
-            </Pressable>
+              </View>
+            )}
           </View>
         ) : null}
       </View>

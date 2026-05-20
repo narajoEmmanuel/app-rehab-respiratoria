@@ -7,15 +7,16 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
-  evaluateTherapyReadinessOnDemand,
   showLevelPlayModePicker,
   showTherapyReadinessAlert,
   useTherapyReadinessGate,
 } from '@/src/modules/device/volume-estimation';
+import { logLevelSensorModeSelected } from '@/src/modules/session/sensor/level-sensor-debug';
+import { evaluateLevelSensorReadiness } from '@/src/modules/session/sensor/level-sensor-readiness';
 import { getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
 import type { PatientLevelRecord } from '@/src/modules/diagnostics/types';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
@@ -70,10 +71,21 @@ export function LevelsScreen({
   const insets = useSafeAreaInsets();
   const { patient } = usePatientSession();
   const { isLoading, selectLevel } = useLevelsProgress();
-  const { refresh: refreshTherapyGate, lastReading, sensorConnected } = useTherapyReadinessGate();
+  const {
+    refresh: refreshTherapyGate,
+    lastReading,
+    sensorConnected,
+    sensorStatus,
+  } = useTherapyReadinessGate();
   const levels = listLevels();
   const [patientLevels, setPatientLevels] = useState<PatientLevelRecord[]>([]);
   const [startingLevelId, setStartingLevelId] = useState<LevelId | null>(null);
+  const [lastReadingReceivedAtMs, setLastReadingReceivedAtMs] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!lastReading) return;
+    setLastReadingReceivedAtMs(Date.now());
+  }, [lastReading, lastReading?.distanceMm, lastReading?.timestamp]);
 
   useEffect(() => {
     let active = true;
@@ -126,15 +138,25 @@ export function LevelsScreen({
     async (levelId: LevelId) => {
       setStartingLevelId(levelId);
       try {
-        const distanceMm = lastReading?.distanceMm;
-        const distanceIsFinite = typeof distanceMm === 'number' && Number.isFinite(distanceMm);
-        const gate = await evaluateTherapyReadinessOnDemand({
-          distanceMm: sensorConnected && distanceIsFinite ? distanceMm : null,
+        const readiness = await evaluateLevelSensorReadiness({
+          inputMode: 'sensor',
           sensorConnected,
+          sensorStatus,
+          lastReading,
+          receivedAtMs: lastReadingReceivedAtMs,
+          patientId: patient?.paciente_id ?? null,
         });
 
-        if (!gate.canStartTherapy) {
-          showTherapyReadinessAlert(gate, (route) => router.push(route));
+        if (!readiness.canStart) {
+          if (readiness.blockReason === 'no_live_reading') {
+            Alert.alert(
+              'Esperando datos del sensor',
+              'Conecta el sensor y verifica que esté enviando lecturas antes de comenzar.',
+              [{ text: 'Entendido', style: 'default' }],
+            );
+            return;
+          }
+          showTherapyReadinessAlert(readiness.gate, (route) => router.push(route));
           return;
         }
 
@@ -144,10 +166,13 @@ export function LevelsScreen({
       }
     },
     [
-      lastReading?.distanceMm,
+      lastReading,
+      lastReadingReceivedAtMs,
       navigateToSession,
+      patient?.paciente_id,
       router,
       sensorConnected,
+      sensorStatus,
     ],
   );
 
@@ -164,6 +189,7 @@ export function LevelsScreen({
 
       showLevelPlayModePicker({
         onWithSensor: () => {
+          logLevelSensorModeSelected('sensor');
           void beginOfficialSensorSession(levelId);
         },
         onPracticeMode: () => {
