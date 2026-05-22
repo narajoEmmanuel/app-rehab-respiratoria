@@ -10,7 +10,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { getCurrentActiveLevel } from '@/src/modules/diagnostics/diagnostic-service';
+import { getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
 import { showTherapyReadinessAlert } from '@/src/modules/device/volume-estimation';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import { evaluateLevelSensorReadiness } from '@/src/modules/session/sensor/level-sensor-readiness';
@@ -18,7 +18,12 @@ import type { VolumeEstimationReadinessStatus } from '@/src/modules/device/volum
 import { useLevelSensorVolume } from '@/src/modules/session/sensor/use-level-sensor-volume';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
 import { saveLevelOneActiveRun } from '@/src/modules/levels/storage/level-one-active-run-storage';
-import type { LevelId } from '@/src/modules/levels/types/level-progress';
+import {
+  getRunnerLevelProgress,
+  isRunnerGameLevel,
+  type LevelId,
+} from '@/src/modules/levels/types/level-progress';
+import { getLevelGameplayConfig } from '@/src/modules/session/levels/level-gameplay-config';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import {
   computeInspirationNorm,
@@ -119,16 +124,24 @@ export function SessionScreen() {
     isLoading,
     progress,
     selectLevel,
-    updateLevelOne,
-    finalizeCurrentLevelOneSession,
-    prepareFreshLevelOneSessionRun,
-    discardInProgressLevelOneRun,
+    updateRunnerLevel,
+    finalizeRunnerLevelSession,
+    prepareFreshRunnerLevelSessionRun,
+    discardInProgressRunnerLevelRun,
     clearLevelOneActiveRunMarker,
-    repeatCurrentLevelOneSession,
-    interruptCurrentLevelOneSession,
+    repeatCurrentRunnerLevelSession,
+    interruptCurrentRunnerLevelSession,
   } = useLevelsProgress();
   const selectedLevelId = (levelId ?? progress.selectedLevelId) as LevelId;
   const level = getLevelById(selectedLevelId);
+  const isRunnerLevel = isRunnerGameLevel(selectedLevelId);
+  const runnerLevelId = isRunnerLevel ? selectedLevelId : null;
+  const levelGameplay = runnerLevelId ? getLevelGameplayConfig(runnerLevelId) : undefined;
+  const currentLevelProgress = runnerLevelId
+    ? getRunnerLevelProgress(progress, runnerLevelId)
+    : progress.levelOne;
+  const currentSessionData =
+    currentLevelProgress.sessions[currentLevelProgress.currentSession - 1];
 
   useEffect(() => {
     if (levelId && levelId !== progress.selectedLevelId) {
@@ -136,15 +149,12 @@ export function SessionScreen() {
     }
   }, [levelId, progress.selectedLevelId, selectLevel]);
 
-  const isLevelOne = useMemo(() => selectedLevelId === 'level-1', [selectedLevelId]);
-  const currentSessionData = progress.levelOne.sessions[progress.levelOne.currentSession - 1];
-
   const sensorConnection = useSensorConnection();
   const sensorConnectionRef = useRef(sensorConnection);
   sensorConnectionRef.current = sensorConnection;
 
   const levelSensor = useLevelSensorVolume({
-    enabled: isFocused && isLevelOne && !isTouchPractice,
+    enabled: isFocused && isRunnerLevel && !isTouchPractice,
     levelId: selectedLevelId,
     inputMode: sessionInputMode,
     sessionRunId: sessionRunId ? String(sessionRunId) : undefined,
@@ -176,7 +186,7 @@ export function SessionScreen() {
   const sensorInhaleArmedRef = useRef(true);
 
   useEffect(() => {
-    if (isTouchPractice || !isLevelOne || !isFocused || !sessionRunId) {
+    if (isTouchPractice || !isRunnerLevel || !isFocused || !sessionRunId) {
       if (isTouchPractice) setSensorEntryReady(true);
       return;
     }
@@ -221,7 +231,7 @@ export function SessionScreen() {
     };
   }, [
     isFocused,
-    isLevelOne,
+    isRunnerLevel,
     isTouchPractice,
     patient?.paciente_id,
     router,
@@ -367,9 +377,12 @@ export function SessionScreen() {
   const lastResolvedValidationRef = useRef<OfficialAttemptValidationResult | null>(null);
 
   const levelOneEngine = useLevelOneGame({
-    progress: progress.levelOne,
+    progress: currentLevelProgress,
     engineScopeKey: levelOneEngineScopeKey,
-    onProgressChange: updateLevelOne,
+    onProgressChange: (updater) => {
+      if (!runnerLevelId) return;
+      updateRunnerLevel(runnerLevelId, updater);
+    },
     sessionInputMode,
     getInspirationNorm,
     resolveOfficialAttemptOnRelease: (payload) => {
@@ -410,7 +423,7 @@ export function SessionScreen() {
           holdMs,
         });
         console.log('LEVEL HOLD EVALUATION', {
-          rep: progress.levelOne.currentRepetition,
+          rep: currentLevelProgress.currentRepetition,
           isAboveObstacle: norm >= 1,
           pass: valid,
           failReason: valid ? null : 'obstacle_or_hold',
@@ -500,11 +513,18 @@ export function SessionScreen() {
       setActiveLevelLoaded(true);
       return;
     }
-    const activeLevel = await getCurrentActiveLevel(patient.paciente_id);
-    setTargetVolume(activeLevel?.target_volume ?? 1200);
-    setPatientLevelId(activeLevel?.patient_level_id ?? null);
+    if (!isRunnerGameLevel(selectedLevelId)) {
+      setPatientLevelId(null);
+      setTargetVolume(1200);
+      setActiveLevelLoaded(true);
+      return;
+    }
+    const patientLevels = await getPatientLevels(patient.paciente_id);
+    const row = patientLevels.find((item) => item.level_id === selectedLevelId);
+    setTargetVolume(row?.target_volume ?? 1200);
+    setPatientLevelId(row?.patient_level_id ?? null);
     setActiveLevelLoaded(true);
-  }, [patient]);
+  }, [patient, selectedLevelId]);
 
   useEffect(() => {
     setActiveLevelLoaded(false);
@@ -525,9 +545,9 @@ export function SessionScreen() {
   ].join('|');
 
   useLayoutEffect(() => {
-    if (isLoading || !isLevelOne) return;
+    if (isLoading || !runnerLevelId) return;
     sessionCleanExitRef.current = false;
-    prepareFreshLevelOneSessionRun();
+    prepareFreshRunnerLevelSessionRun(runnerLevelId);
     stopSession();
     setIntroAcknowledged(false);
     setSummaryDismissedKind(null);
@@ -535,20 +555,20 @@ export function SessionScreen() {
   }, [
     sessionEntryScopeKey,
     isLoading,
-    isLevelOne,
-    prepareFreshLevelOneSessionRun,
+    runnerLevelId,
+    prepareFreshRunnerLevelSessionRun,
     stopSession,
   ]);
 
   useEffect(() => {
-    if (isLoading || !patient || !isLevelOne || !sessionRunId) return;
+    if (isLoading || !patient || !runnerLevelId || !sessionRunId) return;
     void saveLevelOneActiveRun(patient.paciente_id, {
       sessionRunId: String(sessionRunId),
       levelId: selectedLevelId,
       inputMode: sessionInputMode,
       updatedAt: Date.now(),
     });
-  }, [sessionEntryScopeKey, isLoading, patient, isLevelOne, sessionRunId, selectedLevelId, sessionInputMode]);
+  }, [sessionEntryScopeKey, isLoading, patient, runnerLevelId, sessionRunId, selectedLevelId, sessionInputMode]);
 
   useEffect(() => {
     return () => {
@@ -560,14 +580,15 @@ export function SessionScreen() {
   }, []);
 
   const handleIntroComplete = useCallback(() => {
-    prepareFreshLevelOneSessionRun();
+    if (!runnerLevelId) return;
+    prepareFreshRunnerLevelSessionRun(runnerLevelId);
     setAttemptsRuntime([]);
     setIntroAcknowledged(true);
     /** Tras el commit del progreso limpio: `startSession` no hace nada si la fase no es `not-started`. */
     setTimeout(() => {
       restartCurrentSession();
     }, 0);
-  }, [prepareFreshLevelOneSessionRun, restartCurrentSession]);
+  }, [prepareFreshRunnerLevelSessionRun, restartCurrentSession, runnerLevelId]);
 
   const abandonSessionAndExit = useCallback(
     (options: {
@@ -580,10 +601,12 @@ export function SessionScreen() {
       const { persistInterruptedToHistory, markLevelSlotInterrupted, valid, failed, attempts } = options;
       stopSessionRuntimeState();
 
-      if (markLevelSlotInterrupted) {
-        interruptCurrentLevelOneSession();
-      } else {
-        discardInProgressLevelOneRun();
+      if (runnerLevelId) {
+        if (markLevelSlotInterrupted) {
+          interruptCurrentRunnerLevelSession(runnerLevelId);
+        } else {
+          discardInProgressRunnerLevelRun(runnerLevelId);
+        }
       }
 
       markSessionCleanExit();
@@ -606,10 +629,11 @@ export function SessionScreen() {
       })();
     },
     [
-      discardInProgressLevelOneRun,
+      discardInProgressRunnerLevelRun,
       exitToTherapy,
-      interruptCurrentLevelOneSession,
+      interruptCurrentRunnerLevelSession,
       markSessionCleanExit,
+      runnerLevelId,
       persistInterruptedSessionToHistory,
       stopSessionRuntimeState,
     ],
@@ -663,12 +687,11 @@ export function SessionScreen() {
     );
   }
 
-  if (!isLevelOne) {
+  if (!isRunnerLevel) {
     return (
       <SafeAreaView style={styles.centered}>
         <Text style={styles.title}>Sesion - {level.title}</Text>
         <Text style={styles.detail}>Este nivel estara disponible proximamente.</Text>
-        <Text style={styles.detail}>Por ahora juega el Nivel 1 en modo touch.</Text>
       </SafeAreaView>
     );
   }
@@ -711,15 +734,17 @@ export function SessionScreen() {
           holdPrepSecondsRemaining={levelOneEngine.holdPrepSecondsRemaining}
           liveCrashSignal={levelOneEngine.liveCrashSignal}
           phase={levelOneEngine.phase}
-          session={progress.levelOne.currentSession}
-          repetition={progress.levelOne.currentRepetition}
+          session={currentLevelProgress.currentSession}
+          repetition={currentLevelProgress.currentRepetition}
           valid={validAttempts}
           failed={failedAttempts}
           holdSecondsRemaining={levelOneEngine.holdSecondsRemaining}
           prepSecondsRemaining={levelOneEngine.prepSecondsRemaining}
           restSecondsRemaining={levelOneEngine.restSecondsRemaining}
           attemptFeedback={levelOneEngine.attemptFeedback}
-          levelLabel="Nivel 1"
+          levelLabel={levelGameplay?.title ?? level.title}
+          theme={levelGameplay?.theme ?? level.theme ?? 'forest'}
+          obstacleType={levelGameplay?.obstacleType ?? level.obstacleType ?? 'mountain'}
           touchInputEnabled={isTouchPractice}
           onPressIn={inputPort.onInhaleStart}
           onPressOut={inputPort.onInhaleEnd}
@@ -785,11 +810,11 @@ export function SessionScreen() {
               <Text style={styles.modalHeroSubtitle}>¡Buen trabajo!</Text>
             </View>
             <Text style={styles.modalTitle}>
-              {sessionSummaryModalTitle(summaryKind, progress.levelOne.currentSession)}
+              {sessionSummaryModalTitle(summaryKind, currentLevelProgress.currentSession)}
             </Text>
             <View style={styles.modalMetaRow}>
-              <Text style={styles.modalMetaChip}>Nivel 1</Text>
-              <Text style={styles.modalMetaChip}>Sesión {progress.levelOne.currentSession}/6</Text>
+              <Text style={styles.modalMetaChip}>{levelGameplay?.title ?? level.title}</Text>
+              <Text style={styles.modalMetaChip}>Sesión {currentLevelProgress.currentSession}/6</Text>
             </View>
             <View style={styles.modalGrid}>
               <View style={styles.modalTile}>
@@ -850,8 +875,8 @@ export function SessionScreen() {
                   inputMode: sessionInputMode,
                 });
                 const savedSession = await persistSessionResult(result);
-                if (!isTouchPractice) {
-                  finalizeCurrentLevelOneSession();
+                if (!isTouchPractice && runnerLevelId) {
+                  finalizeRunnerLevelSession(runnerLevelId);
                 }
                 markSessionCleanExit();
                 levelOneEngine.stopSession();
@@ -871,7 +896,9 @@ export function SessionScreen() {
                 if (summaryKind) {
                   setSummaryDismissedKind(summaryKind);
                 }
-                repeatCurrentLevelOneSession();
+                if (runnerLevelId) {
+                  repeatCurrentRunnerLevelSession(runnerLevelId);
+                }
                 setAttemptsRuntime([]);
                 restartCurrentSession();
               }}>

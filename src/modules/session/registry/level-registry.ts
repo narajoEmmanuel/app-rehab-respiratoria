@@ -6,19 +6,27 @@
  */
 
 import type { LevelDefinition } from '@/src/modules/session/levels/level-config';
+import { getLevelGameplayConfig } from '@/src/modules/session/levels/level-gameplay-config';
+
+const level1Gameplay = getLevelGameplayConfig('level-1')!;
+const level2Gameplay = getLevelGameplayConfig('level-2')!;
 
 const LEVELS: LevelDefinition[] = [
   {
     id: 'level-1',
     title: 'Nivel 1',
     difficulty: 'easy',
-    gameVisualId: 'monkey-jungle',
+    gameVisualId: level1Gameplay.gameVisualId,
+    theme: level1Gameplay.theme,
+    obstacleType: level1Gameplay.obstacleType,
   },
   {
     id: 'level-2',
     title: 'Nivel 2',
     difficulty: 'medium',
-    gameVisualId: 'visual-placeholder',
+    gameVisualId: level2Gameplay.gameVisualId,
+    theme: level2Gameplay.theme,
+    obstacleType: level2Gameplay.obstacleType,
   },
   {
     id: 'level-3',

@@ -24,18 +24,26 @@ function mergeParsed(parsed: Partial<LevelsProgress>): LevelsProgress {
   return {
     ...base,
     ...parsed,
-    levelOne: {
-      ...base.levelOne,
-      ...parsed.levelOne,
-      sessions:
-        parsed.levelOne?.sessions && parsed.levelOne.sessions.length === 6
-          ? parsed.levelOne.sessions.map((session, index) => ({
-              ...base.levelOne.sessions[index],
-              ...session,
-              interrupted: !!(session as { interrupted?: boolean }).interrupted,
-            }))
-          : base.levelOne.sessions,
-    },
+    levelOne: mergeLevelSlotProgress(base.levelOne, parsed.levelOne),
+    levelTwo: mergeLevelSlotProgress(base.levelTwo, parsed.levelTwo ?? base.levelTwo),
+  };
+}
+
+function mergeLevelSlotProgress(
+  baseSlot: LevelsProgress['levelOne'],
+  parsedSlot: Partial<LevelsProgress['levelOne']> | undefined,
+): LevelsProgress['levelOne'] {
+  return {
+    ...baseSlot,
+    ...parsedSlot,
+    sessions:
+      parsedSlot?.sessions && parsedSlot.sessions.length === 6
+        ? parsedSlot.sessions.map((session, index) => ({
+            ...baseSlot.sessions[index],
+            ...session,
+            interrupted: !!(session as { interrupted?: boolean }).interrupted,
+          }))
+        : baseSlot.sessions,
   };
 }
 
