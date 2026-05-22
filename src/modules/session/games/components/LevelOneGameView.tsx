@@ -37,7 +37,12 @@ import {
   DesertSun,
   DuneSilhouette,
   InspirationMetaPyramid,
+  InspirationMetaSnowman,
   SCENE_THEME_TOKENS,
+  SnowBackdropPines,
+  SnowGroundSegment,
+  SnowHillSilhouette,
+  SnowNearDecor,
 } from '@/src/modules/session/games/components/level-runner-scene';
 import type { LevelOnePhase } from '@/src/modules/session/engine/level-one/use-level-one-game';
 import type { LevelGameTheme, LevelObstacleType } from '@/src/modules/session/levels/level-gameplay-config';
@@ -155,6 +160,8 @@ export function LevelOneGameView({
 }: LevelOneGameViewProps) {
   const sceneTheme = SCENE_THEME_TOKENS[theme];
   const isDesert = theme === 'desert';
+  const isSnow = theme === 'snow';
+  const isThemedScene = isDesert || isSnow;
   const isTouchPractice = isTouchPracticeSession(sessionInputMode);
   const { width: layoutW, height: layoutH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -586,11 +593,16 @@ export function LevelOneGameView({
           <View
             style={[
               styles.scene,
-              isDesert && { borderColor: sceneTheme.sceneBorder, backgroundColor: sceneTheme.skyGradient[0] },
+              isThemedScene && { borderColor: sceneTheme.sceneBorder, backgroundColor: sceneTheme.skyGradient[0] },
             ]}>
           <Animated.View style={[styles.parallaxClip, sceneShakeStyle]}>
             <Animated.View style={[styles.mountainStrip, mountainStyle]}>
-              {isDesert ? (
+              {isSnow ? (
+                <>
+                  <SnowHillSilhouette width={tileW} />
+                  <SnowHillSilhouette width={tileW} />
+                </>
+              ) : isDesert ? (
                 <>
                   <DuneSilhouette width={tileW} />
                   <DuneSilhouette width={tileW} />
@@ -613,6 +625,23 @@ export function LevelOneGameView({
                 <DesertSun />
                 <DesertBackdropCactus side="left" />
               </>
+            ) : isSnow ? (
+              <>
+                <View style={[styles.sunGlow, { backgroundColor: sceneTheme.sunGlow, opacity: 0.85 }]} />
+                <View
+                  style={[
+                    styles.sunDisc,
+                    {
+                      backgroundColor: sceneTheme.sunDisc,
+                      borderColor: sceneTheme.sunDiscBorder,
+                      width: 26,
+                      height: 26,
+                      borderRadius: 13,
+                    },
+                  ]}
+                />
+                <SnowBackdropPines />
+              </>
             ) : (
               <>
                 <View style={[styles.sunGlow, { backgroundColor: sceneTheme.sunGlow }]} />
@@ -629,7 +658,12 @@ export function LevelOneGameView({
             )}
 
             <Animated.View style={[styles.groundStrip, groundStyle]}>
-              {isDesert ? (
+              {isSnow ? (
+                <>
+                  <SnowGroundSegment width={tileW} />
+                  <SnowGroundSegment width={tileW} />
+                </>
+              ) : isDesert ? (
                 <>
                   <DesertGroundSegment width={tileW} />
                   <DesertGroundSegment width={tileW} />
@@ -643,7 +677,12 @@ export function LevelOneGameView({
             </Animated.View>
 
             <Animated.View style={[styles.nearStrip, nearStyle]}>
-              {isDesert ? (
+              {isSnow ? (
+                <>
+                  <SnowNearDecor width={tileW} />
+                  <SnowNearDecor width={tileW} />
+                </>
+              ) : isDesert ? (
                 <>
                   <DesertNearDecor width={tileW} />
                   <DesertNearDecor width={tileW} />
@@ -687,7 +726,16 @@ export function LevelOneGameView({
                     },
                     metaHillStyle,
                   ]}>
-                  {obstacleType === 'pyramid' ? (
+                  {obstacleType === 'snowman' ? (
+                    <InspirationMetaSnowman
+                      passHeightPx={metaPassVisualPx}
+                      evaluating={inEvaluating}
+                      cleared={rabbitClearsObstacle}
+                      touching={isTouchingGoal}
+                      visualHeight={META_HILL_VISUAL_H}
+                      visualWidth={META_HILL_WIDTH}
+                    />
+                  ) : obstacleType === 'pyramid' ? (
                     <InspirationMetaPyramid
                       passHeightPx={metaPassVisualPx}
                       evaluating={inEvaluating}
