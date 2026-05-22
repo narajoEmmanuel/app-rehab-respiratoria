@@ -38,6 +38,7 @@ import {
   DuneSilhouette,
   InspirationMetaPyramid,
   InspirationMetaSnowman,
+  InspirationMetaTractor,
   SCENE_THEME_TOKENS,
   SnowBackdropPines,
   SnowGroundSegment,
@@ -737,6 +738,15 @@ export function LevelOneGameView({
                     />
                   ) : obstacleType === 'pyramid' ? (
                     <InspirationMetaPyramid
+                      passHeightPx={metaPassVisualPx}
+                      evaluating={inEvaluating}
+                      cleared={rabbitClearsObstacle}
+                      touching={isTouchingGoal}
+                      visualHeight={META_HILL_VISUAL_H}
+                      visualWidth={META_HILL_WIDTH}
+                    />
+                  ) : obstacleType === 'tractor' ? (
+                    <InspirationMetaTractor
                       passHeightPx={metaPassVisualPx}
                       evaluating={inEvaluating}
                       cleared={rabbitClearsObstacle}

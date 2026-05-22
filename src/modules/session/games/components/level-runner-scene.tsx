@@ -1,5 +1,5 @@
 /**
- * Purpose: Themed parallax layers and goal obstacles for runner levels (forest uses inline hill).
+ * Purpose: Themed parallax layers and goal obstacles for runner levels (Nivel 1: tractor).
  * Module: session/games
  * Notes: Visual-only — obstacle props must stay aligned to passHeightPx / eval states.
  */
@@ -327,77 +327,124 @@ function SnowmanFigure({
   const snowBottom = isAlert ? '#C8D4E0' : '#E8F2FA';
   const borderColor = isAlert ? 'rgba(140, 160, 180, 0.35)' : 'rgba(180, 200, 220, 0.28)';
 
-  const baseW = width * 0.9;
-  const baseH = height * 0.36;
-  const midW = width * 0.68;
-  const midH = height * 0.26;
-  const headW = width * 0.48;
-  const headH = height * 0.2;
-  const hatBrimW = width * 0.58;
-  const hatBrimH = Math.max(4, height * 0.04);
-  const hatTopW = width * 0.38;
-  const hatTopH = height * 0.1;
+  /** Esferas con diámetro único (ancho = alto) para que no se vean aplastadas. */
+  const baseD = Math.round(Math.min(width * 0.9, height * 0.42));
+  const midD = Math.round(Math.min(width * 0.7, height * 0.31));
+  const headD = Math.round(Math.min(width * 0.52, height * 0.24));
+  const hatBrimW = Math.round(headD * 1.2);
+  const hatBrimH = Math.max(5, Math.round(height * 0.05));
+  const hatTopW = Math.round(headD * 0.82);
+  const hatTopH = Math.round(height * 0.12);
+
+  const midBottom = Math.round(baseD * 0.56);
+  const headBottom = midBottom + Math.round(midD * 0.56);
+  const hatBottom = headBottom + Math.round(headD * 0.9);
+
+  const sphereHighlight = 'rgba(255, 255, 255, 0.42)';
+
+  const renderSphere = (diameter: number, bottom: number) => (
+    <View
+      style={[
+        sceneStyles.obstacleSnowmanSphere,
+        {
+          width: diameter,
+          height: diameter,
+          borderRadius: diameter / 2,
+          borderColor,
+          bottom,
+        },
+      ]}>
+      <LinearGradient
+        colors={[snowTop, snowBottom]}
+        locations={[0, 1]}
+        style={StyleSheet.absoluteFill}
+        start={{ x: 0.25, y: 0 }}
+        end={{ x: 0.8, y: 1 }}
+      />
+      <View
+        style={[
+          sceneStyles.obstacleSnowmanSphereHighlight,
+          {
+            width: diameter * 0.34,
+            height: diameter * 0.22,
+            borderRadius: diameter * 0.17,
+            top: diameter * 0.14,
+            left: diameter * 0.18,
+            backgroundColor: sphereHighlight,
+          },
+        ]}
+      />
+    </View>
+  );
 
   return (
     <View style={[sceneStyles.snowmanFigure, { width, height }]}>
+      {renderSphere(baseD, 0)}
+      {renderSphere(midD, midBottom)}
       <View
         style={[
-          sceneStyles.obstacleSnowmanBase,
-          {
-            width: baseW,
-            height: baseH,
-            borderRadius: baseW / 2,
-            borderColor,
-            bottom: 0,
-          },
-        ]}>
-        <LinearGradient colors={[snowTop, snowBottom]} style={StyleSheet.absoluteFill} />
-      </View>
-      <View
-        style={[
-          sceneStyles.obstacleSnowmanMid,
-          {
-            width: midW,
-            height: midH,
-            borderRadius: midW / 2,
-            borderColor,
-            bottom: baseH * 0.82,
-          },
-        ]}>
-        <LinearGradient colors={[snowTop, snowBottom]} style={StyleSheet.absoluteFill} />
-      </View>
-      <View
-        style={[
+          sceneStyles.obstacleSnowmanSphere,
           sceneStyles.obstacleSnowmanHead,
           {
-            width: headW,
-            height: headH,
-            borderRadius: headW / 2,
+            width: headD,
+            height: headD,
+            borderRadius: headD / 2,
             borderColor,
-            bottom: baseH * 0.82 + midH * 0.78,
+            bottom: headBottom,
           },
         ]}>
-        <LinearGradient colors={[snowTop, snowBottom]} style={StyleSheet.absoluteFill} />
+        <LinearGradient
+          colors={[snowTop, snowBottom]}
+          locations={[0, 1]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.25, y: 0 }}
+          end={{ x: 0.8, y: 1 }}
+        />
         <View
           style={[
-            sceneStyles.obstacleSnowmanEye,
-            { left: headW * 0.22, top: headH * 0.35, width: headW * 0.12, height: headW * 0.12 },
+            sceneStyles.obstacleSnowmanSphereHighlight,
+            {
+              width: headD * 0.34,
+              height: headD * 0.22,
+              borderRadius: headD * 0.17,
+              top: headD * 0.14,
+              left: headD * 0.18,
+              backgroundColor: sphereHighlight,
+            },
           ]}
         />
         <View
           style={[
             sceneStyles.obstacleSnowmanEye,
-            { right: headW * 0.22, top: headH * 0.35, width: headW * 0.12, height: headW * 0.12 },
+            {
+              left: headD * 0.24,
+              top: headD * 0.36,
+              width: headD * 0.11,
+              height: headD * 0.11,
+              borderRadius: headD * 0.055,
+            },
+          ]}
+        />
+        <View
+          style={[
+            sceneStyles.obstacleSnowmanEye,
+            {
+              right: headD * 0.24,
+              top: headD * 0.36,
+              width: headD * 0.11,
+              height: headD * 0.11,
+              borderRadius: headD * 0.055,
+            },
           ]}
         />
         <View
           style={[
             sceneStyles.obstacleSnowmanNose,
             {
-              width: headW * 0.22,
-              height: headH * 0.18,
-              top: headH * 0.48,
-              borderRadius: headW * 0.1,
+              width: headD * 0.2,
+              height: headD * 0.12,
+              top: headD * 0.5,
+              borderRadius: headD * 0.08,
             },
           ]}
         />
@@ -408,7 +455,7 @@ function SnowmanFigure({
           {
             width: hatBrimW,
             height: hatBrimH,
-            bottom: baseH * 0.82 + midH * 0.78 + headH * 0.92,
+            bottom: hatBottom,
           },
         ]}
       />
@@ -418,7 +465,7 @@ function SnowmanFigure({
           {
             width: hatTopW,
             height: hatTopH,
-            bottom: baseH * 0.82 + midH * 0.78 + headH + hatBrimH * 0.5,
+            bottom: hatBottom + Math.round(hatBrimH * 0.42),
             borderRadius: hatTopW * 0.15,
           },
         ]}
@@ -443,13 +490,27 @@ export function InspirationMetaSnowman({
   visualWidth: number;
 }) {
   const isAlert = touching || (evaluating && !cleared);
-  const bodyHeight = Math.min(passHeightPx + 38, visualHeight - 8);
+  const bodyHeight = Math.min(passHeightPx + 40, visualHeight - 8);
+  const figureScale = 1.2;
 
   return (
     <View style={[sceneStyles.snowmanObstacleRoot, { width: visualWidth, height: visualHeight }]} pointerEvents="none">
       <View style={sceneStyles.snowmanObstacleShadow} />
       <View style={[sceneStyles.snowmanObstacleBody, { height: bodyHeight }]}>
-        <SnowmanFigure height={bodyHeight} width={visualWidth * 0.92} isAlert={isAlert} />
+        <View
+          style={[
+            sceneStyles.snowmanFigureScaleWrap,
+            {
+              width: visualWidth,
+              height: bodyHeight,
+              transform: [
+                { translateY: -Math.round(bodyHeight * (figureScale - 1) * 0.5) },
+                { scale: figureScale },
+              ],
+            },
+          ]}>
+          <SnowmanFigure height={bodyHeight} width={visualWidth} isAlert={isAlert} />
+        </View>
       </View>
       {touching ? <View style={sceneStyles.snowmanObstacleContactTint} /> : null}
     </View>
@@ -517,6 +578,265 @@ export function InspirationMetaSnowball({
         })}
       </View>
       {touching ? <View style={sceneStyles.snowballContactTint} /> : null}
+    </View>
+  );
+}
+
+/** Tractor rojo unificado — meta de altura del Nivel 1 (solo visual). */
+function TractorFigure({
+  height,
+  width,
+  passMarkPx,
+  isAlert,
+}: {
+  height: number;
+  width: number;
+  passMarkPx: number;
+  isAlert: boolean;
+}) {
+  const outline = isAlert ? '#5C1818' : '#4A1414';
+  const redLight = isAlert ? '#D84343' : '#F05555';
+  const redMain = isAlert ? '#C62828' : '#E53935';
+  const redDark = isAlert ? '#9E1F1F' : '#C62828';
+  const redDeep = isAlert ? '#7A1818' : '#A31515';
+  const glass = 'rgba(24, 28, 34, 0.78)';
+  const glassBorder = 'rgba(18, 20, 26, 0.55)';
+  const metal = isAlert ? '#4A5058' : '#5A626A';
+  const tire = '#262A30';
+  const rim = '#707880';
+  const headlight = isAlert ? '#E8D8A8' : '#FFF6D8';
+
+  const rearR = Math.round(height * 0.28);
+  const frontR = Math.round(height * 0.19);
+  const wheelLine = 0;
+  const deckBottom = Math.round(rearR * 0.44);
+  const deckH = Math.round(height * 0.34);
+  const deckL = Math.round(width * 0.04);
+  const deckW = Math.round(width * 0.92);
+  const cabW = Math.round(width * 0.42);
+  const cabH = Math.round(height * 0.4);
+  const cabL = Math.round(width * 0.14);
+  const cabB = deckBottom + Math.round(deckH * 0.52);
+  const hoodW = Math.round(width * 0.48);
+  const hoodH = Math.round(height * 0.26);
+  const hoodL = cabL + Math.round(cabW * 0.52);
+  const hoodB = deckBottom + Math.round(deckH * 0.38);
+  const stackW = Math.round(width * 0.09);
+  const stackBase = cabB + Math.round(cabH * 0.55);
+  const stackH = Math.max(14, passMarkPx - stackBase);
+  const stackR = cabL + Math.round(cabW * 0.78);
+
+  return (
+    <View style={[sceneStyles.tractorFigure, { width, height }]}>
+      <View
+        style={[
+          sceneStyles.tractorWheel,
+          {
+            width: rearR,
+            height: rearR,
+            left: Math.round(width * 0.06),
+            bottom: wheelLine,
+            borderRadius: rearR / 2,
+            borderColor: outline,
+            backgroundColor: tire,
+          },
+        ]}>
+        <View
+          style={[
+            sceneStyles.tractorWheelRim,
+            {
+              width: rearR * 0.44,
+              height: rearR * 0.44,
+              borderRadius: rearR * 0.22,
+              backgroundColor: rim,
+            },
+          ]}
+        />
+        <View style={sceneStyles.tractorWheelHub} />
+      </View>
+
+      <View
+        style={[
+          sceneStyles.tractorWheel,
+          {
+            width: frontR,
+            height: frontR,
+            left: Math.round(width * 0.68),
+            bottom: wheelLine + 1,
+            borderRadius: frontR / 2,
+            borderColor: outline,
+            backgroundColor: tire,
+          },
+        ]}>
+        <View
+          style={[
+            sceneStyles.tractorWheelRim,
+            {
+              width: frontR * 0.42,
+              height: frontR * 0.42,
+              borderRadius: frontR * 0.21,
+              backgroundColor: rim,
+            },
+          ]}
+        />
+      </View>
+
+      <View
+        style={[
+          sceneStyles.tractorDeck,
+          {
+            width: deckW,
+            height: deckH,
+            left: deckL,
+            bottom: deckBottom,
+            borderColor: outline,
+          },
+        ]}>
+        <LinearGradient
+          colors={[redLight, redMain, redDark]}
+          locations={[0, 0.45, 1]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.15, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+        />
+        <View style={sceneStyles.tractorDeckShade} />
+        <View style={[sceneStyles.tractorDeckStripe, { backgroundColor: redDeep }]} />
+      </View>
+
+      <View
+        style={[
+          sceneStyles.tractorHood,
+          {
+            width: hoodW,
+            height: hoodH,
+            left: hoodL,
+            bottom: hoodB,
+            borderColor: outline,
+          },
+        ]}>
+        <LinearGradient
+          colors={[redMain, redDark, redDeep]}
+          locations={[0, 0.5, 1]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.2, y: 0 }}
+          end={{ x: 0.95, y: 1 }}
+        />
+        <View style={[sceneStyles.tractorGrille, { borderColor: outline }]} />
+        <View style={[sceneStyles.tractorHeadlight, { backgroundColor: headlight, borderColor: outline }]} />
+        <View style={sceneStyles.tractorHoodHighlight} />
+      </View>
+
+      <View
+        style={[
+          sceneStyles.tractorCabin,
+          {
+            width: cabW,
+            height: cabH,
+            left: cabL,
+            bottom: cabB,
+            borderColor: outline,
+          },
+        ]}>
+        <LinearGradient
+          colors={[redLight, redMain, redDark]}
+          locations={[0, 0.4, 1]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.85, y: 1 }}
+        />
+        <View style={[sceneStyles.tractorCabinRoof, { backgroundColor: redDark, borderColor: outline }]} />
+        <View
+          style={[
+            sceneStyles.tractorWindow,
+            sceneStyles.tractorWindowLeft,
+            { backgroundColor: glass, borderColor: glassBorder },
+          ]}
+        />
+        <View
+          style={[
+            sceneStyles.tractorWindow,
+            sceneStyles.tractorWindowRight,
+            { backgroundColor: glass, borderColor: glassBorder },
+          ]}
+        />
+        <View style={[sceneStyles.tractorDoorLine, { backgroundColor: redDeep }]} />
+      </View>
+
+      <View
+        style={[
+          sceneStyles.tractorExhaust,
+          {
+            width: stackW,
+            height: stackH,
+            left: stackR,
+            bottom: stackBase,
+            backgroundColor: metal,
+            borderColor: outline,
+          },
+        ]}
+      />
+      <View
+        style={[
+          sceneStyles.tractorExhaustCap,
+          {
+            width: stackW + 5,
+            height: 7,
+            left: stackR - 2,
+            bottom: passMarkPx - 3,
+            backgroundColor: metal,
+            borderColor: outline,
+          },
+        ]}
+      />
+    </View>
+  );
+}
+
+export function InspirationMetaTractor({
+  passHeightPx,
+  evaluating,
+  cleared,
+  touching,
+  visualHeight,
+  visualWidth,
+}: {
+  passHeightPx: number;
+  evaluating: boolean;
+  cleared: boolean;
+  touching: boolean;
+  visualHeight: number;
+  visualWidth: number;
+}) {
+  const isAlert = touching || (evaluating && !cleared);
+  const bodyHeight = Math.min(passHeightPx + 40, visualHeight - 8);
+  const passMarkPx = Math.min(passHeightPx - 8, bodyHeight - 6);
+  const figureScale = 1.14;
+
+  return (
+    <View style={[sceneStyles.tractorObstacleRoot, { width: visualWidth, height: visualHeight }]} pointerEvents="none">
+      <View style={sceneStyles.tractorGroundShadow} />
+      <View style={[sceneStyles.tractorObstacleBody, { height: bodyHeight }]}>
+        <View
+          style={[
+            sceneStyles.tractorFigureScaleWrap,
+            {
+              width: visualWidth,
+              height: bodyHeight,
+              transform: [
+                { translateY: -Math.round(bodyHeight * (figureScale - 1) * 0.5) },
+                { scale: figureScale },
+              ],
+            },
+          ]}>
+          <TractorFigure
+            height={bodyHeight}
+            width={visualWidth}
+            passMarkPx={passMarkPx}
+            isAlert={isAlert}
+          />
+        </View>
+      </View>
+      {touching ? <View style={sceneStyles.tractorObstacleContactTint} /> : null}
     </View>
   );
 }
@@ -991,28 +1311,28 @@ const sceneStyles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     justifyContent: 'flex-end',
+    overflow: 'visible',
+  },
+  snowmanFigureScaleWrap: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   snowmanFigure: {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'flex-end',
   },
-  obstacleSnowmanBase: {
-    position: 'absolute',
-    overflow: 'hidden',
-    borderWidth: 1,
-  },
-  obstacleSnowmanMid: {
+  obstacleSnowmanSphere: {
     position: 'absolute',
     alignSelf: 'center',
     overflow: 'hidden',
-    borderWidth: 1,
+    borderWidth: 1.5,
+  },
+  obstacleSnowmanSphereHighlight: {
+    position: 'absolute',
   },
   obstacleSnowmanHead: {
-    position: 'absolute',
-    alignSelf: 'center',
-    overflow: 'hidden',
-    borderWidth: 1,
+    alignItems: 'center',
   },
   obstacleSnowmanEye: {
     position: 'absolute',
@@ -1089,6 +1409,167 @@ const sceneStyles = StyleSheet.create({
   snowballContactTint: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(100, 130, 160, 0.14)',
+    borderRadius: 12,
+  },
+  tractorObstacleRoot: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  tractorGroundShadow: {
+    position: 'absolute',
+    bottom: 4,
+    width: '78%',
+    height: 10,
+    borderRadius: 6,
+    backgroundColor: 'rgba(50, 35, 35, 0.14)',
+  },
+  tractorObstacleBody: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginBottom: 4,
+    overflow: 'visible',
+  },
+  tractorFigureScaleWrap: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  tractorFigure: {
+    position: 'relative',
+    alignSelf: 'center',
+    justifyContent: 'flex-end',
+  },
+  tractorWheel: {
+    position: 'absolute',
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  tractorWheelRim: {
+    position: 'absolute',
+  },
+  tractorWheelHub: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#1E2228',
+  },
+  tractorDeck: {
+    position: 'absolute',
+    borderRadius: 10,
+    borderWidth: 2,
+    overflow: 'hidden',
+    zIndex: 2,
+  },
+  tractorDeckShade: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: '28%',
+    backgroundColor: 'rgba(40, 12, 12, 0.18)',
+  },
+  tractorDeckStripe: {
+    position: 'absolute',
+    left: '10%',
+    right: '10%',
+    top: '42%',
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.55,
+  },
+  tractorHood: {
+    position: 'absolute',
+    borderRadius: 12,
+    borderWidth: 2,
+    overflow: 'hidden',
+    zIndex: 3,
+  },
+  tractorHoodHighlight: {
+    position: 'absolute',
+    left: '18%',
+    top: '14%',
+    width: '35%',
+    height: '30%',
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  tractorGrille: {
+    position: 'absolute',
+    left: 5,
+    top: '26%',
+    bottom: '26%',
+    width: 9,
+    borderRadius: 2,
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(30, 30, 34, 0.5)',
+  },
+  tractorHeadlight: {
+    position: 'absolute',
+    right: 7,
+    top: '30%',
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    borderWidth: 1.5,
+  },
+  tractorCabin: {
+    position: 'absolute',
+    borderRadius: 11,
+    borderWidth: 2,
+    overflow: 'hidden',
+    zIndex: 4,
+  },
+  tractorWindow: {
+    position: 'absolute',
+    top: '24%',
+    height: '46%',
+    borderRadius: 4,
+    borderWidth: 1.5,
+  },
+  tractorWindowLeft: {
+    left: '11%',
+    width: '33%',
+  },
+  tractorWindowRight: {
+    right: '11%',
+    width: '33%',
+  },
+  tractorDoorLine: {
+    position: 'absolute',
+    left: '48%',
+    top: '28%',
+    width: 2,
+    height: '44%',
+    borderRadius: 1,
+    opacity: 0.35,
+  },
+  tractorCabinRoof: {
+    position: 'absolute',
+    left: -2,
+    right: -2,
+    top: -5,
+    height: 9,
+    borderTopLeftRadius: 7,
+    borderTopRightRadius: 7,
+    borderWidth: 2,
+  },
+  tractorExhaust: {
+    position: 'absolute',
+    borderRadius: 3,
+    borderWidth: 1.5,
+    zIndex: 5,
+  },
+  tractorExhaustCap: {
+    position: 'absolute',
+    borderRadius: 4,
+    borderWidth: 1.5,
+    zIndex: 6,
+  },
+  tractorObstacleContactTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(180, 95, 80, 0.12)',
     borderRadius: 12,
   },
 });
