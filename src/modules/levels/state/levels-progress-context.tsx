@@ -23,10 +23,14 @@ import {
   advanceLevelOneIfCurrentSessionCompleted,
   createInitialLevelsProgress,
   discardInProgressLevelOneRun,
+  getRunnerLevelProgress,
+  isRunnerGameLevel,
   prepareLevelOneForNewSessionRun,
+  setRunnerLevelProgress,
   type LevelId,
   type LevelOneProgress,
   type LevelsProgress,
+  type RunnerGameLevelId,
 } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 
@@ -35,16 +39,25 @@ type LevelsProgressContextValue = {
   progress: LevelsProgress;
   selectLevel: (levelId: LevelId) => void;
   updateLevelOne: (updater: (prev: LevelOneProgress) => LevelOneProgress) => void;
+  updateRunnerLevel: (
+    levelId: RunnerGameLevelId,
+    updater: (prev: LevelOneProgress) => LevelOneProgress,
+  ) => void;
   finalizeCurrentLevelOneSession: () => void;
+  finalizeRunnerLevelSession: (levelId: RunnerGameLevelId) => void;
   /** Nueva partida / pantalla sesión: puntero correcto + slot actual en cero (no continúa a medias). */
   prepareFreshLevelOneSessionRun: () => void;
+  prepareFreshRunnerLevelSessionRun: (levelId: RunnerGameLevelId) => void;
   /** Descarta reps/interrupción del slot actual sin tocar historial clínico. */
   discardInProgressLevelOneRun: () => void;
+  discardInProgressRunnerLevelRun: (levelId: RunnerGameLevelId) => void;
   /** Borra la marca de partida activa en AsyncStorage (salida limpia). */
   clearLevelOneActiveRunMarker: () => Promise<void>;
   repeatCurrentLevelOneSession: () => void;
+  repeatCurrentRunnerLevelSession: (levelId: RunnerGameLevelId) => void;
   resetInterruptedCurrentLevelOneSession: () => void;
   interruptCurrentLevelOneSession: () => void;
+  interruptCurrentRunnerLevelSession: (levelId: RunnerGameLevelId) => void;
 };
 
 const LevelsProgressContext = createContext<LevelsProgressContextValue | null>(null);
@@ -74,14 +87,14 @@ export function LevelsProgressProvider({ children }: { children: React.ReactNode
       setIsLoading(true);
       const persisted = await loadLevelsProgress(patientId);
       const activeRun = await loadLevelOneActiveRun(patientId);
-      const levelOne =
-        activeRun != null
-          ? discardInProgressLevelOneRun(persisted.levelOne)
-          : persisted.levelOne;
-      const merged =
-        levelOne === persisted.levelOne
-          ? persisted
-          : { ...persisted, levelOne };
+      let merged = persisted;
+      if (activeRun != null && isRunnerGameLevel(activeRun.levelId)) {
+        const slot = getRunnerLevelProgress(persisted, activeRun.levelId);
+        const cleared = discardInProgressLevelOneRun(slot);
+        if (cleared !== slot) {
+          merged = setRunnerLevelProgress(persisted, activeRun.levelId, cleared);
+        }
+      }
       if (activeRun != null) {
         await clearLevelOneActiveRun(patientId);
         if (merged !== persisted) {
@@ -117,42 +130,72 @@ export function LevelsProgressProvider({ children }: { children: React.ReactNode
     [updateProgress],
   );
 
+  const updateRunnerLevel = useCallback(
+    (levelId: RunnerGameLevelId, updater: (prev: LevelOneProgress) => LevelOneProgress) => {
+      updateProgress((prev) => {
+        const current = getRunnerLevelProgress(prev, levelId);
+        const next = updater(current);
+        if (next === current) return prev;
+        return setRunnerLevelProgress(prev, levelId, next);
+      });
+    },
+    [updateProgress],
+  );
+
   const updateLevelOne = useCallback(
     (updater: (prev: LevelOneProgress) => LevelOneProgress) => {
+      updateRunnerLevel('level-1', updater);
+    },
+    [updateRunnerLevel],
+  );
+
+  const finalizeRunnerLevelSession = useCallback(
+    (levelId: RunnerGameLevelId) => {
       updateProgress((prev) => {
-        const levelOne = updater(prev.levelOne);
-        return {
-          ...prev,
-          levelOne,
-        };
+        const current = getRunnerLevelProgress(prev, levelId);
+        const next = advanceLevelOneIfCurrentSessionCompleted(current);
+        if (next === current) return prev;
+        return setRunnerLevelProgress(prev, levelId, next);
       });
     },
     [updateProgress],
   );
 
   const finalizeCurrentLevelOneSession = useCallback(() => {
-    updateProgress((prev) => {
-      const nextLevelOne = advanceLevelOneIfCurrentSessionCompleted(prev.levelOne);
-      if (nextLevelOne === prev.levelOne) return prev;
-      return { ...prev, levelOne: nextLevelOne };
-    });
-  }, [updateProgress]);
+    finalizeRunnerLevelSession('level-1');
+  }, [finalizeRunnerLevelSession]);
+
+  const prepareFreshRunnerLevelSessionRun = useCallback(
+    (levelId: RunnerGameLevelId) => {
+      updateProgress((prev) => {
+        const current = getRunnerLevelProgress(prev, levelId);
+        const next = prepareLevelOneForNewSessionRun(current);
+        if (next === current) return prev;
+        return setRunnerLevelProgress(prev, levelId, next);
+      });
+    },
+    [updateProgress],
+  );
 
   const prepareFreshLevelOneSessionRun = useCallback(() => {
-    updateProgress((prev) => {
-      const nextLevelOne = prepareLevelOneForNewSessionRun(prev.levelOne);
-      if (nextLevelOne === prev.levelOne) return prev;
-      return { ...prev, levelOne: nextLevelOne };
-    });
-  }, [updateProgress]);
+    prepareFreshRunnerLevelSessionRun('level-1');
+  }, [prepareFreshRunnerLevelSessionRun]);
+
+  const discardInProgressRunnerLevelRun = useCallback(
+    (levelId: RunnerGameLevelId) => {
+      updateProgress((prev) => {
+        const current = getRunnerLevelProgress(prev, levelId);
+        const next = discardInProgressLevelOneRun(current);
+        if (next === current) return prev;
+        return setRunnerLevelProgress(prev, levelId, next);
+      });
+    },
+    [updateProgress],
+  );
 
   const discardInProgressLevelOneRunState = useCallback(() => {
-    updateProgress((prev) => {
-      const nextLevelOne = discardInProgressLevelOneRun(prev.levelOne);
-      if (nextLevelOne === prev.levelOne) return prev;
-      return { ...prev, levelOne: nextLevelOne };
-    });
-  }, [updateProgress]);
+    discardInProgressRunnerLevelRun('level-1');
+  }, [discardInProgressRunnerLevelRun]);
 
   const clearLevelOneActiveRunMarker = useCallback(async () => {
     const id = patientIdRef.current;
@@ -160,39 +203,44 @@ export function LevelsProgressProvider({ children }: { children: React.ReactNode
     await clearLevelOneActiveRun(id);
   }, []);
 
+  const repeatCurrentRunnerLevelSession = useCallback(
+    (levelId: RunnerGameLevelId) => {
+      updateProgress((prev) => {
+        const slot = getRunnerLevelProgress(prev, levelId);
+        const currentIndex = slot.currentSession - 1;
+        const currentSession = slot.sessions[currentIndex];
+        if (!currentSession) {
+          return prev;
+        }
+
+        const sessions = [...slot.sessions];
+        sessions[currentIndex] = {
+          ...currentSession,
+          validRepetitions: 0,
+          failedRepetitions: 0,
+          completed: false,
+          interrupted: false,
+        };
+
+        const nextSlot = {
+          ...slot,
+          sessions,
+          currentRepetition: 1,
+          totalValid: slot.totalValid - currentSession.validRepetitions,
+          totalFailed: slot.totalFailed - currentSession.failedRepetitions,
+          levelCompleted: false,
+          levelPerfect: false,
+        };
+
+        return setRunnerLevelProgress(prev, levelId, nextSlot);
+      });
+    },
+    [updateProgress],
+  );
+
   const repeatCurrentLevelOneSession = useCallback(() => {
-    updateProgress((prev) => {
-      const currentIndex = prev.levelOne.currentSession - 1;
-      const currentSession = prev.levelOne.sessions[currentIndex];
-      if (!currentSession) {
-        return prev;
-      }
-
-      const sessions = [...prev.levelOne.sessions];
-      sessions[currentIndex] = {
-        ...currentSession,
-        validRepetitions: 0,
-        failedRepetitions: 0,
-        completed: false,
-        interrupted: false,
-      };
-
-      const nextLevelOne = {
-        ...prev.levelOne,
-        sessions,
-        currentRepetition: 1,
-        totalValid: prev.levelOne.totalValid - currentSession.validRepetitions,
-        totalFailed: prev.levelOne.totalFailed - currentSession.failedRepetitions,
-        levelCompleted: false,
-        levelPerfect: false,
-      };
-
-      return {
-        ...prev,
-        levelOne: nextLevelOne,
-      };
-    });
-  }, [updateProgress]);
+    repeatCurrentRunnerLevelSession('level-1');
+  }, [repeatCurrentRunnerLevelSession]);
 
   const resetInterruptedCurrentLevelOneSession = useCallback(() => {
     updateProgress((prev) => {
@@ -228,32 +276,37 @@ export function LevelsProgressProvider({ children }: { children: React.ReactNode
     });
   }, [updateProgress]);
 
-  const interruptCurrentLevelOneSession = useCallback(() => {
-    updateProgress((prev) => {
-      const currentIndex = prev.levelOne.currentSession - 1;
-      const currentSession = prev.levelOne.sessions[currentIndex];
-      if (!currentSession || currentSession.completed) {
-        return prev;
-      }
+  const interruptCurrentRunnerLevelSession = useCallback(
+    (levelId: RunnerGameLevelId) => {
+      updateProgress((prev) => {
+        const slot = getRunnerLevelProgress(prev, levelId);
+        const currentIndex = slot.currentSession - 1;
+        const currentSession = slot.sessions[currentIndex];
+        if (!currentSession || currentSession.completed) {
+          return prev;
+        }
 
-      const sessions = [...prev.levelOne.sessions];
-      sessions[currentIndex] = {
-        ...currentSession,
-        completed: false,
-        interrupted: true,
-      };
+        const sessions = [...slot.sessions];
+        sessions[currentIndex] = {
+          ...currentSession,
+          completed: false,
+          interrupted: true,
+        };
 
-      return {
-        ...prev,
-        levelOne: {
-          ...prev.levelOne,
+        return setRunnerLevelProgress(prev, levelId, {
+          ...slot,
           sessions,
           levelCompleted: false,
           levelPerfect: false,
-        },
-      };
-    });
-  }, [updateProgress]);
+        });
+      });
+    },
+    [updateProgress],
+  );
+
+  const interruptCurrentLevelOneSession = useCallback(() => {
+    interruptCurrentRunnerLevelSession('level-1');
+  }, [interruptCurrentRunnerLevelSession]);
 
   const value = useMemo(
     () => ({
@@ -261,26 +314,38 @@ export function LevelsProgressProvider({ children }: { children: React.ReactNode
       progress,
       selectLevel,
       updateLevelOne,
+      updateRunnerLevel,
       finalizeCurrentLevelOneSession,
+      finalizeRunnerLevelSession,
       prepareFreshLevelOneSessionRun,
+      prepareFreshRunnerLevelSessionRun,
       discardInProgressLevelOneRun: discardInProgressLevelOneRunState,
+      discardInProgressRunnerLevelRun,
       clearLevelOneActiveRunMarker,
       repeatCurrentLevelOneSession,
+      repeatCurrentRunnerLevelSession,
       resetInterruptedCurrentLevelOneSession,
       interruptCurrentLevelOneSession,
+      interruptCurrentRunnerLevelSession,
     }),
     [
       isLoading,
       progress,
       selectLevel,
       updateLevelOne,
+      updateRunnerLevel,
       finalizeCurrentLevelOneSession,
+      finalizeRunnerLevelSession,
       prepareFreshLevelOneSessionRun,
+      prepareFreshRunnerLevelSessionRun,
       discardInProgressLevelOneRunState,
+      discardInProgressRunnerLevelRun,
       clearLevelOneActiveRunMarker,
       repeatCurrentLevelOneSession,
+      repeatCurrentRunnerLevelSession,
       resetInterruptedCurrentLevelOneSession,
       interruptCurrentLevelOneSession,
+      interruptCurrentRunnerLevelSession,
     ],
   );
 

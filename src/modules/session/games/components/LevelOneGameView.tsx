@@ -30,7 +30,17 @@ import {
   LEVEL_ONE_OBSTACLE_TOP_NORM,
   LEVEL_ONE_OFFICIAL_EVAL_MS,
 } from '@/src/modules/session/engine/level-one/level-one-repetition-rules';
+import {
+  DesertBackdropCactus,
+  DesertGroundSegment,
+  DesertNearDecor,
+  DesertSun,
+  DuneSilhouette,
+  InspirationMetaPyramid,
+  SCENE_THEME_TOKENS,
+} from '@/src/modules/session/games/components/level-runner-scene';
 import type { LevelOnePhase } from '@/src/modules/session/engine/level-one/use-level-one-game';
+import type { LevelGameTheme, LevelObstacleType } from '@/src/modules/session/levels/level-gameplay-config';
 import {
   isTouchPracticeSession,
   type SessionInputMode,
@@ -101,6 +111,8 @@ type LevelOneGameViewProps = {
   holdPrepSecondsRemaining?: number;
   liveCrashSignal?: number;
   levelLabel?: string;
+  theme?: LevelGameTheme;
+  obstacleType?: LevelObstacleType;
   introMode?: boolean;
   onIntroComplete?: () => void;
   /** Chip compacto de estado del sensor; no altera el juego. */
@@ -135,10 +147,14 @@ export function LevelOneGameView({
   holdPrepSecondsRemaining = 0,
   liveCrashSignal = 0,
   levelLabel = 'Nivel 1',
+  theme = 'forest',
+  obstacleType = 'mountain',
   introMode = false,
   onIntroComplete,
   sensorStatusSlot,
 }: LevelOneGameViewProps) {
+  const sceneTheme = SCENE_THEME_TOKENS[theme];
+  const isDesert = theme === 'desert';
   const isTouchPractice = isTouchPracticeSession(sessionInputMode);
   const { width: layoutW, height: layoutH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -523,7 +539,7 @@ export function LevelOneGameView({
   return (
     <View style={styles.root}>
       <LinearGradient
-        colors={['#E3F0E8', '#D2E8DA', '#C4DFD0']}
+        colors={[...sceneTheme.skyGradient]}
         style={StyleSheet.absoluteFill}
         start={{ x: 0, y: 0 }}
         end={{ x: 0.35, y: 1 }}
@@ -567,29 +583,77 @@ export function LevelOneGameView({
         )}
 
         <View style={[styles.gameStage, { minHeight: gameSceneMinHeight }]}>
-          <View style={styles.scene}>
+          <View
+            style={[
+              styles.scene,
+              isDesert && { borderColor: sceneTheme.sceneBorder, backgroundColor: sceneTheme.skyGradient[0] },
+            ]}>
           <Animated.View style={[styles.parallaxClip, sceneShakeStyle]}>
             <Animated.View style={[styles.mountainStrip, mountainStyle]}>
-              <MountainSilhouette width={tileW} />
-              <MountainSilhouette width={tileW} />
+              {isDesert ? (
+                <>
+                  <DuneSilhouette width={tileW} />
+                  <DuneSilhouette width={tileW} />
+                </>
+              ) : (
+                <>
+                  <MountainSilhouette width={tileW} />
+                  <MountainSilhouette width={tileW} />
+                </>
+              )}
             </Animated.View>
 
             <Animated.View style={[styles.cloudStrip, cloudStyle]}>
-              <CloudCluster />
-              <CloudCluster />
+              <CloudCluster puffColor={sceneTheme.cloudPuff} />
+              <CloudCluster puffColor={sceneTheme.cloudPuff} />
             </Animated.View>
 
-            <View style={styles.sunGlow} />
-            <View style={styles.sunDisc} />
+            {isDesert ? (
+              <>
+                <DesertSun />
+                <DesertBackdropCactus side="left" />
+              </>
+            ) : (
+              <>
+                <View style={[styles.sunGlow, { backgroundColor: sceneTheme.sunGlow }]} />
+                <View
+                  style={[
+                    styles.sunDisc,
+                    {
+                      backgroundColor: sceneTheme.sunDisc,
+                      borderColor: sceneTheme.sunDiscBorder,
+                    },
+                  ]}
+                />
+              </>
+            )}
 
             <Animated.View style={[styles.groundStrip, groundStyle]}>
-              <GroundSegment width={tileW} />
-              <GroundSegment width={tileW} />
+              {isDesert ? (
+                <>
+                  <DesertGroundSegment width={tileW} />
+                  <DesertGroundSegment width={tileW} />
+                </>
+              ) : (
+                <>
+                  <GroundSegment width={tileW} />
+                  <GroundSegment width={tileW} />
+                </>
+              )}
             </Animated.View>
 
             <Animated.View style={[styles.nearStrip, nearStyle]}>
-              <NearGroundDecor width={tileW} />
-              <NearGroundDecor width={tileW} />
+              {isDesert ? (
+                <>
+                  <DesertNearDecor width={tileW} />
+                  <DesertNearDecor width={tileW} />
+                </>
+              ) : (
+                <>
+                  <NearGroundDecor width={tileW} />
+                  <NearGroundDecor width={tileW} />
+                </>
+              )}
             </Animated.View>
 
             <View style={styles.runnerLane}>
@@ -623,12 +687,23 @@ export function LevelOneGameView({
                     },
                     metaHillStyle,
                   ]}>
-                  <InspirationMetaHill
-                    passHeightPx={metaPassVisualPx}
-                    evaluating={inEvaluating}
-                    cleared={rabbitClearsObstacle}
-                    touching={isTouchingGoal}
-                  />
+                  {obstacleType === 'pyramid' ? (
+                    <InspirationMetaPyramid
+                      passHeightPx={metaPassVisualPx}
+                      evaluating={inEvaluating}
+                      cleared={rabbitClearsObstacle}
+                      touching={isTouchingGoal}
+                      visualHeight={META_HILL_VISUAL_H}
+                      visualWidth={META_HILL_WIDTH}
+                    />
+                  ) : (
+                    <InspirationMetaHill
+                      passHeightPx={metaPassVisualPx}
+                      evaluating={inEvaluating}
+                      cleared={rabbitClearsObstacle}
+                      touching={isTouchingGoal}
+                    />
+                  )}
                 </Animated.View>
               ) : null}
 
@@ -648,7 +723,7 @@ export function LevelOneGameView({
               pointerEvents="none">
               {inRest ? (
                 <View style={styles.toastSoft}>
-                  <Text style={styles.toastSoftText}>Descansa · paisaje tranquilo</Text>
+                  <Text style={styles.toastSoftText}>{sceneTheme.restToast}</Text>
                 </View>
               ) : null}
               {crashToastVisible ? (
@@ -675,7 +750,9 @@ export function LevelOneGameView({
           ) : null}
 
           {introMode && onIntroComplete ? (
-            <View style={styles.introOverlay} pointerEvents="box-none">
+            <View
+              style={[styles.introOverlay, { backgroundColor: sceneTheme.introOverlay }]}
+              pointerEvents="box-none">
               <View style={styles.introCard}>
                 <Text style={styles.introKicker}>Terapia respiratoria</Text>
                 <Text style={styles.introLine}>
@@ -907,13 +984,13 @@ function MountainSilhouette({ width }: { width: number }) {
   );
 }
 
-function CloudCluster() {
+function CloudCluster({ puffColor = 'rgba(255,255,255,0.92)' }: { puffColor?: string }) {
   return (
     <View style={styles.cloudTile}>
-      <View style={[styles.cloudPuff, { width: 72, left: 0, top: 4 }]} />
-      <View style={[styles.cloudPuff, { width: 52, left: 56, top: 12 }]} />
-      <View style={[styles.cloudPuff, { width: 64, left: 112, top: 6 }]} />
-      <View style={[styles.cloudPuff, { width: 48, left: 186, top: 14 }]} />
+      <View style={[styles.cloudPuff, { width: 72, left: 0, top: 4, backgroundColor: puffColor }]} />
+      <View style={[styles.cloudPuff, { width: 52, left: 56, top: 12, backgroundColor: puffColor }]} />
+      <View style={[styles.cloudPuff, { width: 64, left: 112, top: 6, backgroundColor: puffColor }]} />
+      <View style={[styles.cloudPuff, { width: 48, left: 186, top: 14, backgroundColor: puffColor }]} />
     </View>
   );
 }
