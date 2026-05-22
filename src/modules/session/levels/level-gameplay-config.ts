@@ -8,7 +8,7 @@ import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import type { GameVisualId } from '@/src/modules/session/games/game-types';
 
 export type LevelGameTheme = 'forest' | 'desert' | 'snow';
-export type LevelObstacleType = 'mountain' | 'pyramid' | 'snowball' | 'snowman';
+export type LevelObstacleType = 'mountain' | 'tractor' | 'pyramid' | 'snowball' | 'snowman';
 
 export type RunnerGameLevelId = 'level-1' | 'level-2' | 'level-3';
 
@@ -26,7 +26,7 @@ const RUNNER_LEVEL_CONFIG: Record<RunnerGameLevelId, LevelGameplayConfig> = {
   'level-1': {
     levelId: 'level-1',
     theme: 'forest',
-    obstacleType: 'mountain',
+    obstacleType: 'tractor',
     gameVisualId: 'rabbit-runner-forest',
     title: 'Nivel 1',
   },
