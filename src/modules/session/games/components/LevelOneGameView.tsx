@@ -39,6 +39,11 @@ import {
   InspirationMetaPyramid,
   InspirationMetaSnowman,
   InspirationMetaTractor,
+  InspirationMetaTreasureChest,
+  OceanBackdropLife,
+  OceanNearDecor,
+  OceanReefSilhouette,
+  OceanSandGroundSegment,
   SCENE_THEME_TOKENS,
   SnowBackdropPines,
   SnowGroundSegment,
@@ -162,7 +167,8 @@ export function LevelOneGameView({
   const sceneTheme = SCENE_THEME_TOKENS[theme];
   const isDesert = theme === 'desert';
   const isSnow = theme === 'snow';
-  const isThemedScene = isDesert || isSnow;
+  const isOcean = theme === 'ocean';
+  const isThemedScene = isDesert || isSnow || isOcean;
   const isTouchPractice = isTouchPracticeSession(sessionInputMode);
   const { width: layoutW, height: layoutH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -598,7 +604,12 @@ export function LevelOneGameView({
             ]}>
           <Animated.View style={[styles.parallaxClip, sceneShakeStyle]}>
             <Animated.View style={[styles.mountainStrip, mountainStyle]}>
-              {isSnow ? (
+              {isOcean ? (
+                <>
+                  <OceanReefSilhouette width={tileW} />
+                  <OceanReefSilhouette width={tileW} />
+                </>
+              ) : isSnow ? (
                 <>
                   <SnowHillSilhouette width={tileW} />
                   <SnowHillSilhouette width={tileW} />
@@ -621,7 +632,25 @@ export function LevelOneGameView({
               <CloudCluster puffColor={sceneTheme.cloudPuff} />
             </Animated.View>
 
-            {isDesert ? (
+            {isOcean ? (
+              <>
+                <View style={[styles.sunGlow, { backgroundColor: sceneTheme.sunGlow, opacity: 0.7 }]} />
+                <View
+                  style={[
+                    styles.sunDisc,
+                    {
+                      backgroundColor: sceneTheme.sunDisc,
+                      borderColor: sceneTheme.sunDiscBorder,
+                      width: 22,
+                      height: 22,
+                      borderRadius: 11,
+                      opacity: 0.65,
+                    },
+                  ]}
+                />
+                <OceanBackdropLife />
+              </>
+            ) : isDesert ? (
               <>
                 <DesertSun />
                 <DesertBackdropCactus side="left" />
@@ -659,7 +688,12 @@ export function LevelOneGameView({
             )}
 
             <Animated.View style={[styles.groundStrip, groundStyle]}>
-              {isSnow ? (
+              {isOcean ? (
+                <>
+                  <OceanSandGroundSegment width={tileW} />
+                  <OceanSandGroundSegment width={tileW} />
+                </>
+              ) : isSnow ? (
                 <>
                   <SnowGroundSegment width={tileW} />
                   <SnowGroundSegment width={tileW} />
@@ -678,7 +712,12 @@ export function LevelOneGameView({
             </Animated.View>
 
             <Animated.View style={[styles.nearStrip, nearStyle]}>
-              {isSnow ? (
+              {isOcean ? (
+                <>
+                  <OceanNearDecor width={tileW} />
+                  <OceanNearDecor width={tileW} />
+                </>
+              ) : isSnow ? (
                 <>
                   <SnowNearDecor width={tileW} />
                   <SnowNearDecor width={tileW} />
@@ -727,7 +766,16 @@ export function LevelOneGameView({
                     },
                     metaHillStyle,
                   ]}>
-                  {obstacleType === 'snowman' ? (
+                  {obstacleType === 'treasureChest' ? (
+                    <InspirationMetaTreasureChest
+                      passHeightPx={metaPassVisualPx}
+                      evaluating={inEvaluating}
+                      cleared={rabbitClearsObstacle}
+                      touching={isTouchingGoal}
+                      visualHeight={META_HILL_VISUAL_H}
+                      visualWidth={META_HILL_WIDTH}
+                    />
+                  ) : obstacleType === 'snowman' ? (
                     <InspirationMetaSnowman
                       passHeightPx={metaPassVisualPx}
                       evaluating={inEvaluating}

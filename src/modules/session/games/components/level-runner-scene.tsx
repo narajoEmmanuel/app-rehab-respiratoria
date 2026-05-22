@@ -50,6 +50,16 @@ export const SCENE_THEME_TOKENS: Record<LevelGameTheme, SceneThemeTokens> = {
     introOverlay: 'rgba(232, 244, 252, 0.55)',
     sceneBorder: 'rgba(140, 175, 200, 0.22)',
   },
+  ocean: {
+    skyGradient: ['#B8E4F5', '#7EC8E3', '#4A9BB8', '#2E6F8C'],
+    sunGlow: 'rgba(120, 200, 230, 0.28)',
+    sunDisc: 'rgba(200, 235, 255, 0.5)',
+    sunDiscBorder: 'rgba(100, 170, 200, 0.35)',
+    cloudPuff: 'rgba(255, 255, 255, 0.35)',
+    restToast: 'Descansa · aguas tranquilas',
+    introOverlay: 'rgba(140, 200, 225, 0.45)',
+    sceneBorder: 'rgba(46, 111, 140, 0.22)',
+  },
 };
 
 /** Sol más visible para el cielo desértico (solo presentación). */
@@ -269,6 +279,253 @@ export function SnowNearDecor({ width }: { width: number }) {
 }
 
 /** Pinos con escarcha en segundo plano (laterales; no tapa conejo ni obstáculo). */
+/** Siluetas de fondo marino (rocas / arrecife lejano). */
+export function OceanReefSilhouette({ width }: { width: number }) {
+  return (
+    <View style={[sceneStyles.oceanReefTile, { width }]}>
+      <View style={[sceneStyles.oceanReefMound, { left: width * 0.04, width: width * 0.22, height: 42 }]}>
+        <LinearGradient
+          colors={['rgba(30, 90, 110, 0.35)', 'rgba(20, 65, 85, 0.55)']}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+        />
+      </View>
+      <View style={[sceneStyles.oceanReefMoundTall, { left: width * 0.26, width: width * 0.3, height: 58 }]}>
+        <LinearGradient
+          colors={['rgba(25, 80, 100, 0.4)', 'rgba(15, 55, 75, 0.6)']}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+        />
+      </View>
+      <View style={[sceneStyles.oceanReefMound, { left: width * 0.58, width: width * 0.2, height: 36 }]}>
+        <LinearGradient
+          colors={['rgba(35, 95, 115, 0.32)', 'rgba(22, 70, 90, 0.52)']}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+        />
+      </View>
+      <View style={[sceneStyles.oceanReefMoundShort, { left: width * 0.78, width: width * 0.18, height: 28 }]}>
+        <LinearGradient
+          colors={['rgba(40, 100, 120, 0.28)', 'rgba(28, 75, 95, 0.48)']}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+        />
+      </View>
+    </View>
+  );
+}
+
+export function OceanSandGroundSegment({ width }: { width: number }) {
+  const grains = [0.1, 0.28, 0.45, 0.62, 0.78];
+  return (
+    <View style={[sceneStyles.oceanSandTile, { width }]}>
+      <LinearGradient
+        colors={['#6BB8C8', '#4A9BB0', '#357A92']}
+        style={sceneStyles.oceanWaterBand}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      />
+      <LinearGradient
+        colors={['#E8D4A8', '#C9B07A', '#A89060', '#8A7550']}
+        locations={[0, 0.25, 0.55, 1]}
+        style={sceneStyles.oceanSandCrest}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      />
+      <LinearGradient
+        colors={['#B8A078', '#9A8668', '#7A6A52', '#5C5040']}
+        locations={[0, 0.35, 0.72, 1]}
+        style={sceneStyles.oceanSandBody}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      />
+      <LinearGradient
+        colors={['transparent', 'rgba(255, 255, 255, 0.08)', 'transparent']}
+        style={sceneStyles.oceanSandShine}
+        start={{ x: 0, y: 0.5 }}
+        end={{ x: 1, y: 0.5 }}
+      />
+      {grains.map((left, index) => (
+        <View
+          key={`sand-grain-${index}`}
+          style={[
+            sceneStyles.oceanSandGrain,
+            {
+              left: width * left,
+              top: 16 + (index % 3) * 6,
+              opacity: 0.2 + (index % 3) * 0.1,
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+
+export function OceanNearDecor({ width }: { width: number }) {
+  return (
+    <View style={[sceneStyles.oceanNearTile, { width }]}>
+      <View style={[sceneStyles.oceanSeaweed, { left: width * 0.12 }]}>
+        <LinearGradient colors={['#5A9E6A', '#3D7A52', '#2A5C3E']} style={sceneStyles.oceanSeaweedBlade} />
+        <View style={[sceneStyles.oceanSeaweedBlade, sceneStyles.oceanSeaweedBladeOffset]} />
+      </View>
+      <View style={[sceneStyles.oceanSeaweedSmall, { left: width * 0.38 }]}>
+        <LinearGradient colors={['#4E9462', '#356848']} style={sceneStyles.oceanSeaweedBladeSmall} />
+      </View>
+      <View style={[sceneStyles.oceanCoralBump, { left: width * 0.58 }]} />
+      <View style={[sceneStyles.oceanSeaweed, { left: width * 0.76, transform: [{ scaleX: -1 }] }]}>
+        <LinearGradient colors={['#62A872', '#428A5C', '#2E6244']} style={sceneStyles.oceanSeaweedBlade} />
+      </View>
+    </View>
+  );
+}
+
+/** Peces, burbujas y siluetas marinas decorativas (fondo fijo). */
+export function OceanBackdropLife() {
+  return (
+    <View style={sceneStyles.oceanLifeRoot} pointerEvents="none">
+      <View style={[sceneStyles.oceanFish, sceneStyles.oceanFishLeft]}>
+        <View style={sceneStyles.oceanFishBody} />
+        <View style={sceneStyles.oceanFishTail} />
+      </View>
+      <View style={[sceneStyles.oceanFish, sceneStyles.oceanFishMid]}>
+        <View style={[sceneStyles.oceanFishBody, sceneStyles.oceanFishBodySmall]} />
+        <View style={[sceneStyles.oceanFishTail, sceneStyles.oceanFishTailSmall]} />
+      </View>
+      <View style={[sceneStyles.oceanFish, sceneStyles.oceanFishRight]}>
+        <View style={[sceneStyles.oceanFishBody, sceneStyles.oceanFishBodyOrange]} />
+        <View style={sceneStyles.oceanFishTail} />
+      </View>
+      <View style={[sceneStyles.oceanBubble, { left: '18%', top: '22%' }]} />
+      <View style={[sceneStyles.oceanBubble, sceneStyles.oceanBubbleMd, { left: '24%', top: '38%' }]} />
+      <View style={[sceneStyles.oceanBubble, sceneStyles.oceanBubbleSm, { left: '72%', top: '28%' }]} />
+      <View style={[sceneStyles.oceanBubble, sceneStyles.oceanBubbleMd, { left: '80%', top: '45%' }]} />
+      <View style={[sceneStyles.oceanBubble, { left: '55%', top: '18%' }]} />
+      <View style={sceneStyles.oceanSharkSilhouette} />
+      <View style={[sceneStyles.oceanKelpCluster, sceneStyles.oceanKelpLeft]}>
+        <View style={sceneStyles.oceanKelpStrand} />
+        <View style={[sceneStyles.oceanKelpStrand, sceneStyles.oceanKelpStrandAlt]} />
+      </View>
+      <View style={[sceneStyles.oceanKelpCluster, sceneStyles.oceanKelpRight]}>
+        <View style={[sceneStyles.oceanKelpStrand, sceneStyles.oceanKelpStrandTall]} />
+      </View>
+    </View>
+  );
+}
+
+function TreasureChestFigure({
+  height,
+  width,
+  isAlert,
+}: {
+  height: number;
+  width: number;
+  isAlert: boolean;
+}) {
+  const woodLight = isAlert ? '#8A6A48' : '#B8864A';
+  const woodDark = isAlert ? '#5C4430' : '#7A5A32';
+  const goldLight = isAlert ? '#C9A840' : '#FFD54A';
+  const goldDark = isAlert ? '#9A7830' : '#E8B830';
+  const chestW = Math.round(width * 0.82);
+  const chestH = Math.round(height * 0.55);
+  const lidH = Math.round(chestH * 0.38);
+  const baseH = chestH - lidH;
+
+  return (
+    <View style={[sceneStyles.treasureFigure, { width, height }]}>
+      <View style={[sceneStyles.treasureCoin, { left: width * 0.08, bottom: 4, opacity: 0.85 }]}>
+        <LinearGradient colors={[goldLight, goldDark]} style={StyleSheet.absoluteFill} />
+      </View>
+      <View style={[sceneStyles.treasureCoin, sceneStyles.treasureCoinSm, { left: width * 0.2, bottom: 2 }]}>
+        <LinearGradient colors={[goldLight, goldDark]} style={StyleSheet.absoluteFill} />
+      </View>
+      <View style={[sceneStyles.treasureCoin, { right: width * 0.1, bottom: 6, opacity: 0.9 }]}>
+        <LinearGradient colors={[goldLight, goldDark]} style={StyleSheet.absoluteFill} />
+      </View>
+      <View style={[sceneStyles.treasureCoin, sceneStyles.treasureCoinSm, { right: width * 0.22, bottom: 1 }]}>
+        <LinearGradient colors={[goldLight, goldDark]} style={StyleSheet.absoluteFill} />
+      </View>
+      <View style={[sceneStyles.treasureChestBase, { width: chestW, height: baseH }]}>
+        <LinearGradient
+          colors={[woodLight, woodDark]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.2, y: 0 }}
+          end={{ x: 0.85, y: 1 }}
+        />
+        <View style={sceneStyles.treasureChestBand} />
+        <View style={[sceneStyles.treasureChestLock, { backgroundColor: goldDark, borderColor: goldLight }]} />
+      </View>
+      <View style={[sceneStyles.treasureChestLid, { width: chestW, height: lidH, bottom: baseH - 2 }]}>
+        <LinearGradient
+          colors={[woodLight, woodDark]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.15, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+        />
+        <View style={[sceneStyles.treasureChestLidCurve, { borderColor: woodDark }]} />
+        <View style={[sceneStyles.treasureChestBand, { top: lidH * 0.55 }]} />
+      </View>
+      <View style={[sceneStyles.treasureCoinStack, { left: chestW * 0.35, bottom: baseH + lidH * 0.15 }]}>
+        <View style={sceneStyles.treasureCoinStackPiece}>
+          <LinearGradient colors={[goldLight, goldDark]} style={StyleSheet.absoluteFill} />
+        </View>
+        <View style={[sceneStyles.treasureCoinStackPiece, sceneStyles.treasureCoinStackOffset]}>
+          <LinearGradient colors={[goldLight, goldDark]} style={StyleSheet.absoluteFill} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+export function InspirationMetaTreasureChest({
+  passHeightPx,
+  evaluating,
+  cleared,
+  touching,
+  visualHeight,
+  visualWidth,
+}: {
+  passHeightPx: number;
+  evaluating: boolean;
+  cleared: boolean;
+  touching: boolean;
+  visualHeight: number;
+  visualWidth: number;
+}) {
+  const isAlert = touching || (evaluating && !cleared);
+  const bodyHeight = Math.min(passHeightPx + 42, visualHeight - 8);
+  const figureScale = 1.12;
+
+  return (
+    <View
+      style={[sceneStyles.treasureObstacleRoot, { width: visualWidth, height: visualHeight }]}
+      pointerEvents="none">
+      <View style={sceneStyles.treasureObstacleShadow} />
+      <View style={[sceneStyles.treasureObstacleBody, { height: bodyHeight }]}>
+        <View
+          style={[
+            sceneStyles.treasureFigureScaleWrap,
+            {
+              width: visualWidth,
+              height: bodyHeight,
+              transform: [
+                { translateY: -Math.round(bodyHeight * (figureScale - 1) * 0.5) },
+                { scale: figureScale },
+              ],
+            },
+          ]}>
+          <TreasureChestFigure height={bodyHeight} width={visualWidth} isAlert={isAlert} />
+        </View>
+      </View>
+      {touching ? <View style={sceneStyles.treasureObstacleContactTint} /> : null}
+    </View>
+  );
+}
+
 export function SnowBackdropPines() {
   return (
     <View style={sceneStyles.pineBackdropRoot} pointerEvents="none">
@@ -1570,6 +1827,341 @@ const sceneStyles = StyleSheet.create({
   tractorObstacleContactTint: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(180, 95, 80, 0.12)',
+    borderRadius: 12,
+  },
+  oceanReefTile: {
+    height: 88,
+    position: 'relative',
+  },
+  oceanReefMound: {
+    position: 'absolute',
+    bottom: 0,
+    borderTopLeftRadius: 70,
+    borderTopRightRadius: 70,
+    overflow: 'hidden',
+  },
+  oceanReefMoundTall: {
+    position: 'absolute',
+    bottom: 0,
+    borderTopLeftRadius: 80,
+    borderTopRightRadius: 80,
+    overflow: 'hidden',
+  },
+  oceanReefMoundShort: {
+    position: 'absolute',
+    bottom: 0,
+    borderTopLeftRadius: 55,
+    borderTopRightRadius: 55,
+    overflow: 'hidden',
+  },
+  oceanSandTile: {
+    height: 72,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  oceanWaterBand: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 10,
+    opacity: 0.55,
+  },
+  oceanSandCrest: {
+    height: 24,
+    width: '100%',
+  },
+  oceanSandBody: {
+    flex: 1,
+    width: '100%',
+  },
+  oceanSandShine: {
+    position: 'absolute',
+    top: 10,
+    left: 0,
+    right: 0,
+    height: 18,
+  },
+  oceanSandGrain: {
+    position: 'absolute',
+    width: 4,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: 'rgba(255, 240, 200, 0.35)',
+  },
+  oceanNearTile: {
+    height: 40,
+    position: 'relative',
+  },
+  oceanSeaweed: {
+    position: 'absolute',
+    bottom: 0,
+    width: 14,
+    height: 28,
+    alignItems: 'center',
+  },
+  oceanSeaweedSmall: {
+    position: 'absolute',
+    bottom: 0,
+    width: 10,
+    height: 18,
+    alignItems: 'center',
+  },
+  oceanSeaweedBlade: {
+    width: 8,
+    height: 22,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+  },
+  oceanSeaweedBladeSmall: {
+    width: 6,
+    height: 14,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
+  },
+  oceanSeaweedBladeOffset: {
+    position: 'absolute',
+    left: 5,
+    height: 18,
+    top: 6,
+    opacity: 0.85,
+    backgroundColor: '#3D7A52',
+    width: 6,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
+  },
+  oceanCoralBump: {
+    position: 'absolute',
+    bottom: 0,
+    width: 22,
+    height: 10,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+    backgroundColor: 'rgba(200, 120, 100, 0.45)',
+  },
+  oceanLifeRoot: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+  },
+  oceanFish: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  oceanFishLeft: {
+    left: '12%',
+    top: '32%',
+    opacity: 0.55,
+  },
+  oceanFishMid: {
+    left: '48%',
+    top: '52%',
+    opacity: 0.45,
+  },
+  oceanFishRight: {
+    right: '14%',
+    top: '40%',
+    opacity: 0.5,
+  },
+  oceanFishBody: {
+    width: 18,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: 'rgba(90, 160, 190, 0.7)',
+  },
+  oceanFishBodySmall: {
+    width: 12,
+    height: 7,
+    borderRadius: 4,
+  },
+  oceanFishBodyOrange: {
+    backgroundColor: 'rgba(230, 150, 90, 0.65)',
+  },
+  oceanFishTail: {
+    width: 0,
+    height: 0,
+    borderTopWidth: 5,
+    borderBottomWidth: 5,
+    borderLeftWidth: 8,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderLeftColor: 'rgba(70, 140, 175, 0.65)',
+    marginLeft: -2,
+  },
+  oceanFishTailSmall: {
+    borderTopWidth: 3.5,
+    borderBottomWidth: 3.5,
+    borderLeftWidth: 5,
+  },
+  oceanBubble: {
+    position: 'absolute',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.45)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  oceanBubbleMd: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  oceanBubbleSm: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+  },
+  oceanSharkSilhouette: {
+    position: 'absolute',
+    right: '8%',
+    top: '12%',
+    width: 48,
+    height: 14,
+    borderRadius: 8,
+    backgroundColor: 'rgba(30, 70, 95, 0.18)',
+    transform: [{ rotate: '-8deg' }],
+  },
+  oceanKelpCluster: {
+    position: 'absolute',
+    bottom: 100,
+    width: 28,
+    height: 56,
+    opacity: 0.5,
+  },
+  oceanKelpLeft: {
+    left: 6,
+  },
+  oceanKelpRight: {
+    right: 8,
+  },
+  oceanKelpStrand: {
+    position: 'absolute',
+    left: 8,
+    bottom: 0,
+    width: 6,
+    height: 48,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
+    backgroundColor: 'rgba(45, 110, 85, 0.55)',
+  },
+  oceanKelpStrandAlt: {
+    left: 16,
+    height: 38,
+    opacity: 0.75,
+  },
+  oceanKelpStrandTall: {
+    height: 52,
+    left: 10,
+  },
+  treasureObstacleRoot: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  treasureObstacleShadow: {
+    position: 'absolute',
+    bottom: 0,
+    left: '12%',
+    right: '12%',
+    height: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(30, 60, 80, 0.2)',
+  },
+  treasureObstacleBody: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  treasureFigureScaleWrap: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  treasureFigure: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    position: 'relative',
+  },
+  treasureChestBase: {
+    borderRadius: 6,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(60, 40, 25, 0.35)',
+    alignSelf: 'center',
+  },
+  treasureChestLid: {
+    position: 'absolute',
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(60, 40, 25, 0.35)',
+    alignSelf: 'center',
+  },
+  treasureChestLidCurve: {
+    position: 'absolute',
+    top: -4,
+    left: '8%',
+    right: '8%',
+    height: 14,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: 2,
+    backgroundColor: 'transparent',
+  },
+  treasureChestBand: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 5,
+    backgroundColor: 'rgba(50, 35, 22, 0.45)',
+    top: '42%',
+  },
+  treasureChestLock: {
+    position: 'absolute',
+    alignSelf: 'center',
+    top: '30%',
+    width: 12,
+    height: 14,
+    borderRadius: 3,
+    borderWidth: 1.5,
+  },
+  treasureCoin: {
+    position: 'absolute',
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(180, 140, 40, 0.5)',
+    overflow: 'hidden',
+  },
+  treasureCoinSm: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  treasureCoinStack: {
+    position: 'absolute',
+    width: 20,
+    height: 16,
+  },
+  treasureCoinStackPiece: {
+    position: 'absolute',
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(200, 160, 50, 0.55)',
+    overflow: 'hidden',
+  },
+  treasureCoinStackOffset: {
+    left: 5,
+    top: -4,
+    opacity: 0.9,
+  },
+  treasureObstacleContactTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(80, 120, 150, 0.14)',
     borderRadius: 12,
   },
 });

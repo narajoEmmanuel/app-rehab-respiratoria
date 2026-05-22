@@ -7,10 +7,16 @@
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import type { GameVisualId } from '@/src/modules/session/games/game-types';
 
-export type LevelGameTheme = 'forest' | 'desert' | 'snow';
-export type LevelObstacleType = 'mountain' | 'tractor' | 'pyramid' | 'snowball' | 'snowman';
+export type LevelGameTheme = 'forest' | 'desert' | 'snow' | 'ocean';
+export type LevelObstacleType =
+  | 'mountain'
+  | 'tractor'
+  | 'pyramid'
+  | 'snowball'
+  | 'snowman'
+  | 'treasureChest';
 
-export type RunnerGameLevelId = 'level-1' | 'level-2' | 'level-3';
+export type RunnerGameLevelId = 'level-1' | 'level-2' | 'level-3' | 'level-4';
 
 export type LevelGameplayConfig = {
   levelId: RunnerGameLevelId;
@@ -20,7 +26,12 @@ export type LevelGameplayConfig = {
   title: string;
 };
 
-export const RUNNER_GAME_LEVEL_IDS: readonly RunnerGameLevelId[] = ['level-1', 'level-2', 'level-3'] as const;
+export const RUNNER_GAME_LEVEL_IDS: readonly RunnerGameLevelId[] = [
+  'level-1',
+  'level-2',
+  'level-3',
+  'level-4',
+] as const;
 
 const RUNNER_LEVEL_CONFIG: Record<RunnerGameLevelId, LevelGameplayConfig> = {
   'level-1': {
@@ -44,10 +55,22 @@ const RUNNER_LEVEL_CONFIG: Record<RunnerGameLevelId, LevelGameplayConfig> = {
     gameVisualId: 'rabbit-runner-snow',
     title: 'Nivel 3',
   },
+  'level-4': {
+    levelId: 'level-4',
+    theme: 'ocean',
+    obstacleType: 'treasureChest',
+    gameVisualId: 'rabbit-runner-ocean',
+    title: 'Nivel 4',
+  },
 };
 
 export function isRunnerGameLevel(levelId: string): levelId is RunnerGameLevelId {
-  return levelId === 'level-1' || levelId === 'level-2' || levelId === 'level-3';
+  return (
+    levelId === 'level-1' ||
+    levelId === 'level-2' ||
+    levelId === 'level-3' ||
+    levelId === 'level-4'
+  );
 }
 
 export function getLevelGameplayConfig(levelId: string): LevelGameplayConfig | undefined {

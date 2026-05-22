@@ -28,6 +28,7 @@ import { TARGET_PERFECT_SESSIONS } from '@/src/modules/session/session-progress-
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import type { TherapyLevelStatusChip } from '@/src/shared/ui/therapy-level-card';
 import { TherapyLevelCard } from '@/src/shared/ui/therapy-level-card';
+import { isLevelEntryLockedForUi } from '@/src/config/dev-level-flags';
 import { spacing } from '@/src/shared/theme/spacing';
 import { dashboardScreen, dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { getLevelVisualIdentity } from '@/src/theme/level-colors';
@@ -233,7 +234,8 @@ export function LevelsScreen({
           const levelId = level.id as LevelId;
           const row = patientLevels.find((item) => item.level_id === levelId);
           const status = row?.level_status ?? 'locked';
-          const locked = status === 'locked' || !!level.comingSoon;
+          const progressionLocked = status === 'locked';
+          const locked = isLevelEntryLockedForUi(progressionLocked, level.comingSoon);
           const perfectTowardUnlock = row?.perfect_sessions_completed ?? 0;
           const completedToday = row?.sessions_completed_today ?? 0;
           const visual = getLevelVisualIdentity(level.id);

@@ -25,18 +25,29 @@ export type LevelOneProgress = {
   levelPerfect: boolean;
 };
 
-export type RunnerGameLevelId = 'level-1' | 'level-2' | 'level-3';
+export type RunnerGameLevelId = 'level-1' | 'level-2' | 'level-3' | 'level-4';
 
-export const RUNNER_GAME_LEVEL_IDS: readonly RunnerGameLevelId[] = ['level-1', 'level-2', 'level-3'] as const;
+export const RUNNER_GAME_LEVEL_IDS: readonly RunnerGameLevelId[] = [
+  'level-1',
+  'level-2',
+  'level-3',
+  'level-4',
+] as const;
 
 export function isRunnerGameLevel(levelId: LevelId): levelId is RunnerGameLevelId {
-  return levelId === 'level-1' || levelId === 'level-2' || levelId === 'level-3';
+  return (
+    levelId === 'level-1' ||
+    levelId === 'level-2' ||
+    levelId === 'level-3' ||
+    levelId === 'level-4'
+  );
 }
 
 export function getRunnerLevelProgress(
   progress: LevelsProgress,
   levelId: RunnerGameLevelId,
 ): LevelOneProgress {
+  if (levelId === 'level-4') return progress.levelFour;
   if (levelId === 'level-3') return progress.levelThree;
   if (levelId === 'level-2') return progress.levelTwo;
   return progress.levelOne;
@@ -47,6 +58,7 @@ export function setRunnerLevelProgress(
   levelId: RunnerGameLevelId,
   slot: LevelOneProgress,
 ): LevelsProgress {
+  if (levelId === 'level-4') return { ...progress, levelFour: slot };
   if (levelId === 'level-3') return { ...progress, levelThree: slot };
   if (levelId === 'level-2') return { ...progress, levelTwo: slot };
   return { ...progress, levelOne: slot };
@@ -58,6 +70,7 @@ export type LevelsProgress = {
   levelOne: LevelOneProgress;
   levelTwo: LevelOneProgress;
   levelThree: LevelOneProgress;
+  levelFour: LevelOneProgress;
 };
 
 export function createInitialLevelOneProgress(): LevelOneProgress {
@@ -85,6 +98,7 @@ export function createInitialLevelsProgress(): LevelsProgress {
     levelOne: createInitialLevelOneProgress(),
     levelTwo: createInitialLevelOneProgress(),
     levelThree: createInitialLevelOneProgress(),
+    levelFour: createInitialLevelOneProgress(),
   };
 }
 
