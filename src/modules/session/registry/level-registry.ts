@@ -10,6 +10,7 @@ import { getLevelGameplayConfig } from '@/src/modules/session/levels/level-gamep
 
 const level1Gameplay = getLevelGameplayConfig('level-1')!;
 const level2Gameplay = getLevelGameplayConfig('level-2')!;
+const level3Gameplay = getLevelGameplayConfig('level-3')!;
 
 const LEVELS: LevelDefinition[] = [
   {
@@ -32,8 +33,9 @@ const LEVELS: LevelDefinition[] = [
     id: 'level-3',
     title: 'Nivel 3',
     difficulty: 'hard',
-    gameVisualId: 'visual-placeholder',
-    comingSoon: true,
+    gameVisualId: level3Gameplay.gameVisualId,
+    theme: level3Gameplay.theme,
+    obstacleType: level3Gameplay.obstacleType,
   },
   {
     id: 'level-4',

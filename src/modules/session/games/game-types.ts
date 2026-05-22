@@ -11,4 +11,5 @@ export type GameVisualId =
   | 'monkey-jungle'
   | 'rabbit-runner-forest'
   | 'rabbit-runner-desert'
+  | 'rabbit-runner-snow'
   | 'rocket-experimental';

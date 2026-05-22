@@ -25,19 +25,21 @@ export type LevelOneProgress = {
   levelPerfect: boolean;
 };
 
-export type RunnerGameLevelId = 'level-1' | 'level-2';
+export type RunnerGameLevelId = 'level-1' | 'level-2' | 'level-3';
 
-export const RUNNER_GAME_LEVEL_IDS: readonly RunnerGameLevelId[] = ['level-1', 'level-2'] as const;
+export const RUNNER_GAME_LEVEL_IDS: readonly RunnerGameLevelId[] = ['level-1', 'level-2', 'level-3'] as const;
 
 export function isRunnerGameLevel(levelId: LevelId): levelId is RunnerGameLevelId {
-  return levelId === 'level-1' || levelId === 'level-2';
+  return levelId === 'level-1' || levelId === 'level-2' || levelId === 'level-3';
 }
 
 export function getRunnerLevelProgress(
   progress: LevelsProgress,
   levelId: RunnerGameLevelId,
 ): LevelOneProgress {
-  return levelId === 'level-2' ? progress.levelTwo : progress.levelOne;
+  if (levelId === 'level-3') return progress.levelThree;
+  if (levelId === 'level-2') return progress.levelTwo;
+  return progress.levelOne;
 }
 
 export function setRunnerLevelProgress(
@@ -45,7 +47,9 @@ export function setRunnerLevelProgress(
   levelId: RunnerGameLevelId,
   slot: LevelOneProgress,
 ): LevelsProgress {
-  return levelId === 'level-2' ? { ...progress, levelTwo: slot } : { ...progress, levelOne: slot };
+  if (levelId === 'level-3') return { ...progress, levelThree: slot };
+  if (levelId === 'level-2') return { ...progress, levelTwo: slot };
+  return { ...progress, levelOne: slot };
 }
 
 export type LevelsProgress = {
@@ -53,6 +57,7 @@ export type LevelsProgress = {
   unlockedLevels: LevelId[];
   levelOne: LevelOneProgress;
   levelTwo: LevelOneProgress;
+  levelThree: LevelOneProgress;
 };
 
 export function createInitialLevelOneProgress(): LevelOneProgress {
@@ -79,6 +84,7 @@ export function createInitialLevelsProgress(): LevelsProgress {
     unlockedLevels: ['level-1'],
     levelOne: createInitialLevelOneProgress(),
     levelTwo: createInitialLevelOneProgress(),
+    levelThree: createInitialLevelOneProgress(),
   };
 }
 
