@@ -7,7 +7,7 @@
  */
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -46,12 +46,6 @@ import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness } from '@/src/shared/theme/wellness-theme';
 import { dashboardScreen, dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
-import {
-  isSensorMeasuredSession,
-  resolveSessionClassification,
-  sessionClassificationUiLabel,
-} from '@/src/modules/session/session-record-classification';
-import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 import { getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 
 const CAL_BG: Record<CalendarDayKind, string> = {
@@ -64,18 +58,31 @@ const CAL_BG: Record<CalendarDayKind, string> = {
 
 const WEEK_LABELS = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
 
+function StreakFireIcon({ active }: { active: boolean }) {
+  return (
+    <Text
+      style={[styles.streakFireEmoji, !active && styles.streakFireEmojiMuted]}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants">
+      🔥
+    </Text>
+  );
+}
+
 function SummaryCard({
   label,
   value,
   badge,
   progress,
   hint,
+  trailingDecoration,
 }: {
   label: string;
   value: string;
   badge: string;
   progress?: number;
   hint?: string;
+  trailingDecoration?: ReactNode;
 }) {
   const safeProgress = Math.max(0, Math.min(progress ?? 0, 1));
   return (
@@ -96,6 +103,9 @@ function SummaryCard({
           </View>
         ) : null}
       </View>
+      {trailingDecoration ? (
+        <View style={styles.summaryTrailing}>{trailingDecoration}</View>
+      ) : null}
     </View>
   );
 }
@@ -303,6 +313,7 @@ export function HistoryScreen() {
                 badge={streakDays > 0 ? 'Activa' : 'Pendiente'}
                 progress={Math.min(streakDays / 7, 1)}
                 hint="Días seguidos con práctica registrada"
+                trailingDecoration={<StreakFireIcon active={streakDays > 0} />}
               />
               <SummaryCard
                 label="Sesiones de hoy"
@@ -477,18 +488,6 @@ export function HistoryScreen() {
                     terapéutica)
                   </Text>
                 ) : null}
-                {selectedDay.sessions.length > 0 ? (
-                  <View style={styles.modalSessionsBlock}>
-                    <Text style={styles.modalSessionsTitle}>Sesiones del día</Text>
-                    {selectedDay.sessions.map((session) => (
-                      <DaySessionCard
-                        key={session.session_id}
-                        session={session}
-                        attempts={attemptsBySession.get(session.session_id) ?? []}
-                      />
-                    ))}
-                  </View>
-                ) : null}
                 <Text style={styles.modalMotivation}>{dayDetailMotivation(selectedDay)}</Text>
                 <Pressable
                   style={styles.modalClose}
@@ -502,68 +501,6 @@ export function HistoryScreen() {
         </Pressable>
       </Modal>
     </SafeAreaView>
-  );
-}
-
-function DaySessionCard({
-  session,
-  attempts,
-}: {
-  session: SessionRecord;
-  attempts: { official_volume_ml?: number | null; peak_volume: number }[];
-}) {
-  const chip = sessionClassificationUiLabel(session);
-  const c = resolveSessionClassification(session);
-  const isPractice = c.isPracticeSession;
-  const officialMax =
-    typeof session.max_volume === 'number' && session.max_volume > 0
-      ? session.max_volume
-      : attempts.length > 0
-        ? Math.max(
-            ...attempts.map((a) =>
-              typeof a.official_volume_ml === 'number'
-                ? a.official_volume_ml
-                : a.peak_volume,
-            ),
-          )
-        : null;
-
-  return (
-    <View style={styles.modalSessionCard}>
-      <View style={styles.modalSessionRow}>
-        <Text style={styles.modalSessionTime}>
-          {new Date(session.session_date).toLocaleTimeString('es-MX', {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </Text>
-        <View
-          style={[
-            styles.modalSessionChip,
-            isPractice && styles.modalSessionChipPractice,
-            chip === 'Sin clasificar' && styles.modalSessionChipMuted,
-          ]}>
-          <Text style={styles.modalSessionChipText}>{chip}</Text>
-        </View>
-      </View>
-      <Text style={styles.modalSessionMeta}>
-        Vol. máx. oficial:{' '}
-        {officialMax != null && officialMax > 0 ? `${Math.round(officialMax)} mL` : '—'}
-      </Text>
-      {isSensorMeasuredSession(session) ? (
-        <Text style={styles.modalSessionMeta}>
-          Sensor:{' '}
-          {typeof session.max_sensor_estimated_volume_ml === 'number'
-            ? `${Math.round(session.max_sensor_estimated_volume_ml)} mL`
-            : '—'}
-          {typeof session.max_sensor_u95_ml === 'number'
-            ? ` · U95 ±${Math.round(session.max_sensor_u95_ml)} mL`
-            : ''}
-        </Text>
-      ) : isPractice ? (
-        <Text style={styles.modalSessionMetaMuted}>Práctica sin medición del sensor</Text>
-      ) : null}
-    </View>
   );
 }
 
@@ -698,6 +635,20 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 4,
     backgroundColor: wellness.primary,
+  },
+  summaryTrailing: {
+    marginLeft: spacing.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    minWidth: 52,
+  },
+  streakFireEmoji: {
+    fontSize: 44,
+    lineHeight: 50,
+  },
+  streakFireEmojiMuted: {
+    opacity: 0.28,
   },
   sectionCard: {
     marginTop: spacing.lg,
@@ -922,64 +873,6 @@ const styles = StyleSheet.create({
     color: dashboardScreen.textSecondary,
     marginBottom: 8,
     lineHeight: 20,
-  },
-  modalSessionsBlock: {
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-    gap: 8,
-  },
-  modalSessionsTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: dashboardScreen.textSecondary,
-  },
-  modalSessionCard: {
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: dashboardScreen.cardBorderColor,
-  },
-  modalSessionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  modalSessionTime: {
-    fontSize: 15,
-    color: dashboardScreen.textPrimary,
-    minWidth: 52,
-  },
-  modalSessionChip: {
-    borderRadius: 8,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    backgroundColor: 'rgba(52, 171, 165, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(52, 171, 165, 0.25)',
-  },
-  modalSessionChipPractice: {
-    backgroundColor: 'rgba(201, 162, 39, 0.12)',
-    borderColor: 'rgba(201, 162, 39, 0.28)',
-  },
-  modalSessionChipMuted: {
-    backgroundColor: 'rgba(61, 90, 74, 0.06)',
-    borderColor: dashboardScreen.cardBorderColor,
-  },
-  modalSessionMeta: {
-    marginTop: 4,
-    fontSize: 13,
-    color: dashboardScreen.textPrimary,
-    lineHeight: 18,
-  },
-  modalSessionMetaMuted: {
-    marginTop: 4,
-    fontSize: 12,
-    color: dashboardScreen.textSecondary,
-    fontStyle: 'italic',
-  },
-  modalSessionChipText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: wellness.primaryDark,
   },
   modalMotivation: {
     marginTop: spacing.md,
