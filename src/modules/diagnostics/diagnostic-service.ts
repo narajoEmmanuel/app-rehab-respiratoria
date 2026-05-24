@@ -1,7 +1,7 @@
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { updatePatientCurrentLevel } from '@/src/modules/patient/patient-service';
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
-import { todayStatsForPatientLevelRow } from '@/src/modules/session/utils/today-session-stats';
+import { reconcilePatientLevelDailyCounters } from '@/src/modules/session/utils/patient-level-daily-reconciliation';
 import { getLocalDateKey } from '@/src/shared/utils/local-date-key';
 
 import {
@@ -17,7 +17,7 @@ const LEVEL_FACTORS: { levelId: LevelId; factor: number }[] = [
   { levelId: 'level-2', factor: 0.6 },
   { levelId: 'level-3', factor: 0.7 },
   { levelId: 'level-4', factor: 0.8 },
-  { levelId: 'level-5', factor: 0.9 },
+  { levelId: 'level-5', factor: 1.0 },
 ];
 
 export async function hasDiagnostic(patientId: number): Promise<boolean> {
@@ -89,6 +89,51 @@ export async function generatePatientLevels(
   return generated;
 }
 
+/**
+ * Añade filas faltantes en patient_levels (p. ej. level-4/5 en pacientes creados antes).
+ * No cambia level_status ni progreso de filas existentes.
+ */
+export async function ensurePatientLevelCatalog(patientId: number): Promise<void> {
+  const all = await readAllPatientLevels();
+  const existingForPatient = all.filter((row) => row.patient_id === patientId);
+  if (existingForPatient.length === 0) return;
+
+  const existingIds = new Set(existingForPatient.map((row) => row.level_id));
+  const missingFactors = LEVEL_FACTORS.filter(({ levelId }) => !existingIds.has(levelId));
+  if (missingFactors.length === 0) return;
+
+  const diagnostic = await getLatestDiagnostic(patientId);
+  const vim =
+    diagnostic?.max_inspiratory_volume ??
+    Math.round(
+      (existingForPatient.find((row) => row.level_id === 'level-1')?.target_volume ?? 1200) / 0.5,
+    );
+  const diagnosticId = diagnostic?.diagnostic_id ?? existingForPatient[0]?.diagnostic_id ?? 0;
+  const baseId =
+    all.length === 0 ? 1 : Math.max(...all.map((row) => row.patient_level_id)) + 1;
+
+  const newRows: PatientLevelRecord[] = missingFactors.map(({ levelId, factor }, index) => ({
+    patient_level_id: baseId + index,
+    patient_id: patientId,
+    level_id: levelId,
+    diagnostic_id: diagnosticId,
+    target_volume: Math.round(vim * factor),
+    level_status: 'locked',
+    perfect_sessions_completed: 0,
+    sessions_completed_today: 0,
+    last_session_date: null,
+  }));
+
+  await writeAllPatientLevels([...all, ...newRows]);
+
+  if (__DEV__) {
+    console.log('[level-unlock] backfilled patient_levels rows', {
+      patientId,
+      added: missingFactors.map(({ levelId }) => levelId),
+    });
+  }
+}
+
 /** Recalcula metas dinámicas con el VIM más reciente sin reiniciar progreso de niveles. */
 export async function applyDiagnosticVimToPatientLevels(
   patientId: number,
@@ -130,32 +175,24 @@ export async function persistOfficialDiagnosticResult(
 }
 
 export async function getPatientLevels(patientId: number): Promise<PatientLevelRecord[]> {
+  await ensurePatientLevelCatalog(patientId);
+
   const all = await readAllPatientLevels();
   const sessions = await readAllSessions();
   const today = getLocalDateKey();
 
-  let mutated = false;
-  const reconciled = all.map((item) => {
-    if (item.patient_id !== patientId) return item;
-    const stats = todayStatsForPatientLevelRow(sessions, item.patient_level_id, today);
-    const perfect = stats.perfect;
-    const completedToday = stats.completed;
-    if (
-      (item.perfect_sessions_completed ?? 0) !== perfect ||
-      (item.sessions_completed_today ?? 0) !== completedToday
-    ) {
-      mutated = true;
-      return {
-        ...item,
-        perfect_sessions_completed: perfect,
-        sessions_completed_today: completedToday,
-      };
-    }
-    return item;
-  });
+  const { levels: reconciled, mutated, progressRowsResynced } =
+    reconcilePatientLevelDailyCounters(all, sessions, patientId, today);
 
   if (mutated) {
     await writeAllPatientLevels(reconciled);
+  }
+
+  if (__DEV__ && progressRowsResynced > 0) {
+    console.log('[level-unlock] patient_levels progress resynced from sessions', {
+      patientId,
+      progressRowsResynced,
+    });
   }
 
   return reconciled

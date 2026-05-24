@@ -28,6 +28,7 @@ function mergeParsed(parsed: Partial<LevelsProgress>): LevelsProgress {
     levelTwo: mergeLevelSlotProgress(base.levelTwo, parsed.levelTwo ?? base.levelTwo),
     levelThree: mergeLevelSlotProgress(base.levelThree, parsed.levelThree ?? base.levelThree),
     levelFour: mergeLevelSlotProgress(base.levelFour, parsed.levelFour ?? base.levelFour),
+    levelFive: mergeLevelSlotProgress(base.levelFive, parsed.levelFive ?? base.levelFive),
   };
 }
 

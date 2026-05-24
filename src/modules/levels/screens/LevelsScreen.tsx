@@ -22,16 +22,48 @@ import type { PatientLevelRecord } from '@/src/modules/diagnostics/types';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+import {
+  buildLevelUnlockDiagnosticSnapshot,
+  logLevelUnlockDiagnostics,
+} from '@/src/modules/session/level-unlock-diagnostics';
 import { listLevels } from '@/src/modules/session/registry/level-registry';
 import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
+import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
+import {
+  lifetimeStatsForPatientLevelRow,
+  todayStatsForPatientLevelRow,
+  type TodaySessionStats,
+} from '@/src/modules/session/utils/today-session-stats';
 import { TARGET_PERFECT_SESSIONS } from '@/src/modules/session/session-progress-service';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
-import type { TherapyLevelStatusChip } from '@/src/shared/ui/therapy-level-card';
 import { TherapyLevelCard } from '@/src/shared/ui/therapy-level-card';
+import type { TherapyLevelStatusChip } from '@/src/shared/ui/therapy-level-card';
 import { isLevelEntryLockedForUi } from '@/src/config/dev-level-flags';
+import { getLocalDateKey } from '@/src/shared/utils/local-date-key';
 import { spacing } from '@/src/shared/theme/spacing';
 import { dashboardScreen, dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { getLevelVisualIdentity } from '@/src/theme/level-colors';
+
+/** Conteos acumulados (desbloqueo) y del día (cards / advertencia de hoy). */
+type LevelDisplayStats = {
+  lifetime: TodaySessionStats;
+  today: TodaySessionStats;
+};
+
+function buildLevelDisplayStatsByPatientLevelId(
+  levelsRows: PatientLevelRecord[],
+  sessions: Awaited<ReturnType<typeof readAllSessions>>,
+  todayKey: string,
+): Record<number, LevelDisplayStats> {
+  const statsByLevelId: Record<number, LevelDisplayStats> = {};
+  for (const row of levelsRows) {
+    statsByLevelId[row.patient_level_id] = {
+      lifetime: lifetimeStatsForPatientLevelRow(sessions, row.patient_level_id),
+      today: todayStatsForPatientLevelRow(sessions, row.patient_level_id, todayKey),
+    };
+  }
+  return statsByLevelId;
+}
 
 function deriveTherapyLevelPresentation(params: {
   status: PatientLevelRecord['level_status'] | undefined;
@@ -80,6 +112,10 @@ export function LevelsScreen({
   } = useTherapyReadinessGate();
   const levels = listLevels();
   const [patientLevels, setPatientLevels] = useState<PatientLevelRecord[]>([]);
+  /** Stats por nivel: lifetime (progreso/desbloqueo) y today (completadas hoy en card). */
+  const [levelStatsByPatientLevelId, setLevelStatsByPatientLevelId] = useState<
+    Record<number, LevelDisplayStats>
+  >({});
   const [startingLevelId, setStartingLevelId] = useState<LevelId | null>(null);
   const [lastReadingReceivedAtMs, setLastReadingReceivedAtMs] = useState<number | null>(null);
 
@@ -92,11 +128,25 @@ export function LevelsScreen({
     let active = true;
     const loadLevels = async () => {
       if (!patient) {
-        if (active) setPatientLevels([]);
+        if (active) {
+          setPatientLevels([]);
+          setLevelStatsByPatientLevelId({});
+        }
         return;
       }
-      const levelsRows = await getPatientLevels(patient.paciente_id);
-      if (active) setPatientLevels(levelsRows);
+      const [levelsRows, sessions] = await Promise.all([
+        getPatientLevels(patient.paciente_id),
+        readAllSessions(),
+      ]);
+      const today = getLocalDateKey();
+      const statsByLevelId = buildLevelDisplayStatsByPatientLevelId(levelsRows, sessions, today);
+      if (__DEV__) {
+        logLevelUnlockDiagnostics(await buildLevelUnlockDiagnosticSnapshot(patient.paciente_id));
+      }
+      if (active) {
+        setPatientLevels(levelsRows);
+        setLevelStatsByPatientLevelId(statsByLevelId);
+      }
     };
     void loadLevels();
     return () => {
@@ -109,8 +159,19 @@ export function LevelsScreen({
       let cancelled = false;
       const refreshLevels = async () => {
         if (!patient) return;
-        const rows = await getPatientLevels(patient.paciente_id);
-        if (!cancelled) setPatientLevels(rows);
+        const [rows, sessions] = await Promise.all([
+          getPatientLevels(patient.paciente_id),
+          readAllSessions(),
+        ]);
+        const today = getLocalDateKey();
+        const statsByLevelId = buildLevelDisplayStatsByPatientLevelId(rows, sessions, today);
+        if (__DEV__) {
+          logLevelUnlockDiagnostics(await buildLevelUnlockDiagnosticSnapshot(patient.paciente_id));
+        }
+        if (!cancelled) {
+          setPatientLevels(rows);
+          setLevelStatsByPatientLevelId(statsByLevelId);
+        }
       };
       void refreshLevels();
       void refreshTherapyGate();
@@ -203,11 +264,18 @@ export function LevelsScreen({
 
   const scrollBottom = dashboardScrollBottomPadding(insets.bottom);
   const activePatientLevel = patientLevels.find((row) => row.level_status === 'active');
+  const activeLevelStats =
+    activePatientLevel != null
+      ? levelStatsByPatientLevelId[activePatientLevel.patient_level_id]
+      : undefined;
+  /** Perfectas acumuladas (desbloqueo); completadas hoy (advertencia). */
+  const perfectSessionsOnActive = activeLevelStats?.lifetime.perfect ?? 0;
+  const sessionsCompletedTodayOnActive = activeLevelStats?.today.completed ?? 0;
   const showPerfectGapWarning =
     !isLoading &&
     activePatientLevel != null &&
-    (activePatientLevel.sessions_completed_today ?? 0) >= TARGET_PERFECT_SESSIONS &&
-    (activePatientLevel.perfect_sessions_completed ?? 0) < TARGET_PERFECT_SESSIONS;
+    sessionsCompletedTodayOnActive >= TARGET_PERFECT_SESSIONS &&
+    perfectSessionsOnActive < TARGET_PERFECT_SESSIONS;
 
   if (isLoading) {
     return (
@@ -236,8 +304,11 @@ export function LevelsScreen({
           const status = row?.level_status ?? 'locked';
           const progressionLocked = status === 'locked';
           const locked = isLevelEntryLockedForUi(progressionLocked, level.comingSoon);
-          const perfectTowardUnlock = row?.perfect_sessions_completed ?? 0;
-          const completedToday = row?.sessions_completed_today ?? 0;
+          const levelStats = levelStatsByPatientLevelId[row?.patient_level_id ?? -1];
+          const perfectTowardUnlock =
+            levelStats?.lifetime.perfect ?? row?.perfect_sessions_completed ?? 0;
+          const completedSessions =
+            levelStats?.today.completed ?? row?.sessions_completed_today ?? 0;
           const visual = getLevelVisualIdentity(level.id);
           const identityLine = `Nivel ${visual.levelNumber} · ${visual.semantic}`;
           const { statusChip, motivationalCopy } = deriveTherapyLevelPresentation({
@@ -254,12 +325,15 @@ export function LevelsScreen({
               identitySoftBg={visual.accentSoft}
               statusChip={statusChip}
               motivationalCopy={motivationalCopy}
-              targetVolumeText={`Meta aprox: ${row?.target_volume ?? 0} mL`}
-              sessionsText={`Sesiones perfectas: ${perfectTowardUnlock}/6 · Completadas hoy: ${completedToday}/6`}
+              targetVolumeMl={row?.target_volume ?? 0}
+              completedSessionsDisplay={`${completedSessions}/${TARGET_PERFECT_SESSIONS}`}
+              perfectSessionsDisplay={`${perfectTowardUnlock}/${TARGET_PERFECT_SESSIONS}`}
               helperText={
                 locked
                   ? undefined
-                  : 'Completa 6 sesiones perfectas en el nivel activo para desbloquear el siguiente.'
+                  : statusChip === 'completed'
+                    ? 'Nivel completado.'
+                    : 'Completa 6 sesiones perfectas con sensor para avanzar.'
               }
               locked={locked}
               starting={startingLevelId === levelId}
@@ -278,8 +352,8 @@ export function LevelsScreen({
           {showPerfectGapWarning ? (
             <Text style={styles.warningText}>
               Hoy completaste {TARGET_PERFECT_SESSIONS} sesiones en tu nivel activo, pero faltan{' '}
-              {TARGET_PERFECT_SESSIONS - (activePatientLevel?.perfect_sessions_completed ?? 0)} perfectas para
-              desbloquear el siguiente. Cada una debe tener 10 repeticiones válidas.
+              {TARGET_PERFECT_SESSIONS - perfectSessionsOnActive} perfectas para desbloquear el
+              siguiente. Cada una debe tener 10 repeticiones válidas.
             </Text>
           ) : null}
         </View>

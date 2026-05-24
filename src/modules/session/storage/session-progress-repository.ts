@@ -9,7 +9,7 @@ export async function readAllSessions(): Promise<SessionRecord[]> {
     const { data, error } = await supabase
       .from('sessions')
       .select(
-        'session_id, patient_id, patient_level_id, level_id, session_date, valid_attempts, total_attempts, invalid_attempts, compliance_percent, max_volume, avg_volume, avg_hold_seconds, completed, perfect, interrupted',
+        'session_id, patient_id, patient_level_id, level_id, session_date, valid_attempts, total_attempts, invalid_attempts, compliance_percent, max_volume, avg_volume, avg_hold_seconds, completed, perfect, interrupted, input_mode, data_source, is_practice_session, official_validation_source, max_sensor_estimated_volume_ml, max_sensor_u95_ml',
       )
       .order('session_id', { ascending: true });
     if (error) throw error;

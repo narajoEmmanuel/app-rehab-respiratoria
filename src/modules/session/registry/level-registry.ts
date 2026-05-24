@@ -12,6 +12,7 @@ const level1Gameplay = getLevelGameplayConfig('level-1')!;
 const level2Gameplay = getLevelGameplayConfig('level-2')!;
 const level3Gameplay = getLevelGameplayConfig('level-3')!;
 const level4Gameplay = getLevelGameplayConfig('level-4')!;
+const level5Gameplay = getLevelGameplayConfig('level-5')!;
 
 const LEVELS: LevelDefinition[] = [
   {
@@ -50,8 +51,9 @@ const LEVELS: LevelDefinition[] = [
     id: 'level-5',
     title: 'Nivel 5',
     difficulty: 'hard',
-    gameVisualId: 'visual-placeholder',
-    comingSoon: true,
+    gameVisualId: level5Gameplay.gameVisualId,
+    theme: level5Gameplay.theme,
+    obstacleType: level5Gameplay.obstacleType,
   },
 ];
 

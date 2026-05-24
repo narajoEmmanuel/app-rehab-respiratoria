@@ -40,11 +40,16 @@ import {
   InspirationMetaSnowman,
   InspirationMetaTractor,
   InspirationMetaTreasureChest,
+  InspirationMetaRocket,
   OceanBackdropLife,
   OceanNearDecor,
-  OceanReefSilhouette,
   OceanSandGroundSegment,
+  OceanWaterDepthLayer,
   SCENE_THEME_TOKENS,
+  SpaceBackdropLife,
+  SpaceDepthLayer,
+  SpaceGroundSegment,
+  SpaceNearDecor,
   SnowBackdropPines,
   SnowGroundSegment,
   SnowHillSilhouette,
@@ -168,7 +173,8 @@ export function LevelOneGameView({
   const isDesert = theme === 'desert';
   const isSnow = theme === 'snow';
   const isOcean = theme === 'ocean';
-  const isThemedScene = isDesert || isSnow || isOcean;
+  const isSpace = theme === 'space';
+  const isThemedScene = isDesert || isSnow || isOcean || isSpace;
   const isTouchPractice = isTouchPracticeSession(sessionInputMode);
   const { width: layoutW, height: layoutH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -604,10 +610,15 @@ export function LevelOneGameView({
             ]}>
           <Animated.View style={[styles.parallaxClip, sceneShakeStyle]}>
             <Animated.View style={[styles.mountainStrip, mountainStyle]}>
-              {isOcean ? (
+              {isSpace ? (
                 <>
-                  <OceanReefSilhouette width={tileW} />
-                  <OceanReefSilhouette width={tileW} />
+                  <SpaceDepthLayer width={tileW} />
+                  <SpaceDepthLayer width={tileW} />
+                </>
+              ) : isOcean ? (
+                <>
+                  <OceanWaterDepthLayer width={tileW} />
+                  <OceanWaterDepthLayer width={tileW} />
                 </>
               ) : isSnow ? (
                 <>
@@ -627,29 +638,17 @@ export function LevelOneGameView({
               )}
             </Animated.View>
 
-            <Animated.View style={[styles.cloudStrip, cloudStyle]}>
-              <CloudCluster puffColor={sceneTheme.cloudPuff} />
-              <CloudCluster puffColor={sceneTheme.cloudPuff} />
-            </Animated.View>
+            {!isOcean && !isSpace ? (
+              <Animated.View style={[styles.cloudStrip, cloudStyle]}>
+                <CloudCluster puffColor={sceneTheme.cloudPuff} />
+                <CloudCluster puffColor={sceneTheme.cloudPuff} />
+              </Animated.View>
+            ) : null}
 
-            {isOcean ? (
-              <>
-                <View style={[styles.sunGlow, { backgroundColor: sceneTheme.sunGlow, opacity: 0.7 }]} />
-                <View
-                  style={[
-                    styles.sunDisc,
-                    {
-                      backgroundColor: sceneTheme.sunDisc,
-                      borderColor: sceneTheme.sunDiscBorder,
-                      width: 22,
-                      height: 22,
-                      borderRadius: 11,
-                      opacity: 0.65,
-                    },
-                  ]}
-                />
-                <OceanBackdropLife />
-              </>
+            {isSpace ? (
+              <SpaceBackdropLife />
+            ) : isOcean ? (
+              <OceanBackdropLife />
             ) : isDesert ? (
               <>
                 <DesertSun />
@@ -688,7 +687,12 @@ export function LevelOneGameView({
             )}
 
             <Animated.View style={[styles.groundStrip, groundStyle]}>
-              {isOcean ? (
+              {isSpace ? (
+                <>
+                  <SpaceGroundSegment width={tileW} />
+                  <SpaceGroundSegment width={tileW} />
+                </>
+              ) : isOcean ? (
                 <>
                   <OceanSandGroundSegment width={tileW} />
                   <OceanSandGroundSegment width={tileW} />
@@ -712,7 +716,12 @@ export function LevelOneGameView({
             </Animated.View>
 
             <Animated.View style={[styles.nearStrip, nearStyle]}>
-              {isOcean ? (
+              {isSpace ? (
+                <>
+                  <SpaceNearDecor width={tileW} />
+                  <SpaceNearDecor width={tileW} />
+                </>
+              ) : isOcean ? (
                 <>
                   <OceanNearDecor width={tileW} />
                   <OceanNearDecor width={tileW} />
@@ -750,7 +759,7 @@ export function LevelOneGameView({
                   rabbitStyle,
                 ]}>
                 <View style={styles.rabbitVisualScale}>
-                  <RunnerRabbit crashed={crashFxVisible} />
+                  <RunnerRabbit crashed={crashFxVisible} astronaut={isSpace} />
                 </View>
               </Animated.View>
 
@@ -766,7 +775,16 @@ export function LevelOneGameView({
                     },
                     metaHillStyle,
                   ]}>
-                  {obstacleType === 'treasureChest' ? (
+                  {obstacleType === 'rocket' ? (
+                    <InspirationMetaRocket
+                      passHeightPx={metaPassVisualPx}
+                      evaluating={inEvaluating}
+                      cleared={rabbitClearsObstacle}
+                      touching={isTouchingGoal}
+                      visualHeight={META_HILL_VISUAL_H}
+                      visualWidth={META_HILL_WIDTH}
+                    />
+                  ) : obstacleType === 'treasureChest' ? (
                     <InspirationMetaTreasureChest
                       passHeightPx={metaPassVisualPx}
                       evaluating={inEvaluating}
@@ -1202,10 +1220,12 @@ function CrashImpactFx() {
 }
 
 /** Conejo unificado: una sola jerarquía, proporciones fijas, estilo minimal. */
-function RunnerRabbit({ crashed = false }: { crashed?: boolean }) {
-  const fur = '#FAFAF7';
-  const outline = '#7A8A82';
-  const innerEar = '#E8B8C8';
+function RunnerRabbit({ crashed = false, astronaut = false }: { crashed?: boolean; astronaut?: boolean }) {
+  const fur = astronaut ? '#E8ECF4' : '#FAFAF7';
+  const outline = astronaut ? '#5A6A88' : '#7A8A82';
+  const innerEar = astronaut ? '#C8D0E0' : '#E8B8C8';
+  const suitBlue = '#6A8AC8';
+  const helmetGlass = 'rgba(180, 220, 255, 0.45)';
 
   return (
     <View style={styles.bunnyRoot} pointerEvents="none">
@@ -1215,6 +1235,7 @@ function RunnerRabbit({ crashed = false }: { crashed?: boolean }) {
             styles.bunnyEar,
             { borderColor: outline, backgroundColor: fur },
             crashed && styles.bunnyEarCrashed,
+            astronaut && styles.bunnyEarAstronaut,
           ]}>
           <View style={[styles.bunnyEarInner, { backgroundColor: innerEar }]} />
         </View>
@@ -1223,13 +1244,30 @@ function RunnerRabbit({ crashed = false }: { crashed?: boolean }) {
             styles.bunnyEar,
             { borderColor: outline, backgroundColor: fur },
             crashed && styles.bunnyEarCrashed,
+            astronaut && styles.bunnyEarAstronaut,
           ]}>
           <View style={[styles.bunnyEarInner, { backgroundColor: innerEar }]} />
         </View>
       </View>
-      <View style={[styles.bunnyTorso, { borderColor: outline, backgroundColor: fur }]}>
-        <View style={styles.bunnyBelly} />
-        {crashed ? (
+      <View style={[styles.bunnyTorso, { borderColor: outline, backgroundColor: astronaut ? suitBlue : fur }]}>
+        {astronaut ? (
+          <View style={styles.bunnySuitStripe} />
+        ) : (
+          <View style={styles.bunnyBelly} />
+        )}
+        {astronaut ? (
+          <View style={[styles.bunnyHelmet, { borderColor: outline }]}>
+            <View style={[styles.bunnyHelmetGlass, { backgroundColor: helmetGlass }]} />
+            {crashed ? (
+              <>
+                <View style={styles.bunnyEyeCrashedLeft} />
+                <View style={styles.bunnyEyeCrashedRight} />
+              </>
+            ) : (
+              <View style={styles.bunnyEyeHelmet} />
+            )}
+          </View>
+        ) : crashed ? (
           <>
             <View style={styles.bunnyEyeCrashedLeft} />
             <View style={styles.bunnyEyeCrashedRight} />
@@ -1237,11 +1275,11 @@ function RunnerRabbit({ crashed = false }: { crashed?: boolean }) {
         ) : (
           <View style={styles.bunnyEye} />
         )}
-        <View style={styles.bunnyNose} />
+        {!astronaut ? <View style={styles.bunnyNose} /> : null}
       </View>
       <View style={styles.bunnyFeetRow}>
-        <View style={[styles.bunnyFoot, { borderColor: outline }]} />
-        <View style={[styles.bunnyFoot, { borderColor: outline }]} />
+        <View style={[styles.bunnyFoot, { borderColor: outline, backgroundColor: astronaut ? '#4A5A78' : undefined }]} />
+        <View style={[styles.bunnyFoot, { borderColor: outline, backgroundColor: astronaut ? '#4A5A78' : undefined }]} />
       </View>
     </View>
   );
@@ -1885,6 +1923,44 @@ const styles = StyleSheet.create({
   },
   bunnyEarCrashed: {
     transform: [{ rotate: '-12deg' }],
+  },
+  bunnyEarAstronaut: {
+    height: 22,
+    marginTop: -4,
+  },
+  bunnySuitStripe: {
+    position: 'absolute',
+    width: 8,
+    height: 36,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.35)',
+    bottom: 10,
+  },
+  bunnyHelmet: {
+    position: 'absolute',
+    top: 4,
+    width: 38,
+    height: 34,
+    borderRadius: 19,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(230, 238, 248, 0.9)',
+  },
+  bunnyHelmetGlass: {
+    width: 30,
+    height: 26,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(120, 160, 200, 0.35)',
+  },
+  bunnyEyeHelmet: {
+    position: 'absolute',
+    top: 12,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#2C3834',
   },
   bunnyNose: {
     position: 'absolute',

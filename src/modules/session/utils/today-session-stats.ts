@@ -9,12 +9,25 @@ function isCompletedSession(s: SessionRecord): boolean {
   return isTherapeuticSessionRecord(s) && s.completed && s.interrupted !== true;
 }
 
+/** Sesiones terapéuticas completadas (todas las fechas) — progreso acumulado y desbloqueo. */
+export function lifetimeStatsForPatientLevelRow(
+  sessions: SessionRecord[],
+  patientLevelId: number,
+): TodaySessionStats {
+  const levelSessions = sessions.filter((s) => s.patient_level_id === patientLevelId);
+  const completed = levelSessions.filter(isCompletedSession);
+  return {
+    completed: completed.length,
+    perfect: completed.filter((s) => s.perfect).length,
+  };
+}
+
 export type TodaySessionStats = {
   completed: number;
   perfect: number;
 };
 
-/** Por fila de paciente-nivel (mismo criterio que updatePatientLevelProgress). */
+/** Por fila de paciente-nivel (mismo criterio que updatePatientLevelProgress / perfect_sessions_completed). */
 export function todayStatsForPatientLevelRow(
   sessions: SessionRecord[],
   patientLevelId: number,

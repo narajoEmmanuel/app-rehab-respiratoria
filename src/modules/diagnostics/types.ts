@@ -15,7 +15,9 @@ export type PatientLevelRecord = {
   diagnostic_id: number;
   target_volume: number;
   level_status: PatientLevelStatus;
+  /** Sesiones perfectas terapéuticas acumuladas en este nivel (todas las fechas). */
   perfect_sessions_completed: number;
+  /** Sesiones terapéuticas completadas hoy (día calendario local). */
   sessions_completed_today: number;
   last_session_date: string | null;
 };

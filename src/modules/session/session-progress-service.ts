@@ -1,8 +1,12 @@
-import { getCurrentActiveLevel, getPatientLevels, savePatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
+import { getCurrentActiveLevel, getPatientLevels, savePatientLevels, ensurePatientLevelCatalog } from '@/src/modules/diagnostics/diagnostic-service';
 import type { PatientLevelRecord } from '@/src/modules/diagnostics/types';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { updatePatientCurrentLevel } from '@/src/modules/patient/patient-service';
 import { supabase } from '@/src/lib/supabase';
+import {
+  buildLevelUnlockDiagnosticSnapshot,
+  logLevelUnlockDiagnostics,
+} from '@/src/modules/session/level-unlock-diagnostics';
 import {
   readAllAttempts,
   readAllSessions,
@@ -12,6 +16,7 @@ import {
 import type { AttemptRecord, SessionRecord } from '@/src/modules/session/types/session-progress';
 import type { SessionResult } from '@/src/modules/session/types/session-result';
 import {
+  lifetimeStatsForPatientLevelRow,
   todayStatsForPatientAndLevel,
   todayStatsForPatientLevelRow,
 } from '@/src/modules/session/utils/today-session-stats';
@@ -127,7 +132,7 @@ export async function persistSessionResult(result: SessionResult): Promise<Sessi
 
   await updatePatientLevelProgress(result.patientId, result.patientLevelId);
   await updateDailyProgress(result.patientId);
-  await checkAndUnlockNextLevel(result.patientId);
+  await checkAndUnlockNextLevel(result.patientId, { afterOfficialSessionSave: true });
   return savedSession;
 }
 
@@ -171,12 +176,16 @@ export async function updatePatientLevelProgress(
   const sessions = await readAllSessions();
   const levelSessions = sessions.filter((item) => item.patient_level_id === patientLevelId);
   const today = getLocalDateKey();
-  const { completed: sessionsCompletedToday, perfect: perfectSessionsCompleted } =
-    todayStatsForPatientLevelRow(sessions, patientLevelId, today);
+  const { perfect: lifetimePerfect } = lifetimeStatsForPatientLevelRow(sessions, patientLevelId);
+  const { completed: sessionsCompletedToday } = todayStatsForPatientLevelRow(
+    sessions,
+    patientLevelId,
+    today,
+  );
 
   levels[index] = {
     ...level,
-    perfect_sessions_completed: perfectSessionsCompleted,
+    perfect_sessions_completed: lifetimePerfect,
     sessions_completed_today: sessionsCompletedToday,
     last_session_date: levelSessions.length > 0 ? levelSessions[levelSessions.length - 1].session_date : level.last_session_date,
   };
@@ -185,17 +194,46 @@ export async function updatePatientLevelProgress(
   return levels[index];
 }
 
-export async function checkAndUnlockNextLevel(patientId: number): Promise<void> {
+export async function checkAndUnlockNextLevel(
+  patientId: number,
+  /** Sesión recién guardada: el desbloqueo solo debe evaluarse tras persistir una sesión oficial. */
+  options?: { afterOfficialSessionSave?: boolean },
+): Promise<void> {
+  if (options?.afterOfficialSessionSave !== true) {
+    if (__DEV__) {
+      console.warn(
+        '[level-unlock] checkAndUnlockNextLevel skipped: must run after official session save',
+        { patientId },
+      );
+    }
+    return;
+  }
+
+  /** Solo debe invocarse tras guardar una sesión oficial (persistSessionResult), no al abrir Terapia/Niveles. */
+  await ensurePatientLevelCatalog(patientId);
+
   const levels = await getPatientLevels(patientId);
   const activeIndex = levels.findIndex((item) => item.level_status === 'active');
-  if (activeIndex < 0) return;
+  if (activeIndex < 0) {
+    if (__DEV__) {
+      logLevelUnlockDiagnostics(await buildLevelUnlockDiagnosticSnapshot(patientId));
+    }
+    return;
+  }
 
   const active = levels[activeIndex];
   const sessions = await readAllSessions();
-  const today = getLocalDateKey();
-  const { perfect: perfectToday } = todayStatsForPatientLevelRow(sessions, active.patient_level_id, today);
-  /** Desbloqueo solo con 6 sesiones perfectas el mismo día calendario (no suma otros días). */
-  if (perfectToday < TARGET_PERFECT_SESSIONS) return;
+  const { perfect: lifetimePerfect } = lifetimeStatsForPatientLevelRow(
+    sessions,
+    active.patient_level_id,
+  );
+  /** Desbloqueo: 6 sesiones perfectas terapéuticas acumuladas (sensor) en el nivel activo. */
+  if (lifetimePerfect < TARGET_PERFECT_SESSIONS) {
+    if (__DEV__) {
+      logLevelUnlockDiagnostics(await buildLevelUnlockDiagnosticSnapshot(patientId));
+    }
+    return;
+  }
 
   const nextLevelId = nextLevel(active.level_id);
   levels[activeIndex] = { ...active, level_status: 'completed' };
@@ -205,12 +243,21 @@ export async function checkAndUnlockNextLevel(patientId: number): Promise<void> 
     if (nextIndex >= 0) {
       levels[nextIndex] = { ...levels[nextIndex], level_status: 'active' };
       await updatePatientCurrentLevel(patientId, nextLevelId);
+    } else if (__DEV__) {
+      console.warn('[level-unlock] next level row missing after catalog ensure', {
+        patientId,
+        nextLevelId,
+      });
     }
   } else {
     await updatePatientCurrentLevel(patientId, active.level_id);
   }
 
   await savePatientLevels(levels);
+
+  if (__DEV__) {
+    logLevelUnlockDiagnostics(await buildLevelUnlockDiagnosticSnapshot(patientId));
+  }
 }
 
 export { TARGET_ATTEMPTS, TARGET_PERFECT_SESSIONS };

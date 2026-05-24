@@ -3,8 +3,18 @@
  * Module: session/games
  * Notes: Visual-only — obstacle props must stay aligned to passHeightPx / eval states.
  */
+import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, {
+  Easing,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 
 import type { LevelGameTheme } from '@/src/modules/session/levels/level-gameplay-config';
 
@@ -51,14 +61,24 @@ export const SCENE_THEME_TOKENS: Record<LevelGameTheme, SceneThemeTokens> = {
     sceneBorder: 'rgba(140, 175, 200, 0.22)',
   },
   ocean: {
-    skyGradient: ['#B8E4F5', '#7EC8E3', '#4A9BB8', '#2E6F8C'],
+    skyGradient: ['#8FD4EE', '#5EBAD8', '#3A96B8', '#1E6A8C'],
     sunGlow: 'rgba(120, 200, 230, 0.28)',
     sunDisc: 'rgba(200, 235, 255, 0.5)',
     sunDiscBorder: 'rgba(100, 170, 200, 0.35)',
     cloudPuff: 'rgba(255, 255, 255, 0.35)',
     restToast: 'Descansa · aguas tranquilas',
-    introOverlay: 'rgba(140, 200, 225, 0.45)',
+    introOverlay: 'rgba(80, 160, 195, 0.38)',
     sceneBorder: 'rgba(46, 111, 140, 0.22)',
+  },
+  space: {
+    skyGradient: ['#0B1028', '#121838', '#1A2450', '#243060'],
+    sunGlow: 'rgba(180, 140, 255, 0.22)',
+    sunDisc: 'rgba(255, 230, 180, 0.55)',
+    sunDiscBorder: 'rgba(200, 170, 120, 0.35)',
+    cloudPuff: 'rgba(255, 255, 255, 0.15)',
+    restToast: 'Descansa · gravedad cero',
+    introOverlay: 'rgba(20, 30, 70, 0.45)',
+    sceneBorder: 'rgba(100, 120, 200, 0.28)',
   },
 };
 
@@ -278,42 +298,269 @@ export function SnowNearDecor({ width }: { width: number }) {
   );
 }
 
-/** Pinos con escarcha en segundo plano (laterales; no tapa conejo ni obstáculo). */
-/** Siluetas de fondo marino (rocas / arrecife lejano). */
-export function OceanReefSilhouette({ width }: { width: number }) {
+/** Bandas horizontales de profundidad (sin formas de montaña/cielo). */
+export function OceanWaterDepthLayer({ width }: { width: number }) {
   return (
-    <View style={[sceneStyles.oceanReefTile, { width }]}>
-      <View style={[sceneStyles.oceanReefMound, { left: width * 0.04, width: width * 0.22, height: 42 }]}>
-        <LinearGradient
-          colors={['rgba(30, 90, 110, 0.35)', 'rgba(20, 65, 85, 0.55)']}
-          style={StyleSheet.absoluteFill}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-        />
+    <View style={[sceneStyles.oceanDepthTile, { width }]}>
+      <LinearGradient
+        colors={['rgba(46, 130, 160, 0.22)', 'rgba(30, 95, 125, 0.14)', 'transparent']}
+        style={sceneStyles.oceanDepthBandTop}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      />
+      <View style={[sceneStyles.oceanDepthBandMid, { width: width * 0.72 }]} />
+      <View style={[sceneStyles.oceanDepthBandLow, { width: width * 0.55 }]} />
+    </View>
+  );
+}
+
+function OceanFishSprite({
+  bodyWidth,
+  bodyHeight,
+  tailScale = 1,
+  bodyColor,
+  tailColor,
+}: {
+  bodyWidth: number;
+  bodyHeight: number;
+  tailScale?: number;
+  bodyColor: string;
+  tailColor: string;
+}) {
+  const tailW = Math.round(10 * tailScale);
+  const tailH = Math.round(5 * tailScale);
+  return (
+    <View style={sceneStyles.oceanFishSpriteRow}>
+      <View
+        style={[
+          sceneStyles.oceanFishBodyShape,
+          {
+            width: bodyWidth,
+            height: bodyHeight,
+            borderRadius: bodyHeight / 2,
+            backgroundColor: bodyColor,
+          },
+        ]}
+      />
+      <View
+        style={{
+          width: 0,
+          height: 0,
+          borderTopWidth: tailH,
+          borderBottomWidth: tailH,
+          borderLeftWidth: tailW,
+          borderTopColor: 'transparent',
+          borderBottomColor: 'transparent',
+          borderLeftColor: tailColor,
+          marginLeft: -2,
+        }}
+      />
+    </View>
+  );
+}
+
+function AnimatedOceanFish({
+  top,
+  left,
+  bodyWidth,
+  bodyHeight,
+  bodyColor,
+  tailColor,
+  swimRange,
+  durationMs,
+  facingRight = true,
+}: {
+  top: `${number}%` | number;
+  left: `${number}%` | number;
+  bodyWidth: number;
+  bodyHeight: number;
+  bodyColor: string;
+  tailColor: string;
+  swimRange: number;
+  durationMs: number;
+  facingRight?: boolean;
+}) {
+  const swim = useSharedValue(0);
+
+  useEffect(() => {
+    swim.value = withRepeat(
+      withTiming(1, { duration: durationMs, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true,
+    );
+  }, [durationMs, swim]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: interpolate(swim.value, [0, 1], facingRight ? [0, swimRange] : [-swimRange, 0]) },
+      { scaleX: facingRight ? 1 : -1 },
+    ],
+  }));
+
+  return (
+    <Animated.View style={[sceneStyles.oceanFishAnimated, { top, left }, style]} pointerEvents="none">
+      <OceanFishSprite
+        bodyWidth={bodyWidth}
+        bodyHeight={bodyHeight}
+        tailScale={bodyHeight / 10}
+        bodyColor={bodyColor}
+        tailColor={tailColor}
+      />
+    </Animated.View>
+  );
+}
+
+function RisingOceanBubble({
+  left,
+  size,
+  delayMs,
+  durationMs,
+  startTop,
+}: {
+  left: `${number}%` | number;
+  size: number;
+  delayMs: number;
+  durationMs: number;
+  startTop: `${number}%` | number;
+}) {
+  const rise = useSharedValue(0);
+
+  useEffect(() => {
+    rise.value = withDelay(
+      delayMs,
+      withRepeat(withTiming(1, { duration: durationMs, easing: Easing.linear }), -1, false),
+    );
+  }, [delayMs, durationMs, rise]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateY: interpolate(rise.value, [0, 1], [0, -130]) }],
+    opacity: interpolate(rise.value, [0, 0.08, 0.75, 1], [0, 0.9, 0.85, 0]),
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        sceneStyles.oceanBubbleRising,
+        {
+          left,
+          top: startTop,
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+        },
+        style,
+      ]}
+      pointerEvents="none"
+    />
+  );
+}
+
+/** Peces, burbujas y algas — solo fondo marino (sin cielo). */
+export function OceanBackdropLife() {
+  return (
+    <View style={sceneStyles.oceanLifeRoot} pointerEvents="none">
+      <LinearGradient
+        colors={['rgba(120, 210, 240, 0.18)', 'transparent', 'rgba(20, 80, 110, 0.12)']}
+        style={sceneStyles.oceanCausticWash}
+        start={{ x: 0.2, y: 0 }}
+        end={{ x: 0.8, y: 1 }}
+      />
+
+      <AnimatedOceanFish
+        top="28%"
+        left="8%"
+        bodyWidth={26}
+        bodyHeight={14}
+        bodyColor="rgba(90, 175, 210, 0.88)"
+        tailColor="rgba(55, 130, 170, 0.85)"
+        swimRange={36}
+        durationMs={4200}
+        facingRight
+      />
+      <AnimatedOceanFish
+        top="44%"
+        left="22%"
+        bodyWidth={20}
+        bodyHeight={11}
+        bodyColor="rgba(255, 180, 100, 0.82)"
+        tailColor="rgba(210, 130, 70, 0.8)"
+        swimRange={28}
+        durationMs={3600}
+        facingRight={false}
+      />
+      <AnimatedOceanFish
+        top="36%"
+        left="48%"
+        bodyWidth={22}
+        bodyHeight={12}
+        bodyColor="rgba(100, 190, 175, 0.85)"
+        tailColor="rgba(60, 145, 130, 0.82)"
+        swimRange={32}
+        durationMs={4800}
+        facingRight
+      />
+      <AnimatedOceanFish
+        top="52%"
+        left="62%"
+        bodyWidth={18}
+        bodyHeight={10}
+        bodyColor="rgba(130, 200, 230, 0.8)"
+        tailColor="rgba(70, 150, 190, 0.78)"
+        swimRange={24}
+        durationMs={3200}
+        facingRight={false}
+      />
+      <AnimatedOceanFish
+        top="24%"
+        left="72%"
+        bodyWidth={24}
+        bodyHeight={13}
+        bodyColor="rgba(240, 150, 110, 0.78)"
+        tailColor="rgba(190, 100, 70, 0.75)"
+        swimRange={30}
+        durationMs={3900}
+        facingRight
+      />
+      <AnimatedOceanFish
+        top="58%"
+        left="14%"
+        bodyWidth={16}
+        bodyHeight={9}
+        bodyColor="rgba(170, 220, 245, 0.75)"
+        tailColor="rgba(100, 170, 210, 0.72)"
+        swimRange={20}
+        durationMs={2800}
+        facingRight
+      />
+      <AnimatedOceanFish
+        top="32%"
+        left="84%"
+        bodyWidth={19}
+        bodyHeight={10}
+        bodyColor="rgba(85, 165, 200, 0.8)"
+        tailColor="rgba(50, 120, 160, 0.78)"
+        swimRange={22}
+        durationMs={3400}
+        facingRight={false}
+      />
+
+      <RisingOceanBubble left="12%" size={11} delayMs={0} durationMs={5200} startTop="68%" />
+      <RisingOceanBubble left="20%" size={7} delayMs={800} durationMs={4600} startTop="72%" />
+      <RisingOceanBubble left="31%" size={9} delayMs={400} durationMs={5000} startTop="65%" />
+      <RisingOceanBubble left="42%" size={6} delayMs={1200} durationMs={4200} startTop="70%" />
+      <RisingOceanBubble left="53%" size={10} delayMs={200} durationMs={5400} startTop="74%" />
+      <RisingOceanBubble left="61%" size={8} delayMs={600} durationMs={4800} startTop="66%" />
+      <RisingOceanBubble left="70%" size={12} delayMs={1000} durationMs={5600} startTop="69%" />
+      <RisingOceanBubble left="78%" size={6} delayMs={300} durationMs={4400} startTop="73%" />
+      <RisingOceanBubble left="86%" size={9} delayMs={1400} durationMs={5100} startTop="67%" />
+      <RisingOceanBubble left="92%" size={7} delayMs={500} durationMs={4700} startTop="71%" />
+
+      <View style={[sceneStyles.oceanKelpCluster, sceneStyles.oceanKelpLeft]}>
+        <View style={sceneStyles.oceanKelpStrand} />
+        <View style={[sceneStyles.oceanKelpStrand, sceneStyles.oceanKelpStrandAlt]} />
       </View>
-      <View style={[sceneStyles.oceanReefMoundTall, { left: width * 0.26, width: width * 0.3, height: 58 }]}>
-        <LinearGradient
-          colors={['rgba(25, 80, 100, 0.4)', 'rgba(15, 55, 75, 0.6)']}
-          style={StyleSheet.absoluteFill}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-        />
-      </View>
-      <View style={[sceneStyles.oceanReefMound, { left: width * 0.58, width: width * 0.2, height: 36 }]}>
-        <LinearGradient
-          colors={['rgba(35, 95, 115, 0.32)', 'rgba(22, 70, 90, 0.52)']}
-          style={StyleSheet.absoluteFill}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-        />
-      </View>
-      <View style={[sceneStyles.oceanReefMoundShort, { left: width * 0.78, width: width * 0.18, height: 28 }]}>
-        <LinearGradient
-          colors={['rgba(40, 100, 120, 0.28)', 'rgba(28, 75, 95, 0.48)']}
-          style={StyleSheet.absoluteFill}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-        />
+      <View style={[sceneStyles.oceanKelpCluster, sceneStyles.oceanKelpRight]}>
+        <View style={[sceneStyles.oceanKelpStrand, sceneStyles.oceanKelpStrandTall]} />
       </View>
     </View>
   );
@@ -379,39 +626,6 @@ export function OceanNearDecor({ width }: { width: number }) {
       <View style={[sceneStyles.oceanCoralBump, { left: width * 0.58 }]} />
       <View style={[sceneStyles.oceanSeaweed, { left: width * 0.76, transform: [{ scaleX: -1 }] }]}>
         <LinearGradient colors={['#62A872', '#428A5C', '#2E6244']} style={sceneStyles.oceanSeaweedBlade} />
-      </View>
-    </View>
-  );
-}
-
-/** Peces, burbujas y siluetas marinas decorativas (fondo fijo). */
-export function OceanBackdropLife() {
-  return (
-    <View style={sceneStyles.oceanLifeRoot} pointerEvents="none">
-      <View style={[sceneStyles.oceanFish, sceneStyles.oceanFishLeft]}>
-        <View style={sceneStyles.oceanFishBody} />
-        <View style={sceneStyles.oceanFishTail} />
-      </View>
-      <View style={[sceneStyles.oceanFish, sceneStyles.oceanFishMid]}>
-        <View style={[sceneStyles.oceanFishBody, sceneStyles.oceanFishBodySmall]} />
-        <View style={[sceneStyles.oceanFishTail, sceneStyles.oceanFishTailSmall]} />
-      </View>
-      <View style={[sceneStyles.oceanFish, sceneStyles.oceanFishRight]}>
-        <View style={[sceneStyles.oceanFishBody, sceneStyles.oceanFishBodyOrange]} />
-        <View style={sceneStyles.oceanFishTail} />
-      </View>
-      <View style={[sceneStyles.oceanBubble, { left: '18%', top: '22%' }]} />
-      <View style={[sceneStyles.oceanBubble, sceneStyles.oceanBubbleMd, { left: '24%', top: '38%' }]} />
-      <View style={[sceneStyles.oceanBubble, sceneStyles.oceanBubbleSm, { left: '72%', top: '28%' }]} />
-      <View style={[sceneStyles.oceanBubble, sceneStyles.oceanBubbleMd, { left: '80%', top: '45%' }]} />
-      <View style={[sceneStyles.oceanBubble, { left: '55%', top: '18%' }]} />
-      <View style={sceneStyles.oceanSharkSilhouette} />
-      <View style={[sceneStyles.oceanKelpCluster, sceneStyles.oceanKelpLeft]}>
-        <View style={sceneStyles.oceanKelpStrand} />
-        <View style={[sceneStyles.oceanKelpStrand, sceneStyles.oceanKelpStrandAlt]} />
-      </View>
-      <View style={[sceneStyles.oceanKelpCluster, sceneStyles.oceanKelpRight]}>
-        <View style={[sceneStyles.oceanKelpStrand, sceneStyles.oceanKelpStrandTall]} />
       </View>
     </View>
   );
@@ -522,6 +736,350 @@ export function InspirationMetaTreasureChest({
         </View>
       </View>
       {touching ? <View style={sceneStyles.treasureObstacleContactTint} /> : null}
+    </View>
+  );
+}
+
+const SPACE_STAR_POSITIONS: { top: `${number}%`; left: `${number}%`; size: number; opacity: number }[] = [
+  { top: '8%', left: '6%', size: 2, opacity: 0.9 },
+  { top: '14%', left: '18%', size: 3, opacity: 0.75 },
+  { top: '22%', left: '32%', size: 2, opacity: 0.85 },
+  { top: '10%', left: '44%', size: 2, opacity: 0.7 },
+  { top: '18%', left: '58%', size: 3, opacity: 0.8 },
+  { top: '12%', left: '72%', size: 2, opacity: 0.65 },
+  { top: '26%', left: '84%', size: 2, opacity: 0.9 },
+  { top: '34%', left: '12%', size: 2, opacity: 0.6 },
+  { top: '30%', left: '48%', size: 2, opacity: 0.75 },
+  { top: '38%', left: '66%', size: 3, opacity: 0.7 },
+  { top: '42%', left: '28%', size: 2, opacity: 0.55 },
+  { top: '46%', left: '90%', size: 2, opacity: 0.8 },
+  { top: '52%', left: '8%', size: 2, opacity: 0.65 },
+  { top: '56%', left: '52%', size: 2, opacity: 0.5 },
+  { top: '48%', left: '78%', size: 2, opacity: 0.7 },
+];
+
+function SpacePlanet({
+  top,
+  left,
+  size,
+  colors,
+}: {
+  top: `${number}%` | number;
+  left: `${number}%` | number;
+  size: number;
+  colors: [string, string];
+}) {
+  return (
+    <View
+      style={[
+        sceneStyles.spacePlanet,
+        {
+          top,
+          left,
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+        },
+      ]}>
+      <LinearGradient colors={colors} style={StyleSheet.absoluteFill} start={{ x: 0.2, y: 0.1 }} end={{ x: 0.9, y: 1 }} />
+      <View style={[sceneStyles.spacePlanetRing, { width: size * 1.35, height: size * 0.28, borderRadius: size * 0.14 }]} />
+    </View>
+  );
+}
+
+function AnimatedSpaceRocket({
+  top,
+  startLeft,
+  bodyColor,
+  flameColor,
+  travelRange,
+  durationMs,
+}: {
+  top: `${number}%` | number;
+  startLeft: `${number}%` | number;
+  bodyColor: string;
+  flameColor: string;
+  travelRange: number;
+  durationMs: number;
+}) {
+  const drift = useSharedValue(0);
+
+  useEffect(() => {
+    drift.value = withRepeat(
+      withTiming(1, { duration: durationMs, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true,
+    );
+  }, [drift, durationMs]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateX: interpolate(drift.value, [0, 1], [0, travelRange]) }],
+  }));
+
+  return (
+    <Animated.View style={[sceneStyles.spaceRocketWrap, { top, left: startLeft }, style]} pointerEvents="none">
+      <View style={[sceneStyles.spaceRocketBody, { backgroundColor: bodyColor }]} />
+      <View
+        style={{
+          width: 0,
+          height: 0,
+          borderTopWidth: 5,
+          borderBottomWidth: 5,
+          borderLeftWidth: 10,
+          borderTopColor: 'transparent',
+          borderBottomColor: 'transparent',
+          borderLeftColor: flameColor,
+          marginLeft: -2,
+          opacity: 0.85,
+        }}
+      />
+    </Animated.View>
+  );
+}
+
+/** Nebulosa y bandas de profundidad (sin montañas). */
+export function SpaceDepthLayer({ width }: { width: number }) {
+  return (
+    <View style={[sceneStyles.spaceDepthTile, { width }]}>
+      <LinearGradient
+        colors={['rgba(120, 80, 180, 0.18)', 'rgba(60, 40, 120, 0.1)', 'transparent']}
+        style={sceneStyles.spaceDepthNebulaTop}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
+      <View style={[sceneStyles.spaceDepthBandMid, { width: width * 0.68 }]} />
+      <View style={[sceneStyles.spaceDepthBandLow, { width: width * 0.5 }]} />
+    </View>
+  );
+}
+
+/** Estrellas, planetas, cohetes y luna — fondo galáctico. */
+export function SpaceBackdropLife() {
+  return (
+    <View style={sceneStyles.spaceLifeRoot} pointerEvents="none">
+      <LinearGradient
+        colors={['rgba(80, 60, 160, 0.12)', 'transparent', 'rgba(20, 40, 90, 0.15)']}
+        style={sceneStyles.spaceNebulaWash}
+        start={{ x: 0.1, y: 0 }}
+        end={{ x: 0.9, y: 1 }}
+      />
+
+      {SPACE_STAR_POSITIONS.map((star, index) => (
+        <View
+          key={`space-star-${index}`}
+          style={[
+            sceneStyles.spaceTwinkleStar,
+            {
+              top: star.top,
+              left: star.left,
+              width: star.size,
+              height: star.size,
+              borderRadius: star.size / 2,
+              opacity: star.opacity,
+            },
+          ]}
+        />
+      ))}
+
+      <SpacePlanet top="20%" left="10%" size={28} colors={['#E8A870', '#C06040']} />
+      <SpacePlanet top="32%" left="68%" size={22} colors={['#88B8E8', '#4068A0']} />
+      <SpacePlanet top="14%" left="78%" size={16} colors={['#C8A0E0', '#7050A0']} />
+
+      <View style={sceneStyles.spaceMoon}>
+        <LinearGradient colors={['#E8ECF4', '#B8C0D0']} style={StyleSheet.absoluteFill} start={{ x: 0.2, y: 0.1 }} end={{ x: 0.9, y: 1 }} />
+        <View style={sceneStyles.spaceMoonCraterA} />
+        <View style={sceneStyles.spaceMoonCraterB} />
+      </View>
+
+      <AnimatedSpaceRocket
+        top="24%"
+        startLeft="36%"
+        bodyColor="rgba(220, 230, 245, 0.9)"
+        flameColor="rgba(255, 160, 80, 0.85)"
+        travelRange={42}
+        durationMs={5200}
+      />
+      <AnimatedSpaceRocket
+        top="40%"
+        startLeft="18%"
+        bodyColor="rgba(200, 210, 230, 0.82)"
+        flameColor="rgba(255, 130, 70, 0.8)"
+        travelRange={-36}
+        durationMs={4600}
+      />
+    </View>
+  );
+}
+
+export function SpaceGroundSegment({ width }: { width: number }) {
+  const craters = [0.14, 0.38, 0.62, 0.82];
+  return (
+    <View style={[sceneStyles.spaceGroundTile, { width }]}>
+      <LinearGradient
+        colors={['rgba(40, 50, 80, 0.35)', 'rgba(30, 38, 65, 0.2)']}
+        style={sceneStyles.spaceGroundHorizon}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      />
+      <LinearGradient
+        colors={['#9A9AA8', '#787888', '#5A5A68', '#42424E']}
+        locations={[0, 0.3, 0.65, 1]}
+        style={sceneStyles.spaceGroundBody}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      />
+      <LinearGradient
+        colors={['transparent', 'rgba(255, 255, 255, 0.06)', 'transparent']}
+        style={sceneStyles.spaceGroundShine}
+        start={{ x: 0, y: 0.5 }}
+        end={{ x: 1, y: 0.5 }}
+      />
+      {craters.map((left, index) => (
+        <View
+          key={`crater-${index}`}
+          style={[
+            sceneStyles.spaceCrater,
+            {
+              left: width * left,
+              width: 14 + (index % 2) * 6,
+              height: 6 + (index % 2) * 2,
+              opacity: 0.35 + (index % 2) * 0.1,
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+
+export function SpaceNearDecor({ width }: { width: number }) {
+  return (
+    <View style={[sceneStyles.spaceNearTile, { width }]}>
+      <View style={[sceneStyles.spaceRock, { left: width * 0.1 }]} />
+      <View style={[sceneStyles.spaceRock, sceneStyles.spaceRockSm, { left: width * 0.34 }]} />
+      <View style={[sceneStyles.spaceSatellite, { left: width * 0.58 }]}>
+        <View style={sceneStyles.spaceSatelliteBody} />
+        <View style={sceneStyles.spaceSatellitePanelLeft} />
+        <View style={sceneStyles.spaceSatellitePanelRight} />
+      </View>
+      <View style={[sceneStyles.spaceRock, { left: width * 0.82, opacity: 0.7 }]} />
+    </View>
+  );
+}
+
+function GoalRocketFigure({
+  height,
+  width,
+  isAlert,
+}: {
+  height: number;
+  width: number;
+  isAlert: boolean;
+}) {
+  const bodyLight = isAlert ? '#A8B0C8' : '#E8ECF8';
+  const bodyDark = isAlert ? '#6A7288' : '#9AA8C8';
+  const noseLight = isAlert ? '#D0A060' : '#FF9860';
+  const noseDark = isAlert ? '#A07040' : '#E06040';
+  const finColor = isAlert ? '#7888A0' : '#B0BCD8';
+  const flameOuter = isAlert ? 'rgba(255, 140, 60, 0.55)' : 'rgba(255, 160, 80, 0.85)';
+  const flameInner = isAlert ? 'rgba(255, 200, 100, 0.45)' : 'rgba(255, 220, 140, 0.9)';
+
+  const rocketH = Math.round(Math.min(height * 0.92, width * 1.35));
+  const rocketW = Math.round(rocketH * 0.42);
+  const noseH = Math.round(rocketH * 0.22);
+  const bodyH = Math.round(rocketH * 0.52);
+  const finH = Math.round(rocketH * 0.14);
+  const flameH = Math.round(rocketH * 0.1);
+
+  return (
+    <View style={[sceneStyles.goalRocketFigure, { width, height: rocketH }]}>
+      <View style={[sceneStyles.goalRocketFlameOuter, { width: rocketW * 0.5, height: flameH, borderRadius: flameH / 2, backgroundColor: flameOuter }]} />
+      <View style={[sceneStyles.goalRocketFlameInner, { width: rocketW * 0.28, height: flameH * 0.72, borderRadius: flameH / 2, backgroundColor: flameInner }]} />
+      <View style={[sceneStyles.goalRocketFin, sceneStyles.goalRocketFinLeft, { borderBottomColor: finColor, borderLeftWidth: rocketW * 0.28, borderRightWidth: 0, borderBottomWidth: finH }]} />
+      <View style={[sceneStyles.goalRocketFin, sceneStyles.goalRocketFinRight, { borderBottomColor: finColor, borderRightWidth: rocketW * 0.28, borderLeftWidth: 0, borderBottomWidth: finH }]} />
+      <View style={[sceneStyles.goalRocketBody, { width: rocketW, height: bodyH }]}>
+        <LinearGradient colors={[bodyLight, bodyDark]} style={StyleSheet.absoluteFill} start={{ x: 0.2, y: 0 }} end={{ x: 0.9, y: 1 }} />
+        <View style={sceneStyles.goalRocketStripe} />
+        <View style={[sceneStyles.goalRocketWindow, { borderColor: isAlert ? '#88A0C0' : '#C8E0FF' }]}>
+          <View style={[sceneStyles.goalRocketWindowGlass, { backgroundColor: isAlert ? 'rgba(140, 170, 200, 0.5)' : 'rgba(160, 210, 255, 0.65)' }]} />
+        </View>
+      </View>
+      <View
+        style={{
+          width: 0,
+          height: 0,
+          borderLeftWidth: rocketW / 2,
+          borderRightWidth: rocketW / 2,
+          borderBottomWidth: noseH,
+          borderLeftColor: 'transparent',
+          borderRightColor: 'transparent',
+          borderBottomColor: noseDark,
+          marginBottom: -1,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          top: 0,
+          width: 0,
+          height: 0,
+          borderLeftWidth: rocketW * 0.38,
+          borderRightWidth: rocketW * 0.38,
+          borderBottomWidth: noseH * 0.88,
+          borderLeftColor: 'transparent',
+          borderRightColor: 'transparent',
+          borderBottomColor: noseLight,
+        }}
+      />
+    </View>
+  );
+}
+
+/** Cohete vertical como meta de inspiración (Nivel 5). */
+export function InspirationMetaRocket({
+  passHeightPx,
+  evaluating,
+  cleared,
+  touching,
+  visualHeight,
+  visualWidth,
+}: {
+  passHeightPx: number;
+  evaluating: boolean;
+  cleared: boolean;
+  touching: boolean;
+  visualHeight: number;
+  visualWidth: number;
+}) {
+  const isAlert = touching || (evaluating && !cleared);
+  const bodyHeight = Math.min(passHeightPx + 42, visualHeight - 8);
+  const figureScale = 1.1;
+
+  return (
+    <View
+      style={[sceneStyles.rocketObstacleRoot, { width: visualWidth, height: visualHeight }]}
+      pointerEvents="none">
+      <View style={sceneStyles.rocketObstacleShadow} />
+      <View style={[sceneStyles.rocketObstacleBody, { height: bodyHeight }]}>
+        <View
+          style={[
+            sceneStyles.rocketFigureScaleWrap,
+            {
+              width: visualWidth,
+              height: bodyHeight,
+              transform: [
+                { translateY: -Math.round(bodyHeight * (figureScale - 1) * 0.5) },
+                { scale: figureScale },
+              ],
+            },
+          ]}>
+          <GoalRocketFigure height={bodyHeight} width={visualWidth} isAlert={isAlert} />
+        </View>
+      </View>
+      {cleared && evaluating ? (
+        <View style={[sceneStyles.rocketClearedGlow, { bottom: bodyHeight * 0.35 }]} />
+      ) : null}
+      {touching ? <View style={sceneStyles.rocketObstacleContactTint} /> : null}
     </View>
   );
 }
@@ -1829,30 +2387,32 @@ const sceneStyles = StyleSheet.create({
     backgroundColor: 'rgba(180, 95, 80, 0.12)',
     borderRadius: 12,
   },
-  oceanReefTile: {
+  oceanDepthTile: {
     height: 88,
     position: 'relative',
-  },
-  oceanReefMound: {
-    position: 'absolute',
-    bottom: 0,
-    borderTopLeftRadius: 70,
-    borderTopRightRadius: 70,
+    justifyContent: 'flex-end',
     overflow: 'hidden',
   },
-  oceanReefMoundTall: {
+  oceanDepthBandTop: {
     position: 'absolute',
-    bottom: 0,
-    borderTopLeftRadius: 80,
-    borderTopRightRadius: 80,
-    overflow: 'hidden',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 36,
   },
-  oceanReefMoundShort: {
-    position: 'absolute',
-    bottom: 0,
-    borderTopLeftRadius: 55,
-    borderTopRightRadius: 55,
-    overflow: 'hidden',
+  oceanDepthBandMid: {
+    height: 14,
+    marginBottom: 10,
+    marginLeft: '8%',
+    backgroundColor: 'rgba(40, 110, 140, 0.1)',
+    borderRadius: 2,
+  },
+  oceanDepthBandLow: {
+    height: 10,
+    marginBottom: 6,
+    marginLeft: '22%',
+    backgroundColor: 'rgba(30, 90, 120, 0.08)',
+    borderRadius: 2,
   },
   oceanSandTile: {
     height: 72,
@@ -1945,84 +2505,25 @@ const sceneStyles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 1,
   },
-  oceanFish: {
+  oceanCausticWash: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.85,
+  },
+  oceanFishAnimated: {
     position: 'absolute',
+  },
+  oceanFishSpriteRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  oceanFishLeft: {
-    left: '12%',
-    top: '32%',
-    opacity: 0.55,
+  oceanFishBodyShape: {
+    opacity: 0.92,
   },
-  oceanFishMid: {
-    left: '48%',
-    top: '52%',
-    opacity: 0.45,
-  },
-  oceanFishRight: {
-    right: '14%',
-    top: '40%',
-    opacity: 0.5,
-  },
-  oceanFishBody: {
-    width: 18,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: 'rgba(90, 160, 190, 0.7)',
-  },
-  oceanFishBodySmall: {
-    width: 12,
-    height: 7,
-    borderRadius: 4,
-  },
-  oceanFishBodyOrange: {
-    backgroundColor: 'rgba(230, 150, 90, 0.65)',
-  },
-  oceanFishTail: {
-    width: 0,
-    height: 0,
-    borderTopWidth: 5,
-    borderBottomWidth: 5,
-    borderLeftWidth: 8,
-    borderTopColor: 'transparent',
-    borderBottomColor: 'transparent',
-    borderLeftColor: 'rgba(70, 140, 175, 0.65)',
-    marginLeft: -2,
-  },
-  oceanFishTailSmall: {
-    borderTopWidth: 3.5,
-    borderBottomWidth: 3.5,
-    borderLeftWidth: 5,
-  },
-  oceanBubble: {
+  oceanBubbleRising: {
     position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.45)',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-  },
-  oceanBubbleMd: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  oceanBubbleSm: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-  },
-  oceanSharkSilhouette: {
-    position: 'absolute',
-    right: '8%',
-    top: '12%',
-    width: 48,
-    height: 14,
-    borderRadius: 8,
-    backgroundColor: 'rgba(30, 70, 95, 0.18)',
-    transform: [{ rotate: '-8deg' }],
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.55)',
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
   },
   oceanKelpCluster: {
     position: 'absolute',
@@ -2162,6 +2663,270 @@ const sceneStyles = StyleSheet.create({
   treasureObstacleContactTint: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(80, 120, 150, 0.14)',
+    borderRadius: 12,
+  },
+  spaceDepthTile: {
+    height: 88,
+    position: 'relative',
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  spaceDepthNebulaTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 48,
+  },
+  spaceDepthBandMid: {
+    height: 12,
+    marginBottom: 10,
+    marginLeft: '10%',
+    backgroundColor: 'rgba(80, 60, 140, 0.12)',
+    borderRadius: 2,
+  },
+  spaceDepthBandLow: {
+    height: 8,
+    marginBottom: 6,
+    marginLeft: '24%',
+    backgroundColor: 'rgba(50, 70, 120, 0.1)',
+    borderRadius: 2,
+  },
+  spaceLifeRoot: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+  },
+  spaceNebulaWash: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  spaceTwinkleStar: {
+    position: 'absolute',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  },
+  spacePlanet: {
+    position: 'absolute',
+    overflow: 'hidden',
+  },
+  spacePlanetRing: {
+    position: 'absolute',
+    top: '42%',
+    left: '-18%',
+    borderWidth: 1,
+    borderColor: 'rgba(200, 180, 220, 0.35)',
+    backgroundColor: 'transparent',
+    transform: [{ rotate: '-18deg' }],
+  },
+  spaceMoon: {
+    position: 'absolute',
+    top: '8%',
+    right: '6%',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    overflow: 'hidden',
+    opacity: 0.88,
+  },
+  spaceMoonCraterA: {
+    position: 'absolute',
+    top: 10,
+    left: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(140, 150, 170, 0.35)',
+  },
+  spaceMoonCraterB: {
+    position: 'absolute',
+    top: 18,
+    right: 6,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(120, 130, 150, 0.3)',
+  },
+  spaceRocketWrap: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  spaceRocketBody: {
+    width: 18,
+    height: 10,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(180, 190, 210, 0.5)',
+  },
+  spaceGroundTile: {
+    height: 72,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  spaceGroundHorizon: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 12,
+  },
+  spaceGroundBody: {
+    flex: 1,
+    width: '100%',
+  },
+  spaceGroundShine: {
+    position: 'absolute',
+    top: 14,
+    left: 0,
+    right: 0,
+    height: 16,
+  },
+  spaceCrater: {
+    position: 'absolute',
+    top: 20,
+    borderRadius: 8,
+    backgroundColor: 'rgba(50, 50, 60, 0.45)',
+  },
+  spaceNearTile: {
+    height: 40,
+    position: 'relative',
+  },
+  spaceRock: {
+    position: 'absolute',
+    bottom: 0,
+    width: 16,
+    height: 10,
+    borderRadius: 4,
+    backgroundColor: '#6A6A78',
+    borderWidth: 1,
+    borderColor: 'rgba(180, 180, 200, 0.25)',
+  },
+  spaceRockSm: {
+    width: 10,
+    height: 7,
+    opacity: 0.75,
+  },
+  spaceSatellite: {
+    position: 'absolute',
+    bottom: 4,
+    width: 28,
+    height: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  spaceSatelliteBody: {
+    width: 10,
+    height: 8,
+    borderRadius: 3,
+    backgroundColor: '#A8B0C8',
+    borderWidth: 1,
+    borderColor: 'rgba(200, 210, 230, 0.4)',
+  },
+  spaceSatellitePanelLeft: {
+    position: 'absolute',
+    left: 0,
+    width: 8,
+    height: 4,
+    backgroundColor: 'rgba(100, 160, 220, 0.55)',
+    borderRadius: 1,
+  },
+  spaceSatellitePanelRight: {
+    position: 'absolute',
+    right: 0,
+    width: 8,
+    height: 4,
+    backgroundColor: 'rgba(100, 160, 220, 0.55)',
+    borderRadius: 1,
+  },
+  goalRocketFigure: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  goalRocketFlameOuter: {
+    position: 'absolute',
+    bottom: 0,
+  },
+  goalRocketFlameInner: {
+    position: 'absolute',
+    bottom: 2,
+  },
+  goalRocketFin: {
+    position: 'absolute',
+    bottom: 0,
+    width: 0,
+    height: 0,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopWidth: 0,
+  },
+  goalRocketFinLeft: {
+    left: '18%',
+  },
+  goalRocketFinRight: {
+    right: '18%',
+  },
+  goalRocketBody: {
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginBottom: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(180, 195, 220, 0.45)',
+  },
+  goalRocketStripe: {
+    position: 'absolute',
+    left: '22%',
+    top: '18%',
+    width: '56%',
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 80, 80, 0.75)',
+  },
+  goalRocketWindow: {
+    position: 'absolute',
+    top: '28%',
+    alignSelf: 'center',
+    width: '42%',
+    height: '28%',
+    borderRadius: 999,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  goalRocketWindowGlass: {
+    width: '88%',
+    height: '88%',
+    borderRadius: 999,
+  },
+  rocketObstacleRoot: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  rocketObstacleShadow: {
+    position: 'absolute',
+    bottom: 0,
+    width: '70%',
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(20, 30, 60, 0.35)',
+  },
+  rocketObstacleBody: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  rocketFigureScaleWrap: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  rocketClearedGlow: {
+    position: 'absolute',
+    width: 48,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(120, 200, 255, 0.35)',
+  },
+  rocketObstacleContactTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 120, 80, 0.14)',
     borderRadius: 12,
   },
 });

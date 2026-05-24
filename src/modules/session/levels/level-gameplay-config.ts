@@ -4,19 +4,19 @@
  * Notes: VIM target % lives in diagnostic LEVEL_FACTORS — not duplicated here.
  */
 
-import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import type { GameVisualId } from '@/src/modules/session/games/game-types';
 
-export type LevelGameTheme = 'forest' | 'desert' | 'snow' | 'ocean';
+export type LevelGameTheme = 'forest' | 'desert' | 'snow' | 'ocean' | 'space';
 export type LevelObstacleType =
   | 'mountain'
   | 'tractor'
   | 'pyramid'
   | 'snowball'
   | 'snowman'
-  | 'treasureChest';
+  | 'treasureChest'
+  | 'rocket';
 
-export type RunnerGameLevelId = 'level-1' | 'level-2' | 'level-3' | 'level-4';
+export type RunnerGameLevelId = 'level-1' | 'level-2' | 'level-3' | 'level-4' | 'level-5';
 
 export type LevelGameplayConfig = {
   levelId: RunnerGameLevelId;
@@ -31,6 +31,7 @@ export const RUNNER_GAME_LEVEL_IDS: readonly RunnerGameLevelId[] = [
   'level-2',
   'level-3',
   'level-4',
+  'level-5',
 ] as const;
 
 const RUNNER_LEVEL_CONFIG: Record<RunnerGameLevelId, LevelGameplayConfig> = {
@@ -62,6 +63,13 @@ const RUNNER_LEVEL_CONFIG: Record<RunnerGameLevelId, LevelGameplayConfig> = {
     gameVisualId: 'rabbit-runner-ocean',
     title: 'Nivel 4',
   },
+  'level-5': {
+    levelId: 'level-5',
+    theme: 'space',
+    obstacleType: 'rocket',
+    gameVisualId: 'rabbit-runner-space',
+    title: 'Nivel 5',
+  },
 };
 
 export function isRunnerGameLevel(levelId: string): levelId is RunnerGameLevelId {
@@ -69,7 +77,8 @@ export function isRunnerGameLevel(levelId: string): levelId is RunnerGameLevelId
     levelId === 'level-1' ||
     levelId === 'level-2' ||
     levelId === 'level-3' ||
-    levelId === 'level-4'
+    levelId === 'level-4' ||
+    levelId === 'level-5'
   );
 }
 

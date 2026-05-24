@@ -25,13 +25,14 @@ export type LevelOneProgress = {
   levelPerfect: boolean;
 };
 
-export type RunnerGameLevelId = 'level-1' | 'level-2' | 'level-3' | 'level-4';
+export type RunnerGameLevelId = 'level-1' | 'level-2' | 'level-3' | 'level-4' | 'level-5';
 
 export const RUNNER_GAME_LEVEL_IDS: readonly RunnerGameLevelId[] = [
   'level-1',
   'level-2',
   'level-3',
   'level-4',
+  'level-5',
 ] as const;
 
 export function isRunnerGameLevel(levelId: LevelId): levelId is RunnerGameLevelId {
@@ -39,7 +40,8 @@ export function isRunnerGameLevel(levelId: LevelId): levelId is RunnerGameLevelI
     levelId === 'level-1' ||
     levelId === 'level-2' ||
     levelId === 'level-3' ||
-    levelId === 'level-4'
+    levelId === 'level-4' ||
+    levelId === 'level-5'
   );
 }
 
@@ -47,6 +49,7 @@ export function getRunnerLevelProgress(
   progress: LevelsProgress,
   levelId: RunnerGameLevelId,
 ): LevelOneProgress {
+  if (levelId === 'level-5') return progress.levelFive;
   if (levelId === 'level-4') return progress.levelFour;
   if (levelId === 'level-3') return progress.levelThree;
   if (levelId === 'level-2') return progress.levelTwo;
@@ -58,6 +61,7 @@ export function setRunnerLevelProgress(
   levelId: RunnerGameLevelId,
   slot: LevelOneProgress,
 ): LevelsProgress {
+  if (levelId === 'level-5') return { ...progress, levelFive: slot };
   if (levelId === 'level-4') return { ...progress, levelFour: slot };
   if (levelId === 'level-3') return { ...progress, levelThree: slot };
   if (levelId === 'level-2') return { ...progress, levelTwo: slot };
@@ -71,6 +75,7 @@ export type LevelsProgress = {
   levelTwo: LevelOneProgress;
   levelThree: LevelOneProgress;
   levelFour: LevelOneProgress;
+  levelFive: LevelOneProgress;
 };
 
 export function createInitialLevelOneProgress(): LevelOneProgress {
@@ -99,6 +104,7 @@ export function createInitialLevelsProgress(): LevelsProgress {
     levelTwo: createInitialLevelOneProgress(),
     levelThree: createInitialLevelOneProgress(),
     levelFour: createInitialLevelOneProgress(),
+    levelFive: createInitialLevelOneProgress(),
   };
 }
 

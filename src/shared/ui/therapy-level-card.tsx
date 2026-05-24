@@ -20,8 +20,11 @@ type TherapyLevelCardProps = {
   identitySoftBg: string;
   statusChip: TherapyLevelStatusChip;
   motivationalCopy: string;
-  targetVolumeText: string;
-  sessionsText: string;
+  /** Meta VIM aproximada (mL) — solo presentación. */
+  targetVolumeMl: number;
+  /** Conteo mostrado en card (p. ej. 5/6); el padre arma el valor. */
+  completedSessionsDisplay: string;
+  perfectSessionsDisplay: string;
   helperText?: string;
   locked: boolean;
   starting?: boolean;
@@ -70,8 +73,9 @@ export function TherapyLevelCard({
   identitySoftBg,
   statusChip,
   motivationalCopy,
-  targetVolumeText,
-  sessionsText,
+  targetVolumeMl,
+  completedSessionsDisplay,
+  perfectSessionsDisplay,
   helperText,
   locked,
   starting = false,
@@ -100,34 +104,51 @@ export function TherapyLevelCard({
           </View>
         </View>
 
-        <View style={styles.titleRow}>
-          <Text style={styles.title} numberOfLines={2}>
+        <View style={styles.titleChipRow}>
+          <Text style={styles.title} numberOfLines={1}>
             {title}
           </Text>
-          {statusChip === 'completed' ? (
-            <MaterialIcons name="check-circle" size={22} color={accentColor} style={styles.titleIcon} />
-          ) : null}
-        </View>
-
-        <View style={styles.chipRow}>
-          <View
-            style={[
-              styles.statusChip,
-              {
-                backgroundColor: chipStyle.backgroundColor,
-                borderColor: chipStyle.borderColor,
-              },
-            ]}>
-            <Text style={[styles.statusChipText, { color: chipStyle.color }]} numberOfLines={1}>
-              {CHIP_LABEL[statusChip]}
-            </Text>
+          <View style={styles.titleStatusGroup}>
+            <View
+              style={[
+                styles.statusChip,
+                {
+                  backgroundColor: chipStyle.backgroundColor,
+                  borderColor: chipStyle.borderColor,
+                },
+              ]}>
+              <Text style={[styles.statusChipText, { color: chipStyle.color }]} numberOfLines={1}>
+                {CHIP_LABEL[statusChip]}
+              </Text>
+            </View>
+            {statusChip === 'completed' ? (
+              <MaterialIcons name="check-circle" size={18} color={accentColor} />
+            ) : null}
           </View>
         </View>
 
-        <Text style={styles.motivational}>{motivationalCopy}</Text>
-        <Text style={styles.line}>{targetVolumeText}</Text>
-        <Text style={styles.line}>{sessionsText}</Text>
-        {helperText ? <Text style={styles.helper}>{helperText}</Text> : null}
+        <Text style={styles.motivational} numberOfLines={2}>
+          {motivationalCopy}
+        </Text>
+        <View style={styles.metricsBlock}>
+          <View style={styles.metricRow}>
+            <Text style={styles.metricLabel}>Meta aprox:</Text>
+            <Text style={styles.metricValue}>{targetVolumeMl} mL</Text>
+          </View>
+          <View style={styles.metricRow}>
+            <Text style={styles.metricLabel}>Completadas hoy:</Text>
+            <Text style={styles.metricValue}>{completedSessionsDisplay}</Text>
+          </View>
+          <View style={styles.metricRow}>
+            <Text style={styles.metricLabel}>Perfectas:</Text>
+            <Text style={styles.metricValue}>{perfectSessionsDisplay}</Text>
+          </View>
+        </View>
+        {helperText ? (
+          <Text style={styles.helper} numberOfLines={2}>
+            {helperText}
+          </Text>
+        ) : null}
       </View>
 
       <View style={styles.ctaCol}>
@@ -149,16 +170,16 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: spacing.md,
+    alignItems: 'flex-start',
+    gap: spacing.sm,
     backgroundColor: dashboardScreen.cardBg,
     borderRadius: dashboardScreen.cardRadius,
     borderWidth: 1,
     borderColor: dashboardScreen.cardBorderColor,
-    paddingVertical: spacing.lg,
-    paddingRight: spacing.lg,
+    paddingVertical: spacing.md,
+    paddingRight: spacing.md,
     paddingLeft: 0,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
     overflow: 'hidden',
   },
   cardLocked: {
@@ -176,87 +197,109 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
+    flexShrink: 1,
     minWidth: 0,
     paddingLeft: spacing.sm,
+    paddingVertical: 2,
+    paddingRight: spacing.xs,
   },
   identityRow: {
-    marginBottom: spacing.xs,
+    marginBottom: 4,
   },
   identityPill: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 8,
     maxWidth: '100%',
   },
   identityPillText: {
     fontFamily: fontSemiBold,
-    fontSize: 12,
+    fontSize: 11,
     letterSpacing: 0.2,
   },
-  titleRow: {
+  titleChipRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
-    marginBottom: spacing.xs,
-  },
-  title: {
-    flex: 1,
-    fontFamily: fontBold,
-    fontSize: 18,
-    color: dashboardScreen.textPrimary,
-    lineHeight: 24,
-  },
-  titleIcon: {
-    marginTop: 1,
-  },
-  chipRow: {
-    flexDirection: 'row',
+    alignItems: 'center',
     flexWrap: 'wrap',
     gap: spacing.xs,
-    marginBottom: spacing.sm,
+    marginBottom: 4,
+  },
+  title: {
+    flexShrink: 0,
+    fontFamily: fontBold,
+    fontSize: 16,
+    color: dashboardScreen.textPrimary,
+    lineHeight: 20,
+  },
+  titleStatusGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    flexShrink: 0,
   },
   statusChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
+    flexShrink: 0,
   },
   statusChipText: {
     fontFamily: fontSemiBold,
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 10,
+    lineHeight: 13,
   },
   motivational: {
     fontFamily: fontSemiBold,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 17,
     color: dashboardScreen.textPrimary,
-    marginBottom: spacing.xs,
+    marginBottom: 4,
   },
-  line: {
-    marginTop: 4,
-    fontFamily: fontMedium,
-    fontSize: 15,
-    lineHeight: 21,
-    color: dashboardScreen.textSecondary,
+  metricsBlock: {
+    gap: 3,
   },
-  helper: {
-    marginTop: spacing.xs,
+  metricRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
+  },
+  metricLabel: {
+    flex: 1,
     fontFamily: fontMedium,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 17,
+    color: dashboardScreen.textSecondary,
+  },
+  metricValue: {
+    fontFamily: fontSemiBold,
+    fontSize: 13,
+    lineHeight: 17,
+    color: dashboardScreen.textPrimary,
+    textAlign: 'right',
+    flexShrink: 0,
+  },
+  helper: {
+    marginTop: 4,
+    fontFamily: fontMedium,
+    fontSize: 12,
+    lineHeight: 16,
     color: dashboardScreen.textMuted,
   },
   ctaCol: {
-    justifyContent: 'center',
-    alignSelf: 'center',
-    paddingRight: 0,
+    justifyContent: 'flex-start',
+    alignSelf: 'flex-start',
+    flexShrink: 0,
+    paddingTop: spacing.xs,
+    paddingLeft: spacing.xs,
   },
   ctaBtn: {
-    minWidth: 102,
-    minHeight: dashboardScreen.primaryButtonMinHeight,
-    paddingHorizontal: spacing.md,
+    minWidth: 88,
+    minHeight: 44,
+    paddingHorizontal: spacing.sm,
     borderRadius: dashboardScreen.primaryButtonRadius,
     alignItems: 'center',
     justifyContent: 'center',
@@ -271,7 +314,7 @@ const styles = StyleSheet.create({
   },
   ctaBtnText: {
     fontFamily: fontBold,
-    fontSize: 16,
+    fontSize: 15,
     color: '#FFFFFF',
   },
   ctaBtnTextLocked: {
