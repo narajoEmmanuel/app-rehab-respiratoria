@@ -293,14 +293,6 @@ export function HistoryScreen() {
             </Text>
             <Text style={styles.heroMotivation}>{heroMotivation}</Text>
 
-            <Pressable
-              onPress={() => router.push('/data-export')}
-              style={({ pressed }) => [styles.exportClinicalRow, pressed && styles.exportClinicalRowPressed]}
-              accessibilityRole="button"
-              accessibilityLabel="Exportar datos clínicos">
-              <Text style={styles.exportClinicalText}>Exportar datos clínicos</Text>
-            </Pressable>
-
             <View style={styles.summaryStack}>
               <SummaryCard
                 label="Racha terapéutica"
@@ -418,6 +410,20 @@ export function HistoryScreen() {
               {achievementsList.map((a) => (
                 <AchievementRow key={a.id} item={a} />
               ))}
+            </View>
+
+            <View style={styles.exportSection}>
+              <Text style={styles.exportSectionTitle}>Compartir resumen de progreso</Text>
+              <Text style={styles.exportSectionBody}>
+                Genera un archivo con tus sesiones para revisarlo con un profesional de la salud.
+              </Text>
+              <Pressable
+                onPress={() => router.push('/data-export')}
+                style={({ pressed }) => [styles.exportSectionBtn, pressed && styles.exportSectionBtnPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Exportar resumen">
+                <Text style={styles.exportSectionBtnText}>Exportar resumen</Text>
+              </Pressable>
             </View>
           </>
         )}
@@ -567,20 +573,6 @@ const styles = StyleSheet.create({
     color: '#374151',
     fontWeight: '600',
     marginBottom: spacing.sm,
-  },
-  exportClinicalRow: {
-    alignSelf: 'flex-start',
-    marginBottom: spacing.md,
-    paddingVertical: spacing.xs,
-  },
-  exportClinicalRowPressed: {
-    opacity: 0.78,
-  },
-  exportClinicalText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: wellness.primaryDark,
-    textDecorationLine: 'underline',
   },
   summaryStack: {
     marginTop: spacing.md,
@@ -858,6 +850,44 @@ const styles = StyleSheet.create({
   },
   achievementDescLocked: {
     color: dashboardScreen.textSecondary,
+  },
+  exportSection: {
+    marginTop: spacing.lg,
+    backgroundColor: dashboardScreen.cardBg,
+    borderRadius: dashboardScreen.cardRadius,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: dashboardScreen.cardBorderColor,
+    borderStyle: 'dashed',
+  },
+  exportSectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: dashboardScreen.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  exportSectionBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: dashboardScreen.textSecondary,
+    marginBottom: spacing.md,
+  },
+  exportSectionBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: wellness.softGreen,
+    borderRadius: 12,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.lg,
+    borderWidth: 1,
+    borderColor: wellness.border,
+  },
+  exportSectionBtnPressed: {
+    opacity: 0.9,
+  },
+  exportSectionBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: wellness.primaryDark,
   },
   loadingBox: {
     paddingVertical: spacing.xl,

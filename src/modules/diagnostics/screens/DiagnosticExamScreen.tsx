@@ -303,7 +303,7 @@ export function DiagnosticExamScreen() {
       return 'Inhala al máximo';
     }
     if (isDiagnosticRestPhase(phase)) return 'Descansa';
-    return 'Diagnóstico respiratorio';
+    return 'Evaluación respiratoria inicial';
   }, [phase]);
 
   const phaseHint = useMemo(() => {
@@ -476,7 +476,7 @@ export function DiagnosticExamScreen() {
       <View style={styles.contentArea}>
         {phase === 'idle' ? (
           <View style={styles.headerZone}>
-            <Text style={styles.titleCompact}>Diagnóstico respiratorio</Text>
+            <Text style={styles.titleCompact}>Evaluación respiratoria inicial</Text>
             <View style={styles.modeBadgeRow}>
               <View style={[styles.modeBadge, isTouchPractice && styles.modeBadgePractice]}>
                 <Text
@@ -500,7 +500,7 @@ export function DiagnosticExamScreen() {
               onPress={startAttempt}
               accessibilityRole="button"
               accessibilityLabel="Iniciar intento">
-              <Text style={styles.primaryBtnTopText}>Empezar diagnóstico</Text>
+              <Text style={styles.primaryBtnTopText}>Empezar evaluación</Text>
             </Pressable>
           </View>
         ) : null}

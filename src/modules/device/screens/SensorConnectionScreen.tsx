@@ -151,19 +151,8 @@ export function SensorConnectionScreen() {
         disabled: isConnecting,
       };
     }
-    if (!hasCalibration) {
-      return {
-        label: liveReady ? 'Calibrar dispositivo' : 'Esperando señal válida…',
-        onPress: onOpenCalibration,
-        disabled: !liveReady,
-      };
-    }
-    return {
-      label: 'Actualizar calibración',
-      onPress: onOpenCalibration,
-      disabled: false,
-    };
-  }, [hasCalibration, isConnecting, isOnline, liveReady, onConnect, onOpenCalibration]);
+    return null;
+  }, [isConnecting, isOnline, onConnect]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -174,11 +163,12 @@ export function SensorConnectionScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <Text style={styles.eyebrow}>Preparar dispositivo</Text>
-        <Text style={styles.title}>Conecta y calibra antes de empezar</Text>
+        <Text style={styles.title}>Sensor y calibración</Text>
         <Text style={styles.subtitle}>
-          Sigue dos pasos: conecta el ESP32 por WiFi y revisa la calibración local.
+          Conecta el sensor por WiFi y revisa la calibración del espirómetro.
         </Text>
 
+        <Text style={styles.sectionLabel}>Conexión del dispositivo</Text>
         {/* Zone A — Estado del dispositivo */}
         <View style={styles.heroCard}>
           <View style={styles.heroTopRow}>
@@ -229,25 +219,6 @@ export function SensorConnectionScreen() {
               value={signalValid ? 'Válida' : 'Sin lectura'}
               tone={signalValid ? 'ok' : isOnline ? 'pending' : 'neutral'}
             />
-            <StatusPill
-              label="Calibración"
-              value={
-                calibrationSnapshot.kind === 'loading'
-                  ? '…'
-                  : hasCalibration
-                    ? 'Guardada'
-                    : calibrationSnapshot.kind === 'corrupt'
-                      ? 'Revisar'
-                      : 'Pendiente'
-              }
-              tone={
-                hasCalibration
-                  ? 'ok'
-                  : calibrationSnapshot.kind === 'corrupt'
-                    ? 'warn'
-                    : 'pending'
-              }
-            />
           </View>
 
           {status === 'error' && errorMessage ? (
@@ -266,60 +237,77 @@ export function SensorConnectionScreen() {
         </View>
 
         {/* Zone B — Acciones principales */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.primaryBtn,
-            primaryAction.disabled && styles.btnDisabled,
-            pressed && !primaryAction.disabled && styles.primaryBtnPressed,
-          ]}
-          onPress={primaryAction.onPress}
-          disabled={primaryAction.disabled}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: primaryAction.disabled }}>
-          <Text style={[styles.primaryBtnText, primaryAction.disabled && styles.btnTextDisabled]}>
-            {primaryAction.label}
-          </Text>
-        </Pressable>
-
-        {/* Calibración guardada */}
-        {calibrationSnapshot.kind === 'ready' ? (
+        {primaryAction ? (
           <Pressable
-            onPress={onOpenCalibration}
-            style={({ pressed }) => [styles.savedCalibCard, pressed && styles.savedCalibCardPressed]}
+            style={({ pressed }) => [
+              styles.primaryBtn,
+              primaryAction.disabled && styles.btnDisabled,
+              pressed && !primaryAction.disabled && styles.primaryBtnPressed,
+            ]}
+            onPress={primaryAction.onPress}
+            disabled={primaryAction.disabled}
             accessibilityRole="button"
-            accessibilityLabel="Abrir calibración local">
-            <View style={styles.savedCalibIconWrap}>
-              <IconSymbol name="checkmark.circle.fill" size={24} color={wellness.primaryDark} />
-            </View>
-            <View style={styles.savedCalibTextCol}>
-              <Text style={styles.savedCalibTitle}>Calibración guardada</Text>
-              <Text style={styles.savedCalibMeta}>
-                {calibrationSnapshot.profile.points.length}{' '}
-                {calibrationSnapshot.profile.points.length === 1 ? 'punto' : 'puntos'} ·{' '}
-                {formatShortDate(calibrationSnapshot.profile.updatedAt)}
-              </Text>
-              <Text style={styles.savedCalibCta}>Revisar o recalibrar</Text>
-            </View>
-            <IconSymbol name="chevron.right" size={18} color={wellness.textSecondary} />
-          </Pressable>
-        ) : calibrationSnapshot.kind === 'corrupt' ? (
-          <Pressable
-            onPress={onOpenCalibration}
-            style={({ pressed }) => [styles.savedCalibCardWarn, pressed && styles.savedCalibCardPressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Revisar calibración guardada">
-            <View style={styles.savedCalibIconWarnWrap}>
-              <IconSymbol name="gearshape.fill" size={24} color={wellness.errorText} />
-            </View>
-            <View style={styles.savedCalibTextCol}>
-              <Text style={styles.savedCalibTitleWarn}>Calibración guardada corrupta</Text>
-              <Text style={styles.savedCalibMeta}>
-                Borra el perfil dañado desde Calibración local y vuelve a registrar.
-              </Text>
-            </View>
-            <IconSymbol name="chevron.right" size={18} color={wellness.textSecondary} />
+            accessibilityState={{ disabled: primaryAction.disabled }}>
+            <Text style={[styles.primaryBtnText, primaryAction.disabled && styles.btnTextDisabled]}>
+              {primaryAction.label}
+            </Text>
           </Pressable>
         ) : null}
+
+        {/* Módulo 2 — Calibración */}
+        <View style={styles.moduleDivider} />
+        <Text style={styles.sectionLabel}>Calibración</Text>
+
+        <View style={styles.calibrationModule}>
+          <View style={styles.calibModuleHeader}>
+            <View style={styles.calibModuleIconWrap}>
+              <IconSymbol name="gearshape.fill" size={22} color={
+                hasCalibration ? wellness.primaryDark : wellness.textSecondary
+              } />
+            </View>
+            <View style={styles.calibModuleTextCol}>
+              <Text style={styles.calibModuleTitle}>
+                {calibrationSnapshot.kind === 'loading'
+                  ? 'Revisando calibración…'
+                  : hasCalibration
+                    ? 'Calibración guardada'
+                    : calibrationSnapshot.kind === 'corrupt'
+                      ? 'Calibración con errores'
+                      : 'Calibración pendiente'}
+              </Text>
+              <Text style={styles.calibModuleSubtitle}>
+                {calibrationSnapshot.kind === 'ready'
+                  ? `${calibrationSnapshot.profile.points.length} ${calibrationSnapshot.profile.points.length === 1 ? 'punto' : 'puntos'} · ${formatShortDate(calibrationSnapshot.profile.updatedAt)}`
+                  : calibrationSnapshot.kind === 'corrupt'
+                    ? 'El perfil guardado no se pudo leer. Recalibra desde cero.'
+                    : calibrationSnapshot.kind === 'loading'
+                      ? 'Comprobando datos guardados…'
+                      : 'Registra la calibración para usar medición confiable.'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.calibModuleBtnRow}>
+            <Pressable
+              style={({ pressed }) => [styles.calibModuleBtn, pressed && styles.calibModuleBtnPressed]}
+              onPress={onOpenCalibration}
+              accessibilityRole="button"
+              accessibilityLabel="Ver calibración">
+              <Text style={styles.calibModuleBtnText}>
+                {hasCalibration ? 'Ver calibración' : 'Ir a calibración'}
+              </Text>
+            </Pressable>
+            {hasCalibration ? (
+              <Pressable
+                style={({ pressed }) => [styles.calibModuleBtnSecondary, pressed && styles.calibModuleBtnPressed]}
+                onPress={onOpenCalibration}
+                accessibilityRole="button"
+                accessibilityLabel="Recalibrar">
+                <Text style={styles.calibModuleBtnSecondaryText}>Recalibrar</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
 
         {/* Secondary action — disconnect (solo si está conectado o conectando) */}
         {isOnline || isConnecting ? (
@@ -647,6 +635,73 @@ const styles = StyleSheet.create({
   secondaryBtnText: { fontSize: 16, fontWeight: '700', color: wellness.primaryDark },
   btnDisabled: { opacity: 0.45 },
   btnTextDisabled: { color: wellness.textSecondary },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: wellness.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  moduleDivider: {
+    height: 1,
+    backgroundColor: wellness.border,
+    marginVertical: spacing.lg,
+  },
+  calibrationModule: {
+    backgroundColor: wellness.card,
+    borderRadius: wellnessRadii.cardLarge,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    marginBottom: spacing.md,
+    ...wellnessShadows.card,
+  },
+  calibModuleHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  calibModuleIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: wellness.softGreen,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calibModuleTextCol: { flex: 1 },
+  calibModuleTitle: { fontSize: 17, fontWeight: '800', color: wellness.text },
+  calibModuleSubtitle: { fontSize: 14, color: wellness.textSecondary, marginTop: 2, lineHeight: 20 },
+  calibModuleBtnRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  calibModuleBtn: {
+    flex: 1,
+    backgroundColor: wellness.primary,
+    borderRadius: wellnessRadii.pill,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: wellness.borderStrong,
+  },
+  calibModuleBtnPressed: { opacity: 0.92 },
+  calibModuleBtnText: { fontSize: 15, fontWeight: '800', color: wellness.primaryDark },
+  calibModuleBtnSecondary: {
+    flex: 1,
+    backgroundColor: wellness.card,
+    borderRadius: wellnessRadii.pill,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: wellness.borderStrong,
+  },
+  calibModuleBtnSecondaryText: { fontSize: 15, fontWeight: '700', color: wellness.primaryDark },
   savedCalibCard: {
     flexDirection: 'row',
     alignItems: 'center',

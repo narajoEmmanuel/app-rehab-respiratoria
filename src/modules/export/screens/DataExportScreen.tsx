@@ -121,11 +121,11 @@ export function DataExportScreen() {
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: wellnessFloatingTabBarInset + spacing.lg }]}
         showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Datos y exportación</Text>
+        <Text style={styles.title}>Exportar resumen</Text>
         <Text style={styles.lead}>
-          Exporta un archivo con tu ficha, diagnósticos, niveles, sesiones e intentos guardados en este dispositivo.
-          Los archivos pueden incluir datos personales y de salud: trátalos con cuidado y compártelos solo si tú lo
-          decides.
+          Exporta un archivo con tu ficha, evaluaciones iniciales, niveles, sesiones e intentos guardados en este
+          dispositivo. Los archivos pueden incluir datos personales y de salud: trátalos con cuidado y compártelos solo
+          si tú lo decides.
         </Text>
 
         {!hydrated || (patient != null && consentOk === null) ? (
@@ -141,8 +141,8 @@ export function DataExportScreen() {
           <View style={styles.blockCard}>
             <Text style={styles.blockTitle}>Exportación no disponible</Text>
             <Text style={styles.blockText}>
-              El consentimiento digital no está activo. Reactiva el consentimiento en Perfil para poder exportar tus
-              datos clínicos.
+              El consentimiento digital no está activo. Reactiva el consentimiento en Perfil para poder exportar tu
+              resumen de progreso.
             </Text>
           </View>
         ) : null}
@@ -153,8 +153,9 @@ export function DataExportScreen() {
         {patient && consentOk === true && summary != null ? (
           <>
             <Text style={styles.meta}>
-              Resumen: diagnósticos {summary.diagnostics}, niveles {summary.levels}, sesiones {summary.sessions}. Ficha
-              de paciente: {summary.hasPatient ? 'incluida' : 'no encontrada en almacenamiento local'}.
+              Resumen: evaluaciones iniciales {summary.diagnostics}, niveles {summary.levels}, sesiones{' '}
+              {summary.sessions}. Ficha de paciente:{' '}
+              {summary.hasPatient ? 'incluida' : 'no encontrada en almacenamiento local'}.
             </Text>
             <Text style={styles.emptyHint}>
               Puedes exportar aunque algunas tablas estén vacías (por ejemplo, antes de la primera sesión).

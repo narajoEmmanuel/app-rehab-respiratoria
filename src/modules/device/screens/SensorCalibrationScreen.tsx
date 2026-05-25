@@ -533,6 +533,7 @@ export function SensorCalibrationScreen() {
     'idle',
   );
   const debug = isSensorDebugEnabled();
+  const [techDetailsExpanded, setTechDetailsExpanded] = useState(false);
 
   const isRetakeMode = retakeVolumeMl !== null;
 
@@ -1314,6 +1315,65 @@ export function SensorCalibrationScreen() {
         <Text style={styles.screenTitle}>Calibración local</Text>
         <Text style={styles.screenSubtitle}>ESP32 · VL53L0X · solo en este dispositivo</Text>
 
+        <View style={styles.calibSummaryCard}>
+          <Text style={styles.calibSummaryTitle}>Calibración actual</Text>
+          <View style={styles.calibSummaryGrid}>
+            <View style={styles.calibSummaryItem}>
+              <Text style={styles.calibSummaryLabel}>Estado</Text>
+              <Text style={styles.calibSummaryValue}>
+                {savedStatus.kind === 'loading'
+                  ? 'Cargando…'
+                  : savedStatus.kind === 'saved'
+                    ? 'Guardada'
+                    : savedStatus.kind === 'corrupt'
+                      ? 'Requiere revisión'
+                      : 'Pendiente'}
+              </Text>
+            </View>
+            <View style={styles.calibSummaryItem}>
+              <Text style={styles.calibSummaryLabel}>Última actualización</Text>
+              <Text style={styles.calibSummaryValue}>
+                {savedStatus.kind === 'saved' && savedStatus.updatedAt
+                  ? new Date(savedStatus.updatedAt).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
+                  : '—'}
+              </Text>
+            </View>
+            <View style={styles.calibSummaryItem}>
+              <Text style={styles.calibSummaryLabel}>Puntos usados</Text>
+              <Text style={styles.calibSummaryValue}>
+                {savedStatus.kind === 'saved' ? String(savedStatus.pointsCount) : '—'}
+              </Text>
+            </View>
+            <View style={styles.calibSummaryItem}>
+              <Text style={styles.calibSummaryLabel}>Rango calibrado</Text>
+              <Text style={styles.calibSummaryValue}>
+                {activeSpirometerProfile
+                  ? `${activeSpirometerProfile.operativeMinVolumeMl}–${activeSpirometerProfile.maxVolumeMl} mL`
+                  : '—'}
+              </Text>
+            </View>
+            <View style={styles.calibSummaryItem}>
+              <Text style={styles.calibSummaryLabel}>Calidad general</Text>
+              <Text style={styles.calibSummaryValue}>
+                {recommendation ? recommendationStatusLabel(recommendation.status) : '—'}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <Pressable
+          onPress={() => setTechDetailsExpanded((prev) => !prev)}
+          style={({ pressed }) => [styles.techDetailsToggle, pressed && styles.techDetailsTogglePressed]}
+          accessibilityRole="button"
+          accessibilityLabel={techDetailsExpanded ? 'Ocultar detalles técnicos' : 'Ver puntos capturados'}>
+          <Text style={styles.techDetailsToggleText}>
+            {techDetailsExpanded ? 'Ocultar detalles técnicos' : 'Ver puntos capturados'}
+          </Text>
+          <Text style={styles.techDetailsToggleChevron}>{techDetailsExpanded ? '▾' : '▸'}</Text>
+        </Pressable>
+
+        {techDetailsExpanded ? (
+          <>
         <View style={styles.heroCard}>
           <View style={styles.heroTop}>
             <View style={styles.heroStatusCol}>
@@ -2920,6 +2980,8 @@ export function SensorCalibrationScreen() {
           accessibilityLabel="Volver a conexión del sensor">
           <Text style={styles.linkBackText}>Volver a conexión del sensor</Text>
         </Pressable>
+          </>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -3761,4 +3823,55 @@ const styles = StyleSheet.create({
   segmentColRange: { flex: 1.2 },
   segmentColDist: { flex: 1, textAlign: 'right' },
   segmentColSlope: { flex: 1, textAlign: 'right' },
+  calibSummaryCard: {
+    backgroundColor: wellness.card,
+    borderRadius: wellnessRadii.cardLarge,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    ...wellnessShadows.card,
+  },
+  calibSummaryTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+    marginBottom: spacing.md,
+  },
+  calibSummaryGrid: {
+    gap: spacing.sm,
+  },
+  calibSummaryItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: wellness.border,
+  },
+  calibSummaryLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+  },
+  calibSummaryValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: wellness.text,
+  },
+  techDetailsToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    backgroundColor: wellness.card,
+    borderRadius: wellnessRadii.card,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    marginBottom: spacing.md,
+  },
+  techDetailsTogglePressed: { opacity: 0.94 },
+  techDetailsToggleText: { fontSize: 15, fontWeight: '700', color: wellness.primaryDark },
+  techDetailsToggleChevron: { fontSize: 16, fontWeight: '800', color: wellness.textSecondary },
 });

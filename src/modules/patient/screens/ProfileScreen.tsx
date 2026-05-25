@@ -304,34 +304,40 @@ export function ProfileScreen() {
         </ProfileSection>
 
         <ProfileSection title="Tu información">
-          <ProfileInfoCard title="Identificación">
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Nombre</Text>
-              <Text style={styles.fieldValue}>{patientDisplayName}</Text>
+          <ProfileInfoCard>
+            <View style={styles.infoRow}>
+              <View style={styles.infoHalf}>
+                <Text style={styles.fieldLabel}>Nombre</Text>
+                <Text style={styles.fieldValue}>{patientDisplayName}</Text>
+              </View>
+              <View style={styles.infoHalf}>
+                <Text style={styles.fieldLabel}>Edad</Text>
+                <Text style={styles.fieldValue}>{patient.edad != null ? `${patient.edad} años` : '—'}</Text>
+              </View>
             </View>
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Edad</Text>
-              <Text style={styles.fieldValue}>{patient.edad != null ? `${patient.edad} años` : '—'}</Text>
+            <View style={styles.divider} />
+            <Text style={styles.infoSectionLabel}>Última evaluación inicial</Text>
+            <View style={styles.infoRow}>
+              <View style={styles.infoHalf}>
+                <Text style={styles.fieldLabel}>Volumen de referencia</Text>
+                <Text style={styles.fieldValue}>
+                  {latestDiagnostic ? `${latestDiagnostic.max_inspiratory_volume} mL` : '—'}
+                </Text>
+              </View>
+              <View style={styles.infoHalf}>
+                <Text style={styles.fieldLabel}>Fecha</Text>
+                <Text style={styles.fieldValue}>
+                  {latestDiagnostic ? new Date(latestDiagnostic.diagnostic_date).toLocaleDateString() : '—'}
+                </Text>
+              </View>
             </View>
-          </ProfileInfoCard>
-          <ProfileInfoCard title="Último diagnóstico registrado">
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>VIM</Text>
-              <Text style={styles.fieldValue}>
-                {latestDiagnostic ? `${latestDiagnostic.max_inspiratory_volume} mL` : 'No disponible'}
-              </Text>
-            </View>
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Fecha</Text>
-              <Text style={styles.fieldValue}>
-                {latestDiagnostic ? new Date(latestDiagnostic.diagnostic_date).toLocaleDateString() : '—'}
-              </Text>
-            </View>
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Número de diagnóstico</Text>
-              <Text style={styles.fieldValue}>
-                {latestDiagnostic?.diagnostic_number != null ? String(latestDiagnostic.diagnostic_number) : '—'}
-              </Text>
+            <View style={styles.infoRow}>
+              <View style={styles.infoHalf}>
+                <Text style={styles.fieldLabel}>Evaluación número</Text>
+                <Text style={styles.fieldValue}>
+                  {latestDiagnostic?.diagnostic_number != null ? String(latestDiagnostic.diagnostic_number) : '—'}
+                </Text>
+              </View>
             </View>
           </ProfileInfoCard>
         </ProfileSection>
@@ -391,22 +397,13 @@ export function ProfileScreen() {
           </ProfileInfoCard>
         </ProfileSection>
 
-        <ProfileSection
-          title="Datos y exportación"
-          subtitle="Genera JSON o CSV solo cuando tú lo decidas; no enviamos datos por correo ni nube.">
-          <ProfileInfoCard>
-            <Text style={styles.exportBody}>
-              Los archivos pueden incluir datos personales y de salud. Trátalos con cuidado y compártelos solo si lo
-              eliges tú.
-            </Text>
-            <ProfileActionRow
-              label="Exportar datos clínicos"
-              onPress={() => router.push('/data-export')}
-              accessibilityLabel="Exportar datos clínicos"
-              variant="primary"
-            />
-          </ProfileInfoCard>
-        </ProfileSection>
+        <Pressable
+          style={styles.exportDiscreteLink}
+          onPress={() => router.push('/data-export')}
+          accessibilityRole="button"
+          accessibilityLabel="Exportar resumen de progreso">
+          <Text style={styles.exportDiscreteLinkText}>Exportar resumen</Text>
+        </Pressable>
 
         <ProfileSection
           title="Notificaciones"
@@ -512,8 +509,7 @@ const styles = StyleSheet.create({
   },
   profileHeader: {
     alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.xs,
+    gap: spacing.xs,
   },
   profileName: {
     fontSize: 22,
@@ -555,6 +551,22 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textTransform: 'uppercase',
     letterSpacing: 0.3,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  infoHalf: {
+    flex: 1,
+    gap: spacing.xs / 2,
+  },
+  infoSectionLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: wellness.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: spacing.xs,
   },
   field: {
     gap: spacing.xs / 2,
@@ -659,6 +671,17 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: wellness.textSecondary,
     marginBottom: spacing.sm,
+  },
+  exportDiscreteLink: {
+    alignSelf: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  exportDiscreteLinkText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: wellness.primaryDark,
+    textDecorationLine: 'underline',
   },
   notifStatusLine: {
     fontSize: 15,

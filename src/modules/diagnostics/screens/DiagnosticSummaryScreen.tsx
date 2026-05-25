@@ -55,11 +55,11 @@ export function DiagnosticSummaryScreen() {
       />
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>
-          {isTouchPractice ? 'Práctica completada' : 'Diagnóstico completado'}
+          {isTouchPractice ? 'Práctica completada' : 'Evaluación completada'}
         </Text>
         <Text style={styles.subtitle}>
           {isTouchPractice
-            ? 'Estos valores son simulados con el dedo. No se guardan como diagnóstico oficial.'
+            ? 'Estos valores son simulados con el dedo. No se guardan como evaluación oficial.'
             : 'Resultados de tus 3 intentos de inspiración máxima.'}
         </Text>
 
@@ -67,7 +67,7 @@ export function DiagnosticSummaryScreen() {
           <View style={styles.practiceBanner}>
             <Text style={styles.practiceBannerTitle}>Modo práctica</Text>
             <Text style={styles.practiceBannerText}>
-              No es una medición clínica. Tu diagnóstico oficial y niveles no se modifican.
+              No es una medición clínica. Tu evaluación oficial y niveles no se modifican.
             </Text>
           </View>
         ) : null}
@@ -88,7 +88,7 @@ export function DiagnosticSummaryScreen() {
             <Text style={styles.resultValue}>{Math.round(attemptThree)} mL</Text>
           </View>
           <View style={styles.finalVimWrap}>
-            <Text style={styles.finalVimLabel}>VIM {isTouchPractice ? 'simulado' : 'final'}</Text>
+            <Text style={styles.finalVimLabel}>Volumen de referencia {isTouchPractice ? '(simulado)' : ''}</Text>
             <Text style={styles.finalVimValue}>{Math.round(vimNumber)} mL</Text>
           </View>
         </View>
@@ -96,9 +96,9 @@ export function DiagnosticSummaryScreen() {
         {!isTouchPractice ? (
           <View style={styles.tableCard}>
             <View style={styles.tableHeader}>
-              <Text style={[styles.cell, styles.headerCell]}>Diagnóstico #</Text>
+              <Text style={[styles.cell, styles.headerCell]}>Evaluación</Text>
               <Text style={[styles.cell, styles.headerCell]}>Fecha</Text>
-              <Text style={[styles.cell, styles.headerCell]}>VIM</Text>
+              <Text style={[styles.cell, styles.headerCell]}>Vol. ref.</Text>
             </View>
             <View style={styles.tableRow}>
               <Text style={styles.cell}>Nuevo</Text>

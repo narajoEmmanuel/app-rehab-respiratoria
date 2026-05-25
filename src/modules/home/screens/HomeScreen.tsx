@@ -127,8 +127,8 @@ export function HomeScreen() {
   const goStartTerapia = useCallback(() => {
     if (!hasCompletedDiagnostic) {
       Alert.alert(
-        'Diagnóstico pendiente',
-        'Primero realiza tu diagnóstico para iniciar terapia.',
+        'Evaluación inicial pendiente',
+        'Completa tu evaluación inicial para personalizar tu terapia.',
       );
       return;
     }
@@ -251,17 +251,17 @@ export function HomeScreen() {
         {!hasCompletedDiagnostic ? (
           <>
             <View style={styles.diagnosticHeroCard}>
-              <Text style={styles.diagnosticHeroKicker}>Antes de la terapia</Text>
-              <Text style={styles.diagnosticHeroTitle}>Realizar primer diagnóstico</Text>
+              <Text style={styles.diagnosticHeroKicker}>Evaluación inicial</Text>
+              <Text style={styles.diagnosticHeroTitle}>Evaluación inicial</Text>
               <Text style={styles.diagnosticHeroBody}>
-                Antes de iniciar terapia, necesitamos medir tu volumen inspiratorio máximo.
+                Mide tu volumen de referencia para personalizar tus metas de terapia.
               </Text>
               <Pressable
                 style={({ pressed }) => [styles.diagnosticHeroBtn, pressed && styles.diagnosticHeroBtnPressed]}
                 onPress={goDiagnostico}
                 accessibilityRole="button"
-                accessibilityLabel="Realizar primer diagnóstico">
-                <Text style={styles.diagnosticHeroBtnText}>Realizar primer diagnóstico</Text>
+                accessibilityLabel="Iniciar evaluación">
+                <Text style={styles.diagnosticHeroBtnText}>Iniciar evaluación</Text>
               </Pressable>
             </View>
 
@@ -269,13 +269,13 @@ export function HomeScreen() {
               <Text style={styles.heroKicker}>Sesión recomendada</Text>
               <Text style={styles.heroTitle}>Terapia guiada</Text>
               <Text style={styles.heroSubtitleBlocked}>
-                Primero realiza tu diagnóstico para iniciar terapia.
+                Completa tu evaluación inicial para personalizar tu terapia.
               </Text>
               <Pressable
                 style={[styles.primaryCta, styles.primaryCtaBlocked]}
                 disabled
                 accessibilityRole="button"
-                accessibilityLabel="Terapia bloqueada hasta completar diagnóstico"
+                accessibilityLabel="Terapia bloqueada hasta completar evaluación inicial"
                 accessibilityState={{ disabled: true }}>
                 <Text style={styles.primaryCtaTextMuted}>Iniciar terapia</Text>
               </Pressable>
@@ -348,7 +348,7 @@ export function HomeScreen() {
 
         {hasCompletedDiagnostic ? (
           <Pressable style={styles.evalLink} onPress={goDiagnostico} accessibilityRole="button">
-            <Text style={styles.evalLinkText}>Repetir diagnóstico</Text>
+            <Text style={styles.evalLinkText}>Repetir evaluación</Text>
           </Pressable>
         ) : null}
 
