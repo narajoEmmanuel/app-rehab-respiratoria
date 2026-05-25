@@ -108,7 +108,7 @@ export function SummaryScreen() {
   if (noParam) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/niveles" />
+        <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/terapia" />
         <View style={styles.centered}>
           <Text style={styles.title}>{getSummaryTitle(null)}</Text>
           <Text style={styles.detail}>
@@ -117,7 +117,7 @@ export function SummaryScreen() {
           </Text>
           <Pressable
             style={styles.primaryButton}
-            onPress={() => router.replace('/(tabs)/niveles')}>
+            onPress={() => router.replace('/(tabs)/terapia')}>
             <Text style={styles.primaryButtonText}>Volver a Terapia</Text>
           </Pressable>
         </View>
@@ -128,13 +128,13 @@ export function SummaryScreen() {
   if (invalidId) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/niveles" />
+        <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/terapia" />
         <View style={styles.centered}>
           <Text style={styles.title}>{getSummaryTitle(null)}</Text>
           <Text style={styles.detail}>Identificador de sesión no válido.</Text>
           <Pressable
             style={styles.primaryButton}
-            onPress={() => router.replace('/(tabs)/niveles')}>
+            onPress={() => router.replace('/(tabs)/terapia')}>
             <Text style={styles.primaryButtonText}>Volver a Terapia</Text>
           </Pressable>
         </View>
@@ -145,13 +145,13 @@ export function SummaryScreen() {
   if (errorMessage === 'not_found') {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/niveles" />
+        <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/terapia" />
         <View style={styles.centered}>
           <Text style={styles.title}>{getSummaryTitle(null)}</Text>
           <Text style={styles.detail}>No se encontró la sesión guardada.</Text>
           <Pressable
             style={styles.primaryButton}
-            onPress={() => router.replace('/(tabs)/niveles')}>
+            onPress={() => router.replace('/(tabs)/terapia')}>
             <Text style={styles.primaryButtonText}>Volver a Terapia</Text>
           </Pressable>
         </View>
@@ -162,7 +162,7 @@ export function SummaryScreen() {
   if (loading || sessionDetail == null) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/niveles" />
+        <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/terapia" />
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={wellness.primary} />
           <Text style={styles.loadingText}>Cargando resumen…</Text>
@@ -180,7 +180,7 @@ export function SummaryScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/niveles" />
+      <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/terapia" />
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.screenTitle}>{getSummaryTitle(session)}</Text>
         <Text style={styles.screenSubtitle}>{getSummarySubtitle(session)}</Text>
@@ -239,7 +239,7 @@ export function SummaryScreen() {
 
         <Pressable
           style={styles.primaryButton}
-          onPress={() => router.replace('/(tabs)/niveles')}>
+          onPress={() => router.replace('/(tabs)/terapia')}>
           <Text style={styles.primaryButtonText}>Volver a Terapia</Text>
         </Pressable>
         <Pressable
