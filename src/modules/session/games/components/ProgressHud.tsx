@@ -10,9 +10,9 @@ type ProgressHudProps = {
 export function ProgressHud({ session, repetition, valid, failed }: ProgressHudProps) {
   return (
     <View style={styles.row}>
-      <Text style={styles.item}>Sesion {session} de 6</Text>
-      <Text style={styles.item}>Repeticion {repetition} de 10</Text>
-      <Text style={styles.item}>Validas: {valid}</Text>
+      <Text style={styles.item}>Sesión {session} de 6</Text>
+      <Text style={styles.item}>Repetición {repetition} de 10</Text>
+      <Text style={styles.item}>Válidas: {valid}</Text>
       <Text style={styles.item}>Fallidas: {failed}</Text>
     </View>
   );

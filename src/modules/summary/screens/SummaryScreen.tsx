@@ -112,7 +112,7 @@ export function SummaryScreen() {
         <View style={styles.centered}>
           <Text style={styles.title}>{getSummaryTitle(null)}</Text>
           <Text style={styles.detail}>
-            No hay una sesion seleccionada. Completa un nivel o abre un resumen desde el flujo de
+            No hay una sesión seleccionada. Completa un nivel o abre un resumen desde el flujo de
             terapia.
           </Text>
           <Pressable
@@ -131,7 +131,7 @@ export function SummaryScreen() {
         <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/niveles" />
         <View style={styles.centered}>
           <Text style={styles.title}>{getSummaryTitle(null)}</Text>
-          <Text style={styles.detail}>Identificador de sesion no valido.</Text>
+          <Text style={styles.detail}>Identificador de sesión no válido.</Text>
           <Pressable
             style={styles.primaryButton}
             onPress={() => router.replace('/(tabs)/niveles')}>
@@ -148,7 +148,7 @@ export function SummaryScreen() {
         <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/niveles" />
         <View style={styles.centered}>
           <Text style={styles.title}>{getSummaryTitle(null)}</Text>
-          <Text style={styles.detail}>No se encontro la sesion guardada.</Text>
+          <Text style={styles.detail}>No se encontró la sesión guardada.</Text>
           <Pressable
             style={styles.primaryButton}
             onPress={() => router.replace('/(tabs)/niveles')}>

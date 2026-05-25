@@ -104,8 +104,8 @@ function attemptFromOfficialValidation(
 
 function sessionSummaryModalTitle(kind: SessionSummaryKind, sessionNumber: number): string {
   return kind === 'interrupted'
-    ? `Sesion ${sessionNumber} interrumpida`
-    : `Sesion ${sessionNumber} completada`;
+    ? `Sesión ${sessionNumber} interrumpida`
+    : `Sesión ${sessionNumber} completada`;
 }
 
 export function SessionScreen() {
@@ -674,7 +674,7 @@ export function SessionScreen() {
   if (!level) {
     return (
       <SafeAreaView style={styles.centered}>
-        <Text style={styles.title}>Sesion</Text>
+        <Text style={styles.title}>Sesión</Text>
         <Text style={styles.detail}>Nivel no encontrado.</Text>
       </SafeAreaView>
     );
@@ -683,8 +683,8 @@ export function SessionScreen() {
   if (!isRunnerLevel) {
     return (
       <SafeAreaView style={styles.centered}>
-        <Text style={styles.title}>Sesion - {level.title}</Text>
-        <Text style={styles.detail}>Este nivel estara disponible proximamente.</Text>
+        <Text style={styles.title}>Sesión: {level.title}</Text>
+        <Text style={styles.detail}>Este nivel estará disponible próximamente.</Text>
       </SafeAreaView>
     );
   }
