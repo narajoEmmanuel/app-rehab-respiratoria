@@ -56,6 +56,7 @@ type LevelsProgressContextValue = {
   repeatCurrentLevelOneSession: () => void;
   repeatCurrentRunnerLevelSession: (levelId: RunnerGameLevelId) => void;
   resetInterruptedCurrentLevelOneSession: () => void;
+  resetInterruptedCurrentRunnerLevelSession: (levelId: RunnerGameLevelId) => void;
   interruptCurrentLevelOneSession: () => void;
   interruptCurrentRunnerLevelSession: (levelId: RunnerGameLevelId) => void;
 };
@@ -242,39 +243,44 @@ export function LevelsProgressProvider({ children }: { children: React.ReactNode
     repeatCurrentRunnerLevelSession('level-1');
   }, [repeatCurrentRunnerLevelSession]);
 
+  const resetInterruptedCurrentRunnerLevelSession = useCallback(
+    (levelId: RunnerGameLevelId) => {
+      updateProgress((prev) => {
+        const slot = getRunnerLevelProgress(prev, levelId);
+        const currentIndex = slot.currentSession - 1;
+        const currentSession = slot.sessions[currentIndex];
+        if (!currentSession || !currentSession.interrupted || currentSession.completed) {
+          return prev;
+        }
+
+        const sessions = [...slot.sessions];
+        sessions[currentIndex] = {
+          ...currentSession,
+          validRepetitions: 0,
+          failedRepetitions: 0,
+          completed: false,
+          interrupted: false,
+        };
+
+        const nextSlot = {
+          ...slot,
+          sessions,
+          currentRepetition: 1,
+          totalValid: slot.totalValid - currentSession.validRepetitions,
+          totalFailed: slot.totalFailed - currentSession.failedRepetitions,
+          levelCompleted: false,
+          levelPerfect: false,
+        };
+
+        return setRunnerLevelProgress(prev, levelId, nextSlot);
+      });
+    },
+    [updateProgress],
+  );
+
   const resetInterruptedCurrentLevelOneSession = useCallback(() => {
-    updateProgress((prev) => {
-      const currentIndex = prev.levelOne.currentSession - 1;
-      const currentSession = prev.levelOne.sessions[currentIndex];
-      if (!currentSession || !currentSession.interrupted || currentSession.completed) {
-        return prev;
-      }
-
-      const sessions = [...prev.levelOne.sessions];
-      sessions[currentIndex] = {
-        ...currentSession,
-        validRepetitions: 0,
-        failedRepetitions: 0,
-        completed: false,
-        interrupted: false,
-      };
-
-      const nextLevelOne = {
-        ...prev.levelOne,
-        sessions,
-        currentRepetition: 1,
-        totalValid: prev.levelOne.totalValid - currentSession.validRepetitions,
-        totalFailed: prev.levelOne.totalFailed - currentSession.failedRepetitions,
-        levelCompleted: false,
-        levelPerfect: false,
-      };
-
-      return {
-        ...prev,
-        levelOne: nextLevelOne,
-      };
-    });
-  }, [updateProgress]);
+    resetInterruptedCurrentRunnerLevelSession('level-1');
+  }, [resetInterruptedCurrentRunnerLevelSession]);
 
   const interruptCurrentRunnerLevelSession = useCallback(
     (levelId: RunnerGameLevelId) => {
@@ -325,6 +331,7 @@ export function LevelsProgressProvider({ children }: { children: React.ReactNode
       repeatCurrentLevelOneSession,
       repeatCurrentRunnerLevelSession,
       resetInterruptedCurrentLevelOneSession,
+      resetInterruptedCurrentRunnerLevelSession,
       interruptCurrentLevelOneSession,
       interruptCurrentRunnerLevelSession,
     }),
@@ -344,6 +351,7 @@ export function LevelsProgressProvider({ children }: { children: React.ReactNode
       repeatCurrentLevelOneSession,
       repeatCurrentRunnerLevelSession,
       resetInterruptedCurrentLevelOneSession,
+      resetInterruptedCurrentRunnerLevelSession,
       interruptCurrentLevelOneSession,
       interruptCurrentRunnerLevelSession,
     ],

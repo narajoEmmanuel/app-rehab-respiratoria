@@ -339,7 +339,6 @@ export function useLevelOneGame({
     beginOfficialEval,
     getInspirationNorm,
     resolveAndCloseAttempt,
-    stopAttemptTick,
   ]);
 
   const onInhaleStart = useCallback(() => {

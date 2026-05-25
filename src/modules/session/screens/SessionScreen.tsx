@@ -14,7 +14,6 @@ import { getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
 import { showTherapyReadinessAlert } from '@/src/modules/device/volume-estimation';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import { evaluateLevelSensorReadiness } from '@/src/modules/session/sensor/level-sensor-readiness';
-import type { VolumeEstimationReadinessStatus } from '@/src/modules/device/volume-estimation/volume-estimation-types';
 import { useLevelSensorVolume } from '@/src/modules/session/sensor/use-level-sensor-volume';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
 import { saveLevelOneActiveRun } from '@/src/modules/levels/storage/level-one-active-run-storage';
@@ -239,9 +238,9 @@ export function SessionScreen() {
     sessionRunId,
   ]);
 
-  const exitToTherapy = () => {
+  const exitToTherapy = useCallback(() => {
     router.replace('/(tabs)/terapia');
-  };
+  }, [router]);
 
   const markSessionCleanExit = useCallback(() => {
     sessionCleanExitRef.current = true;
@@ -254,24 +253,27 @@ export function SessionScreen() {
     setAttemptsRuntime([]);
   }, []);
 
-  const persistInterruptedSessionToHistory = async (
-    valid: number,
-    failed: number,
-    attemptsSnapshot: SessionAttemptResult[],
-  ) => {
-    if (!patient || !patientLevelId) return;
-    const result = buildSessionResult({
-      patientId: patient.paciente_id,
-      patientLevelId,
-      levelId: selectedLevelId,
-      status: 'interrupted',
-      validAttempts: valid,
-      invalidAttempts: failed,
-      attemptsRuntime: attemptsSnapshot,
-      inputMode: sessionInputMode,
-    });
-    await persistSessionResult(result);
-  };
+  const persistInterruptedSessionToHistory = useCallback(
+    async (
+      valid: number,
+      failed: number,
+      attemptsSnapshot: SessionAttemptResult[],
+    ) => {
+      if (!patient || !patientLevelId) return;
+      const result = buildSessionResult({
+        patientId: patient.paciente_id,
+        patientLevelId,
+        levelId: selectedLevelId,
+        status: 'interrupted',
+        validAttempts: valid,
+        invalidAttempts: failed,
+        attemptsRuntime: attemptsSnapshot,
+        inputMode: sessionInputMode,
+      });
+      await persistSessionResult(result);
+    },
+    [patient, patientLevelId, selectedLevelId, sessionInputMode],
+  );
 
   const levelOneEngineScopeKey = [
     patient?.paciente_id ?? '',
@@ -285,12 +287,14 @@ export function SessionScreen() {
     sessionInputMode,
     targetVolume,
     isTouchPractice,
+    volumeEstimateStatus,
   });
 
   officialValidationDepsRef.current = {
     sessionInputMode,
     targetVolume,
     isTouchPractice,
+    volumeEstimateStatus,
   };
 
   const inspirationInputsRef = useRef({
@@ -357,7 +361,7 @@ export function SessionScreen() {
         lowerBoundMl: snap.estimate.lowerBoundMl,
         upperBoundMl: snap.estimate.upperBoundMl,
         targetVolumeMl: deps.targetVolume,
-        estimationStatus: volumeEstimateStatus,
+        estimationStatus: deps.volumeEstimateStatus,
         inCalibratedRange: snap.estimate.inCalibratedRange,
         clamped: snap.estimate.clamped,
       });
@@ -401,7 +405,7 @@ export function SessionScreen() {
           lowerBoundMl: snap.estimate.lowerBoundMl,
           upperBoundMl: snap.estimate.upperBoundMl,
           targetVolumeMl: deps.targetVolume,
-          estimationStatus: volumeEstimateStatus,
+          estimationStatus: deps.volumeEstimateStatus,
           inCalibratedRange: snap.estimate.inCalibratedRange,
           clamped: snap.estimate.clamped,
         });
@@ -416,19 +420,6 @@ export function SessionScreen() {
           sensorAttemptEvaluation: sensorAttemptEvaluation ?? undefined,
           activeVolumeEstimate: snap?.estimate,
         });
-      if (!deps.isTouchPractice) {
-        const norm = computeInspirationNorm({
-          displayVolumeMl: peakSensorVolumeRef.current,
-          targetVolumeMl: deps.targetVolume,
-          holdMs,
-        });
-        console.log('LEVEL HOLD EVALUATION', {
-          rep: currentLevelProgress.currentRepetition,
-          isAboveObstacle: norm >= 1,
-          pass: valid,
-          failReason: valid ? null : 'obstacle_or_hold',
-        });
-      }
       setAttemptsRuntime((prev) => [
         ...prev,
         attemptFromOfficialValidation(
@@ -472,22 +463,24 @@ export function SessionScreen() {
     holdMsRef.current = levelOneEngine.holdMs;
   }, [levelOneEngine.holdMs]);
 
+  const sensorEffectPhase = levelOneEngine.phase;
+  const sensorEffectOnInhaleStart = levelOneEngine.onInhaleStart;
   useEffect(() => {
     if (isTouchPractice || !sensorEntryReady) return;
-    if (levelOneEngine.phase === 'ready') {
+    if (sensorEffectPhase === 'ready') {
       sensorInhaleArmedRef.current = true;
       peakSensorVolumeRef.current = 0;
     }
-    if (levelOneEngine.phase !== 'ready' || !sensorInhaleArmedRef.current) return;
+    if (sensorEffectPhase !== 'ready' || !sensorInhaleArmedRef.current) return;
     const snap = levelSensorGetSnapshotRef.current();
     if (!snap.sensorConnected || snap.distanceMm === null) return;
     if (snap.estimatedVolumeMl < sensorInhaleStartThresholdMl) return;
     sensorInhaleArmedRef.current = false;
-    levelOneEngine.onInhaleStart();
+    sensorEffectOnInhaleStart();
   }, [
     isTouchPractice,
-    levelOneEngine.onInhaleStart,
-    levelOneEngine.phase,
+    sensorEffectOnInhaleStart,
+    sensorEffectPhase,
     sensorEntryReady,
     sensorInhaleStartThresholdMl,
     levelSensor.displayVolumeMl,

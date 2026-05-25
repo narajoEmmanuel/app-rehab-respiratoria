@@ -64,7 +64,6 @@ import {
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 const REQUIRED_EVAL_MS = LEVEL_ONE_OFFICIAL_EVAL_MS;
-const HOLD_PREP_MS = LEVEL_ONE_HOLD_PREP_MS;
 /** Altura mínima de salto (px) y rango adicional hasta la meta de inspiración. */
 const JUMP_BASE_PX = 14;
 const JUMP_RANGE_PX = 90;
