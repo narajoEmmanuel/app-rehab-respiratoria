@@ -46,12 +46,6 @@ export function sessionClassificationMainTitle(record: SessionRecord): string {
   return classification.isPracticeSession ? 'Modo práctica' : 'Sesión con sensor';
 }
 
-/** @deprecated Prefer sessionClassificationMainTitle */
-export function sessionClassificationSummaryTitle(record: SessionRecord): string | null {
-  const title = sessionClassificationMainTitle(record);
-  return title;
-}
-
 export function sessionClassificationSummaryNote(record: SessionRecord): string | null {
   const classification = resolveSessionClassification(record);
   if (!classification.isClassified) {
@@ -63,10 +57,7 @@ export function sessionClassificationSummaryNote(record: SessionRecord): string 
   return null;
 }
 
-export function isSensorMeasuredSession(record: SessionRecord): boolean {
-  const c = resolveSessionClassification(record);
-  return c.isClassified && !c.isPracticeSession && c.inputMode === 'sensor';
-}
+export const isSensorMeasuredSession = isTherapeuticSessionRecord;
 
 export function sessionSensorDataCardVisible(record: SessionRecord): boolean {
   return isSensorMeasuredSession(record);

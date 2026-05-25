@@ -99,9 +99,6 @@ export function withLegacySessionDefaults(s: SessionRecord): SessionRecord {
   };
 }
 
-/** @deprecated Use sessionRecordLocalDayKey from @/src/shared/utils/local-date-key */
-export const sessionDayKey = sessionRecordLocalDayKey;
-
 export function classifyCalendarDay(sessions: SessionRecord[]): CalendarDayKind {
   const therapeutic = sessions.filter(isTherapeuticSessionRecord);
   if (therapeutic.length === 0) return 'none';
