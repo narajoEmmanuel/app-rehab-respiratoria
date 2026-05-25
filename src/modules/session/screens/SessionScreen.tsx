@@ -22,6 +22,7 @@ import {
   isRunnerGameLevel,
   type LevelId,
 } from '@/src/modules/levels/types/level-progress';
+import { getLevelDifficultyConfig } from '@/src/modules/session/levels/level-difficulty-config';
 import { getLevelGameplayConfig } from '@/src/modules/session/levels/level-gameplay-config';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import {
@@ -55,8 +56,6 @@ import type { SessionAttemptResult } from '@/src/modules/session/types/session-r
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 type SessionSummaryKind = 'completed' | 'interrupted' | null;
-
-const REQUIRED_HOLD_MS = 3000;
 /** En práctica, alcanzar la meta antes del countdown de 3 s si mantiene presionado. */
 /** A los 2 s de presión el volumen simulado alcanza la meta (antes del sostén 3 s). */
 const PRACTICE_VOLUME_RAMP_MS = 2000;
@@ -136,6 +135,7 @@ export function SessionScreen() {
   const isRunnerLevel = isRunnerGameLevel(selectedLevelId);
   const runnerLevelId = isRunnerLevel ? selectedLevelId : null;
   const levelGameplay = runnerLevelId ? getLevelGameplayConfig(runnerLevelId) : undefined;
+  const levelDifficulty = getLevelDifficultyConfig(selectedLevelId);
   const currentLevelProgress = runnerLevelId
     ? getRunnerLevelProgress(progress, runnerLevelId)
     : progress.levelOne;
@@ -383,6 +383,8 @@ export function SessionScreen() {
   const levelOneEngine = useLevelOneGame({
     progress: currentLevelProgress,
     engineScopeKey: levelOneEngineScopeKey,
+    officialEvalMs: levelDifficulty.requiredHoldMs,
+    restMs: levelDifficulty.restMs,
     onProgressChange: (updater) => {
       if (!runnerLevelId) return;
       updateRunnerLevel(runnerLevelId, updater);
@@ -414,7 +416,7 @@ export function SessionScreen() {
         evaluateOfficialAttempt({
           inputMode: deps.sessionInputMode,
           targetVolumeMl: deps.targetVolume,
-          requiredHoldMs: REQUIRED_HOLD_MS,
+          requiredHoldMs: levelDifficulty.requiredHoldMs,
           currentHoldMs: holdMs,
           simulatedVolumeMl: simulatedVolumeForHold(deps.targetVolume, holdMs),
           sensorAttemptEvaluation: sensorAttemptEvaluation ?? undefined,
@@ -514,10 +516,12 @@ export function SessionScreen() {
     }
     const patientLevels = await getPatientLevels(patient.paciente_id);
     const row = patientLevels.find((item) => item.level_id === selectedLevelId);
-    setTargetVolume(row?.target_volume ?? 1200);
+    const baseVolume = row?.target_volume ?? 1200;
+    const adjustedVolume = Math.round(baseVolume * levelDifficulty.targetVolumeMultiplier);
+    setTargetVolume(adjustedVolume);
     setPatientLevelId(row?.patient_level_id ?? null);
     setActiveLevelLoaded(true);
-  }, [patient, selectedLevelId]);
+  }, [levelDifficulty.targetVolumeMultiplier, patient, selectedLevelId]);
 
   useEffect(() => {
     setActiveLevelLoaded(false);

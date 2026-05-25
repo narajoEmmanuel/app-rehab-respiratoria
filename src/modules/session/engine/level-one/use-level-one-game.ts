@@ -20,7 +20,7 @@ import type {
   LevelOneSessionProgress,
 } from '@/src/modules/levels/types/level-progress';
 
-const REST_MS = 3000;
+const DEFAULT_REST_MS = 3000;
 const PREP_MS = 3000;
 const FAILED_EXHALE_MS = 2100;
 const VALID_EXHALE_MS = 700;
@@ -63,6 +63,10 @@ type UseLevelOneGameParams = {
     payload: OfficialAttemptReleasePayload,
   ) => OfficialAttemptReleaseResolution;
   engineScopeKey?: string;
+  /** Sustain duration during official eval — varies per level. */
+  officialEvalMs?: number;
+  /** Rest between repetitions — varies per level. */
+  restMs?: number;
 };
 
 type AttemptFeedback = 'idle' | 'valid' | 'failed';
@@ -75,6 +79,8 @@ export function useLevelOneGame({
   sessionInputMode = 'sensor',
   resolveOfficialAttemptOnRelease,
   engineScopeKey,
+  officialEvalMs = LEVEL_ONE_OFFICIAL_EVAL_MS,
+  restMs = DEFAULT_REST_MS,
 }: UseLevelOneGameParams) {
   const [phase, setPhase] = useState<LevelOnePhase>('not-started');
   const [countdownMs, setCountdownMs] = useState(PREP_MS);
@@ -249,12 +255,13 @@ export function useLevelOneGame({
 
       const releaseEval =
         runtime.subPhase === 'official_eval' && !options?.releasedDuringEval
-          ? evaluateLevelOneAttemptComplete({ runtime, liveFail, inputMode: sessionInputMode })
+          ? evaluateLevelOneAttemptComplete({ runtime, liveFail, inputMode: sessionInputMode, officialEvalMs })
           : evaluateLevelOneAttemptRelease({
               runtime,
               liveFail,
               inputMode: sessionInputMode,
               releasedDuringEval: options?.releasedDuringEval,
+              officialEvalMs,
             });
 
       const custom = resolveOfficialAttemptOnRelease?.({
@@ -281,15 +288,15 @@ export function useLevelOneGame({
 
       finishAttempt(valid, heldMs, failReason ?? releaseEval.failReason, shouldCrash);
     },
-    [finishAttempt, resolveOfficialAttemptOnRelease, sessionInputMode, stopAttemptTick],
+    [finishAttempt, officialEvalMs, resolveOfficialAttemptOnRelease, sessionInputMode, stopAttemptTick],
   );
 
   const beginOfficialEval = useCallback(() => {
     attemptRuntimeRef.current = enterOfficialEvalPhase(attemptRuntimeRef.current);
     setPhase('evaluating');
-    setPhaseCountdownMs(LEVEL_ONE_OFFICIAL_EVAL_MS);
+    setPhaseCountdownMs(officialEvalMs);
     setObstacleActive(true);
-  }, []);
+  }, [officialEvalMs]);
 
   const runAttemptTick = useCallback(() => {
     if (attemptClosedRef.current) return;
@@ -320,7 +327,7 @@ export function useLevelOneGame({
       setClearMs(tick.runtime.clearMs);
       setEverClearedObstacle(tick.runtime.everClearedObstacle);
       setPhaseCountdownMs(
-        Math.max(0, LEVEL_ONE_OFFICIAL_EVAL_MS - tick.runtime.subPhaseElapsedMs),
+        Math.max(0, officialEvalMs - tick.runtime.subPhaseElapsedMs),
       );
 
       if (tick.liveFail) {
@@ -330,7 +337,7 @@ export function useLevelOneGame({
         return;
       }
 
-      if (tick.runtime.subPhaseElapsedMs >= LEVEL_ONE_OFFICIAL_EVAL_MS) {
+      if (tick.runtime.subPhaseElapsedMs >= officialEvalMs) {
         setObstacleActive(false);
         resolveAndCloseAttempt(elapsed);
       }
@@ -338,6 +345,7 @@ export function useLevelOneGame({
   }, [
     beginOfficialEval,
     getInspirationNorm,
+    officialEvalMs,
     resolveAndCloseAttempt,
   ]);
 
@@ -437,7 +445,7 @@ export function useLevelOneGame({
           return;
         }
         setPhase('resting');
-        setCountdownMs(REST_MS);
+        setCountdownMs(restMs);
       }, exhaleDelayMs);
 
       return () => clearTimeout(timeout);
@@ -480,6 +488,7 @@ export function useLevelOneGame({
     currentSessionData?.completed,
     phase,
     progress,
+    restMs,
   ]);
 
   useEffect(() => () => clearTimers(), [clearTimers]);
