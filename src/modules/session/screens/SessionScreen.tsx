@@ -11,7 +11,7 @@ import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
-import { showTherapyReadinessAlert } from '@/src/modules/device/volume-estimation';
+import { loadActiveVolumeEstimationContext, showTherapyReadinessAlert } from '@/src/modules/device/volume-estimation';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import { evaluateLevelSensorReadiness } from '@/src/modules/session/sensor/level-sensor-readiness';
 import { useLevelSensorVolume } from '@/src/modules/session/sensor/use-level-sensor-volume';
@@ -24,6 +24,7 @@ import {
 } from '@/src/modules/levels/types/level-progress';
 import { getLevelDifficultyConfig } from '@/src/modules/session/levels/level-difficulty-config';
 import { getLevelGameplayConfig } from '@/src/modules/session/levels/level-gameplay-config';
+import { resolveSafeLevelTargetVolume } from '@/src/modules/session/levels/level-target-safety';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import {
   computeInspirationNorm,
@@ -177,6 +178,8 @@ export function SessionScreen() {
   targetVolumeRef.current = targetVolume;
   const [patientLevelId, setPatientLevelId] = useState<number | null>(null);
   const [attemptsRuntime, setAttemptsRuntime] = useState<SessionAttemptResult[]>([]);
+  const [targetWasAdjusted, setTargetWasAdjusted] = useState(false);
+  const [targetAdjustmentReason, setTargetAdjustmentReason] = useState<string | null>(null);
   const [savingSummary, setSavingSummary] = useState(false);
   const [savingInterrupt, setSavingInterrupt] = useState(false);
   const [introAcknowledged, setIntroAcknowledged] = useState(false);
@@ -505,23 +508,46 @@ export function SessionScreen() {
     if (!patient) {
       setPatientLevelId(null);
       setTargetVolume(1200);
+      setTargetWasAdjusted(false);
+      setTargetAdjustmentReason(null);
       setActiveLevelLoaded(true);
       return;
     }
     if (!isRunnerGameLevel(selectedLevelId)) {
       setPatientLevelId(null);
       setTargetVolume(1200);
+      setTargetWasAdjusted(false);
+      setTargetAdjustmentReason(null);
       setActiveLevelLoaded(true);
       return;
     }
     const patientLevels = await getPatientLevels(patient.paciente_id);
     const row = patientLevels.find((item) => item.level_id === selectedLevelId);
     const baseVolume = row?.target_volume ?? 1200;
-    const adjustedVolume = Math.round(baseVolume * levelDifficulty.targetVolumeMultiplier);
-    setTargetVolume(adjustedVolume);
+
+    let calibratedRangeMl: { min: number; max: number } | null = null;
+    if (!isTouchPractice) {
+      try {
+        const loaded = await loadActiveVolumeEstimationContext();
+        calibratedRangeMl = loaded.context.calibratedRangeMl;
+      } catch {
+        /* readiness gate handles missing calibration */
+      }
+    }
+
+    const safeTarget = resolveSafeLevelTargetVolume({
+      baseTargetVolumeMl: baseVolume,
+      targetVolumeMultiplier: levelDifficulty.targetVolumeMultiplier,
+      calibratedRangeMl,
+      inputMode: sessionInputMode,
+    });
+
+    setTargetVolume(safeTarget.effectiveTargetVolumeMl);
+    setTargetWasAdjusted(safeTarget.wasAdjusted);
+    setTargetAdjustmentReason(safeTarget.reason);
     setPatientLevelId(row?.patient_level_id ?? null);
     setActiveLevelLoaded(true);
-  }, [levelDifficulty.targetVolumeMultiplier, patient, selectedLevelId]);
+  }, [isTouchPractice, levelDifficulty.targetVolumeMultiplier, patient, selectedLevelId, sessionInputMode]);
 
   useEffect(() => {
     setActiveLevelLoaded(false);
@@ -718,6 +744,11 @@ export function SessionScreen() {
         <View style={styles.savingOverlay} pointerEvents="auto">
           <ActivityIndicator size="large" color={wellness.primary} />
           <Text style={styles.savingOverlayText}>Guardando tu sesión…</Text>
+        </View>
+      ) : null}
+      {targetWasAdjusted && targetAdjustmentReason ? (
+        <View style={styles.adjustmentNote}>
+          <Text style={styles.adjustmentNoteText}>{targetAdjustmentReason}</Text>
         </View>
       ) : null}
       <View style={styles.gameWrap}>
@@ -1160,6 +1191,19 @@ const styles = StyleSheet.create({
     marginTop: 12,
     color: wellness.textSecondary,
     fontSize: 15,
+    fontWeight: '600',
+  },
+  adjustmentNote: {
+    backgroundColor: 'rgba(212, 175, 55, 0.12)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(212, 175, 55, 0.25)',
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  adjustmentNoteText: {
+    color: '#9A7B1A',
+    fontSize: 13,
     fontWeight: '600',
   },
 });
