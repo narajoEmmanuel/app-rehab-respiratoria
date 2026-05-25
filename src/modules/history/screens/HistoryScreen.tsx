@@ -28,11 +28,13 @@ import {
   classifyCalendarDay,
   dayDetailMotivation,
   formatDisplayDateEs,
-  globalMaxHoldSecondsForPatient,
+  globalMaxSensorVolumeMlForPatient,
   groupSessionsByDay,
   monthGridDates,
   pickMotivationalLine,
   computeStreakDays,
+  therapeuticActivityDayKeys,
+  practiceActivityDayKeys,
   type AchievementDef,
   type CalendarDayKind,
   type DayAggregate,
@@ -46,7 +48,7 @@ import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness } from '@/src/shared/theme/wellness-theme';
 import { dashboardScreen, dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
-import { getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
+import { getLocalDateKey } from '@/src/shared/utils/local-date-key';
 
 const CAL_BG: Record<CalendarDayKind, string> = {
   none: '#E8ECE9',
@@ -55,6 +57,7 @@ const CAL_BG: Record<CalendarDayKind, string> = {
   incomplete: '#FFE082',
   interrupted: '#EF9A9A',
 };
+const CAL_BG_PRACTICE = '#D6EAF8';
 
 const WEEK_LABELS = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
 
@@ -182,21 +185,22 @@ export function HistoryScreen() {
 
   const attemptsBySession = useMemo(() => buildAttemptsBySessionId(attempts), [attempts]);
 
-  const activityDayKeys = useMemo(() => {
-    const set = new Set<string>();
-    for (const key of byDay.keys()) {
-      const list = byDay.get(key);
-      if (list && list.length > 0) set.add(key);
-    }
-    return set;
-  }, [byDay]);
-
-  const streakDays = useMemo(
-    () => (patientId >= 0 ? computeStreakDays(activityDayKeys, todayKey) : 0),
-    [activityDayKeys, patientId, todayKey],
+  const therapeuticDayKeys = useMemo(
+    () => (patientId >= 0 ? therapeuticActivityDayKeys(sessions, patientId) : new Set<string>()),
+    [sessions, patientId],
   );
 
-  const { completed: completedToday, perfect: perfectToday } = useMemo(
+  const practiceDayKeys = useMemo(
+    () => (patientId >= 0 ? practiceActivityDayKeys(sessions, patientId) : new Set<string>()),
+    [sessions, patientId],
+  );
+
+  const streakDays = useMemo(
+    () => (patientId >= 0 ? computeStreakDays(therapeuticDayKeys, todayKey) : 0),
+    [therapeuticDayKeys, patientId, todayKey],
+  );
+
+  const { completed: completedToday } = useMemo(
     () =>
       patientId >= 0
         ? todayStatsForPatientAndLevel(sessions, patientId, historyLevelId, todayKey)
@@ -204,25 +208,16 @@ export function HistoryScreen() {
     [sessions, patientId, historyLevelId, todayKey],
   );
 
-  const bestHoldGlobal = useMemo(
-    () =>
-      patientId >= 0 ? globalMaxHoldSecondsForPatient(sessions, attempts, patientId, null) : null,
-    [sessions, attempts, patientId],
+  const bestSensorVolumeMl = useMemo(
+    () => (patientId >= 0 ? globalMaxSensorVolumeMlForPatient(sessions, patientId) : null),
+    [sessions, patientId],
   );
 
   const todayKind: CalendarDayKind | null = useMemo(() => {
-    const list =
-      patientId >= 0
-        ? sessions.filter(
-            (s) =>
-              s.patient_id === patientId &&
-              s.level_id === historyLevelId &&
-              sessionRecordLocalDayKey(s.session_date) === todayKey,
-          )
-        : [];
+    const list = byDay.get(todayKey) ?? [];
     if (list.length === 0) return null;
     return classifyCalendarDay(list);
-  }, [sessions, patientId, historyLevelId, todayKey]);
+  }, [byDay, todayKey]);
 
   const heroMotivation = pickMotivationalLine({
     completedToday,
@@ -249,7 +244,7 @@ export function HistoryScreen() {
 
   const historyLevelOrdinal = historyLevelId.replace('level-', '');
 
-  const hasAnyHistory = activityDayKeys.size > 0;
+  const hasAnyHistory = therapeuticDayKeys.size > 0 || practiceDayKeys.size > 0;
 
   const shiftMonth = (delta: number) => {
     const d = new Date(viewYear, viewMonth + delta, 1);
@@ -308,15 +303,15 @@ export function HistoryScreen() {
 
             <View style={styles.summaryStack}>
               <SummaryCard
-                label="Racha actual"
+                label="Racha terapéutica"
                 value={`${streakDays} ${streakDays === 1 ? 'día' : 'días'}`}
                 badge={streakDays > 0 ? 'Activa' : 'Pendiente'}
                 progress={Math.min(streakDays / 7, 1)}
-                hint="Días seguidos con práctica registrada"
+                hint="Días seguidos con sesión de sensor"
                 trailingDecoration={<StreakFireIcon active={streakDays > 0} />}
               />
               <SummaryCard
-                label="Sesiones de hoy"
+                label={`Sesiones hoy · Nivel ${historyLevelOrdinal}`}
                 value={`${Math.min(completedToday, LEVEL1_DAILY_GOAL)}/${LEVEL1_DAILY_GOAL}`}
                 badge={
                   completedToday >= LEVEL1_DAILY_GOAL
@@ -326,30 +321,17 @@ export function HistoryScreen() {
                       : 'Pendiente'
                 }
                 progress={Math.min(completedToday / LEVEL1_DAILY_GOAL, 1)}
-                hint="Completadas (meta del día)"
+                hint="Solo sensor · Meta diaria de tu nivel activo"
               />
               <SummaryCard
-                label={`Progreso Nivel ${historyLevelOrdinal}`}
-                value={`${perfectToday}/${LEVEL1_DAILY_GOAL} perfectas`}
-                badge={
-                  perfectToday >= LEVEL1_DAILY_GOAL
-                    ? 'Completado'
-                    : perfectToday > 0
-                      ? 'Parcial'
-                      : 'Pendiente'
-                }
-                progress={Math.min(perfectToday / LEVEL1_DAILY_GOAL, 1)}
-                hint="Sesiones perfectas hoy (meta para desbloquear el siguiente nivel)"
-              />
-              <SummaryCard
-                label="Mejor inspiración"
+                label="Mejor volumen con sensor"
                 value={
-                  bestHoldGlobal != null && bestHoldGlobal > 0
-                    ? `${bestHoldGlobal.toFixed(1)} s`
+                  bestSensorVolumeMl != null && bestSensorVolumeMl > 0
+                    ? `${Math.round(bestSensorVolumeMl)} mL`
                     : 'Pendiente'
                 }
-                badge={bestHoldGlobal != null && bestHoldGlobal > 0 ? 'Completado' : 'Pendiente'}
-                hint="Mayor tiempo sostenido registrado"
+                badge={bestSensorVolumeMl != null && bestSensorVolumeMl > 0 ? 'Récord' : 'Pendiente'}
+                hint="Mayor volumen estimado · Solo sensor"
               />
             </View>
 
@@ -388,29 +370,36 @@ export function HistoryScreen() {
                   const list = byDay.get(dateKey) ?? [];
                   const kind = list.length === 0 ? 'none' : classifyCalendarDay(list);
                   const isToday = dateKey === todayKey;
+                  const hasPracticeOnly = kind === 'none' && practiceDayKeys.has(dateKey);
                   return (
                     <Pressable
                       key={dateKey}
                       onPress={() => openDay(dateKey)}
                       style={[
                         styles.dayCell,
-                        { backgroundColor: CAL_BG[kind] },
+                        { backgroundColor: hasPracticeOnly ? CAL_BG_PRACTICE : CAL_BG[kind] },
                         isToday && styles.dayCellToday,
                       ]}
                       accessibilityRole="button"
                       accessibilityLabel={`Día ${dateKey}`}>
-                      <Text style={[styles.dayCellNum, kind === 'none' && styles.dayCellNumMuted]}>
+                      <Text
+                        style={[
+                          styles.dayCellNum,
+                          kind === 'none' && !hasPracticeOnly && styles.dayCellNumMuted,
+                        ]}>
                         {Number(dateKey.slice(8, 10))}
                       </Text>
+                      {hasPracticeOnly ? <View style={styles.practiceDot} /> : null}
                     </Pressable>
                   );
                 })}
               </View>
               <View style={styles.legend}>
-                <LegendDot color={CAL_BG.perfect} label="Completado" />
-                <LegendDot color={CAL_BG.good} label="Parcial" />
-                <LegendDot color={CAL_BG.incomplete} label="Pendiente" />
+                <LegendDot color={CAL_BG.perfect} label="Cumplimiento completo" />
+                <LegendDot color={CAL_BG.good} label="Avance parcial" />
+                <LegendDot color={CAL_BG.incomplete} label="Sesión incompleta" />
                 <LegendDot color={CAL_BG.interrupted} label="Interrumpido" />
+                <LegendDot color={CAL_BG_PRACTICE} label="Solo práctica (no terapéutica)" />
                 <LegendDot color={CAL_BG.none} label="Sin actividad" />
               </View>
             </View>
@@ -444,50 +433,85 @@ export function HistoryScreen() {
             {selectedDay ? (
               <>
                 <Text style={styles.modalTitle}>{formatDisplayDateEs(selectedDay.dateKey)}</Text>
-                <Text style={styles.modalStatus}>{selectedDay.statusLabel}</Text>
-                <Text style={styles.modalLine}>
-                  Sesiones completadas: {selectedDay.completedCount}/{LEVEL1_DAILY_GOAL}
-                </Text>
-                <Text style={styles.modalLine}>Sesiones perfectas: {selectedDay.perfectCount}</Text>
-                <Text style={styles.modalLine}>
-                  Sesiones interrumpidas: {selectedDay.interruptedCount}
-                </Text>
-                <Text style={styles.modalLine}>
-                  Repeticiones válidas: {selectedDay.validRepetitionsSum}
-                </Text>
-                <Text style={styles.modalLine}>
-                  Repeticiones por mejorar: {selectedDay.improveRepetitionsSum}
-                </Text>
-                <Text style={styles.modalLine}>
-                  Mejor tiempo de inspiración:{' '}
-                  {selectedDay.bestHoldSeconds != null && selectedDay.bestHoldSeconds > 0
-                    ? `${selectedDay.bestHoldSeconds.toFixed(1)} s`
-                    : 'Pendiente'}
-                </Text>
-                <Text style={styles.modalLine}>
-                  Volumen máximo oficial:{' '}
-                  {selectedDay.maxVolumeMl != null && selectedDay.maxVolumeMl > 0
-                    ? `${selectedDay.maxVolumeMl} mL`
-                    : 'Pendiente'}
-                </Text>
-                {selectedDay.classification.sensorSessionsCount > 0 ? (
+                <View style={styles.modalChipRow}>
+                  <View style={[styles.modalChip, styles.modalChipStatus]}>
+                    <Text style={styles.modalChipText}>{selectedDay.statusLabel}</Text>
+                  </View>
+                  {selectedDay.classification.sensorSessionsCount > 0 ? (
+                    <View style={[styles.modalChip, styles.modalChipSensor]}>
+                      <Text style={styles.modalChipText}>Sensor</Text>
+                    </View>
+                  ) : null}
+                  {selectedDay.classification.practiceSessionsCount > 0 ? (
+                    <View style={[styles.modalChip, styles.modalChipPractice]}>
+                      <Text style={styles.modalChipText}>Práctica</Text>
+                    </View>
+                  ) : null}
+                  {selectedDay.classification.unclassifiedSessionsCount > 0 ? (
+                    <View style={[styles.modalChip, styles.modalChipUnclassified]}>
+                      <Text style={styles.modalChipText}>Sin clasificar</Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>Resumen del día</Text>
                   <Text style={styles.modalLine}>
-                    Sensor del día: {selectedDay.classification.sensorSessionsCount} sesión
-                    {selectedDay.classification.sensorSessionsCount === 1 ? '' : 'es'}
-                    {selectedDay.classification.maxSensorEstimatedVolumeMl != null
-                      ? ` · máx. ${Math.round(selectedDay.classification.maxSensorEstimatedVolumeMl)} mL`
-                      : ''}
-                    {selectedDay.classification.maxSensorU95Ml != null
-                      ? ` · U95 máx. ±${Math.round(selectedDay.classification.maxSensorU95Ml)} mL`
-                      : ''}
+                    Completadas: {selectedDay.completedCount}/{LEVEL1_DAILY_GOAL} · Perfectas: {selectedDay.perfectCount}
                   </Text>
+                  {selectedDay.interruptedCount > 0 ? (
+                    <Text style={styles.modalLine}>
+                      Interrumpidas: {selectedDay.interruptedCount}
+                    </Text>
+                  ) : null}
+                  <Text style={styles.modalLine}>
+                    Mejor inspiración:{' '}
+                    {selectedDay.bestHoldSeconds != null && selectedDay.bestHoldSeconds > 0
+                      ? `${selectedDay.bestHoldSeconds.toFixed(1)} s`
+                      : '—'}
+                  </Text>
+                </View>
+
+                {selectedDay.classification.sensorSessionsCount > 0 ? (
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalSectionTitle}>Sesiones con sensor</Text>
+                    <Text style={styles.modalLine}>
+                      {selectedDay.classification.sensorSessionsCount}{' '}
+                      {selectedDay.classification.sensorSessionsCount === 1 ? 'sesión' : 'sesiones'}
+                      {selectedDay.maxVolumeMl != null && selectedDay.maxVolumeMl > 0
+                        ? ` · Máx. ${selectedDay.maxVolumeMl} mL`
+                        : ''}
+                    </Text>
+                    {selectedDay.classification.maxSensorU95Ml != null ? (
+                      <Text style={styles.modalLineMuted}>
+                        U95 máx. ±{Math.round(selectedDay.classification.maxSensorU95Ml)} mL
+                      </Text>
+                    ) : null}
+                  </View>
                 ) : null}
+
                 {selectedDay.classification.practiceSessionsCount > 0 ? (
-                  <Text style={styles.modalLineMuted}>
-                    Práctica táctil: {selectedDay.classification.practiceSessionsCount} (no
-                    terapéutica)
-                  </Text>
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalSectionTitle}>Práctica táctil</Text>
+                    <Text style={styles.modalLineMuted}>
+                      {selectedDay.classification.practiceSessionsCount}{' '}
+                      {selectedDay.classification.practiceSessionsCount === 1 ? 'sesión' : 'sesiones'}{' '}
+                      · No terapéutica
+                    </Text>
+                  </View>
                 ) : null}
+
+                {selectedDay.classification.unclassifiedSessionsCount > 0 ? (
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalSectionTitle}>Sin clasificar</Text>
+                    <Text style={styles.modalLineMuted}>
+                      {selectedDay.classification.unclassifiedSessionsCount}{' '}
+                      {selectedDay.classification.unclassifiedSessionsCount === 1 ? 'sesión' : 'sesiones'}{' '}
+                      · Registro anterior a la clasificación
+                    </Text>
+                  </View>
+                ) : null}
+
                 <Text style={styles.modalMotivation}>{dayDetailMotivation(selectedDay)}</Text>
                 <Pressable
                   style={styles.modalClose}
@@ -742,6 +766,14 @@ const styles = StyleSheet.create({
   dayCellNumMuted: {
     color: '#78909C',
   },
+  practiceDot: {
+    position: 'absolute',
+    bottom: 4,
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#2196F3',
+  },
   legend: {
     marginTop: spacing.md,
     gap: spacing.sm,
@@ -855,31 +887,64 @@ const styles = StyleSheet.create({
     color: dashboardScreen.textPrimary,
     textTransform: 'capitalize',
   },
-  modalStatus: {
+  modalChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     marginTop: spacing.sm,
-    fontSize: 17,
-    fontWeight: '700',
-    color: wellness.primaryDark,
     marginBottom: spacing.md,
+  },
+  modalChip: {
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  modalChipStatus: {
+    backgroundColor: 'rgba(52, 171, 165, 0.12)',
+  },
+  modalChipSensor: {
+    backgroundColor: 'rgba(46, 125, 50, 0.12)',
+  },
+  modalChipPractice: {
+    backgroundColor: 'rgba(33, 150, 243, 0.12)',
+  },
+  modalChipUnclassified: {
+    backgroundColor: 'rgba(158, 158, 158, 0.15)',
+  },
+  modalChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: dashboardScreen.textPrimary,
+  },
+  modalSection: {
+    marginBottom: spacing.md,
+  },
+  modalSectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: dashboardScreen.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
   },
   modalLine: {
     fontSize: 16,
     color: dashboardScreen.textPrimary,
-    marginBottom: 8,
+    marginBottom: 4,
     lineHeight: 24,
   },
   modalLineMuted: {
     fontSize: 14,
     color: dashboardScreen.textSecondary,
-    marginBottom: 8,
+    marginBottom: 4,
     lineHeight: 20,
   },
   modalMotivation: {
-    marginTop: spacing.md,
-    fontSize: 16,
+    marginTop: spacing.sm,
+    fontSize: 15,
     fontWeight: '600',
     color: wellness.primaryDark,
-    lineHeight: 24,
+    lineHeight: 22,
   },
   modalClose: {
     marginTop: spacing.lg,

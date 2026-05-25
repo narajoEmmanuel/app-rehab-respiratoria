@@ -164,6 +164,7 @@ export function HomeScreen() {
   const sensorConnected =
     sensorStatus === 'connected' || sensorStatus === 'receiving' || sensorMode === 'mock';
 
+  const diagnosticPatientId = patient?.paciente_id ?? null;
   const goDiagnostico = useCallback(() => {
     onLightImpact();
     showDiagnosticPlayModePicker({
@@ -171,7 +172,7 @@ export function HomeScreen() {
         void (async () => {
           const gate = await evaluateDiagnosticSensorReadinessOnDemand({
             sensorConnected,
-            patientId: patient?.paciente_id ?? null,
+            patientId: diagnosticPatientId,
           });
           if (!gate.canStartDiagnostic) {
             showTherapyReadinessAlert(gate, (route) => router.push(route), {
@@ -195,7 +196,7 @@ export function HomeScreen() {
         router.push({ pathname: '/diagnostico', params: { inputMode: 'touch_practice' } });
       },
     });
-  }, [hasCompletedDiagnostic, router, sensorConnected, sensorMode, sensorStatus]);
+  }, [diagnosticPatientId, hasCompletedDiagnostic, router, sensorConnected]);
 
   if (!hydrated || !patient) {
     return (

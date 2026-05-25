@@ -26,6 +26,7 @@ import {
   buildLevelUnlockDiagnosticSnapshot,
   logLevelUnlockDiagnostics,
 } from '@/src/modules/session/level-unlock-diagnostics';
+import { getLevelDifficultyConfig } from '@/src/modules/session/levels/level-difficulty-config';
 import { listLevels } from '@/src/modules/session/registry/level-registry';
 import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
@@ -310,7 +311,8 @@ export function LevelsScreen({
           const completedSessions =
             levelStats?.today.completed ?? row?.sessions_completed_today ?? 0;
           const visual = getLevelVisualIdentity(level.id);
-          const identityLine = `Nivel ${visual.levelNumber} · ${visual.semantic}`;
+          const difficultyConfig = getLevelDifficultyConfig(level.id);
+          const identityLine = `Nivel ${visual.levelNumber} · ${difficultyConfig.description}`;
           const { statusChip, motivationalCopy } = deriveTherapyLevelPresentation({
             status,
             locked,

@@ -5,6 +5,7 @@
  */
 
 import type { GameVisualId } from '@/src/modules/session/games/game-types';
+import { type RunnerGameLevelId, isRunnerGameLevel } from '@/src/modules/levels/types/runner-levels';
 
 export type LevelGameTheme = 'forest' | 'desert' | 'snow' | 'ocean' | 'space';
 export type LevelObstacleType =
@@ -16,8 +17,6 @@ export type LevelObstacleType =
   | 'treasureChest'
   | 'rocket';
 
-export type RunnerGameLevelId = 'level-1' | 'level-2' | 'level-3' | 'level-4' | 'level-5';
-
 export type LevelGameplayConfig = {
   levelId: RunnerGameLevelId;
   theme: LevelGameTheme;
@@ -25,14 +24,6 @@ export type LevelGameplayConfig = {
   gameVisualId: GameVisualId;
   title: string;
 };
-
-export const RUNNER_GAME_LEVEL_IDS: readonly RunnerGameLevelId[] = [
-  'level-1',
-  'level-2',
-  'level-3',
-  'level-4',
-  'level-5',
-] as const;
 
 const RUNNER_LEVEL_CONFIG: Record<RunnerGameLevelId, LevelGameplayConfig> = {
   'level-1': {
@@ -71,16 +62,6 @@ const RUNNER_LEVEL_CONFIG: Record<RunnerGameLevelId, LevelGameplayConfig> = {
     title: 'Nivel 5',
   },
 };
-
-export function isRunnerGameLevel(levelId: string): levelId is RunnerGameLevelId {
-  return (
-    levelId === 'level-1' ||
-    levelId === 'level-2' ||
-    levelId === 'level-3' ||
-    levelId === 'level-4' ||
-    levelId === 'level-5'
-  );
-}
 
 export function getLevelGameplayConfig(levelId: string): LevelGameplayConfig | undefined {
   if (!isRunnerGameLevel(levelId)) return undefined;

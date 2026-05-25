@@ -11,10 +11,9 @@ import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
-import { showTherapyReadinessAlert } from '@/src/modules/device/volume-estimation';
+import { loadActiveVolumeEstimationContext, showTherapyReadinessAlert } from '@/src/modules/device/volume-estimation';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import { evaluateLevelSensorReadiness } from '@/src/modules/session/sensor/level-sensor-readiness';
-import type { VolumeEstimationReadinessStatus } from '@/src/modules/device/volume-estimation/volume-estimation-types';
 import { useLevelSensorVolume } from '@/src/modules/session/sensor/use-level-sensor-volume';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
 import { saveLevelOneActiveRun } from '@/src/modules/levels/storage/level-one-active-run-storage';
@@ -23,7 +22,9 @@ import {
   isRunnerGameLevel,
   type LevelId,
 } from '@/src/modules/levels/types/level-progress';
+import { getLevelDifficultyConfig } from '@/src/modules/session/levels/level-difficulty-config';
 import { getLevelGameplayConfig } from '@/src/modules/session/levels/level-gameplay-config';
+import { resolveSafeLevelTargetVolume } from '@/src/modules/session/levels/level-target-safety';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import {
   computeInspirationNorm,
@@ -56,8 +57,6 @@ import type { SessionAttemptResult } from '@/src/modules/session/types/session-r
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 type SessionSummaryKind = 'completed' | 'interrupted' | null;
-
-const REQUIRED_HOLD_MS = 3000;
 /** En práctica, alcanzar la meta antes del countdown de 3 s si mantiene presionado. */
 /** A los 2 s de presión el volumen simulado alcanza la meta (antes del sostén 3 s). */
 const PRACTICE_VOLUME_RAMP_MS = 2000;
@@ -105,8 +104,8 @@ function attemptFromOfficialValidation(
 
 function sessionSummaryModalTitle(kind: SessionSummaryKind, sessionNumber: number): string {
   return kind === 'interrupted'
-    ? `Sesion ${sessionNumber} interrumpida`
-    : `Sesion ${sessionNumber} completada`;
+    ? `Sesión ${sessionNumber} interrumpida`
+    : `Sesión ${sessionNumber} completada`;
 }
 
 export function SessionScreen() {
@@ -137,6 +136,7 @@ export function SessionScreen() {
   const isRunnerLevel = isRunnerGameLevel(selectedLevelId);
   const runnerLevelId = isRunnerLevel ? selectedLevelId : null;
   const levelGameplay = runnerLevelId ? getLevelGameplayConfig(runnerLevelId) : undefined;
+  const levelDifficulty = getLevelDifficultyConfig(selectedLevelId);
   const currentLevelProgress = runnerLevelId
     ? getRunnerLevelProgress(progress, runnerLevelId)
     : progress.levelOne;
@@ -178,6 +178,8 @@ export function SessionScreen() {
   targetVolumeRef.current = targetVolume;
   const [patientLevelId, setPatientLevelId] = useState<number | null>(null);
   const [attemptsRuntime, setAttemptsRuntime] = useState<SessionAttemptResult[]>([]);
+  const [targetWasAdjusted, setTargetWasAdjusted] = useState(false);
+  const [targetAdjustmentReason, setTargetAdjustmentReason] = useState<string | null>(null);
   const [savingSummary, setSavingSummary] = useState(false);
   const [savingInterrupt, setSavingInterrupt] = useState(false);
   const [introAcknowledged, setIntroAcknowledged] = useState(false);
@@ -239,9 +241,9 @@ export function SessionScreen() {
     sessionRunId,
   ]);
 
-  const exitToTherapy = () => {
+  const exitToTherapy = useCallback(() => {
     router.replace('/(tabs)/terapia');
-  };
+  }, [router]);
 
   const markSessionCleanExit = useCallback(() => {
     sessionCleanExitRef.current = true;
@@ -254,24 +256,27 @@ export function SessionScreen() {
     setAttemptsRuntime([]);
   }, []);
 
-  const persistInterruptedSessionToHistory = async (
-    valid: number,
-    failed: number,
-    attemptsSnapshot: SessionAttemptResult[],
-  ) => {
-    if (!patient || !patientLevelId) return;
-    const result = buildSessionResult({
-      patientId: patient.paciente_id,
-      patientLevelId,
-      levelId: selectedLevelId,
-      status: 'interrupted',
-      validAttempts: valid,
-      invalidAttempts: failed,
-      attemptsRuntime: attemptsSnapshot,
-      inputMode: sessionInputMode,
-    });
-    await persistSessionResult(result);
-  };
+  const persistInterruptedSessionToHistory = useCallback(
+    async (
+      valid: number,
+      failed: number,
+      attemptsSnapshot: SessionAttemptResult[],
+    ) => {
+      if (!patient || !patientLevelId) return;
+      const result = buildSessionResult({
+        patientId: patient.paciente_id,
+        patientLevelId,
+        levelId: selectedLevelId,
+        status: 'interrupted',
+        validAttempts: valid,
+        invalidAttempts: failed,
+        attemptsRuntime: attemptsSnapshot,
+        inputMode: sessionInputMode,
+      });
+      await persistSessionResult(result);
+    },
+    [patient, patientLevelId, selectedLevelId, sessionInputMode],
+  );
 
   const levelOneEngineScopeKey = [
     patient?.paciente_id ?? '',
@@ -285,12 +290,14 @@ export function SessionScreen() {
     sessionInputMode,
     targetVolume,
     isTouchPractice,
+    volumeEstimateStatus,
   });
 
   officialValidationDepsRef.current = {
     sessionInputMode,
     targetVolume,
     isTouchPractice,
+    volumeEstimateStatus,
   };
 
   const inspirationInputsRef = useRef({
@@ -357,7 +364,7 @@ export function SessionScreen() {
         lowerBoundMl: snap.estimate.lowerBoundMl,
         upperBoundMl: snap.estimate.upperBoundMl,
         targetVolumeMl: deps.targetVolume,
-        estimationStatus: volumeEstimateStatus,
+        estimationStatus: deps.volumeEstimateStatus,
         inCalibratedRange: snap.estimate.inCalibratedRange,
         clamped: snap.estimate.clamped,
       });
@@ -379,6 +386,8 @@ export function SessionScreen() {
   const levelOneEngine = useLevelOneGame({
     progress: currentLevelProgress,
     engineScopeKey: levelOneEngineScopeKey,
+    officialEvalMs: levelDifficulty.requiredHoldMs,
+    restMs: levelDifficulty.restMs,
     onProgressChange: (updater) => {
       if (!runnerLevelId) return;
       updateRunnerLevel(runnerLevelId, updater);
@@ -401,7 +410,7 @@ export function SessionScreen() {
           lowerBoundMl: snap.estimate.lowerBoundMl,
           upperBoundMl: snap.estimate.upperBoundMl,
           targetVolumeMl: deps.targetVolume,
-          estimationStatus: volumeEstimateStatus,
+          estimationStatus: deps.volumeEstimateStatus,
           inCalibratedRange: snap.estimate.inCalibratedRange,
           clamped: snap.estimate.clamped,
         });
@@ -410,25 +419,12 @@ export function SessionScreen() {
         evaluateOfficialAttempt({
           inputMode: deps.sessionInputMode,
           targetVolumeMl: deps.targetVolume,
-          requiredHoldMs: REQUIRED_HOLD_MS,
+          requiredHoldMs: levelDifficulty.requiredHoldMs,
           currentHoldMs: holdMs,
           simulatedVolumeMl: simulatedVolumeForHold(deps.targetVolume, holdMs),
           sensorAttemptEvaluation: sensorAttemptEvaluation ?? undefined,
           activeVolumeEstimate: snap?.estimate,
         });
-      if (!deps.isTouchPractice) {
-        const norm = computeInspirationNorm({
-          displayVolumeMl: peakSensorVolumeRef.current,
-          targetVolumeMl: deps.targetVolume,
-          holdMs,
-        });
-        console.log('LEVEL HOLD EVALUATION', {
-          rep: currentLevelProgress.currentRepetition,
-          isAboveObstacle: norm >= 1,
-          pass: valid,
-          failReason: valid ? null : 'obstacle_or_hold',
-        });
-      }
       setAttemptsRuntime((prev) => [
         ...prev,
         attemptFromOfficialValidation(
@@ -472,22 +468,24 @@ export function SessionScreen() {
     holdMsRef.current = levelOneEngine.holdMs;
   }, [levelOneEngine.holdMs]);
 
+  const sensorEffectPhase = levelOneEngine.phase;
+  const sensorEffectOnInhaleStart = levelOneEngine.onInhaleStart;
   useEffect(() => {
     if (isTouchPractice || !sensorEntryReady) return;
-    if (levelOneEngine.phase === 'ready') {
+    if (sensorEffectPhase === 'ready') {
       sensorInhaleArmedRef.current = true;
       peakSensorVolumeRef.current = 0;
     }
-    if (levelOneEngine.phase !== 'ready' || !sensorInhaleArmedRef.current) return;
+    if (sensorEffectPhase !== 'ready' || !sensorInhaleArmedRef.current) return;
     const snap = levelSensorGetSnapshotRef.current();
     if (!snap.sensorConnected || snap.distanceMm === null) return;
     if (snap.estimatedVolumeMl < sensorInhaleStartThresholdMl) return;
     sensorInhaleArmedRef.current = false;
-    levelOneEngine.onInhaleStart();
+    sensorEffectOnInhaleStart();
   }, [
     isTouchPractice,
-    levelOneEngine.onInhaleStart,
-    levelOneEngine.phase,
+    sensorEffectOnInhaleStart,
+    sensorEffectPhase,
     sensorEntryReady,
     sensorInhaleStartThresholdMl,
     levelSensor.displayVolumeMl,
@@ -510,21 +508,46 @@ export function SessionScreen() {
     if (!patient) {
       setPatientLevelId(null);
       setTargetVolume(1200);
+      setTargetWasAdjusted(false);
+      setTargetAdjustmentReason(null);
       setActiveLevelLoaded(true);
       return;
     }
     if (!isRunnerGameLevel(selectedLevelId)) {
       setPatientLevelId(null);
       setTargetVolume(1200);
+      setTargetWasAdjusted(false);
+      setTargetAdjustmentReason(null);
       setActiveLevelLoaded(true);
       return;
     }
     const patientLevels = await getPatientLevels(patient.paciente_id);
     const row = patientLevels.find((item) => item.level_id === selectedLevelId);
-    setTargetVolume(row?.target_volume ?? 1200);
+    const baseVolume = row?.target_volume ?? 1200;
+
+    let calibratedRangeMl: { min: number; max: number } | null = null;
+    if (!isTouchPractice) {
+      try {
+        const loaded = await loadActiveVolumeEstimationContext();
+        calibratedRangeMl = loaded.context.calibratedRangeMl;
+      } catch {
+        /* readiness gate handles missing calibration */
+      }
+    }
+
+    const safeTarget = resolveSafeLevelTargetVolume({
+      baseTargetVolumeMl: baseVolume,
+      targetVolumeMultiplier: levelDifficulty.targetVolumeMultiplier,
+      calibratedRangeMl,
+      inputMode: sessionInputMode,
+    });
+
+    setTargetVolume(safeTarget.effectiveTargetVolumeMl);
+    setTargetWasAdjusted(safeTarget.wasAdjusted);
+    setTargetAdjustmentReason(safeTarget.reason);
     setPatientLevelId(row?.patient_level_id ?? null);
     setActiveLevelLoaded(true);
-  }, [patient, selectedLevelId]);
+  }, [isTouchPractice, levelDifficulty.targetVolumeMultiplier, patient, selectedLevelId, sessionInputMode]);
 
   useEffect(() => {
     setActiveLevelLoaded(false);
@@ -681,7 +704,7 @@ export function SessionScreen() {
   if (!level) {
     return (
       <SafeAreaView style={styles.centered}>
-        <Text style={styles.title}>Sesion</Text>
+        <Text style={styles.title}>Sesión</Text>
         <Text style={styles.detail}>Nivel no encontrado.</Text>
       </SafeAreaView>
     );
@@ -690,8 +713,8 @@ export function SessionScreen() {
   if (!isRunnerLevel) {
     return (
       <SafeAreaView style={styles.centered}>
-        <Text style={styles.title}>Sesion - {level.title}</Text>
-        <Text style={styles.detail}>Este nivel estara disponible proximamente.</Text>
+        <Text style={styles.title}>Sesión: {level.title}</Text>
+        <Text style={styles.detail}>Este nivel estará disponible próximamente.</Text>
       </SafeAreaView>
     );
   }
@@ -721,6 +744,11 @@ export function SessionScreen() {
         <View style={styles.savingOverlay} pointerEvents="auto">
           <ActivityIndicator size="large" color={wellness.primary} />
           <Text style={styles.savingOverlayText}>Guardando tu sesión…</Text>
+        </View>
+      ) : null}
+      {targetWasAdjusted && targetAdjustmentReason ? (
+        <View style={styles.adjustmentNote}>
+          <Text style={styles.adjustmentNoteText}>{targetAdjustmentReason}</Text>
         </View>
       ) : null}
       <View style={styles.gameWrap}>
@@ -1163,6 +1191,19 @@ const styles = StyleSheet.create({
     marginTop: 12,
     color: wellness.textSecondary,
     fontSize: 15,
+    fontWeight: '600',
+  },
+  adjustmentNote: {
+    backgroundColor: 'rgba(212, 175, 55, 0.12)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(212, 175, 55, 0.25)',
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  adjustmentNoteText: {
+    color: '#9A7B1A',
+    fontSize: 13,
     fontWeight: '600',
   },
 });

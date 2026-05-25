@@ -1,9 +1,13 @@
 /**
  * Purpose: Persistent progress models for levels and unlock state.
  * Module: levels
- * Dependencies: none
+ * Dependencies: runner-levels (canonical runner level identifiers)
  * Notes: Keep this file storage-friendly and easy to migrate.
  */
+
+import { type RunnerGameLevelId, RUNNER_GAME_LEVEL_IDS, isRunnerGameLevel } from './runner-levels';
+
+export { type RunnerGameLevelId, RUNNER_GAME_LEVEL_IDS, isRunnerGameLevel };
 
 export type LevelId = 'level-1' | 'level-2' | 'level-3' | 'level-4' | 'level-5';
 
@@ -24,26 +28,6 @@ export type LevelOneProgress = {
   levelCompleted: boolean;
   levelPerfect: boolean;
 };
-
-export type RunnerGameLevelId = 'level-1' | 'level-2' | 'level-3' | 'level-4' | 'level-5';
-
-export const RUNNER_GAME_LEVEL_IDS: readonly RunnerGameLevelId[] = [
-  'level-1',
-  'level-2',
-  'level-3',
-  'level-4',
-  'level-5',
-] as const;
-
-export function isRunnerGameLevel(levelId: LevelId): levelId is RunnerGameLevelId {
-  return (
-    levelId === 'level-1' ||
-    levelId === 'level-2' ||
-    levelId === 'level-3' ||
-    levelId === 'level-4' ||
-    levelId === 'level-5'
-  );
-}
 
 export function getRunnerLevelProgress(
   progress: LevelsProgress,

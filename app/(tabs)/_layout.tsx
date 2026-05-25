@@ -97,13 +97,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="plan"
-        options={{
-          title: 'Plan',
-          href: null,
-        }}
-      />
-      <Tabs.Screen
         name="sesion"
         options={{
           title: 'Sesión',
@@ -129,27 +122,6 @@ export default function TabLayout() {
       <Tabs.Screen
         name="perfil"
         options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="niveles"
-        options={{
-          title: 'Niveles',
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="calendario"
-        options={{
-          title: 'Calendario',
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="plan-semanal"
-        options={{
-          title: 'Plan semanal',
           href: null,
         }}
       />

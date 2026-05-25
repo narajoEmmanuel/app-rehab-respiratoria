@@ -167,20 +167,21 @@ export function evaluateLevelOneAttemptComplete(params: {
   runtime: LevelOneAttemptRuntime;
   liveFail: LevelOneFailReason | null;
   inputMode: SessionInputMode;
+  officialEvalMs?: number;
 }): LevelOneAttemptReleaseResult {
-  const { runtime, liveFail, inputMode } = params;
+  const { runtime, liveFail, inputMode, officialEvalMs = LEVEL_ONE_OFFICIAL_EVAL_MS } = params;
   const practice = isTouchPracticeSession(inputMode);
 
   if (liveFail) {
-    return resultFromFail(liveFail, runtime, practice);
+    return resultFromFail(liveFail, runtime, practice, officialEvalMs);
   }
 
   if (!runtime.everClearedObstacle) {
-    return resultFromFail('never_cleared_obstacle', runtime, practice);
+    return resultFromFail('never_cleared_obstacle', runtime, practice, officialEvalMs);
   }
 
   const heldFullWindow =
-    runtime.clearMs >= LEVEL_ONE_OFFICIAL_EVAL_MS &&
+    runtime.clearMs >= officialEvalMs &&
     runtime.peakNorm >= LEVEL_ONE_CLEAR_MIN_NORM;
 
   if (heldFullWindow) {
@@ -195,7 +196,7 @@ export function evaluateLevelOneAttemptComplete(params: {
     };
   }
 
-  return resultFromFail('insufficient_clear_time', runtime, practice);
+  return resultFromFail('insufficient_clear_time', runtime, practice, officialEvalMs);
 }
 
 /** Compatibilidad con validación al soltar / interrumpir. */
@@ -204,30 +205,33 @@ export function evaluateLevelOneAttemptRelease(params: {
   liveFail: LevelOneFailReason | null;
   inputMode: SessionInputMode;
   releasedDuringEval?: boolean;
+  officialEvalMs?: number;
 }): LevelOneAttemptReleaseResult {
-  const { runtime, liveFail, inputMode, releasedDuringEval } = params;
+  const { runtime, liveFail, inputMode, releasedDuringEval, officialEvalMs = LEVEL_ONE_OFFICIAL_EVAL_MS } = params;
+  const practice = isTouchPracticeSession(inputMode);
 
   if (releasedDuringEval && !liveFail) {
-    return resultFromFail('released_during_eval', runtime, isTouchPracticeSession(inputMode));
+    return resultFromFail('released_during_eval', runtime, practice, officialEvalMs);
   }
 
   if (runtime.subPhase !== 'official_eval') {
     if (liveFail) {
-      return resultFromFail(liveFail, runtime, isTouchPracticeSession(inputMode));
+      return resultFromFail(liveFail, runtime, practice, officialEvalMs);
     }
-    return resultFromFail('released_before_eval', runtime, isTouchPracticeSession(inputMode));
+    return resultFromFail('released_before_eval', runtime, practice, officialEvalMs);
   }
 
-  return evaluateLevelOneAttemptComplete({ runtime, liveFail, inputMode });
+  return evaluateLevelOneAttemptComplete({ runtime, liveFail, inputMode, officialEvalMs });
 }
 
 function resultFromFail(
   fail: LevelOneFailReason,
   runtime: LevelOneAttemptRuntime,
   practice: boolean,
+  officialEvalMs: number = LEVEL_ONE_OFFICIAL_EVAL_MS,
 ): LevelOneAttemptReleaseResult {
   const volumeReached = runtime.everClearedObstacle;
-  const holdReached = runtime.clearMs >= LEVEL_ONE_OFFICIAL_EVAL_MS;
+  const holdReached = runtime.clearMs >= officialEvalMs;
   const mode = practice ? 'práctica' : 'sensor';
 
   const messages: Record<LevelOneFailReason, string> = {

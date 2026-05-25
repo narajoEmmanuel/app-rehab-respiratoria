@@ -99,9 +99,6 @@ export function withLegacySessionDefaults(s: SessionRecord): SessionRecord {
   };
 }
 
-/** @deprecated Use sessionRecordLocalDayKey from @/src/shared/utils/local-date-key */
-export const sessionDayKey = sessionRecordLocalDayKey;
-
 export function classifyCalendarDay(sessions: SessionRecord[]): CalendarDayKind {
   const therapeutic = sessions.filter(isTherapeuticSessionRecord);
   if (therapeutic.length === 0) return 'none';
@@ -228,6 +225,38 @@ export function buildAttemptsBySessionId(attempts: AttemptRecord[]): Map<number,
   return m;
 }
 
+/** Returns day keys where at least one therapeutic (sensor-measured) session exists. */
+export function therapeuticActivityDayKeys(
+  sessions: SessionRecord[],
+  patientId: number,
+): Set<string> {
+  const set = new Set<string>();
+  for (const s of sessions) {
+    if (s.patient_id !== patientId) continue;
+    if (!isTherapeuticSessionRecord(s)) continue;
+    const key = sessionRecordLocalDayKey(s.session_date);
+    if (key) set.add(key);
+  }
+  return set;
+}
+
+/** Returns day keys where at least one practice (non-therapeutic) session exists. */
+export function practiceActivityDayKeys(
+  sessions: SessionRecord[],
+  patientId: number,
+): Set<string> {
+  const set = new Set<string>();
+  for (const s of sessions) {
+    if (s.patient_id !== patientId) continue;
+    const c = resolveSessionClassification(s);
+    if (c.isClassified && c.isPracticeSession) {
+      const key = sessionRecordLocalDayKey(s.session_date);
+      if (key) set.add(key);
+    }
+  }
+  return set;
+}
+
 export function computeStreakDays(dayKeysWithActivity: Set<string>, todayKey: string): number {
   let start = todayKey;
   if (!dayKeysWithActivity.has(start)) {
@@ -278,6 +307,23 @@ export function globalMaxHoldSecondsForPatient(
     if (a.hold_ms > maxMs) maxMs = a.hold_ms;
   }
   return any ? maxMs / 1000 : null;
+}
+
+/** Max sensor-estimated volume (mL) across all therapeutic sessions for a patient. */
+export function globalMaxSensorVolumeMlForPatient(
+  sessions: SessionRecord[],
+  patientId: number,
+): number | null {
+  let maxMl: number | null = null;
+  for (const s of sessions) {
+    if (s.patient_id !== patientId) continue;
+    if (!isSensorMeasuredSession(s)) continue;
+    const ml = finiteMl(s.max_sensor_estimated_volume_ml);
+    if (ml != null && (maxMl == null || ml > maxMl)) {
+      maxMl = ml;
+    }
+  }
+  return maxMl;
 }
 
 export function countCompletedToday(
