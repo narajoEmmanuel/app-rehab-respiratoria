@@ -26,10 +26,7 @@ import { ProfileActionRow } from '@/src/modules/patient/components/ProfileAction
 import { ProfileAvatarPicker } from '@/src/modules/patient/components/ProfileAvatarPicker';
 import { ProfileInfoCard } from '@/src/modules/patient/components/ProfileInfoCard';
 import { ProfileSection } from '@/src/modules/patient/components/ProfileSection';
-import {
-  ProfileStatusBadge,
-  type ProfileConsentBadgeVariant,
-} from '@/src/modules/patient/components/ProfileStatusBadge';
+import type { ProfileConsentBadgeVariant } from '@/src/modules/patient/components/ProfileStatusBadge';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { LOCAL_PROFILE_HREF } from '@/src/modules/auth/local-profile-hrefs';
 import { deleteCurrentPatientLocalData } from '@/src/modules/patient/patient-delete-service';
@@ -41,8 +38,11 @@ import {
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { AppCard } from '@/src/shared/ui/AppCard';
+import { StatusPill } from '@/src/shared/ui/StatusPill';
+import { MetricTile } from '@/src/shared/ui/MetricTile';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellness, wellnessFloatingTabBarInset, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+import { wellness, wellnessColors, wellnessFloatingTabBarInset, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 import { sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 import {
   DEFAULT_PROFILE_PREFERENCES,
@@ -89,15 +89,6 @@ function buildSessionQuickStats(sessions: SessionRecord[], patientId: number): S
   const dayKey = last ? sessionRecordLocalDayKey(last.session_date) : null;
   const lastSessionDateLabel = dayKey ? formatDisplayDateEs(dayKey) : null;
   return { completedCount, avgCompliance, lastSessionDateLabel };
-}
-
-function MetricTile({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.metricTile}>
-      <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
-    </View>
-  );
 }
 
 export function ProfileScreen() {
@@ -285,27 +276,31 @@ export function ProfileScreen() {
           <View style={styles.profileMetaRow}>
             <Text style={styles.profileMeta}>Clave {patient.clave}</Text>
             <View style={styles.profileMetaDot} />
-            <ProfileStatusBadge label={consentUi.badgeLabel} variant={consentUi.variant} />
+            <StatusPill
+              label={consentUi.badgeLabel}
+              tone={consentUi.variant === 'active' ? 'success' : consentUi.variant === 'withdrawn' ? 'danger' : 'neutral'}
+              size="sm"
+            />
           </View>
         </View>
 
         <ProfileSection
           title="Resumen"
           subtitle="Indicadores rápidos basados en sesiones completadas en este dispositivo.">
-          <ProfileInfoCard>
+          <AppCard>
             <View style={styles.metricsRow}>
               <MetricTile label="Sesiones" value={String(metrics.completedCount)} />
               <MetricTile
-                label="Cumplimiento medio"
+                label="Cumplimiento"
                 value={metrics.avgCompliance != null ? `${Math.round(metrics.avgCompliance)}%` : '—'}
               />
               <MetricTile label="Última sesión" value={metrics.lastSessionDateLabel ?? '—'} />
             </View>
-          </ProfileInfoCard>
+          </AppCard>
         </ProfileSection>
 
         <ProfileSection title="Datos personales">
-          <ProfileInfoCard>
+          <AppCard>
             <View style={styles.personalRow}>
               <View style={styles.personalItem}>
                 <Text style={styles.personalLabel}>Nombre</Text>
@@ -317,11 +312,11 @@ export function ProfileScreen() {
                 <Text style={styles.personalValue}>{patient.edad != null ? `${patient.edad} años` : '—'}</Text>
               </View>
             </View>
-          </ProfileInfoCard>
+          </AppCard>
         </ProfileSection>
 
         <ProfileSection title="Evaluación inicial">
-          <ProfileInfoCard>
+          <AppCard variant="soft">
             <View style={styles.evalMainMetric}>
               <Text style={styles.evalMainLabel}>Volumen de referencia</Text>
               <Text style={styles.evalMainValue}>
@@ -350,7 +345,7 @@ export function ProfileScreen() {
                 </Text>
               </View>
             </View>
-          </ProfileInfoCard>
+          </AppCard>
         </ProfileSection>
 
         <ProfileSection
@@ -503,7 +498,7 @@ export function ProfileScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F6F7F6',
+    backgroundColor: wellnessColors.background,
   },
   scrollContent: {
     paddingHorizontal: spacing.lg,
@@ -539,29 +534,6 @@ const styles = StyleSheet.create({
   metricsRow: {
     flexDirection: 'row',
     gap: spacing.sm,
-  },
-  metricTile: {
-    flex: 1,
-    minWidth: 0,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xs,
-    borderRadius: 12,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  metricValue: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  metricLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#6B7280',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
   },
   personalRow: {
     gap: spacing.sm,

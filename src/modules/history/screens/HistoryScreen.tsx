@@ -45,8 +45,11 @@ import { usePatientSession } from '@/src/modules/patient/context/PatientSessionC
 import { readAllAttempts, readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import { todayStatsForPatientAndLevel } from '@/src/modules/session/utils/today-session-stats';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { AppCard } from '@/src/shared/ui/AppCard';
+import { AppButton } from '@/src/shared/ui/AppButton';
+import { SectionHeader } from '@/src/shared/ui/SectionHeader';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellness } from '@/src/shared/theme/wellness-theme';
+import { wellness, wellnessColors } from '@/src/shared/theme/wellness-theme';
 import { dashboardScreen, dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { getLocalDateKey } from '@/src/shared/utils/local-date-key';
 
@@ -327,9 +330,8 @@ export function HistoryScreen() {
               />
             </View>
 
-            <View style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Tu calendario</Text>
-              <Text style={styles.sectionHint}>Toca un día para ver el detalle.</Text>
+            <AppCard style={styles.calendarCardSpacing}>
+              <SectionHeader title="Tu calendario" subtitle="Toca un día para ver el detalle." />
               <View style={styles.monthNav}>
                 <Pressable
                   onPress={() => shiftMonth(-1)}
@@ -394,7 +396,7 @@ export function HistoryScreen() {
                 <LegendDot color={CAL_BG_PRACTICE} label="Solo práctica (no terapéutica)" />
                 <LegendDot color={CAL_BG.none} label="Sin actividad" />
               </View>
-            </View>
+            </AppCard>
 
             {!hasAnyHistory ? (
               <View style={styles.inlineEmptyCard}>
@@ -405,26 +407,25 @@ export function HistoryScreen() {
               </View>
             ) : null}
 
-            <View style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Logros recientes</Text>
+            <SectionHeader title="Logros recientes" />
+            <AppCard>
               {achievementsList.map((a) => (
                 <AchievementRow key={a.id} item={a} />
               ))}
-            </View>
+            </AppCard>
 
-            <View style={styles.exportSection}>
-              <Text style={styles.exportSectionTitle}>Compartir resumen de progreso</Text>
+            <SectionHeader title="Compartir resumen de progreso" />
+            <AppCard style={styles.exportSection}>
               <Text style={styles.exportSectionBody}>
                 Genera un archivo con tus sesiones para revisarlo con un profesional de la salud.
               </Text>
-              <Pressable
+              <AppButton
+                title="Exportar resumen"
                 onPress={() => router.push('/data-export')}
-                style={({ pressed }) => [styles.exportSectionBtn, pressed && styles.exportSectionBtnPressed]}
-                accessibilityRole="button"
-                accessibilityLabel="Exportar resumen">
-                <Text style={styles.exportSectionBtnText}>Exportar resumen</Text>
-              </Pressable>
-            </View>
+                variant="secondary"
+                iconName="doc.text.fill"
+              />
+            </AppCard>
           </>
         )}
       </ScrollView>
@@ -666,25 +667,8 @@ const styles = StyleSheet.create({
   streakFireEmojiMuted: {
     opacity: 0.28,
   },
-  sectionCard: {
+  calendarCardSpacing: {
     marginTop: spacing.lg,
-    backgroundColor: dashboardScreen.cardBg,
-    borderRadius: dashboardScreen.cardRadius,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: dashboardScreen.cardBorderColor,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: dashboardScreen.textPrimary,
-  },
-  sectionHint: {
-    marginTop: 6,
-    fontSize: 15,
-    color: dashboardScreen.textSecondary,
-    marginBottom: spacing.md,
-    lineHeight: 21,
   },
   monthNav: {
     flexDirection: 'row',
@@ -852,42 +836,13 @@ const styles = StyleSheet.create({
     color: dashboardScreen.textSecondary,
   },
   exportSection: {
-    marginTop: spacing.lg,
-    backgroundColor: dashboardScreen.cardBg,
-    borderRadius: dashboardScreen.cardRadius,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: dashboardScreen.cardBorderColor,
-    borderStyle: 'dashed',
-  },
-  exportSectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: dashboardScreen.textPrimary,
-    marginBottom: spacing.xs,
+    marginTop: spacing.sm,
+    gap: spacing.md,
   },
   exportSectionBody: {
     fontSize: 15,
     lineHeight: 22,
-    color: dashboardScreen.textSecondary,
-    marginBottom: spacing.md,
-  },
-  exportSectionBtn: {
-    alignSelf: 'flex-start',
-    backgroundColor: wellness.softGreen,
-    borderRadius: 12,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.lg,
-    borderWidth: 1,
-    borderColor: wellness.border,
-  },
-  exportSectionBtnPressed: {
-    opacity: 0.9,
-  },
-  exportSectionBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: wellness.primaryDark,
+    color: wellnessColors.textSecondary,
   },
   loadingBox: {
     paddingVertical: spacing.xl,

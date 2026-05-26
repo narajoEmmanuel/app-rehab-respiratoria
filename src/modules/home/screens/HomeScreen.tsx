@@ -32,12 +32,17 @@ import { readAllSessions } from '@/src/modules/session/storage/session-progress-
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 import { updateDailyProgress } from '@/src/modules/session/session-progress-service';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { AppCard } from '@/src/shared/ui/AppCard';
+import { AppButton } from '@/src/shared/ui/AppButton';
+import { SectionHeader } from '@/src/shared/ui/SectionHeader';
+import { MetricTile } from '@/src/shared/ui/MetricTile';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { spacing } from '@/src/shared/theme/spacing';
-import { dashboardScreen, dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
+import { wellnessColors, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import { dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { addDaysLocal, getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 
-const ACCENT = '#34aba5';
+const ACCENT = wellnessColors.primary;
 
 function onLightImpact() {
   if (Platform.OS === 'ios') {
@@ -256,39 +261,26 @@ export function HomeScreen() {
 
         {!hasCompletedDiagnostic ? (
           <>
-            <View style={styles.diagnosticHeroCard}>
+            <AppCard variant="highlight" style={styles.diagnosticHeroCard}>
               <Text style={styles.diagnosticHeroKicker}>Evaluación inicial</Text>
               <Text style={styles.diagnosticHeroTitle}>Conoce tu punto de partida</Text>
               <Text style={styles.diagnosticHeroBody}>
                 Mide tu volumen de referencia para personalizar tus metas de terapia.
               </Text>
-              <Pressable
-                style={({ pressed }) => [styles.diagnosticHeroBtn, pressed && styles.diagnosticHeroBtnPressed]}
-                onPress={goDiagnostico}
-                accessibilityRole="button"
-                accessibilityLabel="Iniciar evaluación">
-                <Text style={styles.diagnosticHeroBtnText}>Iniciar evaluación</Text>
-              </Pressable>
-            </View>
+              <AppButton title="Iniciar evaluación" onPress={goDiagnostico} />
+            </AppCard>
 
-            <View style={[styles.heroCard, styles.heroCardBlocked]}>
+            <AppCard style={styles.heroCardBlocked}>
               <Text style={styles.heroKicker}>Sesión recomendada</Text>
               <Text style={styles.heroTitle}>Terapia guiada</Text>
               <Text style={styles.heroSubtitleBlocked}>
                 Completa tu evaluación inicial para personalizar tu terapia.
               </Text>
-              <Pressable
-                style={[styles.primaryCta, styles.primaryCtaBlocked]}
-                disabled
-                accessibilityRole="button"
-                accessibilityLabel="Terapia bloqueada hasta completar evaluación inicial"
-                accessibilityState={{ disabled: true }}>
-                <Text style={styles.primaryCtaTextMuted}>Iniciar terapia</Text>
-              </Pressable>
-            </View>
+              <AppButton title="Iniciar terapia" onPress={() => {}} disabled />
+            </AppCard>
           </>
         ) : (
-          <View style={styles.heroCard}>
+          <AppCard style={styles.heroCardSpacing}>
             <Text style={styles.heroKicker}>Sesión recomendada</Text>
             <Text style={styles.heroTitle}>Terapia guiada</Text>
             <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
@@ -300,55 +292,53 @@ export function HomeScreen() {
                 ]}
               />
             </View>
-            <Pressable
-              style={({ pressed }) => [
-                styles.primaryCta,
-                therapyCtaDisabled && styles.primaryCtaDisabled,
-                pressed && !therapyCtaDisabled && styles.primaryCtaPressed,
-              ]}
-              onPress={goStartTerapia}
-              disabled={!consentUiReady}
-              accessibilityRole="button"
-              accessibilityLabel="Iniciar terapia"
-              accessibilityState={{ disabled: therapyCtaDisabled || !consentUiReady }}>
-              <Text style={styles.primaryCtaText}>
-                {!consentUiReady
+            <AppButton
+              title={
+                !consentUiReady
                   ? 'Preparando…'
                   : !consentActive
                     ? 'Activa el consentimiento para continuar'
-                    : 'Iniciar terapia'}
-              </Text>
-            </Pressable>
-          </View>
+                    : 'Iniciar terapia'
+              }
+              onPress={goStartTerapia}
+              disabled={therapyCtaDisabled}
+            />
+          </AppCard>
         )}
 
         {!hasAnySession ? (
-          <View style={styles.emptyCard}>
+          <AppCard>
             <Text style={styles.emptyTitle}>Aún no hay sesiones registradas</Text>
             <Text style={styles.emptyBody}>
               Cuando completes tu primera sesión verás aquí un resumen con cumplimiento y volumen. Empieza cuando te
               sientas preparado.
             </Text>
-          </View>
+          </AppCard>
         ) : null}
 
         {lastSession ? <HomeLastSessionCard session={lastSession} /> : null}
 
         {hasAnySession ? (
-          <View style={styles.weekCard}>
-            <Text style={styles.weekKicker}>Constancia</Text>
-            <Text style={styles.weekTitle}>Últimos 7 días</Text>
-            <Text style={styles.weekValue}>
-              {weeklyCompleted === 0
-                ? 'Sin sesiones completadas esta semana'
-                : `${weeklyCompleted} sesión${weeklyCompleted === 1 ? '' : 'es'} completada${weeklyCompleted === 1 ? '' : 's'}`}
-            </Text>
+          <AppCard style={styles.weekCardSpacing}>
+            <SectionHeader title="Constancia" subtitle="Últimos 7 días" />
+            <View style={styles.weekMetricsRow}>
+              <MetricTile
+                label="Esta semana"
+                value={weeklyCompleted === 0 ? '0' : String(weeklyCompleted)}
+                helper={`sesión${weeklyCompleted === 1 ? '' : 'es'} completada${weeklyCompleted === 1 ? '' : 's'}`}
+              />
+              <MetricTile
+                label="Hoy"
+                value={`${todayCompletedSessions}/6`}
+                helper="meta diaria"
+              />
+            </View>
             <Text style={styles.weekHint}>El historial completo está en la pestaña Historial.</Text>
-          </View>
+          </AppCard>
         ) : null}
 
         {hasCompletedDiagnostic ? (
-          <View style={styles.evalCard}>
+          <AppCard variant="soft" style={styles.evalCardSpacing}>
             <View style={styles.evalCardHeader}>
               <View style={styles.evalCardIconWrap}>
                 <IconSymbol name="lungs.fill" size={24} color={ACCENT} />
@@ -362,40 +352,31 @@ export function HomeScreen() {
             </View>
             {latestDiag ? (
               <View style={styles.evalCardMetrics}>
-                <View style={styles.evalCardMetricMain}>
-                  <Text style={styles.evalCardMetricLabel}>Volumen de referencia</Text>
-                  <Text style={styles.evalCardMetricValue}>
-                    {latestDiag.max_inspiratory_volume} mL
-                  </Text>
-                </View>
+                <MetricTile
+                  label="Volumen de referencia"
+                  value={`${latestDiag.max_inspiratory_volume} mL`}
+                  iconName="lungs.fill"
+                />
                 <View style={styles.evalCardMetricRow}>
-                  <View style={styles.evalCardMetricMini}>
-                    <Text style={styles.evalCardMiniLabel}>Última evaluación</Text>
-                    <Text style={styles.evalCardMiniValue}>
-                      {new Date(latestDiag.diagnostic_date).toLocaleDateString(undefined, {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </Text>
-                  </View>
+                  <MetricTile
+                    label="Última evaluación"
+                    value={new Date(latestDiag.diagnostic_date).toLocaleDateString(undefined, {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  />
                   {latestDiag.diagnostic_number != null ? (
-                    <View style={styles.evalCardMetricMini}>
-                      <Text style={styles.evalCardMiniLabel}>Evaluación</Text>
-                      <Text style={styles.evalCardMiniValue}>#{latestDiag.diagnostic_number}</Text>
-                    </View>
+                    <MetricTile
+                      label="Evaluación"
+                      value={`#${latestDiag.diagnostic_number}`}
+                    />
                   ) : null}
                 </View>
               </View>
             ) : null}
-            <Pressable
-              style={({ pressed }) => [styles.evalCardBtn, pressed && styles.evalCardBtnPressed]}
-              onPress={goDiagnostico}
-              accessibilityRole="button"
-              accessibilityLabel="Repetir evaluación">
-              <Text style={styles.evalCardBtnText}>Repetir evaluación</Text>
-            </Pressable>
-          </View>
+            <AppButton title="Repetir evaluación" onPress={goDiagnostico} variant="secondary" />
+          </AppCard>
         ) : null}
 
         <DeviceCard
@@ -403,20 +384,19 @@ export function HomeScreen() {
           onPress={goSensorConnection}
         />
 
-        <Pressable
-          style={({ pressed }) => [styles.exportCard, pressed && styles.exportCardPressed]}
+        <SectionHeader title="Resumen para tu profesional" />
+        <AppCard
+          pressable
           onPress={() => {
             onLightImpact();
             router.push('/data-export');
           }}
-          accessibilityRole="button"
-          accessibilityLabel="Exportar resumen de progreso">
+          style={styles.exportCardSpacing}>
           <View style={styles.exportCardHeader}>
             <View style={styles.exportCardIconWrap}>
               <IconSymbol name="doc.text.fill" size={22} color={ACCENT} />
             </View>
             <View style={styles.exportCardTextCol}>
-              <Text style={styles.exportCardTitle}>Resumen para tu profesional</Text>
               <Text style={styles.exportCardBody}>
                 Comparte tus sesiones y progreso en un archivo exportable.
               </Text>
@@ -426,7 +406,7 @@ export function HomeScreen() {
             <Text style={styles.exportCardCtaText}>Exportar resumen</Text>
             <IconSymbol name="chevron.right" size={16} color={ACCENT} />
           </View>
-        </Pressable>
+        </AppCard>
 
         <View style={styles.claveRow}>
           <Text style={styles.claveLabel}>Tu clave de acceso</Text>
@@ -549,7 +529,7 @@ function DeviceCard({
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: dashboardScreen.screenBg },
+  safe: { flex: 1, backgroundColor: wellnessColors.background },
   scroll: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
@@ -558,34 +538,34 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1A1A1A',
+    color: wellnessColors.textPrimary,
     letterSpacing: -0.4,
     marginBottom: 2,
   },
   tagline: {
     fontSize: 16,
     lineHeight: 22,
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
     marginBottom: spacing.lg,
   },
   consentCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: wellnessColors.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: wellnessColors.border,
     padding: spacing.lg,
     marginBottom: spacing.lg,
   },
   consentTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#111827',
+    color: wellnessColors.textPrimary,
     marginBottom: spacing.sm,
   },
   consentBody: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
     marginBottom: spacing.md,
   },
   consentBtn: {
@@ -601,11 +581,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   diagnosticHeroCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: 'rgba(52, 171, 165, 0.45)',
-    padding: spacing.lg + 4,
     marginBottom: spacing.lg,
     gap: spacing.md,
   },
@@ -619,47 +594,25 @@ const styles = StyleSheet.create({
   diagnosticHeroTitle: {
     fontSize: 26,
     fontWeight: '800',
-    color: '#111827',
+    color: wellnessColors.textPrimary,
     lineHeight: 32,
   },
   diagnosticHeroBody: {
     fontSize: 16,
     lineHeight: 24,
-    color: '#4B5563',
-  },
-  diagnosticHeroBtn: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: ACCENT,
-    borderRadius: 16,
-    paddingVertical: 18,
-    paddingHorizontal: spacing.lg,
-    minHeight: 56,
-  },
-  diagnosticHeroBtnPressed: {
-    opacity: 0.92,
-  },
-  diagnosticHeroBtnText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  heroCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#EBEBEB',
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
+    color: wellnessColors.textSecondary,
   },
   heroCardBlocked: {
-    borderStyle: 'dashed',
+    marginBottom: spacing.lg,
     opacity: 0.92,
+  },
+  heroCardSpacing: {
+    marginBottom: spacing.lg,
   },
   heroKicker: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: spacing.xs,
@@ -667,19 +620,19 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#111827',
+    color: wellnessColors.textPrimary,
     marginBottom: 6,
   },
   heroSubtitle: {
     fontSize: 15,
     lineHeight: 21,
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
     marginBottom: spacing.md,
   },
   heroSubtitleBlocked: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#9CA3AF',
+    color: wellnessColors.textMuted,
     marginBottom: spacing.md,
     fontWeight: '600',
   },
@@ -695,93 +648,39 @@ const styles = StyleSheet.create({
     backgroundColor: ACCENT,
     borderRadius: 4,
   },
-  primaryCta: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: ACCENT,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: spacing.lg,
-  },
-  primaryCtaDisabled: {
-    opacity: 0.5,
-  },
-  primaryCtaBlocked: {
-    backgroundColor: '#D1D5DB',
-    opacity: 1,
-  },
-  primaryCtaPressed: {
-    opacity: 0.92,
-  },
-  primaryCtaText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  primaryCtaTextMuted: {
-    color: '#6B7280',
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  emptyCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#EBEBEB',
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-  },
   emptyTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#111827',
+    color: wellnessColors.textPrimary,
     marginBottom: spacing.sm,
   },
   emptyBody: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
   },
-  weekCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#EBEBEB',
-    padding: spacing.lg,
+  weekCardSpacing: {
     marginBottom: spacing.lg,
   },
-  weekKicker: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6B7280',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  weekTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 6,
-  },
-  weekValue: {
-    fontSize: 16,
-    color: '#374151',
-    fontWeight: '600',
+  weekMetricsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
     marginBottom: spacing.sm,
   },
   weekHint: {
     fontSize: 13,
-    color: '#9CA3AF',
+    color: wellnessColors.textMuted,
     lineHeight: 18,
+    marginTop: spacing.xs,
   },
   deviceCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: wellnessColors.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#EBEBEB',
+    borderColor: wellnessColors.border,
     padding: spacing.lg,
     marginBottom: spacing.md,
+    ...wellnessShadows.soft,
   },
   deviceCardPressed: { opacity: 0.94 },
   deviceTopRow: {
@@ -796,7 +695,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 18,
-    backgroundColor: 'rgba(52, 171, 165, 0.14)',
+    backgroundColor: wellnessColors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -807,19 +706,19 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
   },
-  deviceBadgeReady: { backgroundColor: 'rgba(52, 171, 165, 0.12)', borderColor: 'rgba(52, 171, 165, 0.32)' },
-  deviceBadgePending: { backgroundColor: '#F4F6F5', borderColor: '#E5E7EB' },
-  deviceBadgeWarn: { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
+  deviceBadgeReady: { backgroundColor: wellnessColors.primarySoft, borderColor: 'rgba(52, 171, 165, 0.32)' },
+  deviceBadgePending: { backgroundColor: wellnessColors.neutralSoft, borderColor: wellnessColors.border },
+  deviceBadgeWarn: { backgroundColor: wellnessColors.dangerSoft, borderColor: '#FECACA' },
   deviceBadgeText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
-  deviceBadgeTextReady: { color: '#1F7A75' },
-  deviceBadgeTextPending: { color: '#6B7280' },
-  deviceBadgeTextWarn: { color: '#B91C1C' },
-  deviceTitle: { fontSize: 20, fontWeight: '800', color: '#111827', marginTop: 8 },
+  deviceBadgeTextReady: { color: wellnessColors.primaryDark },
+  deviceBadgeTextPending: { color: wellnessColors.textSecondary },
+  deviceBadgeTextWarn: { color: wellnessColors.danger },
+  deviceTitle: { fontSize: 20, fontWeight: '800', color: wellnessColors.textPrimary, marginTop: 8 },
   deviceSubtitle: {
     marginTop: 6,
     fontSize: 14,
     lineHeight: 20,
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
   },
   deviceCtaRow: {
     flexDirection: 'row',
@@ -831,12 +730,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#F1F3F5',
   },
   deviceCtaLabel: { fontSize: 15, fontWeight: '700', color: ACCENT },
-  evalCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(52, 171, 165, 0.25)',
-    padding: spacing.lg,
+  evalCardSpacing: {
     marginBottom: spacing.lg,
   },
   evalCardHeader: {
@@ -848,7 +742,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: 'rgba(52, 171, 165, 0.1)',
+    backgroundColor: wellnessColors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -858,88 +752,24 @@ const styles = StyleSheet.create({
   evalCardTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
+    color: wellnessColors.textPrimary,
     marginBottom: 4,
   },
   evalCardSubtitle: {
     fontSize: 14,
     lineHeight: 20,
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
   },
   evalCardMetrics: {
     marginBottom: spacing.md,
     gap: spacing.sm,
   },
-  evalCardMetricMain: {
-    backgroundColor: 'rgba(52, 171, 165, 0.06)',
-    borderRadius: 12,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    borderWidth: 1,
-    borderColor: 'rgba(52, 171, 165, 0.15)',
-  },
-  evalCardMetricLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginBottom: 2,
-  },
-  evalCardMetricValue: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#1F7A75',
-    letterSpacing: -0.3,
-  },
   evalCardMetricRow: {
     flexDirection: 'row',
     gap: spacing.sm,
   },
-  evalCardMetricMini: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 10,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm + 2,
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  evalCardMiniLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#9CA3AF',
-    marginBottom: 2,
-  },
-  evalCardMiniValue: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#374151',
-  },
-  evalCardBtn: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: ACCENT,
-    borderRadius: 14,
-    paddingVertical: 14,
-    minHeight: 50,
-  },
-  evalCardBtnPressed: {
-    opacity: 0.92,
-  },
-  evalCardBtnText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  exportCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#EBEBEB',
-    padding: spacing.lg,
+  exportCardSpacing: {
     marginBottom: spacing.lg,
-  },
-  exportCardPressed: {
-    opacity: 0.94,
   },
   exportCardHeader: {
     flexDirection: 'row',
@@ -950,23 +780,17 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: 'rgba(52, 171, 165, 0.1)',
+    backgroundColor: wellnessColors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   exportCardTextCol: {
     flex: 1,
   },
-  exportCardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-  },
   exportCardBody: {
     fontSize: 14,
     lineHeight: 20,
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
   },
   exportCardCtaRow: {
     flexDirection: 'row',
@@ -985,12 +809,12 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: wellnessColors.border,
   },
   claveLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#9CA3AF',
+    color: wellnessColors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     marginBottom: 4,
@@ -1004,10 +828,10 @@ const styles = StyleSheet.create({
   },
   claveHint: {
     fontSize: 13,
-    color: '#9CA3AF',
+    color: wellnessColors.textMuted,
     lineHeight: 18,
   },
-  mutedBody: { fontSize: 16, color: '#6B7280', marginBottom: spacing.md },
+  mutedBody: { fontSize: 16, color: wellnessColors.textSecondary, marginBottom: spacing.md },
   textLinkWrap: { padding: spacing.md },
   textLink: { fontSize: 16, fontWeight: '700', color: authPalette.link, textDecorationLine: 'underline' },
 });
