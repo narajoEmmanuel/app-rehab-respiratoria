@@ -23,6 +23,43 @@ export type LevelDifficultyConfig = {
   description: string;
 };
 
+export type LevelDisplayMeta = {
+  humanName: string;
+  purpose: string;
+};
+
+const LEVEL_DISPLAY_META: Record<RunnerGameLevelId, LevelDisplayMeta> = {
+  'level-1': {
+    humanName: 'Inicio suave',
+    purpose: 'Familiarizarte con el ritmo y completar respiraciones controladas.',
+  },
+  'level-2': {
+    humanName: 'Control del volumen',
+    purpose: 'Mantener una inspiración más estable dentro de tu meta.',
+  },
+  'level-3': {
+    humanName: 'Sostén respiratorio',
+    purpose: 'Practicar mantener el volumen durante unos segundos.',
+  },
+  'level-4': {
+    humanName: 'Precisión y constancia',
+    purpose: 'Repetir el ejercicio con mejor estabilidad entre intentos.',
+  },
+  'level-5': {
+    humanName: 'Dominio avanzado',
+    purpose: 'Completar sesiones con mayor control y consistencia.',
+  },
+};
+
+const FALLBACK_DISPLAY_META: LevelDisplayMeta = LEVEL_DISPLAY_META['level-1'];
+
+export function getLevelDisplayMeta(levelId: string): LevelDisplayMeta {
+  if (isRunnerGameLevel(levelId)) {
+    return LEVEL_DISPLAY_META[levelId];
+  }
+  return FALLBACK_DISPLAY_META;
+}
+
 const LEVEL_DIFFICULTY: Record<RunnerGameLevelId, LevelDifficultyConfig> = {
   'level-1': {
     targetVolumeMultiplier: 1.0,

@@ -11,7 +11,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getLatestDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
 import type { DiagnosticRecord } from '@/src/modules/diagnostics/types';
-import { formatDisplayDateEs } from '@/src/modules/history/services/history-aggregates';
 import {
   getAcceptedConsentRecord,
   withdrawConsent,
@@ -48,6 +47,18 @@ import {
   DEFAULT_PROFILE_PREFERENCES,
   type ProfilePreferences,
 } from '@/src/modules/patient/types/profile-preferences';
+
+function formatShortDateEs(dateKey: string): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  const now = new Date();
+  const sameYear = dt.getFullYear() === now.getFullYear();
+  return dt.toLocaleDateString('es-MX', {
+    day: 'numeric',
+    month: 'short',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  });
+}
 
 type SessionQuickStats = {
   completedCount: number;
@@ -87,7 +98,7 @@ function buildSessionQuickStats(sessions: SessionRecord[], patientId: number): S
   });
   const last = sorted[0];
   const dayKey = last ? sessionRecordLocalDayKey(last.session_date) : null;
-  const lastSessionDateLabel = dayKey ? formatDisplayDateEs(dayKey) : null;
+  const lastSessionDateLabel = dayKey ? formatShortDateEs(dayKey) : null;
   return { completedCount, avgCompliance, lastSessionDateLabel };
 }
 
@@ -289,12 +300,13 @@ export function ProfileScreen() {
           subtitle="Indicadores rápidos basados en sesiones completadas en este dispositivo.">
           <AppCard>
             <View style={styles.metricsRow}>
-              <MetricTile label="Sesiones" value={String(metrics.completedCount)} />
+              <MetricTile label="Sesiones" value={String(metrics.completedCount)} size="compact" />
               <MetricTile
-                label="Cumplimiento"
+                label="Avance"
                 value={metrics.avgCompliance != null ? `${Math.round(metrics.avgCompliance)}%` : '—'}
+                size="compact"
               />
-              <MetricTile label="Última sesión" value={metrics.lastSessionDateLabel ?? '—'} />
+              <MetricTile label="Última" value={metrics.lastSessionDateLabel ?? '—'} size="compact" emphasis="status" />
             </View>
           </AppCard>
         </ProfileSection>

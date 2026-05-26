@@ -1,8 +1,7 @@
 /**
- * Purpose: Level selection screen with lock states and persistence.
+ * Purpose: Level selection screen — guided therapy with progression and evaluation CTA.
  * Module: levels
- * Dependencies: react-native, expo-router, levels/session
- * Notes: Level 1 playable now, levels 2-5 shown as locked/coming soon.
+ * Dependencies: react-native, expo-router, levels/session, shared/ui components
  */
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -17,8 +16,8 @@ import {
 } from '@/src/modules/device/volume-estimation';
 import { logLevelSensorModeSelected } from '@/src/modules/session/sensor/level-sensor-debug';
 import { evaluateLevelSensorReadiness } from '@/src/modules/session/sensor/level-sensor-readiness';
-import { getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
-import type { PatientLevelRecord } from '@/src/modules/diagnostics/types';
+import { getLatestDiagnostic, getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
+import type { DiagnosticRecord, PatientLevelRecord } from '@/src/modules/diagnostics/types';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
@@ -26,7 +25,10 @@ import {
   buildLevelUnlockDiagnosticSnapshot,
   logLevelUnlockDiagnostics,
 } from '@/src/modules/session/level-unlock-diagnostics';
-import { getLevelDifficultyConfig } from '@/src/modules/session/levels/level-difficulty-config';
+import {
+  getLevelDifficultyConfig,
+  getLevelDisplayMeta,
+} from '@/src/modules/session/levels/level-difficulty-config';
 import { listLevels } from '@/src/modules/session/registry/level-registry';
 import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
@@ -37,15 +39,19 @@ import {
 } from '@/src/modules/session/utils/today-session-stats';
 import { TARGET_PERFECT_SESSIONS } from '@/src/modules/session/session-progress-service';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { AppCard } from '@/src/shared/ui/AppCard';
+import { AppButton } from '@/src/shared/ui/AppButton';
+import { SectionHeader } from '@/src/shared/ui/SectionHeader';
+import { MetricTile } from '@/src/shared/ui/MetricTile';
 import { TherapyLevelCard } from '@/src/shared/ui/therapy-level-card';
 import type { TherapyLevelStatusChip } from '@/src/shared/ui/therapy-level-card';
 import { isLevelEntryLockedForUi } from '@/src/config/dev-level-flags';
 import { getLocalDateKey } from '@/src/shared/utils/local-date-key';
 import { spacing } from '@/src/shared/theme/spacing';
+import { wellnessColors, wellnessTypography } from '@/src/shared/theme/wellness-theme';
 import { dashboardScreen, dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
-import { getLevelVisualIdentity } from '@/src/theme/level-colors';
+import { getLevelVisualIdentity, parseLevelNumberFromId } from '@/src/theme/level-colors';
 
-/** Conteos acumulados (desbloqueo) y del día (cards / advertencia de hoy). */
 type LevelDisplayStats = {
   lifetime: TodaySessionStats;
   today: TodaySessionStats;
@@ -70,8 +76,9 @@ function deriveTherapyLevelPresentation(params: {
   status: PatientLevelRecord['level_status'] | undefined;
   locked: boolean;
   perfectTowardUnlock: number;
+  isRecommended: boolean;
 }): { statusChip: TherapyLevelStatusChip; motivationalCopy: string } {
-  const { status, locked, perfectTowardUnlock } = params;
+  const { status, locked, perfectTowardUnlock, isRecommended } = params;
   if (status === 'completed') {
     return {
       statusChip: 'completed',
@@ -82,6 +89,12 @@ function deriveTherapyLevelPresentation(params: {
     return {
       statusChip: 'locked',
       motivationalCopy: 'Completa el nivel anterior para desbloquearlo.',
+    };
+  }
+  if (isRecommended) {
+    return {
+      statusChip: 'recommended',
+      motivationalCopy: 'Sigue a tu ritmo. Mantén el control.',
     };
   }
   if (perfectTowardUnlock > 0) {
@@ -96,8 +109,17 @@ function deriveTherapyLevelPresentation(params: {
   };
 }
 
+function formatDiagnosticDate(isoDate: string): string {
+  try {
+    const d = new Date(isoDate);
+    return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch {
+    return isoDate;
+  }
+}
+
 export function LevelsScreen({
-  headerSubtitle = 'Completa sesiones guiadas y desbloquea nuevos retos respiratorios.',
+  headerSubtitle = 'Elige un nivel para practicar respiraciones controladas según tu progreso.',
 }: {
   headerSubtitle?: string;
 } = {}) {
@@ -113,7 +135,7 @@ export function LevelsScreen({
   } = useTherapyReadinessGate();
   const levels = listLevels();
   const [patientLevels, setPatientLevels] = useState<PatientLevelRecord[]>([]);
-  /** Stats por nivel: lifetime (progreso/desbloqueo) y today (completadas hoy en card). */
+  const [latestDiagnostic, setLatestDiagnostic] = useState<DiagnosticRecord | null>(null);
   const [levelStatsByPatientLevelId, setLevelStatsByPatientLevelId] = useState<
     Record<number, LevelDisplayStats>
   >({});
@@ -125,61 +147,43 @@ export function LevelsScreen({
     setLastReadingReceivedAtMs(Date.now());
   }, [lastReading, lastReading?.distanceMm, lastReading?.timestamp]);
 
+  const loadLevelsData = useCallback(async () => {
+    if (!patient) {
+      setPatientLevels([]);
+      setLatestDiagnostic(null);
+      setLevelStatsByPatientLevelId({});
+      return;
+    }
+    const [levelsRows, sessions, diagnostic] = await Promise.all([
+      getPatientLevels(patient.paciente_id),
+      readAllSessions(),
+      getLatestDiagnostic(patient.paciente_id),
+    ]);
+    const today = getLocalDateKey();
+    const statsByLevelId = buildLevelDisplayStatsByPatientLevelId(levelsRows, sessions, today);
+    if (__DEV__) {
+      logLevelUnlockDiagnostics(await buildLevelUnlockDiagnosticSnapshot(patient.paciente_id));
+    }
+    setPatientLevels(levelsRows);
+    setLatestDiagnostic(diagnostic);
+    setLevelStatsByPatientLevelId(statsByLevelId);
+  }, [patient]);
+
   useEffect(() => {
     let active = true;
-    const loadLevels = async () => {
-      if (!patient) {
-        if (active) {
-          setPatientLevels([]);
-          setLevelStatsByPatientLevelId({});
-        }
-        return;
-      }
-      const [levelsRows, sessions] = await Promise.all([
-        getPatientLevels(patient.paciente_id),
-        readAllSessions(),
-      ]);
-      const today = getLocalDateKey();
-      const statsByLevelId = buildLevelDisplayStatsByPatientLevelId(levelsRows, sessions, today);
-      if (__DEV__) {
-        logLevelUnlockDiagnostics(await buildLevelUnlockDiagnosticSnapshot(patient.paciente_id));
-      }
-      if (active) {
-        setPatientLevels(levelsRows);
-        setLevelStatsByPatientLevelId(statsByLevelId);
-      }
-    };
-    void loadLevels();
+    void loadLevelsData().then(() => {
+      if (!active) return;
+    });
     return () => {
       active = false;
     };
-  }, [patient]);
+  }, [loadLevelsData]);
 
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-      const refreshLevels = async () => {
-        if (!patient) return;
-        const [rows, sessions] = await Promise.all([
-          getPatientLevels(patient.paciente_id),
-          readAllSessions(),
-        ]);
-        const today = getLocalDateKey();
-        const statsByLevelId = buildLevelDisplayStatsByPatientLevelId(rows, sessions, today);
-        if (__DEV__) {
-          logLevelUnlockDiagnostics(await buildLevelUnlockDiagnosticSnapshot(patient.paciente_id));
-        }
-        if (!cancelled) {
-          setPatientLevels(rows);
-          setLevelStatsByPatientLevelId(statsByLevelId);
-        }
-      };
-      void refreshLevels();
+      void loadLevelsData();
       void refreshTherapyGate();
-      return () => {
-        cancelled = true;
-      };
-    }, [patient, refreshTherapyGate]),
+    }, [loadLevelsData, refreshTherapyGate]),
   );
 
   const navigateToSession = useCallback(
@@ -269,7 +273,6 @@ export function LevelsScreen({
     activePatientLevel != null
       ? levelStatsByPatientLevelId[activePatientLevel.patient_level_id]
       : undefined;
-  /** Perfectas acumuladas (desbloqueo); completadas hoy (advertencia). */
   const perfectSessionsOnActive = activeLevelStats?.lifetime.perfect ?? 0;
   const sessionsCompletedTodayOnActive = activeLevelStats?.today.completed ?? 0;
   const showPerfectGapWarning =
@@ -278,12 +281,15 @@ export function LevelsScreen({
     sessionsCompletedTodayOnActive >= TARGET_PERFECT_SESSIONS &&
     perfectSessionsOnActive < TARGET_PERFECT_SESSIONS;
 
+  const hasEvaluation = latestDiagnostic != null;
+  const recommendedLevelId = activePatientLevel?.level_id ?? null;
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
         <AppTopBar onPressProfile={() => router.push('/profile')} />
         <View style={styles.blockedContainer}>
-          <Text style={styles.screenTitle}>Avanza a tu ritmo</Text>
+          <Text style={styles.screenTitle}>Terapia guiada</Text>
           <Text style={styles.tagline}>Cargando niveles…</Text>
         </View>
       </SafeAreaView>
@@ -296,8 +302,55 @@ export function LevelsScreen({
       <ScrollView
         contentContainerStyle={[styles.container, { paddingBottom: scrollBottom }]}
         showsVerticalScrollIndicator={false}>
-        <Text style={styles.screenTitle}>Avanza a tu ritmo</Text>
+        <Text style={styles.screenTitle}>Terapia guiada</Text>
         <Text style={styles.tagline}>{headerSubtitle}</Text>
+
+        {!hasEvaluation ? (
+          <AppCard variant="highlight" style={styles.evaluationCard}>
+            <Text style={styles.evaluationTitle}>Completa tu evaluación inicial</Text>
+            <Text style={styles.evaluationText}>
+              Necesitamos tu volumen de referencia para personalizar tus metas de terapia.
+            </Text>
+            <AppButton
+              title="Iniciar evaluación"
+              onPress={() => router.push('/diagnostico')}
+              style={styles.evaluationButton}
+            />
+          </AppCard>
+        ) : (
+          <AppCard variant="soft" style={styles.referenceCard}>
+            <Text style={styles.referenceTitle}>Tu referencia actual</Text>
+            <View style={styles.referenceMetrics}>
+              <MetricTile
+                label="Volumen de referencia"
+                value={`${latestDiagnostic.max_inspiratory_volume} mL`}
+                size="compact"
+                tone="default"
+              />
+              {recommendedLevelId ? (
+                <MetricTile
+                  label="Nivel recomendado"
+                  value={`Nivel ${parseLevelNumberFromId(recommendedLevelId)}`}
+                  size="compact"
+                  tone="success"
+                  emphasis="status"
+                />
+              ) : null}
+              <MetricTile
+                label="Última evaluación"
+                value={formatDiagnosticDate(latestDiagnostic.diagnostic_date)}
+                size="compact"
+                tone="info"
+                emphasis="status"
+              />
+            </View>
+          </AppCard>
+        )}
+
+        <SectionHeader
+          title="Niveles disponibles"
+          subtitle="Avanza paso a paso. Cada sesión debe sentirse controlada y segura."
+        />
 
         {levels.map((level) => {
           const levelId = level.id as LevelId;
@@ -312,22 +365,26 @@ export function LevelsScreen({
             levelStats?.today.completed ?? row?.sessions_completed_today ?? 0;
           const visual = getLevelVisualIdentity(level.id);
           const difficultyConfig = getLevelDifficultyConfig(level.id);
-          const identityLine = `Nivel ${visual.levelNumber} · ${difficultyConfig.description}`;
-          const { statusChip, motivationalCopy } = deriveTherapyLevelPresentation({
+          const displayMeta = getLevelDisplayMeta(level.id);
+          const isRecommended = recommendedLevelId === levelId && status === 'active';
+          const { statusChip } = deriveTherapyLevelPresentation({
             status,
             locked,
             perfectTowardUnlock,
+            isRecommended,
           });
           return (
             <TherapyLevelCard
               key={level.id}
-              title={level.title}
-              levelIdentityLine={identityLine}
+              levelNumber={visual.levelNumber}
+              humanName={displayMeta.humanName}
+              purpose={displayMeta.purpose}
               accentColor={visual.accent}
-              identitySoftBg={visual.accentSoft}
               statusChip={statusChip}
-              motivationalCopy={motivationalCopy}
               targetVolumeMl={row?.target_volume ?? 0}
+              requiredHoldMs={difficultyConfig.requiredHoldMs}
+              restMs={difficultyConfig.restMs}
+              repetitionsPerSession={difficultyConfig.repetitionsPerSession}
               completedSessionsDisplay={`${completedSessions}/${TARGET_PERFECT_SESSIONS}`}
               perfectSessionsDisplay={`${perfectTowardUnlock}/${TARGET_PERFECT_SESSIONS}`}
               helperText={
@@ -335,7 +392,7 @@ export function LevelsScreen({
                   ? undefined
                   : statusChip === 'completed'
                     ? 'Nivel completado.'
-                    : 'Completa 6 sesiones perfectas con sensor para avanzar.'
+                    : 'Completa 6 sesiones con 10 repeticiones válidas para avanzar.'
               }
               locked={locked}
               starting={startingLevelId === levelId}
@@ -346,9 +403,9 @@ export function LevelsScreen({
           );
         })}
 
-        <View style={styles.messageCard}>
-          <Text style={styles.messageTitle}>Desbloqueo del siguiente nivel</Text>
-          <Text style={styles.messageText}>
+        <AppCard style={styles.unlockInfoCard}>
+          <Text style={styles.unlockInfoTitle}>Desbloqueo del siguiente nivel</Text>
+          <Text style={styles.unlockInfoText}>
             Completa 6 sesiones del nivel activo con 10 repeticiones válidas en cada una.
           </Text>
           {showPerfectGapWarning ? (
@@ -358,6 +415,12 @@ export function LevelsScreen({
               siguiente. Cada una debe tener 10 repeticiones válidas.
             </Text>
           ) : null}
+        </AppCard>
+
+        <View style={styles.safetyNote}>
+          <Text style={styles.safetyNoteText}>
+            Detén la sesión si sientes dolor, mareo o falta de aire intensa.
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -380,10 +443,8 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
   },
   screenTitle: {
-    fontSize: 28,
-    fontWeight: '700',
+    ...wellnessTypography.screenTitle,
     color: dashboardScreen.textPrimaryStrong,
-    letterSpacing: -0.4,
     marginBottom: 2,
   },
   tagline: {
@@ -392,21 +453,48 @@ const styles = StyleSheet.create({
     color: dashboardScreen.textSecondary,
     marginBottom: spacing.lg,
   },
-  messageCard: {
-    marginTop: spacing.xs,
-    borderRadius: dashboardScreen.cardRadius,
-    borderWidth: 1,
-    borderColor: dashboardScreen.cardBorderColor,
-    backgroundColor: dashboardScreen.cardBg,
-    padding: spacing.lg,
+  evaluationCard: {
+    marginBottom: spacing.lg,
   },
-  messageTitle: {
+  evaluationTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: wellnessColors.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  evaluationText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: wellnessColors.textSecondary,
+    marginBottom: spacing.md,
+  },
+  evaluationButton: {
+    marginTop: spacing.xs,
+  },
+  referenceCard: {
+    marginBottom: spacing.lg,
+  },
+  referenceTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: wellnessColors.primaryDark,
+    marginBottom: spacing.sm,
+  },
+  referenceMetrics: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  unlockInfoCard: {
+    marginTop: spacing.xs,
+  },
+  unlockInfoTitle: {
     color: dashboardScreen.textPrimary,
     fontWeight: '700',
-    fontSize: 17,
+    fontSize: 16,
+    marginBottom: spacing.xs,
   },
-  messageText: {
-    marginTop: spacing.sm,
+  unlockInfoText: {
     color: dashboardScreen.textSecondary,
     fontSize: 15,
     lineHeight: 22,
@@ -417,5 +505,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 15,
     lineHeight: 22,
+  },
+  safetyNote: {
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: wellnessColors.warningSoft,
+    borderRadius: 10,
+    marginBottom: spacing.sm,
+  },
+  safetyNoteText: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+    color: '#92400E',
+    textAlign: 'center',
   },
 });

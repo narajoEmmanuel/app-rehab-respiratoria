@@ -28,6 +28,19 @@ const MAPPING = {
   'eye.fill': 'visibility',
   'trash.fill': 'delete',
   'xmark': 'close',
+  'exclamationmark.triangle.fill': 'warning',
+  'chart.bar.fill': 'bar-chart',
+  'square.and.arrow.up': 'share',
+  'arrow.down.doc.fill': 'file-download',
+  'info.circle.fill': 'info',
+  'waveform.path.ecg': 'monitor-heart',
+  'target': 'track-changes',
+  'timer': 'timer',
+  'checkmark.seal.fill': 'verified',
+  'lock.fill': 'lock',
+  'star.fill': 'star',
+  'shield.fill': 'shield',
+  'repeat': 'repeat',
 } as const;
 
 export type IconSymbolName = keyof typeof MAPPING;

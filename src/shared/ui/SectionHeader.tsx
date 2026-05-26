@@ -44,8 +44,8 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     marginTop: 4,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 21,
     color: wellnessColors.textSecondary,
   },
   actionLabel: {

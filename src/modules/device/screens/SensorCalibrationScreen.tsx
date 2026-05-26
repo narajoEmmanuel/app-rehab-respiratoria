@@ -91,10 +91,16 @@ import {
 } from '@/src/modules/device/spirometer';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { AppCard } from '@/src/shared/ui/AppCard';
+import { InfoTile } from '@/src/shared/ui/InfoTile';
+import { MetricTile } from '@/src/shared/ui/MetricTile';
+import { StatusPill } from '@/src/shared/ui/StatusPill';
+import { SectionHeader } from '@/src/shared/ui/SectionHeader';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { spacing } from '@/src/shared/theme/spacing';
 import {
   wellness,
+  wellnessColors,
   wellnessRadii,
   wellnessShadows,
 } from '@/src/shared/theme/wellness-theme';
@@ -1312,54 +1318,71 @@ export function SensorCalibrationScreen() {
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        <Text style={styles.screenTitle}>Calibración local</Text>
-        <Text style={styles.screenSubtitle}>ESP32 · VL53L0X · solo en este dispositivo</Text>
+        <SectionHeader
+          title="Calibración local"
+          subtitle="ESP32 · VL53L0X · solo en este dispositivo"
+        />
 
-        <View style={styles.calibSummaryCard}>
-          <Text style={styles.calibSummaryTitle}>Calibración actual</Text>
-          <View style={styles.calibSummaryGrid}>
-            <View style={styles.calibSummaryItem}>
-              <Text style={styles.calibSummaryLabel}>Estado</Text>
-              <Text style={styles.calibSummaryValue}>
-                {savedStatus.kind === 'loading'
+        <AppCard>
+          <View style={styles.calibSummaryHeader}>
+            <Text style={styles.calibSummaryTitle}>Calibración actual</Text>
+            <StatusPill
+              label={
+                savedStatus.kind === 'loading'
                   ? 'Cargando…'
                   : savedStatus.kind === 'saved'
                     ? 'Guardada'
                     : savedStatus.kind === 'corrupt'
-                      ? 'Requiere revisión'
-                      : 'Pendiente'}
-              </Text>
-            </View>
-            <View style={styles.calibSummaryItem}>
-              <Text style={styles.calibSummaryLabel}>Última actualización</Text>
-              <Text style={styles.calibSummaryValue}>
-                {savedStatus.kind === 'saved' && savedStatus.updatedAt
-                  ? new Date(savedStatus.updatedAt).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
-                  : '—'}
-              </Text>
-            </View>
-            <View style={styles.calibSummaryItem}>
-              <Text style={styles.calibSummaryLabel}>Puntos usados</Text>
-              <Text style={styles.calibSummaryValue}>
-                {savedStatus.kind === 'saved' ? String(savedStatus.pointsCount) : '—'}
-              </Text>
-            </View>
-            <View style={styles.calibSummaryItem}>
-              <Text style={styles.calibSummaryLabel}>Rango calibrado</Text>
-              <Text style={styles.calibSummaryValue}>
-                {activeSpirometerProfile
-                  ? `${activeSpirometerProfile.operativeMinVolumeMl}–${activeSpirometerProfile.maxVolumeMl} mL`
-                  : '—'}
-              </Text>
-            </View>
-            <View style={styles.calibSummaryItem}>
-              <Text style={styles.calibSummaryLabel}>Calidad general</Text>
-              <Text style={styles.calibSummaryValue}>
-                {recommendation ? recommendationStatusLabel(recommendation.status) : '—'}
-              </Text>
-            </View>
+                      ? 'Revisar'
+                      : 'Pendiente'
+              }
+              tone={
+                savedStatus.kind === 'saved'
+                  ? 'success'
+                  : savedStatus.kind === 'corrupt'
+                    ? 'danger'
+                    : 'neutral'
+              }
+              size="sm"
+            />
           </View>
-        </View>
+          <View style={styles.calibMetricsRow}>
+            <MetricTile
+              label="Puntos"
+              value={savedStatus.kind === 'saved' ? String(savedStatus.pointsCount) : '—'}
+              tone={savedStatus.kind === 'saved' ? 'success' : 'default'}
+              size="compact"
+            />
+            <MetricTile
+              label="Rango"
+              value={
+                activeSpirometerProfile
+                  ? `${activeSpirometerProfile.operativeMinVolumeMl}–${activeSpirometerProfile.maxVolumeMl}`
+                  : '—'
+              }
+              helper={activeSpirometerProfile ? 'mL' : undefined}
+              tone="default"
+              size="compact"
+            />
+            <InfoTile
+              label="Calidad"
+              value={recommendation ? recommendationStatusLabel(recommendation.status) : '—'}
+              tone={
+                recommendation?.status === 'ready'
+                  ? 'success'
+                  : recommendation?.status === 'needs_recalibration' || recommendation?.status === 'invalid'
+                    ? 'danger'
+                    : 'neutral'
+              }
+              compact
+            />
+          </View>
+          {savedStatus.kind === 'saved' && savedStatus.updatedAt ? (
+            <Text style={styles.calibLastUpdated}>
+              Última actualización: {new Date(savedStatus.updatedAt).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
+            </Text>
+          ) : null}
+        </AppCard>
 
         <Pressable
           onPress={() => setTechDetailsExpanded((prev) => !prev)}
@@ -3013,19 +3036,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl * 2,
   },
-  screenTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: wellness.text,
-    letterSpacing: -0.4,
-    marginBottom: spacing.xs,
-  },
-  screenSubtitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: wellness.textSecondary,
-    marginBottom: spacing.lg,
-  },
   heroCard: {
     backgroundColor: wellness.card,
     borderRadius: wellnessRadii.cardLarge,
@@ -3823,41 +3833,26 @@ const styles = StyleSheet.create({
   segmentColRange: { flex: 1.2 },
   segmentColDist: { flex: 1, textAlign: 'right' },
   segmentColSlope: { flex: 1, textAlign: 'right' },
-  calibSummaryCard: {
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.cardLarge,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    ...wellnessShadows.card,
-  },
-  calibSummaryTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: wellness.primaryDark,
-    marginBottom: spacing.md,
-  },
-  calibSummaryGrid: {
-    gap: spacing.sm,
-  },
-  calibSummaryItem: {
+  calibSummaryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: wellness.border,
+    marginBottom: spacing.md,
   },
-  calibSummaryLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: wellness.textSecondary,
-  },
-  calibSummaryValue: {
-    fontSize: 15,
+  calibSummaryTitle: {
+    fontSize: 17,
     fontWeight: '700',
-    color: wellness.text,
+    color: wellnessColors.textPrimary,
+  },
+  calibMetricsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  calibLastUpdated: {
+    fontSize: 12,
+    color: wellnessColors.textMuted,
+    marginTop: spacing.xs,
   },
   techDetailsToggle: {
     flexDirection: 'row',

@@ -35,6 +35,7 @@ import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppCard } from '@/src/shared/ui/AppCard';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { SectionHeader } from '@/src/shared/ui/SectionHeader';
+import { InfoTile } from '@/src/shared/ui/InfoTile';
 import { MetricTile } from '@/src/shared/ui/MetricTile';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -358,18 +359,20 @@ export function HomeScreen() {
                   iconName="lungs.fill"
                 />
                 <View style={styles.evalCardMetricRow}>
-                  <MetricTile
+                  <InfoTile
                     label="Última evaluación"
                     value={new Date(latestDiag.diagnostic_date).toLocaleDateString(undefined, {
                       day: '2-digit',
                       month: 'short',
                       year: 'numeric',
                     })}
+                    tone="neutral"
                   />
                   {latestDiag.diagnostic_number != null ? (
                     <MetricTile
                       label="Evaluación"
                       value={`#${latestDiag.diagnostic_number}`}
+                      size="compact"
                     />
                   ) : null}
                 </View>

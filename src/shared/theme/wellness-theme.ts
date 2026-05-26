@@ -77,12 +77,19 @@ export const wellnessRadius = {
 } as const;
 
 export const wellnessTypography = {
-  screenTitle: { fontSize: 28, fontWeight: '700' as const, letterSpacing: -0.4 },
-  sectionTitle: { fontSize: 18, fontWeight: '700' as const },
+  screenTitle: { fontSize: 26, fontWeight: '800' as const, letterSpacing: -0.3 },
+  screenSubtitle: { fontSize: 16, lineHeight: 23, fontWeight: '400' as const },
+  sectionTitle: { fontSize: 18, fontWeight: '800' as const },
   cardTitle: { fontSize: 16, fontWeight: '700' as const },
   body: { fontSize: 15, lineHeight: 22, fontWeight: '400' as const },
-  caption: { fontSize: 12, fontWeight: '600' as const, letterSpacing: 0.3 },
-  metric: { fontSize: 24, fontWeight: '800' as const, letterSpacing: -0.3 },
+  caption: { fontSize: 12, lineHeight: 17, fontWeight: '600' as const, letterSpacing: 0.2 },
+  label: { fontSize: 11, fontWeight: '700' as const, letterSpacing: 0.3 },
+  metricLarge: { fontSize: 30, fontWeight: '800' as const, letterSpacing: -0.3 },
+  metricMedium: { fontSize: 22, fontWeight: '800' as const, letterSpacing: -0.2 },
+  metricSmall: { fontSize: 18, fontWeight: '800' as const },
+  statusValue: { fontSize: 15, fontWeight: '700' as const },
+  /** @deprecated Use metricMedium instead */
+  metric: { fontSize: 22, fontWeight: '800' as const, letterSpacing: -0.2 },
 } as const;
 
 /** Unified theme object for reusable components. */

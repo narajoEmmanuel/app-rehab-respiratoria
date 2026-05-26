@@ -29,17 +29,17 @@ import type { SessionRecord } from '@/src/modules/session/types/session-progress
 
 function getSummaryTitle(session: SessionRecord | null): string {
   if (!session) return 'Resumen de sesión';
-  if (session.perfect && session.completed) return 'Sesión perfecta';
+  if (session.perfect && session.completed) return 'Buen control durante la sesión';
   if (session.completed) return 'Sesión completada';
-  if (session.interrupted && !session.completed) return 'Sesión interrumpida';
+  if (session.interrupted && !session.completed) return 'Sesión detenida';
   return 'Resumen de sesión';
 }
 
 function getSummarySubtitle(session: SessionRecord | null): string {
   if (!session) return 'Consulta los resultados de tu ejercicio.';
-  if (session.perfect && session.completed) return 'Completaste todos los intentos objetivo correctamente.';
+  if (session.perfect && session.completed) return 'Completaste todos los intentos objetivo con buen control.';
   if (session.completed) return 'Estos son los resultados de tu sesión.';
-  if (session.interrupted && !session.completed) return 'La sesión se guardó sin completarse.';
+  if (session.interrupted && !session.completed) return 'Puedes retomarla cuando estés listo.';
   return 'Consulta los resultados de tu ejercicio.';
 }
 
@@ -223,18 +223,16 @@ export function SummaryScreen() {
         ) : null}
 
         <View style={styles.card}>
-          <MetricTile label="Sesión completada" value={session.completed ? 'Sí' : 'No'} />
-          <MetricTile label="Repeticiones válidas" value={String(session.valid_attempts)} />
-          <MetricTile label="Repeticiones fallidas" value={String(session.invalid_attempts)} />
-          <MetricTile label="Cumplimiento" value={`${session.compliance_percent}%`} />
-          <MetricTile label="Volumen máximo" value={`${session.max_volume} mL`} />
-          <MetricTile label="Volumen promedio" value={`${session.avg_volume} mL`} />
-          <MetricTile label="Tiempo máximo sostenido" value={`${maxHoldSeconds.toFixed(1)} s`} />
-          <MetricTile
+          <SummaryMetricTile label="Repeticiones válidas" value={String(session.valid_attempts)} />
+          <SummaryMetricTile label="Repeticiones no completadas" value={String(session.invalid_attempts)} />
+          <SummaryMetricTile label="Cumplimiento" value={`${session.compliance_percent}%`} />
+          <SummaryMetricTile label="Volumen máximo" value={`${session.max_volume} mL`} />
+          <SummaryMetricTile label="Volumen promedio" value={`${session.avg_volume} mL`} />
+          <SummaryMetricTile label="Tiempo máximo sostenido" value={`${maxHoldSeconds.toFixed(1)} s`} />
+          <SummaryMetricTile
             label="Tiempo promedio sostenido"
             value={`${session.avg_hold_seconds.toFixed(1)} s`}
           />
-          <MetricTile label="Sesión perfecta" value={session.perfect ? 'Sí' : 'No'} />
         </View>
 
         <Pressable
@@ -252,7 +250,7 @@ export function SummaryScreen() {
   );
 }
 
-function MetricTile({ label, value }: { label: string; value: string }) {
+function SummaryMetricTile({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.metricTile}>
       <Text style={styles.metricTileLabel}>{label}</Text>

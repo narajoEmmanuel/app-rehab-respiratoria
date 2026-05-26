@@ -14,16 +14,15 @@ import { isCloudAuthEnabled } from '@/src/modules/app-mode/app-mode-config';
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { useConsentActive } from '@/src/modules/legal/use-consent-active';
-import { wellness } from '@/src/shared/theme/wellness-theme';
+import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 import { HapticTab } from '@/src/shared/ui/haptic-tab';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 
-const TAB_ACTIVE = wellness.primary;
-const TAB_INACTIVE = '#8E8E93';
-/** Matches dashboard card borders — flat bar, no floating capsule */
-const TAB_BAR_TOP_BORDER = '#EBEBEB';
+const TAB_ACTIVE = wellnessColors.primary;
+const TAB_INACTIVE = wellnessColors.textMuted;
+const TAB_BAR_TOP_BORDER = wellnessColors.border;
 
-const TAB_ICON_SIZE = 24;
+const TAB_ICON_SIZE = 22;
 
 type TabIconName = 'house.fill' | 'square.grid.2x2.fill' | 'clock.fill';
 
@@ -141,16 +140,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0,
     shadowOffset: { width: 0, height: 0 },
     shadowRadius: 0,
-    paddingTop: Platform.OS === 'ios' ? 4 : 6,
-    ...(Platform.OS === 'android' ? { height: 56 } : {}),
+    paddingTop: Platform.OS === 'ios' ? 6 : 8,
+    paddingBottom: Platform.OS === 'ios' ? 2 : 6,
+    ...(Platform.OS === 'android' ? { height: 60 } : {}),
   },
   tabItem: {
-    paddingTop: 0,
+    paddingTop: 2,
+    gap: 3,
   },
   tabLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
-    letterSpacing: 0.02,
-    marginBottom: Platform.OS === 'ios' ? 2 : 4,
+    letterSpacing: 0.1,
+    marginTop: 2,
   },
 });

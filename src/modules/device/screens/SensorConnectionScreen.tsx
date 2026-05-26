@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -19,12 +18,16 @@ import { useCalibrationSnapshot } from '@/src/modules/device/state/use-calibrati
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { AppButton } from '@/src/shared/ui/AppButton';
+import { AppCard } from '@/src/shared/ui/AppCard';
+import { InfoTile } from '@/src/shared/ui/InfoTile';
+import { SectionHeader } from '@/src/shared/ui/SectionHeader';
+import { StatusPill } from '@/src/shared/ui/StatusPill';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { spacing } from '@/src/shared/theme/spacing';
 import {
-  wellness,
-  wellnessRadii,
-  wellnessShadows,
+  wellnessColors,
+  wellnessRadius,
 } from '@/src/shared/theme/wellness-theme';
 
 function hapticLight() {
@@ -134,25 +137,21 @@ export function SensorConnectionScreen() {
     router.push('/sensor-calibration');
   }, [router]);
 
-  const heroBadge = useMemo<{ label: string; tone: 'ok' | 'pending' | 'warn' | 'neutral' }>(() => {
-    if (status === 'error') return { label: 'Error de conexión', tone: 'warn' };
-    if (isConnecting) return { label: 'Conectando…', tone: 'neutral' };
-    if (readyForTherapy) return { label: 'Dispositivo listo', tone: 'ok' };
-    if (liveReady && !hasCalibration) return { label: 'Falta calibración', tone: 'pending' };
-    if (isOnline) return { label: 'Sin señal válida', tone: 'pending' };
-    return { label: 'No conectado', tone: 'neutral' };
-  }, [hasCalibration, isConnecting, isOnline, liveReady, readyForTherapy, status]);
+  const connectionTone = useMemo(() => {
+    if (status === 'error') return 'danger' as const;
+    if (isOnline) return 'success' as const;
+    if (isConnecting) return 'info' as const;
+    return 'neutral' as const;
+  }, [isConnecting, isOnline, status]);
 
-  const primaryAction = useMemo(() => {
-    if (!isOnline) {
-      return {
-        label: isConnecting ? 'Conectando…' : 'Conectar dispositivo',
-        onPress: onConnect,
-        disabled: isConnecting,
-      };
-    }
-    return null;
-  }, [isConnecting, isOnline, onConnect]);
+  const connectionPillLabel = useMemo(() => {
+    if (status === 'error') return 'Error';
+    if (readyForTherapy) return 'Listo';
+    if (liveReady && !hasCalibration) return 'Falta calibración';
+    if (isOnline) return 'Conectado';
+    if (isConnecting) return 'Conectando…';
+    return 'Sin conexión';
+  }, [hasCalibration, isConnecting, isOnline, liveReady, readyForTherapy, status]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -162,111 +161,101 @@ export function SensorConnectionScreen() {
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        <Text style={styles.eyebrow}>Preparar dispositivo</Text>
-        <Text style={styles.title}>Sensor y calibración</Text>
-        <Text style={styles.subtitle}>
-          Conecta el sensor por WiFi y revisa la calibración del espirómetro.
-        </Text>
 
-        <Text style={styles.sectionLabel}>Conexión del dispositivo</Text>
-        {/* Zone A — Estado del dispositivo */}
-        <View style={styles.heroCard}>
-          <View style={styles.heroTopRow}>
-            <View style={styles.heroIcon}>
-              <IconSymbol name="dot.radiowaves.left.and.right" size={40} color={wellness.primaryDark} />
+        <SectionHeader
+          title="Sensor y calibración"
+          subtitle="Conecta el sensor por WiFi y revisa la calibración del espirómetro."
+        />
+
+        {/* Connection Card */}
+        <AppCard>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardIconWrap}>
+              <IconSymbol name="dot.radiowaves.left.and.right" size={28} color={wellnessColors.primaryDark} />
             </View>
-            <View
-              style={[
-                styles.heroBadge,
-                heroBadge.tone === 'ok' && styles.heroBadgeOk,
-                heroBadge.tone === 'pending' && styles.heroBadgePending,
-                heroBadge.tone === 'warn' && styles.heroBadgeWarn,
-              ]}>
-              {isConnecting ? (
-                <ActivityIndicator size="small" color={wellness.primaryDark} />
-              ) : null}
-              <Text
-                style={[
-                  styles.heroBadgeText,
-                  heroBadge.tone === 'ok' && styles.heroBadgeTextOk,
-                  heroBadge.tone === 'pending' && styles.heroBadgeTextPending,
-                  heroBadge.tone === 'warn' && styles.heroBadgeTextWarn,
-                ]}>
-                {heroBadge.label}
-              </Text>
+            <View style={styles.cardHeaderText}>
+              <Text style={styles.cardTitle}>Conexión del dispositivo</Text>
+              <StatusPill label={connectionPillLabel} tone={connectionTone} size="sm" />
             </View>
           </View>
 
-          <Text style={styles.heroStatus}>{statusLabel(status)}</Text>
-          <Text style={styles.heroHint}>
+          <View style={styles.metricsRow}>
+            <InfoTile
+              label="Conexión"
+              value={isOnline ? 'Activa' : 'Inactiva'}
+              tone={isOnline ? 'success' : 'neutral'}
+              compact
+            />
+            <InfoTile
+              label="Señal"
+              value={signalValid ? 'Válida' : 'Sin lectura'}
+              tone={signalValid ? 'success' : isOnline ? 'warning' : 'neutral'}
+              compact
+            />
+            <InfoTile
+              label="Calibración"
+              value={hasCalibration ? 'Lista' : 'Pendiente'}
+              tone={hasCalibration ? 'success' : 'warning'}
+              compact
+            />
+          </View>
+
+          <Text style={styles.hint}>
             {readyForTherapy
               ? 'Conexión activa y calibración guardada. El dispositivo está listo.'
               : isOnline
                 ? hasCalibration
                   ? 'Sensor conectado. Revisa la señal o actualiza la calibración si lo necesitas.'
                   : 'Sensor conectado. Falta registrar la calibración local.'
-                : 'Conéctate por WiFi local al ESP32 para revisar el dispositivo.'}
+                : 'Conecta el dispositivo por WiFi local al ESP32.'}
           </Text>
-
-          <View style={styles.statusPillRow}>
-            <StatusPill
-              label="Conexión"
-              value={isOnline ? 'Activa' : 'Inactiva'}
-              tone={isOnline ? 'ok' : 'neutral'}
-            />
-            <StatusPill
-              label="Señal"
-              value={signalValid ? 'Válida' : 'Sin lectura'}
-              tone={signalValid ? 'ok' : isOnline ? 'pending' : 'neutral'}
-            />
-          </View>
 
           {status === 'error' && errorMessage ? (
             <View style={styles.errorBox}>
               <Text style={styles.errorBoxText}>{errorMessage}</Text>
-              <Pressable
+              <AppButton
+                title="Limpiar conexión"
                 onPress={onResetConnection}
-                style={({ pressed }) => [styles.errorBtn, pressed && styles.errorBtnPressed]}
-                accessibilityRole="button"
-                accessibilityLabel="Limpiar conexión y reintentar">
-                <Text style={styles.errorBtnText}>Limpiar conexión</Text>
-              </Pressable>
+                variant="ghost"
+              />
             </View>
           ) : null}
+        </AppCard>
 
-        </View>
-
-        {/* Zone B — Acciones principales */}
-        {primaryAction ? (
-          <Pressable
-            style={({ pressed }) => [
-              styles.primaryBtn,
-              primaryAction.disabled && styles.btnDisabled,
-              pressed && !primaryAction.disabled && styles.primaryBtnPressed,
-            ]}
-            onPress={primaryAction.onPress}
-            disabled={primaryAction.disabled}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: primaryAction.disabled }}>
-            <Text style={[styles.primaryBtnText, primaryAction.disabled && styles.btnTextDisabled]}>
-              {primaryAction.label}
-            </Text>
-          </Pressable>
+        {/* Primary action */}
+        {!isOnline ? (
+          <AppButton
+            title={isConnecting ? 'Conectando…' : 'Conectar dispositivo'}
+            onPress={onConnect}
+            variant="primary"
+            disabled={isConnecting}
+            iconName="dot.radiowaves.left.and.right"
+          />
         ) : null}
 
-        {/* Módulo 2 — Calibración */}
-        <View style={styles.moduleDivider} />
-        <Text style={styles.sectionLabel}>Calibración</Text>
+        {/* Disconnect action */}
+        {isOnline || isConnecting ? (
+          <AppButton
+            title="Desconectar"
+            onPress={onDisconnect}
+            variant="ghost"
+          />
+        ) : null}
 
-        <View style={styles.calibrationModule}>
-          <View style={styles.calibModuleHeader}>
-            <View style={styles.calibModuleIconWrap}>
-              <IconSymbol name="gearshape.fill" size={22} color={
-                hasCalibration ? wellness.primaryDark : wellness.textSecondary
-              } />
+        {/* Calibration Card */}
+        <View style={styles.divider} />
+
+        <AppCard>
+          <View style={styles.cardHeader}>
+            <View style={[styles.cardIconWrap, hasCalibration && styles.cardIconWrapActive]}>
+              <IconSymbol
+                name="gearshape.fill"
+                size={22}
+                color={hasCalibration ? wellnessColors.primaryDark : wellnessColors.textMuted}
+              />
             </View>
-            <View style={styles.calibModuleTextCol}>
-              <Text style={styles.calibModuleTitle}>
+            <View style={styles.cardHeaderText}>
+              <Text style={styles.cardTitle}>
                 {calibrationSnapshot.kind === 'loading'
                   ? 'Revisando calibración…'
                   : hasCalibration
@@ -275,52 +264,35 @@ export function SensorConnectionScreen() {
                       ? 'Calibración con errores'
                       : 'Calibración pendiente'}
               </Text>
-              <Text style={styles.calibModuleSubtitle}>
+              <Text style={styles.cardSubtitle}>
                 {calibrationSnapshot.kind === 'ready'
                   ? `${calibrationSnapshot.profile.points.length} ${calibrationSnapshot.profile.points.length === 1 ? 'punto' : 'puntos'} · ${formatShortDate(calibrationSnapshot.profile.updatedAt)}`
                   : calibrationSnapshot.kind === 'corrupt'
                     ? 'El perfil guardado no se pudo leer. Recalibra desde cero.'
                     : calibrationSnapshot.kind === 'loading'
                       ? 'Comprobando datos guardados…'
-                      : 'Registra la calibración para usar medición confiable.'}
+                      : 'Calibra el dispositivo para mejorar la estimación del volumen.'}
               </Text>
             </View>
           </View>
 
-          <View style={styles.calibModuleBtnRow}>
-            <Pressable
-              style={({ pressed }) => [styles.calibModuleBtn, pressed && styles.calibModuleBtnPressed]}
+          <View style={styles.calibActions}>
+            <AppButton
+              title={hasCalibration ? 'Ver calibración' : 'Ir a calibración'}
               onPress={onOpenCalibration}
-              accessibilityRole="button"
-              accessibilityLabel="Ver calibración">
-              <Text style={styles.calibModuleBtnText}>
-                {hasCalibration ? 'Ver calibración' : 'Ir a calibración'}
-              </Text>
-            </Pressable>
+              variant="secondary"
+            />
             {hasCalibration ? (
-              <Pressable
-                style={({ pressed }) => [styles.calibModuleBtnSecondary, pressed && styles.calibModuleBtnPressed]}
+              <AppButton
+                title="Recalibrar"
                 onPress={onOpenCalibration}
-                accessibilityRole="button"
-                accessibilityLabel="Recalibrar">
-                <Text style={styles.calibModuleBtnSecondaryText}>Recalibrar</Text>
-              </Pressable>
+                variant="ghost"
+              />
             ) : null}
           </View>
-        </View>
+        </AppCard>
 
-        {/* Secondary action — disconnect (solo si está conectado o conectando) */}
-        {isOnline || isConnecting ? (
-          <Pressable
-            style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
-            onPress={onDisconnect}
-            accessibilityRole="button"
-            accessibilityLabel="Desconectar dispositivo">
-            <Text style={styles.secondaryBtnText}>Desconectar</Text>
-          </Pressable>
-        ) : null}
-
-        {/* SensorLivePreview siempre visible cuando hay lectura — feedback emocional inmediato */}
+        {/* SensorLivePreview */}
         {lastReading ? (
           <SensorLivePreview
             distanceMm={lastReading.distanceMm}
@@ -331,6 +303,7 @@ export function SensorConnectionScreen() {
           />
         ) : null}
 
+        {/* Technical debug — only when enabled */}
         {debug ? (
           <>
             <Pressable
@@ -346,11 +319,9 @@ export function SensorConnectionScreen() {
             </Pressable>
 
             {techExpanded ? (
-              <View style={styles.techCard}>
+              <AppCard style={styles.techCard}>
                 <View style={styles.techHeaderRow}>
-                  <View style={styles.techHeaderIcon}>
-                    <IconSymbol name="gearshape.fill" size={16} color={wellness.textSecondary} />
-                  </View>
+                  <IconSymbol name="gearshape.fill" size={16} color={wellnessColors.textSecondary} />
                   <Text style={styles.techSection}>Conexión y diagnóstico</Text>
                 </View>
                 <TextInput
@@ -361,7 +332,7 @@ export function SensorConnectionScreen() {
                   keyboardType="url"
                   style={styles.urlInput}
                   placeholder="ws://192.168.4.1:81"
-                  placeholderTextColor={wellness.textSecondary}
+                  placeholderTextColor={wellnessColors.textMuted}
                 />
                 <Text style={styles.urlHint}>
                   URL del WebSocket del ESP32. Cambia solo si tu firmware usa otra dirección.
@@ -390,79 +361,38 @@ export function SensorConnectionScreen() {
 
                 <View style={styles.techDivider} />
                 <Text style={styles.techSection}>Diagnóstico avanzado</Text>
-                <Text style={styles.techDebugHint}>
-                  Opciones para verificación técnica del sensor en este dispositivo.
-                </Text>
-                <Pressable
-                  style={({ pressed }) => [styles.debugBtn, pressed && styles.debugBtnPressed]}
+
+                <AppButton
+                  title={isMock ? 'Detener lectura de prueba' : 'Iniciar lectura de prueba'}
                   onPress={() => {
                     hapticLight();
                     if (isMock) stopMock();
                     else startMock();
                   }}
-                  accessibilityRole="button"
-                  accessibilityLabel={isMock ? 'Detener lectura de prueba' : 'Iniciar lectura de prueba'}>
-                  <Text style={styles.debugBtnText}>
-                    {isMock ? 'Detener lectura de prueba' : 'Iniciar lectura de prueba'}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [styles.debugBtn, pressed && styles.debugBtnPressed]}
+                  variant="ghost"
+                />
+                <AppButton
+                  title="Laboratorio de hardware"
                   onPress={() => {
                     hapticLight();
                     router.push('/hardware-lab');
                   }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Abrir laboratorio de hardware">
-                  <Text style={styles.debugBtnText}>Laboratorio de hardware</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [styles.debugBtn, pressed && styles.debugBtnPressed]}
+                  variant="ghost"
+                />
+                <AppButton
+                  title="Prueba raw WebSocket"
                   onPress={() => {
                     hapticLight();
                     router.push('/esp32-raw-test');
                   }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Prueba raw WebSocket">
-                  <Text style={styles.debugBtnText}>Prueba raw WebSocket</Text>
-                </Pressable>
-              </View>
+                  variant="ghost"
+                />
+              </AppCard>
             ) : null}
           </>
         ) : null}
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function StatusPill({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: 'ok' | 'pending' | 'warn' | 'neutral';
-}) {
-  return (
-    <View
-      style={[
-        styles.statusPill,
-        tone === 'ok' && styles.statusPillOk,
-        tone === 'pending' && styles.statusPillPending,
-        tone === 'warn' && styles.statusPillWarn,
-      ]}>
-      <Text style={styles.statusPillLabel}>{label}</Text>
-      <Text
-        style={[
-          styles.statusPillValue,
-          tone === 'ok' && styles.statusPillValueOk,
-          tone === 'pending' && styles.statusPillValuePending,
-          tone === 'warn' && styles.statusPillValueWarn,
-        ]}>
-        {value}
-      </Text>
-    </View>
   );
 }
 
@@ -478,394 +408,152 @@ function DiagRow({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: wellness.screenBg },
+  safe: { flex: 1, backgroundColor: wellnessColors.background },
   scroll: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl * 2,
+    gap: spacing.md,
   },
-  eyebrow: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: wellness.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: spacing.xs,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: wellness.text,
-    letterSpacing: -0.3,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    fontSize: 15,
-    lineHeight: 21,
-    color: wellness.textSecondary,
-    marginBottom: spacing.lg,
-  },
-  heroCard: {
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.cardLarge,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    ...wellnessShadows.card,
-  },
-  heroTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  heroIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    backgroundColor: wellness.successBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: wellness.border,
-  },
-  heroBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: wellnessRadii.pill,
-    backgroundColor: wellness.screenBg,
-    borderWidth: 1,
-    borderColor: wellness.border,
-  },
-  heroBadgeOk: { backgroundColor: wellness.successBg, borderColor: wellness.border },
-  heroBadgePending: { backgroundColor: wellness.softGreen, borderColor: wellness.border },
-  heroBadgeWarn: { backgroundColor: wellness.errorBg, borderColor: wellness.borderStrong },
-  heroBadgeText: { fontSize: 12, fontWeight: '800', color: wellness.textSecondary, letterSpacing: 0.2 },
-  heroBadgeTextOk: { color: wellness.primaryDark },
-  heroBadgeTextPending: { color: wellness.text },
-  heroBadgeTextWarn: { color: wellness.errorText },
-  heroStatus: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: wellness.primaryDark,
-    letterSpacing: -0.3,
-  },
-  heroHint: {
-    marginTop: 4,
-    fontSize: 14,
-    lineHeight: 20,
-    color: wellness.textSecondary,
-  },
-  statusPillRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginTop: spacing.md,
-  },
-  statusPill: {
-    flexGrow: 1,
-    flexBasis: '30%',
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: spacing.sm,
-    borderRadius: 14,
-    backgroundColor: wellness.screenBg,
-    borderWidth: 1,
-    borderColor: wellness.border,
-  },
-  statusPillOk: { backgroundColor: wellness.successBg, borderColor: wellness.border },
-  statusPillPending: { backgroundColor: wellness.softGreen, borderColor: wellness.border },
-  statusPillWarn: { backgroundColor: wellness.errorBg, borderColor: wellness.borderStrong },
-  statusPillLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: wellness.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  statusPillValue: { fontSize: 15, fontWeight: '800', color: wellness.text, marginTop: 2 },
-  statusPillValueOk: { color: wellness.primaryDark },
-  statusPillValuePending: { color: wellness.text },
-  statusPillValueWarn: { color: wellness.errorText },
-  errorBox: {
-    marginTop: spacing.md,
-    backgroundColor: wellness.errorBg,
-    borderRadius: wellnessRadii.card,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: wellness.borderStrong,
-    gap: spacing.sm,
-  },
-  errorBoxText: { fontSize: 14, lineHeight: 20, color: wellness.errorText, fontWeight: '600' },
-  errorBtn: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: wellnessRadii.pill,
-    backgroundColor: wellness.screenBg,
-    borderWidth: 1,
-    borderColor: wellness.borderStrong,
-  },
-  errorBtnPressed: { opacity: 0.9 },
-  errorBtnText: { fontSize: 13, fontWeight: '800', color: wellness.errorText },
-  primaryBtn: {
-    backgroundColor: wellness.primary,
-    borderRadius: wellnessRadii.pill,
-    paddingVertical: spacing.md + 4,
-    alignItems: 'center',
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: wellness.borderStrong,
-    ...wellnessShadows.cardPress,
-  },
-  primaryBtnPressed: { opacity: 0.92 },
-  primaryBtnText: { fontSize: 17, fontWeight: '800', color: wellness.primaryDark },
-  secondaryBtn: {
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.pill,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: wellness.borderStrong,
-  },
-  secondaryBtnPressed: { opacity: 0.92 },
-  secondaryBtnText: { fontSize: 16, fontWeight: '700', color: wellness.primaryDark },
-  btnDisabled: { opacity: 0.45 },
-  btnTextDisabled: { color: wellness.textSecondary },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: wellness.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  moduleDivider: {
-    height: 1,
-    backgroundColor: wellness.border,
-    marginVertical: spacing.lg,
-  },
-  calibrationModule: {
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.cardLarge,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    marginBottom: spacing.md,
-    ...wellnessShadows.card,
-  },
-  calibModuleHeader: {
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.md,
     marginBottom: spacing.md,
   },
-  calibModuleIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: wellness.softGreen,
-    borderWidth: 1,
-    borderColor: wellness.border,
+  cardIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: wellnessRadius.md,
+    backgroundColor: wellnessColors.primarySubtle,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  calibModuleTextCol: { flex: 1 },
-  calibModuleTitle: { fontSize: 17, fontWeight: '800', color: wellness.text },
-  calibModuleSubtitle: { fontSize: 14, color: wellness.textSecondary, marginTop: 2, lineHeight: 20 },
-  calibModuleBtnRow: {
+  cardIconWrapActive: {
+    backgroundColor: wellnessColors.successSoft,
+  },
+  cardHeaderText: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: wellnessColors.textPrimary,
+  },
+  cardSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: wellnessColors.textSecondary,
+  },
+  metricsRow: {
     flexDirection: 'row',
     gap: spacing.sm,
-  },
-  calibModuleBtn: {
-    flex: 1,
-    backgroundColor: wellness.primary,
-    borderRadius: wellnessRadii.pill,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: wellness.borderStrong,
-  },
-  calibModuleBtnPressed: { opacity: 0.92 },
-  calibModuleBtnText: { fontSize: 15, fontWeight: '800', color: wellness.primaryDark },
-  calibModuleBtnSecondary: {
-    flex: 1,
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.pill,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: wellness.borderStrong,
-  },
-  calibModuleBtnSecondaryText: { fontSize: 15, fontWeight: '700', color: wellness.primaryDark },
-  savedCalibCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.cardLarge,
-    padding: spacing.lg,
     marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    gap: spacing.md,
-    ...wellnessShadows.card,
   },
-  savedCalibCardWarn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: wellness.errorBg,
-    borderRadius: wellnessRadii.cardLarge,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: wellness.borderStrong,
-    gap: spacing.md,
+  hint: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: wellnessColors.textSecondary,
   },
-  savedCalibCardPressed: { opacity: 0.94 },
-  savedCalibIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: wellness.successBg,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+  errorBox: {
+    marginTop: spacing.md,
+    backgroundColor: wellnessColors.dangerSoft,
+    borderRadius: wellnessRadius.md,
+    padding: spacing.md,
+    gap: spacing.sm,
   },
-  savedCalibIconWarnWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: wellness.errorBg,
-    borderWidth: 1,
-    borderColor: wellness.borderStrong,
-    alignItems: 'center',
-    justifyContent: 'center',
+  errorBoxText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: wellnessColors.danger,
+    fontWeight: '600',
   },
-  savedCalibTextCol: { flex: 1 },
-  savedCalibTitle: { fontSize: 16, fontWeight: '800', color: wellness.text },
-  savedCalibTitleWarn: { fontSize: 16, fontWeight: '800', color: wellness.errorText },
-  savedCalibMeta: { fontSize: 13, color: wellness.textSecondary, marginTop: 2, lineHeight: 18 },
-  savedCalibCta: { marginTop: 6, fontSize: 14, fontWeight: '700', color: wellness.link },
+  divider: {
+    height: 1,
+    backgroundColor: wellnessColors.border,
+    marginVertical: spacing.sm,
+  },
+  calibActions: {
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
   accordionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.card,
+    backgroundColor: wellnessColors.card,
+    borderRadius: wellnessRadius.md,
     borderWidth: 1,
-    borderColor: wellness.border,
-    marginBottom: spacing.sm,
+    borderColor: wellnessColors.border,
   },
   accordionHeaderPressed: { opacity: 0.94 },
-  accordionTitle: { fontSize: 14, fontWeight: '800', color: wellness.text, letterSpacing: 0.1 },
-  accordionChevron: { fontSize: 16, fontWeight: '800', color: wellness.textSecondary },
+  accordionTitle: { fontSize: 14, fontWeight: '700', color: wellnessColors.textPrimary },
+  accordionChevron: { fontSize: 16, fontWeight: '800', color: wellnessColors.textMuted },
   techCard: {
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.card,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    marginBottom: spacing.md,
+    gap: spacing.sm,
   },
   techHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  techHeaderIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: wellness.screenBg,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   techSection: {
     fontSize: 12,
-    fontWeight: '800',
-    color: wellness.textSecondary,
+    fontWeight: '700',
+    color: wellnessColors.textSecondary,
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: spacing.sm,
+    letterSpacing: 0.5,
   },
   techDivider: {
     height: 1,
-    backgroundColor: wellness.border,
-    marginVertical: spacing.md,
+    backgroundColor: wellnessColors.border,
+    marginVertical: spacing.sm,
   },
   urlInput: {
     borderWidth: 1,
-    borderColor: wellness.borderStrong,
-    backgroundColor: wellness.screenBg,
-    borderRadius: 14,
+    borderColor: wellnessColors.border,
+    backgroundColor: wellnessColors.background,
+    borderRadius: wellnessRadius.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
-    color: wellness.text,
-    fontSize: 15,
-    marginBottom: spacing.sm,
+    color: wellnessColors.textPrimary,
+    fontSize: 14,
   },
-  urlHint: { fontSize: 12, color: wellness.textSecondary, lineHeight: 16 },
+  urlHint: { fontSize: 12, color: wellnessColors.textMuted, lineHeight: 16 },
   diagRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: 3,
     gap: spacing.sm,
   },
-  diagKey: { fontSize: 13, fontWeight: '600', color: wellness.textSecondary },
+  diagKey: { fontSize: 12, fontWeight: '600', color: wellnessColors.textSecondary },
   diagValue: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
-    color: wellness.text,
+    color: wellnessColors.textPrimary,
     flexShrink: 1,
     textAlign: 'right',
   },
   techJsonLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
-    color: wellness.textSecondary,
+    color: wellnessColors.textSecondary,
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginTop: spacing.md,
-    marginBottom: spacing.xs,
+    letterSpacing: 0.3,
+    marginTop: spacing.sm,
   },
   techJson: {
-    fontSize: 12,
-    lineHeight: 16,
-    color: wellness.text,
+    fontSize: 11,
+    lineHeight: 15,
+    color: wellnessColors.textPrimary,
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
-    backgroundColor: wellness.screenBg,
-    borderRadius: 10,
+    backgroundColor: wellnessColors.background,
+    borderRadius: wellnessRadius.sm,
     padding: spacing.sm,
     borderWidth: 1,
-    borderColor: wellness.border,
+    borderColor: wellnessColors.border,
   },
-  techDebugHint: {
-    fontSize: 12,
-    color: wellness.textSecondary,
-    lineHeight: 16,
-    marginBottom: spacing.sm,
-    fontStyle: 'italic',
-  },
-  debugBtn: {
-    backgroundColor: wellness.screenBg,
-    borderRadius: wellnessRadii.pill,
-    paddingVertical: spacing.sm + 2,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: wellness.border,
-    marginBottom: spacing.sm,
-  },
-  debugBtnPressed: { opacity: 0.9 },
-  debugBtnText: { fontSize: 14, fontWeight: '700', color: wellness.textSecondary },
 });
