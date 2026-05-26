@@ -3074,10 +3074,10 @@ const styles = StyleSheet.create({
     color: wellness.primaryDark,
   },
   heroBigNumber: {
-    fontSize: 36,
+    fontSize: 30,
     fontWeight: '800',
     color: wellness.primaryDark,
-    letterSpacing: -1,
+    letterSpacing: -0.5,
   },
   pillRow: {
     flexDirection: 'row',

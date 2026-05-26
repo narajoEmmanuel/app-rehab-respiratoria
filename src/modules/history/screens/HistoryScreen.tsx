@@ -555,10 +555,10 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
   },
   screenTitle: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 26,
+    fontWeight: '800',
     color: dashboardScreen.textPrimaryStrong,
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
     marginBottom: 2,
   },
   tagline: {
@@ -571,7 +571,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     fontSize: 15,
     lineHeight: 21,
-    color: '#374151',
+    color: dashboardScreen.textPrimary,
     fontWeight: '600',
     marginBottom: spacing.sm,
   },
@@ -645,7 +645,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 6,
     borderRadius: 4,
-    backgroundColor: '#E8EDEA',
+    backgroundColor: wellnessColors.neutralSoft,
     overflow: 'hidden',
   },
   progressFill: {
@@ -737,10 +737,10 @@ const styles = StyleSheet.create({
   dayCellNum: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#1B1B1B',
+    color: dashboardScreen.textPrimary,
   },
   dayCellNumMuted: {
-    color: '#78909C',
+    color: dashboardScreen.textSecondary,
   },
   practiceDot: {
     position: 'absolute',

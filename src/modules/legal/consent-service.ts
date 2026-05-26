@@ -61,7 +61,14 @@ export async function getAcceptedConsentRecord(): Promise<AcceptedConsentRecord 
     };
   }
   const raw = await AsyncStorage.getItem(LEGAL_STORAGE_KEY);
-  return parseRecord(raw);
+  const record = parseRecord(raw);
+  if (record == null) return null;
+
+  const currentPatient = await getCurrentPatient();
+  if (currentPatient == null) return null;
+  if (String(record.userId) !== String(currentPatient.paciente_id)) return null;
+
+  return record;
 }
 
 /** Current consent lifecycle status, or `none` if no record. */
@@ -138,11 +145,16 @@ export async function withdrawConsent(): Promise<void> {
 }
 
 /**
- * Seeds a minimal active consent record locally when cloud auth is frozen off, so Terapia/tabs can load offline.
+ * Seeds a minimal active consent record locally — **dev/lab only**.
+ * In normal user flow the real LegalAcceptScreen must be used.
  * Does not write to Supabase.
  */
 export async function seedLocalPrototypeConsentForPatient(patientId: number): Promise<void> {
-  if (isCloudAuthEnabled()) return;
+  const isDevLab =
+    typeof __DEV__ !== 'undefined' &&
+    __DEV__ &&
+    process.env.EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST === 'true';
+  if (!isDevLab) return;
   const raw = await AsyncStorage.getItem(LEGAL_STORAGE_KEY);
   const existing = parseRecord(raw);
   if (

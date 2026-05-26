@@ -127,6 +127,7 @@ export default function RootLayout() {
                 <Stack.Screen name="auth/local-profile" options={{ headerShown: false, title: 'Perfil local' }} />
                 <Stack.Screen name="auth/registro" options={{ headerShown: false, title: 'Registro' }} />
                 <Stack.Screen name="legal/accept" options={{ headerShown: false, title: 'Consentimiento' }} />
+                <Stack.Screen name="legal/document" options={{ headerShown: false, title: 'Documentos legales' }} />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="profile" options={{ headerShown: false }} />
                 <Stack.Screen name="data-export" options={{ headerShown: false, title: 'Datos y exportación' }} />

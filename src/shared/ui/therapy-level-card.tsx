@@ -1,18 +1,26 @@
 /**
- * Purpose: Therapy level card — premium layout with AppCard, StatusPill, MetricTile.
+ * Purpose: Therapy level card — accent-tinted premium layout per level color.
  * Module: shared/ui
- * Dependencies: AppCard, AppButton, StatusPill, MetricTile, InfoTile, spacing, typography
+ * Dependencies: AppButton, AppCard, MetricTile, StatusPill, spacing, typography, wellness-theme
  */
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { AppButton } from '@/src/shared/ui/AppButton';
-import { AppCard } from '@/src/shared/ui/AppCard';
 import { MetricTile } from '@/src/shared/ui/MetricTile';
 import { StatusPill } from '@/src/shared/ui/StatusPill';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellnessColors, wellnessTypography } from '@/src/shared/theme/wellness-theme';
+import {
+  wellnessColors,
+  wellnessRadius,
+  wellnessShadows,
+  wellnessTypography,
+} from '@/src/shared/theme/wellness-theme';
 
-export type TherapyLevelStatusChip = 'completed' | 'in_progress' | 'available' | 'locked' | 'recommended';
+export type TherapyLevelStatusChip =
+  | 'completed'
+  | 'in_progress'
+  | 'available'
+  | 'locked'
+  | 'recommended';
 
 type TherapyLevelCardProps = {
   levelNumber: number;
@@ -43,6 +51,30 @@ const STATUS_CONFIG: Record<
   locked: { label: 'Bloqueado', tone: 'neutral', buttonLabel: 'Pendiente' },
 };
 
+function hexToRgba(hex: string, alpha: number): string {
+  const cleaned = hex.replace('#', '');
+  const r = parseInt(cleaned.substring(0, 2), 16);
+  const g = parseInt(cleaned.substring(2, 4), 16);
+  const b = parseInt(cleaned.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function darkenHex(hex: string, amount: number): string {
+  const cleaned = hex.replace('#', '');
+  const r = Math.max(0, parseInt(cleaned.substring(0, 2), 16) - Math.round(255 * amount));
+  const g = Math.max(0, parseInt(cleaned.substring(2, 4), 16) - Math.round(255 * amount));
+  const b = Math.max(0, parseInt(cleaned.substring(4, 6), 16) - Math.round(255 * amount));
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+function parseProgress(display: string): { current: number; total: number } {
+  const parts = display.split('/');
+  return {
+    current: parseInt(parts[0], 10) || 0,
+    total: parseInt(parts[1], 10) || 6,
+  };
+}
+
 export function TherapyLevelCard({
   levelNumber,
   humanName,
@@ -64,158 +96,269 @@ export function TherapyLevelCard({
   const holdSeconds = (requiredHoldMs / 1000).toFixed(0);
   const restSeconds = (restMs / 1000).toFixed(1).replace(/\.0$/, '');
 
+  const accentSoftBg = locked ? '#F7F7F7' : hexToRgba(accentColor, 0.02);
+  const accentTintBg = locked ? '#F0F0F0' : hexToRgba(accentColor, 0.05);
+  const accentBorder = locked ? '#E3E3E3' : hexToRgba(accentColor, 0.14);
+  const accentMetricBg = hexToRgba(accentColor, 0.035);
+  const accentDark = darkenHex(accentColor, 0.15);
+
+  const perfectProgress = parseProgress(perfectSessionsDisplay);
+  const perfectPercent =
+    perfectProgress.total > 0
+      ? Math.min(100, Math.round((perfectProgress.current / perfectProgress.total) * 100))
+      : 0;
+
+  const isHighlight = statusChip === 'recommended';
+
   return (
-    <AppCard
-      variant={statusChip === 'recommended' ? 'highlight' : locked ? 'soft' : 'default'}
-      style={[styles.card, locked && styles.cardLocked]}
-      pressable={!locked && !starting}
-      onPress={onPress}>
-      <View style={styles.header}>
-        <View style={[styles.levelBadge, { backgroundColor: locked ? '#E8E8E8' : accentColor }]}>
-          <Text style={[styles.levelBadgeText, locked && styles.levelBadgeTextLocked]}>
-            {levelNumber}
-          </Text>
-        </View>
-        <View style={styles.headerText}>
-          <View style={styles.headerTop}>
-            <Text style={styles.levelLabel}>Nivel {levelNumber}</Text>
-            <StatusPill label={config.label} tone={config.tone} size="sm" />
-          </View>
-          <Text style={[styles.humanName, locked && styles.humanNameLocked]} numberOfLines={1}>
-            {humanName}
-          </Text>
-        </View>
-      </View>
+    <Pressable
+      style={({ pressed }) => [
+        styles.card,
+        { backgroundColor: accentSoftBg, borderColor: accentBorder },
+        isHighlight && { borderColor: hexToRgba(accentColor, 0.28), borderWidth: 2 },
+        locked && styles.cardLocked,
+        pressed && !locked && !starting && styles.cardPressed,
+        wellnessShadows.soft,
+      ]}
+      onPress={onPress}
+      disabled={locked || starting}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: locked || starting }}>
+      {/* Accent left stripe */}
+      <View
+        style={[
+          styles.accentStripe,
+          { backgroundColor: locked ? '#D4D4D4' : accentColor },
+        ]}
+      />
 
-      <Text style={[styles.purpose, locked && styles.purposeLocked]} numberOfLines={2}>
-        {purpose}
-      </Text>
-
-      {!locked && (
-        <View style={styles.metricsGrid}>
-          <MetricTile
-            label="Volumen objetivo"
-            value={`${targetVolumeMl} mL`}
-            size="compact"
-            iconName="target"
-          />
-          <MetricTile
-            label="Sostén"
-            value={`${holdSeconds} s`}
-            size="compact"
-            iconName="timer"
-          />
-          <MetricTile
-            label="Descanso"
-            value={`${restSeconds} s`}
-            size="compact"
-            iconName="repeat"
-          />
-          <MetricTile
-            label="Repeticiones"
-            value={String(repetitionsPerSession)}
-            size="compact"
-            iconName="target"
-          />
-        </View>
-      )}
-
-      {!locked && (
-        <View style={styles.progressRow}>
-          <View style={styles.progressItem}>
-            <Text style={styles.progressLabel}>Completadas hoy</Text>
-            <Text style={styles.progressValue}>{completedSessionsDisplay}</Text>
-          </View>
-          <View style={styles.progressDivider} />
-          <View style={styles.progressItem}>
-            <Text style={styles.progressLabel}>Perfectas</Text>
-            <Text style={styles.progressValue}>{perfectSessionsDisplay}</Text>
-          </View>
-        </View>
-      )}
-
-      {helperText ? (
-        <Text style={styles.helper} numberOfLines={2}>
-          {helperText}
-        </Text>
-      ) : null}
-
-      {locked ? (
-        <View style={styles.lockedMessage}>
-          <Text style={styles.lockedMessageText}>
-            Completa el nivel anterior para desbloquear este nivel.
-          </Text>
-        </View>
-      ) : (
-        <View style={styles.buttonWrap}>
-          {starting ? (
-            <View style={styles.loadingButton}>
-              <ActivityIndicator color={wellnessColors.primary} size="small" />
+      <View style={styles.body}>
+        {/* Header: badge + level label + status */}
+        <View style={[styles.headerBg, { backgroundColor: accentTintBg }]}>
+          <View style={styles.headerRow}>
+            <View
+              style={[
+                styles.levelBadge,
+                { backgroundColor: locked ? '#E0E0E0' : accentColor },
+              ]}>
+              <Text style={[styles.levelBadgeText, locked && styles.levelBadgeTextLocked]}>
+                {levelNumber}
+              </Text>
             </View>
-          ) : (
-            <AppButton
-              title={config.buttonLabel}
-              onPress={onPress}
-              variant={statusChip === 'completed' ? 'secondary' : 'primary'}
-            />
-          )}
+            <View style={styles.headerMeta}>
+              <Text style={[styles.levelLabel, !locked && { color: accentDark }]}>
+                Nivel {levelNumber}
+              </Text>
+              <StatusPill label={config.label} tone={config.tone} size="sm" />
+            </View>
+          </View>
         </View>
-      )}
-    </AppCard>
+
+        {/* Title — dominant */}
+        <Text style={[styles.humanName, locked && styles.humanNameLocked]} numberOfLines={1}>
+          {humanName}
+        </Text>
+
+        {/* Purpose */}
+        <Text style={[styles.purpose, locked && styles.purposeLocked]} numberOfLines={2}>
+          {purpose}
+        </Text>
+
+        {/* Metrics grid */}
+        {!locked && (
+          <View style={styles.metricsGrid}>
+            <MetricTile
+              label="Volumen objetivo"
+              value={`${targetVolumeMl} mL`}
+              size="compact"
+              iconName="target"
+              overrideAccent={accentDark}
+              overrideBg={accentMetricBg}
+            />
+            <MetricTile
+              label="Sostén"
+              value={`${holdSeconds} s`}
+              size="compact"
+              iconName="timer"
+              overrideAccent={accentDark}
+              overrideBg={accentMetricBg}
+            />
+            <MetricTile
+              label="Descanso"
+              value={`${restSeconds} s`}
+              size="compact"
+              iconName="repeat"
+              overrideAccent={accentDark}
+              overrideBg={accentMetricBg}
+            />
+            <MetricTile
+              label="Reps."
+              value={String(repetitionsPerSession)}
+              size="compact"
+              iconName="target"
+              overrideAccent={accentDark}
+              overrideBg={accentMetricBg}
+            />
+          </View>
+        )}
+
+        {/* Progress bar + counts */}
+        {!locked && (
+          <View style={styles.progressSection}>
+            <View style={styles.progressCounts}>
+              <View style={styles.progressItem}>
+                <Text style={styles.progressLabel}>Completadas hoy</Text>
+                <Text style={[styles.progressValue, { color: accentDark }]}>
+                  {completedSessionsDisplay}
+                </Text>
+              </View>
+              <View style={[styles.progressDivider, { backgroundColor: accentBorder }]} />
+              <View style={styles.progressItem}>
+                <Text style={styles.progressLabel}>Dentro de meta</Text>
+                <Text style={[styles.progressValue, { color: accentDark }]}>
+                  {perfectSessionsDisplay}
+                </Text>
+              </View>
+            </View>
+            <View style={[styles.progressTrack, { backgroundColor: hexToRgba(accentColor, 0.10) }]}>
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    backgroundColor: accentColor,
+                    width: `${perfectPercent}%`,
+                  },
+                ]}
+              />
+            </View>
+          </View>
+        )}
+
+        {/* Helper text */}
+        {helperText ? (
+          <Text style={styles.helper} numberOfLines={2}>
+            {helperText}
+          </Text>
+        ) : null}
+
+        {/* Locked message or CTA */}
+        {locked ? (
+          <View style={styles.lockedMessage}>
+            <Text style={styles.lockedMessageText}>
+              Completa el nivel anterior para desbloquear este nivel.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.buttonWrap}>
+            {starting ? (
+              <View style={styles.loadingButton}>
+                <ActivityIndicator color={accentColor} size="small" />
+              </View>
+            ) : (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.ctaButton,
+                  statusChip === 'completed'
+                    ? {
+                        backgroundColor: wellnessColors.card,
+                        borderWidth: 1,
+                        borderColor: accentBorder,
+                      }
+                    : { backgroundColor: accentColor },
+                  pressed && styles.ctaButtonPressed,
+                ]}
+                onPress={onPress}
+                accessibilityRole="button">
+                <Text
+                  style={[
+                    styles.ctaButtonText,
+                    statusChip === 'completed' && { color: accentDark },
+                  ]}>
+                  {config.buttonLabel}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+      </View>
+    </Pressable>
   );
 }
 
+const STRIPE_WIDTH = 5;
+
 const styles = StyleSheet.create({
   card: {
+    flexDirection: 'row',
+    borderRadius: wellnessRadius.lg,
+    borderWidth: 1,
+    overflow: 'hidden',
     marginBottom: spacing.md,
   },
   cardLocked: {
-    opacity: 0.88,
+    opacity: 0.85,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
+  cardPressed: {
+    opacity: 0.95,
+  },
+  accentStripe: {
+    width: STRIPE_WIDTH,
+    alignSelf: 'stretch',
+  },
+  body: {
+    flex: 1,
+    padding: spacing.md,
+    paddingLeft: spacing.md,
+  },
+  headerBg: {
+    marginHorizontal: -spacing.md,
+    marginTop: -spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
     marginBottom: spacing.sm,
+    borderTopRightRadius: wellnessRadius.lg - 1,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   levelBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 38,
+    height: 38,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
   },
   levelBadgeText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '800',
   },
   levelBadgeTextLocked: {
-    color: '#9CA3AF',
+    color: wellnessColors.textMuted,
   },
-  headerText: {
+  headerMeta: {
     flex: 1,
-    minWidth: 0,
-  },
-  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.xs,
-    marginBottom: 2,
   },
   levelLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     color: wellnessColors.textSecondary,
     letterSpacing: 0.2,
   },
   humanName: {
     ...wellnessTypography.cardTitle,
-    fontSize: 19,
+    fontSize: 20,
     fontWeight: '800',
     color: wellnessColors.textPrimary,
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
+    marginBottom: 4,
   },
   humanNameLocked: {
     color: wellnessColors.textMuted,
@@ -235,14 +378,13 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: spacing.md,
   },
-  progressRow: {
+  progressSection: {
+    marginBottom: spacing.sm,
+  },
+  progressCounts: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: wellnessColors.primarySubtle,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginBottom: spacing.sm,
+    marginBottom: 8,
   },
   progressItem: {
     flex: 1,
@@ -257,13 +399,21 @@ const styles = StyleSheet.create({
   progressValue: {
     fontSize: 16,
     fontWeight: '800',
-    color: wellnessColors.primaryDark,
   },
   progressDivider: {
     width: 1,
-    height: 28,
-    backgroundColor: wellnessColors.border,
+    height: 24,
     marginHorizontal: spacing.sm,
+  },
+  progressTrack: {
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+    minWidth: 4,
   },
   helper: {
     fontSize: 13,
@@ -293,5 +443,21 @@ const styles = StyleSheet.create({
     minHeight: 50,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  ctaButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 50,
+    borderRadius: wellnessRadius.md,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+  },
+  ctaButtonPressed: {
+    opacity: 0.9,
+  },
+  ctaButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

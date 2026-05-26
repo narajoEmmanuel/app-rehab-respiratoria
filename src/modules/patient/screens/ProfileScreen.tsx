@@ -12,12 +12,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { getLatestDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
 import type { DiagnosticRecord } from '@/src/modules/diagnostics/types';
 import {
-  getAcceptedConsentRecord,
+  isConsentActive,
   withdrawConsent,
 } from '@/src/modules/legal/consent-service';
-import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
-import { openLegalDocument } from '@/src/modules/legal/open-legal-document';
-import type { AcceptedConsentRecord } from '@/src/modules/legal/types';
+import { LEGAL_ACCEPT_HREF, LEGAL_DOCUMENT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { getNotificationPreferences } from '@/src/modules/notifications/storage/notification-preferences-repository';
 import type { NotificationPreferences } from '@/src/modules/notifications/types/notification-preferences';
 import { DeletePatientConfirmModal } from '@/src/modules/patient/components/DeletePatientConfirmModal';
@@ -25,7 +23,6 @@ import { ProfileActionRow } from '@/src/modules/patient/components/ProfileAction
 import { ProfileAvatarPicker } from '@/src/modules/patient/components/ProfileAvatarPicker';
 import { ProfileInfoCard } from '@/src/modules/patient/components/ProfileInfoCard';
 import { ProfileSection } from '@/src/modules/patient/components/ProfileSection';
-import type { ProfileConsentBadgeVariant } from '@/src/modules/patient/components/ProfileStatusBadge';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { LOCAL_PROFILE_HREF } from '@/src/modules/auth/local-profile-hrefs';
 import { deleteCurrentPatientLocalData } from '@/src/modules/patient/patient-delete-service';
@@ -37,11 +34,13 @@ import {
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { IconSymbol } from '@/src/shared/ui/icon-symbol';
+import { AppButton } from '@/src/shared/ui/AppButton';
 import { AppCard } from '@/src/shared/ui/AppCard';
 import { StatusPill } from '@/src/shared/ui/StatusPill';
 import { MetricTile } from '@/src/shared/ui/MetricTile';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellness, wellnessColors, wellnessFloatingTabBarInset, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+import { wellnessColors, wellnessFloatingTabBarInset, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 import { sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 import {
   DEFAULT_PROFILE_PREFERENCES,
@@ -65,19 +64,6 @@ type SessionQuickStats = {
   avgCompliance: number | null;
   lastSessionDateLabel: string | null;
 };
-
-function consentPresentation(record: AcceptedConsentRecord | null): {
-  variant: ProfileConsentBadgeVariant;
-  badgeLabel: string;
-} {
-  if (record == null) {
-    return { variant: 'unavailable', badgeLabel: 'No disponible' };
-  }
-  if (record.consentStatus === 'active') {
-    return { variant: 'active', badgeLabel: 'Activo' };
-  }
-  return { variant: 'withdrawn', badgeLabel: 'Retirado' };
-}
 
 function buildSessionQuickStats(sessions: SessionRecord[], patientId: number): SessionQuickStats {
   const relevant = sessions.filter(
@@ -106,7 +92,7 @@ export function ProfileScreen() {
   const router = useRouter();
   const { patient, clearSession, refreshSession } = usePatientSession();
   const [latestDiagnostic, setLatestDiagnostic] = useState<DiagnosticRecord | null>(null);
-  const [consentRecord, setConsentRecord] = useState<AcceptedConsentRecord | null>(null);
+  const [consentActive, setConsentActive] = useState(false);
   const [prefs, setPrefs] = useState<ProfilePreferences>(DEFAULT_PROFILE_PREFERENCES);
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences | null>(null);
   const [sessionQuickStats, setSessionQuickStats] = useState<SessionQuickStats | null>(null);
@@ -119,8 +105,8 @@ export function ProfileScreen() {
   );
 
   const refreshConsent = useCallback(async () => {
-    const r = await getAcceptedConsentRecord();
-    setConsentRecord(r);
+    const active = await isConsentActive();
+    setConsentActive(active);
   }, []);
 
   const resetProfileLocalState = useCallback(() => {
@@ -128,7 +114,7 @@ export function ProfileScreen() {
     setSessionQuickStats(null);
     setPrefs(DEFAULT_PROFILE_PREFERENCES);
     setNotificationPrefs(null);
-    setConsentRecord(null);
+    setConsentActive(false);
   }, []);
 
   useFocusEffect(
@@ -178,17 +164,6 @@ export function ProfileScreen() {
     [patient],
   );
 
-  const onOpenLegalPdf = useCallback(() => {
-    void (async () => {
-      try {
-        await openLegalDocument();
-      } catch (e) {
-        const message = e instanceof Error ? e.message : 'No se pudo abrir el documento.';
-        Alert.alert('Documento', message);
-      }
-    })();
-  }, []);
-
   const onWithdraw = useCallback(() => {
     Alert.alert(
       'Retirar consentimiento',
@@ -208,8 +183,6 @@ export function ProfileScreen() {
       ],
     );
   }, [refreshConsent]);
-
-  const consentUi = useMemo(() => consentPresentation(consentRecord), [consentRecord]);
 
   const onRequestDeleteProfile = useCallback(() => {
     Alert.alert(
@@ -288,8 +261,8 @@ export function ProfileScreen() {
             <Text style={styles.profileMeta}>Clave {patient.clave}</Text>
             <View style={styles.profileMetaDot} />
             <StatusPill
-              label={consentUi.badgeLabel}
-              tone={consentUi.variant === 'active' ? 'success' : consentUi.variant === 'withdrawn' ? 'danger' : 'neutral'}
+              label={consentActive ? 'Activo' : 'Pendiente'}
+              tone={consentActive ? 'success' : 'warning'}
               size="sm"
             />
           </View>
@@ -360,59 +333,56 @@ export function ProfileScreen() {
           </AppCard>
         </ProfileSection>
 
-        <ProfileSection
-          title="Privacidad, consentimiento y términos"
-          subtitle="Estado legal en este dispositivo y acceso al documento PDF.">
-          <ProfileInfoCard>
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Versión aceptada</Text>
-              <Text style={styles.fieldValue}>{consentRecord?.documentVersion ?? '—'}</Text>
-            </View>
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Fecha de aceptación</Text>
-              <Text style={styles.fieldValue}>
-                {consentRecord?.acceptedAt ? new Date(consentRecord.acceptedAt).toLocaleString() : '—'}
-              </Text>
-            </View>
-            {consentRecord?.withdrawnAt ? (
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Fecha de retiro</Text>
-                <Text style={styles.fieldValue}>{new Date(consentRecord.withdrawnAt).toLocaleString()}</Text>
-              </View>
-            ) : null}
-
-            <View style={styles.divider} />
-            <ProfileActionRow
-              label="Ver documento legal completo"
-              onPress={onOpenLegalPdf}
-              accessibilityLabel="Abrir documento legal completo"
-              variant="link"
+        <ProfileSection title="Documentos y consentimiento">
+          <AppCard>
+            <StatusPill
+              label={consentActive ? 'Consentimiento activo' : 'Consentimiento pendiente'}
+              tone={consentActive ? 'success' : 'warning'}
             />
-            <View style={styles.divider} />
-            <ProfileActionRow
-              label="Volver a aceptar términos y consentimiento"
-              onPress={() => router.push(LEGAL_ACCEPT_HREF)}
-              accessibilityLabel="Volver a aceptar documentos legales"
-              variant="primary"
-            />
+            <Text style={styles.consentHint}>
+              {consentActive
+                ? 'Ya aceptaste los documentos requeridos. Puedes consultarlos nuevamente cuando lo necesites.'
+                : 'Necesitas revisar y aceptar los documentos para continuar con la terapia.'}
+            </Text>
 
-            {consentRecord?.consentStatus === 'active' ? (
-              <View style={styles.sensitiveZone}>
+            <View style={styles.consentActions}>
+              <AppButton
+                title="Leer documentos"
+                variant="secondary"
+                onPress={() => router.push(LEGAL_DOCUMENT_HREF)}
+              />
+
+              {!consentActive ? (
+                <AppButton
+                  title="Revisar y aceptar documentos"
+                  variant="primary"
+                  onPress={() => router.push(LEGAL_ACCEPT_HREF)}
+                />
+              ) : null}
+            </View>
+          </AppCard>
+
+          {consentActive ? (
+            <View style={styles.sensitiveCard}>
+              <View style={styles.sensitiveHeader}>
+                <IconSymbol name="exclamationmark.triangle.fill" size={16} color={wellnessColors.danger} />
                 <Text style={styles.sensitiveTitle}>Zona delicada</Text>
-                <Text style={styles.sensitiveText}>
-                  Retirar el consentimiento limita Terapia, Historial y el sensor hasta que vuelvas a aceptar. No
-                  elimina automáticamente archivos que ya hayas exportado.
-                </Text>
-                <Pressable
-                  style={({ pressed }) => [styles.withdrawOutline, pressed && styles.withdrawOutlinePressed]}
-                  onPress={onWithdraw}
-                  accessibilityRole="button"
-                  accessibilityLabel="Retirar consentimiento">
-                  <Text style={styles.withdrawOutlineText}>Retirar consentimiento</Text>
-                </Pressable>
               </View>
-            ) : null}
-          </ProfileInfoCard>
+              <Text style={styles.sensitiveBody}>
+                Retirar el consentimiento bloqueará Terapia, Historial y Sensor hasta que vuelvas a aceptarlo.
+              </Text>
+              <Text style={styles.sensitiveFootnote}>
+                No elimina automáticamente archivos que ya hayas exportado.
+              </Text>
+              <Pressable
+                style={({ pressed }) => [styles.withdrawOutline, pressed && styles.withdrawOutlinePressed]}
+                onPress={onWithdraw}
+                accessibilityRole="button"
+                accessibilityLabel="Retirar consentimiento">
+                <Text style={styles.withdrawOutlineText}>Retirar consentimiento</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </ProfileSection>
 
         <ProfileSection
@@ -524,12 +494,12 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#111827',
+    color: wellnessColors.textPrimary,
     textAlign: 'center',
   },
   profileMeta: {
     fontSize: 14,
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
     fontWeight: '600',
   },
   profileMetaRow: {
@@ -541,7 +511,7 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#D1D5DB',
+    backgroundColor: wellnessColors.textMuted,
   },
   metricsRow: {
     flexDirection: 'row',
@@ -557,16 +527,16 @@ const styles = StyleSheet.create({
   },
   personalDivider: {
     height: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: wellnessColors.neutralSoft,
   },
   personalLabel: {
     fontSize: 15,
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
     fontWeight: '500',
   },
   personalValue: {
     fontSize: 15,
-    color: '#111827',
+    color: wellnessColors.textPrimary,
     fontWeight: '600',
   },
   evalMainMetric: {
@@ -581,13 +551,13 @@ const styles = StyleSheet.create({
   evalMainLabel: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
     marginBottom: 4,
   },
   evalMainValue: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#1F7A75',
+    color: wellnessColors.primaryDark,
     letterSpacing: -0.3,
   },
   evalSecondaryRow: {
@@ -600,85 +570,90 @@ const styles = StyleSheet.create({
   evalSecondaryLabel: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#9CA3AF',
+    color: wellnessColors.textMuted,
     marginBottom: 2,
   },
   evalSecondaryValue: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#374151',
+    color: wellnessColors.textPrimary,
   },
-  field: {
-    gap: spacing.xs / 2,
+  consentHint: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: wellnessColors.textSecondary,
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
   },
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    color: wellness.textSecondary,
-  },
-  fieldValue: {
-    fontSize: 16,
-    lineHeight: 22,
-    color: wellness.text,
-    fontWeight: '600',
+  consentActions: {
+    gap: spacing.sm,
   },
   divider: {
     height: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: wellnessColors.neutralSoft,
     marginVertical: spacing.xs,
   },
-  sensitiveZone: {
-    marginTop: spacing.md,
+  sensitiveCard: {
+    marginTop: spacing.sm,
     padding: spacing.md,
     borderRadius: wellnessRadii.card,
     borderWidth: 1,
-    borderColor: 'rgba(140, 58, 66, 0.35)',
-    backgroundColor: wellness.errorBg,
-    gap: spacing.sm,
+    borderColor: 'rgba(185, 28, 28, 0.18)',
+    backgroundColor: wellnessColors.dangerSoft,
+  },
+  sensitiveHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: spacing.xs,
   },
   sensitiveTitle: {
     fontSize: 12,
     fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    color: wellness.errorText,
+    color: wellnessColors.danger,
   },
-  sensitiveText: {
+  sensitiveBody: {
     fontSize: 14,
-    lineHeight: 21,
-    color: wellness.text,
+    lineHeight: 20,
+    color: wellnessColors.textPrimary,
+    marginBottom: 4,
+  },
+  sensitiveFootnote: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: wellnessColors.textSecondary,
+    marginBottom: spacing.sm,
   },
   withdrawOutline: {
     alignSelf: 'flex-start',
-    marginTop: spacing.xs,
-    paddingVertical: spacing.sm,
+    paddingVertical: 10,
     paddingHorizontal: spacing.lg,
     borderRadius: wellnessRadii.pill,
     borderWidth: 1.5,
-    borderColor: wellness.errorText,
+    borderColor: wellnessColors.danger,
     backgroundColor: '#FFFFFF',
   },
   withdrawOutlinePressed: {
-    opacity: 0.92,
+    opacity: 0.88,
   },
   deleteSectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
+    color: wellnessColors.textPrimary,
     marginBottom: spacing.xs,
   },
   deleteSectionBody: {
     fontSize: 14,
     lineHeight: 20,
-    color: '#4B5563',
+    color: wellnessColors.textSecondary,
     marginBottom: spacing.sm,
   },
   deleteSectionHint: {
     fontSize: 13,
     lineHeight: 18,
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
     marginBottom: spacing.md,
   },
   deleteProfileBtn: {
@@ -686,7 +661,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 48,
     borderRadius: wellnessRadii.pill,
-    backgroundColor: '#B91C1C',
+    backgroundColor: wellnessColors.danger,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
   },
@@ -704,28 +679,28 @@ const styles = StyleSheet.create({
   withdrawOutlineText: {
     fontSize: 15,
     fontWeight: '700',
-    color: wellness.errorText,
+    color: wellnessColors.danger,
   },
   notifStatusLine: {
     fontSize: 15,
     lineHeight: 22,
-    color: wellness.textSecondary,
+    color: wellnessColors.textSecondary,
     fontWeight: '600',
   },
   notifStatusEmphasis: {
-    color: wellness.primaryDark,
+    color: wellnessColors.primaryDark,
     fontWeight: '800',
   },
   helpParagraph: {
     fontSize: 14,
     lineHeight: 21,
-    color: wellness.text,
+    color: wellnessColors.textPrimary,
   },
   helpEmphasis: {
     fontSize: 14,
     lineHeight: 21,
     fontWeight: '700',
-    color: wellness.errorText,
+    color: wellnessColors.danger,
     marginTop: spacing.sm,
   },
   logoutBtn: {
@@ -733,8 +708,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
+    borderColor: wellnessColors.border,
+    backgroundColor: wellnessColors.card,
   },
   logoutPressed: {
     opacity: 0.9,
@@ -742,7 +717,7 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: 17,
     fontWeight: '700',
-    color: wellness.primaryDark,
+    color: wellnessColors.primaryDark,
   },
   emptyState: {
     flex: 1,
@@ -752,7 +727,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: wellness.textSecondary,
+    color: wellnessColors.textSecondary,
     textAlign: 'center',
   },
 });

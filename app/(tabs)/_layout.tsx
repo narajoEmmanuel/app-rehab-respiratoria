@@ -130,7 +130,7 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: wellnessColors.card,
     borderTopWidth: 1,
     borderTopColor: TAB_BAR_TOP_BORDER,
     borderLeftWidth: 0,

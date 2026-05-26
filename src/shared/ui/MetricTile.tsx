@@ -17,6 +17,10 @@ type MetricTileProps = {
   emphasis?: MetricTileEmphasis;
   valueNumberOfLines?: number;
   labelNumberOfLines?: number;
+  /** Override accent/value color (e.g. level-specific accent). */
+  overrideAccent?: string;
+  /** Override tile background (e.g. level-specific soft tint). */
+  overrideBg?: string;
 };
 
 const toneAccent: Record<MetricTileTone, string> = {
@@ -54,23 +58,27 @@ export function MetricTile({
   emphasis = 'metric',
   valueNumberOfLines = 1,
   labelNumberOfLines = 2,
+  overrideAccent,
+  overrideBg,
 }: MetricTileProps) {
   const isCompact = size === 'compact';
   const isLarge = size === 'large';
   const isStatus = emphasis === 'status';
   const valueFontSize = getValueFontSize(size, emphasis);
+  const resolvedAccent = overrideAccent ?? toneAccent[tone];
+  const resolvedBg = overrideBg ?? toneBg[tone];
 
   return (
-    <View style={[styles.tile, { backgroundColor: toneBg[tone] }, isCompact && styles.tileCompact, isLarge && styles.tileLarge]}>
+    <View style={[styles.tile, { backgroundColor: resolvedBg }, isCompact && styles.tileCompact, isLarge && styles.tileLarge]}>
       {iconName ? (
         <View style={styles.iconWrap}>
-          <IconSymbol name={iconName as any} size={isCompact ? 15 : 17} color={toneAccent[tone]} />
+          <IconSymbol name={iconName as any} size={isCompact ? 15 : 17} color={resolvedAccent} />
         </View>
       ) : null}
       <Text
         style={[
           styles.value,
-          { color: toneAccent[tone], fontSize: valueFontSize },
+          { color: resolvedAccent, fontSize: valueFontSize },
           isStatus && styles.valueStatus,
           isLarge && styles.valueLarge,
         ]}

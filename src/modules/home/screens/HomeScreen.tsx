@@ -17,7 +17,9 @@ import {
   evaluateDiagnosticSensorReadinessOnDemand,
   showDiagnosticPlayModePicker,
   showDiagnosticSensorReadyConfirmation,
+  showLevelPlayModePicker,
   showTherapyReadinessAlert,
+  useTherapyReadinessGate,
 } from '@/src/modules/device/volume-estimation';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import { useCalibrationSnapshot } from '@/src/modules/device/state/use-calibration-snapshot';
@@ -26,11 +28,19 @@ import type { DiagnosticRecord } from '@/src/modules/diagnostics/types';
 import { HomeLastSessionCard } from '@/src/modules/home/components/HomeLastSessionCard';
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { useConsentActive } from '@/src/modules/legal/use-consent-active';
+import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
+import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
+import { getLevelDisplayMeta } from '@/src/modules/session/levels/level-difficulty-config';
+import { getLevelById } from '@/src/modules/session/registry/level-registry';
+import { logLevelSensorModeSelected } from '@/src/modules/session/sensor/level-sensor-debug';
+import { evaluateLevelSensorReadiness } from '@/src/modules/session/sensor/level-sensor-readiness';
+import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
+import { updateDailyProgress } from '@/src/modules/session/session-progress-service';
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
-import { updateDailyProgress } from '@/src/modules/session/session-progress-service';
+import { isLevelEntryLockedForUi } from '@/src/config/dev-level-flags';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppCard } from '@/src/shared/ui/AppCard';
 import { AppButton } from '@/src/shared/ui/AppButton';
@@ -75,18 +85,36 @@ export function HomeScreen() {
   const { patient, hydrated } = usePatientSession();
   const { ready: consentUiReady, active: consentActive } = useConsentActive();
   const { snapshot: calibrationSnapshot } = useCalibrationSnapshot();
+  const { selectLevel } = useLevelsProgress();
+  const {
+    refresh: refreshTherapyGate,
+    lastReading,
+    sensorConnected: therapyGateSensorConnected,
+    sensorStatus: therapyGateSensorStatus,
+  } = useTherapyReadinessGate();
   const [hasCompletedDiagnostic, setHasCompletedDiagnostic] = useState(false);
   const [currentLevelLabel, setCurrentLevelLabel] = useState('Nivel 1');
+  const [currentLevelHumanName, setCurrentLevelHumanName] = useState('');
+  const [activeLevelId, setActiveLevelId] = useState<LevelId | null>(null);
   const [todayCompletedSessions, setTodayCompletedSessions] = useState(0);
   const [patientSessions, setPatientSessions] = useState<SessionRecord[]>([]);
   const [latestDiag, setLatestDiag] = useState<DiagnosticRecord | null>(null);
+  const [startingLevel, setStartingLevel] = useState(false);
+  const [lastReadingReceivedAtMs, setLastReadingReceivedAtMs] = useState<number | null>(null);
 
   const bottomPad = dashboardScrollBottomPadding(insets.bottom);
+
+  useEffect(() => {
+    if (!lastReading) return;
+    setLastReadingReceivedAtMs(Date.now());
+  }, [lastReading, lastReading?.distanceMm, lastReading?.timestamp]);
 
   const loadProgress = useCallback(async () => {
     if (!patient) {
       setHasCompletedDiagnostic(false);
       setCurrentLevelLabel('Nivel 1');
+      setCurrentLevelHumanName('');
+      setActiveLevelId(null);
       setTodayCompletedSessions(0);
       setPatientSessions([]);
       setLatestDiag(null);
@@ -103,12 +131,17 @@ export function HomeScreen() {
     if (exists) {
       const activeLevel = await getCurrentActiveLevel(patient.paciente_id);
       const daily = await updateDailyProgress(patient.paciente_id);
-      setCurrentLevelLabel(activeLevel ? `Nivel ${activeLevel.level_id.split('-')[1]}` : 'Nivel 1');
+      const levelId = activeLevel?.level_id ?? 'level-1';
+      setActiveLevelId(levelId as LevelId);
+      setCurrentLevelLabel(`Nivel ${levelId.split('-')[1]}`);
+      setCurrentLevelHumanName(getLevelDisplayMeta(levelId).humanName);
       setTodayCompletedSessions(daily.completedToday);
       const diag = await getLatestDiagnostic(patient.paciente_id);
       setLatestDiag(diag);
     } else {
       setCurrentLevelLabel('Nivel 1');
+      setCurrentLevelHumanName('');
+      setActiveLevelId(null);
       setTodayCompletedSessions(0);
       setLatestDiag(null);
     }
@@ -117,7 +150,8 @@ export function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       void loadProgress();
-    }, [loadProgress]),
+      void refreshTherapyGate();
+    }, [loadProgress, refreshTherapyGate]),
   );
 
   useEffect(() => {
@@ -136,7 +170,64 @@ export function HomeScreen() {
     return countWeeklyCompleted(patientSessions, getLocalDateKey());
   }, [patientSessions]);
 
-  const goStartTerapia = useCallback(() => {
+  const navigateToSession = useCallback(
+    (levelId: LevelId, inputMode: SessionInputMode) => {
+      selectLevel(levelId);
+      router.push({
+        pathname: '/(tabs)/sesion',
+        params: {
+          levelId,
+          sessionRunId: `${levelId}-${Date.now()}`,
+          inputMode,
+        },
+      });
+    },
+    [router, selectLevel],
+  );
+
+  const beginOfficialSensorSession = useCallback(
+    async (levelId: LevelId) => {
+      setStartingLevel(true);
+      try {
+        const readiness = await evaluateLevelSensorReadiness({
+          inputMode: 'sensor',
+          sensorConnected: therapyGateSensorConnected,
+          sensorStatus: therapyGateSensorStatus,
+          lastReading,
+          receivedAtMs: lastReadingReceivedAtMs,
+          patientId: patient?.paciente_id ?? null,
+        });
+
+        if (!readiness.canStart) {
+          if (readiness.blockReason === 'no_live_reading') {
+            Alert.alert(
+              'Esperando datos del sensor',
+              'Conecta el sensor y verifica que esté enviando lecturas antes de comenzar.',
+              [{ text: 'Entendido', style: 'default' }],
+            );
+            return;
+          }
+          showTherapyReadinessAlert(readiness.gate, (route) => router.push(route));
+          return;
+        }
+
+        navigateToSession(levelId, 'sensor');
+      } finally {
+        setStartingLevel(false);
+      }
+    },
+    [
+      lastReading,
+      lastReadingReceivedAtMs,
+      navigateToSession,
+      patient?.paciente_id,
+      router,
+      therapyGateSensorConnected,
+      therapyGateSensorStatus,
+    ],
+  );
+
+  const goStartRecommendedLevel = useCallback(() => {
     if (!hasCompletedDiagnostic) {
       Alert.alert(
         'Evaluación inicial pendiente',
@@ -156,9 +247,37 @@ export function HomeScreen() {
       );
       return;
     }
+    if (!activeLevelId || startingLevel) {
+      onLightImpact();
+      router.push('/(tabs)/terapia');
+      return;
+    }
+    const levelDef = getLevelById(activeLevelId);
+    if (isLevelEntryLockedForUi(false, levelDef?.comingSoon)) {
+      onLightImpact();
+      router.push('/(tabs)/terapia');
+      return;
+    }
     onLightImpact();
-    router.push('/(tabs)/terapia');
-  }, [consentActive, consentUiReady, hasCompletedDiagnostic, router]);
+    showLevelPlayModePicker({
+      onWithSensor: () => {
+        logLevelSensorModeSelected('sensor');
+        void beginOfficialSensorSession(activeLevelId);
+      },
+      onPracticeMode: () => {
+        navigateToSession(activeLevelId, 'touch_practice');
+      },
+    });
+  }, [
+    activeLevelId,
+    beginOfficialSensorSession,
+    consentActive,
+    consentUiReady,
+    hasCompletedDiagnostic,
+    navigateToSession,
+    router,
+    startingLevel,
+  ]);
 
   const goSensorConnection = useCallback(() => {
     if (consentUiReady && !consentActive) {
@@ -230,9 +349,8 @@ export function HomeScreen() {
   const firstName = displayName.trim().split(/\s+/)[0] ?? displayName;
   const therapyCtaDisabled =
     !hasCompletedDiagnostic || !consentUiReady || !consentActive;
-  const heroSubtitle = hasCompletedDiagnostic
-    ? `${currentLevelLabel} · ${todayCompletedSessions} de 6 sesiones hoy`
-    : `${currentLevelLabel}`;
+  const dailyGoalMet = hasCompletedDiagnostic && todayCompletedSessions >= 6;
+  const levelDisplayName = currentLevelHumanName || currentLevelLabel;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -247,44 +365,53 @@ export function HomeScreen() {
           <View style={styles.consentCard} accessibilityRole="alert">
             <Text style={styles.consentTitle}>Consentimiento pendiente</Text>
             <Text style={styles.consentBody}>
-              Sin consentimiento activo no podrás usar Terapia, Historial ni la conexión del sensor. Revisa los
-              documentos y acepta cuando estés listo.
+              Revisa y acepta los documentos para continuar con la terapia.
             </Text>
             <Pressable
               style={styles.consentBtn}
               onPress={() => router.push(LEGAL_ACCEPT_HREF)}
               accessibilityRole="button"
-              accessibilityLabel="Revisar y aceptar documentos legales">
-              <Text style={styles.consentBtnText}>Revisar y aceptar</Text>
+              accessibilityLabel="Revisar documentos legales">
+              <Text style={styles.consentBtnText}>Revisar documentos</Text>
             </Pressable>
           </View>
         ) : null}
 
         {!hasCompletedDiagnostic ? (
-          <>
-            <AppCard variant="highlight" style={styles.diagnosticHeroCard}>
-              <Text style={styles.diagnosticHeroKicker}>Evaluación inicial</Text>
-              <Text style={styles.diagnosticHeroTitle}>Conoce tu punto de partida</Text>
-              <Text style={styles.diagnosticHeroBody}>
-                Mide tu volumen de referencia para personalizar tus metas de terapia.
-              </Text>
-              <AppButton title="Iniciar evaluación" onPress={goDiagnostico} />
-            </AppCard>
-
-            <AppCard style={styles.heroCardBlocked}>
-              <Text style={styles.heroKicker}>Sesión recomendada</Text>
-              <Text style={styles.heroTitle}>Terapia guiada</Text>
-              <Text style={styles.heroSubtitleBlocked}>
-                Completa tu evaluación inicial para personalizar tu terapia.
-              </Text>
-              <AppButton title="Iniciar terapia" onPress={() => {}} disabled />
-            </AppCard>
-          </>
+          <AppCard variant="highlight" style={styles.diagnosticHeroCard}>
+            <Text style={styles.diagnosticHeroKicker}>Evaluación inicial</Text>
+            <Text style={styles.diagnosticHeroTitle}>Conoce tu punto de partida</Text>
+            <Text style={styles.diagnosticHeroBody}>
+              Mide tu volumen de referencia para personalizar tus metas de terapia.
+            </Text>
+            <AppButton title="Iniciar evaluación" onPress={goDiagnostico} />
+          </AppCard>
+        ) : dailyGoalMet ? (
+          <AppCard style={styles.heroCardSpacing}>
+            <Text style={styles.heroKicker}>Progreso de hoy</Text>
+            <Text style={styles.heroTitle}>Sesiones de hoy completadas</Text>
+            <Text style={styles.heroSubtitle}>
+              Puedes revisar tu progreso o continuar según la indicación de tu profesional.
+            </Text>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: '100%' }]} />
+            </View>
+            <AppButton
+              title="Ver historial"
+              onPress={() => {
+                onLightImpact();
+                router.push('/(tabs)/historial');
+              }}
+              variant="secondary"
+            />
+          </AppCard>
         ) : (
           <AppCard style={styles.heroCardSpacing}>
-            <Text style={styles.heroKicker}>Sesión recomendada</Text>
-            <Text style={styles.heroTitle}>Terapia guiada</Text>
-            <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
+            <Text style={styles.heroKicker}>Próxima acción</Text>
+            <Text style={styles.heroTitle}>Continúa tu terapia guiada</Text>
+            <Text style={styles.heroSubtitle}>
+              {`Nivel sugerido: ${levelDisplayName}\nHoy: ${todayCompletedSessions} de 6 sesiones`}
+            </Text>
             <View style={styles.progressTrack}>
               <View
                 style={[
@@ -299,9 +426,9 @@ export function HomeScreen() {
                   ? 'Preparando…'
                   : !consentActive
                     ? 'Activa el consentimiento para continuar'
-                    : 'Iniciar terapia'
+                    : 'Empezar nivel sugerido'
               }
-              onPress={goStartTerapia}
+              onPress={goStartRecommendedLevel}
               disabled={therapyCtaDisabled}
             />
           </AppCard>
@@ -539,10 +666,10 @@ const styles = StyleSheet.create({
   },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
   greeting: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 26,
+    fontWeight: '800',
     color: wellnessColors.textPrimary,
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
     marginBottom: 2,
   },
   tagline: {
@@ -605,10 +732,6 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     color: wellnessColors.textSecondary,
   },
-  heroCardBlocked: {
-    marginBottom: spacing.lg,
-    opacity: 0.92,
-  },
   heroCardSpacing: {
     marginBottom: spacing.lg,
   },
@@ -632,17 +755,10 @@ const styles = StyleSheet.create({
     color: wellnessColors.textSecondary,
     marginBottom: spacing.md,
   },
-  heroSubtitleBlocked: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: wellnessColors.textMuted,
-    marginBottom: spacing.md,
-    fontWeight: '600',
-  },
   progressTrack: {
     height: 6,
     borderRadius: 4,
-    backgroundColor: '#E8EDEA',
+    backgroundColor: wellnessColors.neutralSoft,
     overflow: 'hidden',
     marginBottom: spacing.md,
   },
@@ -730,7 +846,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     paddingTop: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: '#F1F3F5',
+    borderTopColor: wellnessColors.border,
   },
   deviceCtaLabel: { fontSize: 15, fontWeight: '700', color: ACCENT },
   evalCardSpacing: {
@@ -801,7 +917,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: '#F1F3F5',
+    borderTopColor: wellnessColors.border,
   },
   exportCardCtaText: {
     fontSize: 15,
@@ -825,7 +941,7 @@ const styles = StyleSheet.create({
   claveValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#374151',
+    color: wellnessColors.textPrimary,
     letterSpacing: 1.2,
     marginBottom: 6,
   },

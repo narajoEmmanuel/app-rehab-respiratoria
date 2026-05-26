@@ -7,6 +7,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -418,8 +419,11 @@ export function LevelsScreen({
         </AppCard>
 
         <View style={styles.safetyNote}>
+          <View style={styles.safetyIconWrap}>
+            <MaterialIcons name="warning" size={18} color="#92400E" />
+          </View>
           <Text style={styles.safetyNoteText}>
-            Detén la sesión si sientes dolor, mareo o falta de aire intensa.
+            Detén la sesión si sientes dolor, mareo, falta de aire intensa o malestar.
           </Text>
         </View>
       </ScrollView>
@@ -507,18 +511,32 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   safetyNote: {
-    marginTop: spacing.md,
-    paddingVertical: spacing.sm,
+    marginTop: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
     paddingHorizontal: spacing.md,
     backgroundColor: wellnessColors.warningSoft,
-    borderRadius: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
     marginBottom: spacing.sm,
   },
+  safetyIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+  },
   safetyNoteText: {
-    fontSize: 13,
-    lineHeight: 18,
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
     fontWeight: '600',
     color: '#92400E',
-    textAlign: 'center',
   },
 });

@@ -966,7 +966,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: wellness.text,
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '800',
   },
   detail: {

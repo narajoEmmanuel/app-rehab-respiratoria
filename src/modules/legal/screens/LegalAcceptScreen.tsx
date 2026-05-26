@@ -25,7 +25,7 @@ import {
   type LegalStatementId,
 } from '@/src/modules/legal/constants';
 import { acceptConsent, needsConsent } from '@/src/modules/legal/consent-service';
-import { openLegalDocument } from '@/src/modules/legal/open-legal-document';
+import { LEGAL_DOCUMENT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppButton } from '@/src/shared/ui/AppButton';
@@ -63,17 +63,6 @@ export function LegalAcceptScreen() {
       next[index] = !next[index];
       return next;
     });
-  }, []);
-
-  const onOpenDoc = useCallback(() => {
-    void (async () => {
-      try {
-        await openLegalDocument();
-      } catch (e) {
-        const message = e instanceof Error ? e.message : 'No se pudo abrir el documento.';
-        Alert.alert('Documento', message);
-      }
-    })();
   }, []);
 
   const onAccept = useCallback(() => {
@@ -149,13 +138,13 @@ export function LegalAcceptScreen() {
         showsVerticalScrollIndicator={false}>
         <SectionHeader
           title="Antes de comenzar"
-          subtitle="Para usar RESPIRA+ necesitas aceptar los documentos legales. El detalle completo está en el PDF; marca cada casilla tras leerlo."
+          subtitle="Antes de continuar, revisa los documentos de uso, consentimiento y privacidad."
         />
 
         <AppButton
-          title="Ver términos y condiciones (PDF)"
-          onPress={onOpenDoc}
-          variant="ghost"
+          title="Leer documentos"
+          onPress={() => router.push(LEGAL_DOCUMENT_HREF)}
+          variant="secondary"
           iconName="doc.text.fill"
           style={styles.docLink}
         />
@@ -212,7 +201,6 @@ const styles = StyleSheet.create({
     color: wellnessColors.textSecondary,
   },
   docLink: {
-    alignSelf: 'flex-start',
     marginBottom: spacing.md,
   },
   checksCard: {
