@@ -9,7 +9,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
-import { isCloudAuthEnabled } from '@/src/modules/app-mode/app-mode-config';
 import { useAppMode } from '@/src/modules/app-mode';
 import { isConsentActive } from '@/src/modules/legal/consent-service';
 import { wellness } from '@/src/shared/theme/wellness-theme';
@@ -27,11 +26,6 @@ export function ConsentStackGuard({ children, allowOfflineDevBypass = false }: P
 
   useFocusEffect(
     useCallback(() => {
-      if (!isCloudAuthEnabled()) {
-        setGate('ok');
-        return () => {};
-      }
-
       if (isOfflineSensorTestMode && offlineSensorTestEnabled) {
         setGate('ok');
         return () => {};

@@ -6,7 +6,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getClinicalExportSnapshot } from '@/src/modules/export/services/clinical-export-service';
@@ -14,8 +14,14 @@ import { exportPatientCsv, exportPatientJson } from '@/src/modules/export/servic
 import { isConsentActive } from '@/src/modules/legal/consent-service';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { AppButton } from '@/src/shared/ui/AppButton';
+import { AppCard } from '@/src/shared/ui/AppCard';
+import { InfoTile } from '@/src/shared/ui/InfoTile';
+import { MetricTile } from '@/src/shared/ui/MetricTile';
+import { SectionHeader } from '@/src/shared/ui/SectionHeader';
+import { StatusPill } from '@/src/shared/ui/StatusPill';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellness, wellnessFloatingTabBarInset, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+import { wellnessColors, wellnessRadius } from '@/src/shared/theme/wellness-theme';
 
 type SnapshotSummary = {
   sessions: number;
@@ -119,82 +125,122 @@ export function DataExportScreen() {
         onPressProfile={() => router.push('/profile')}
       />
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: wellnessFloatingTabBarInset + spacing.lg }]}
+        contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Datos y exportación</Text>
-        <Text style={styles.lead}>
-          Exporta un archivo con tu ficha, diagnósticos, niveles, sesiones e intentos guardados en este dispositivo.
-          Los archivos pueden incluir datos personales y de salud: trátalos con cuidado y compártelos solo si tú lo
-          decides.
-        </Text>
+        <SectionHeader
+          title="Exportar resumen"
+          subtitle="Genera un archivo con tus sesiones, evaluaciones iniciales y progreso para revisarlo con un profesional de la salud."
+        />
 
         {!hydrated || (patient != null && consentOk === null) ? (
           <View style={styles.centerRow}>
-            <ActivityIndicator />
+            <ActivityIndicator color={wellnessColors.primary} />
             <Text style={styles.muted}>Comprobando permisos y datos…</Text>
           </View>
         ) : null}
 
-        {patient == null ? <Text style={styles.warning}>Inicia sesión para exportar tus datos.</Text> : null}
+        {patient == null ? (
+          <AppCard variant="soft">
+            <Text style={styles.emptyTitle}>Sin sesión activa</Text>
+            <Text style={styles.emptyBody}>Inicia sesión para exportar tus datos.</Text>
+          </AppCard>
+        ) : null}
 
         {patient && showConsentBlock ? (
-          <View style={styles.blockCard}>
+          <AppCard>
+            <StatusPill label="Consentimiento inactivo" tone="warning" size="sm" />
             <Text style={styles.blockTitle}>Exportación no disponible</Text>
             <Text style={styles.blockText}>
-              El consentimiento digital no está activo. Reactiva el consentimiento en Perfil para poder exportar tus
-              datos clínicos.
+              Reactiva el consentimiento en Perfil para poder exportar tu resumen de progreso.
             </Text>
+          </AppCard>
+        ) : null}
+
+        {error ? (
+          <View style={styles.feedbackRow}>
+            <StatusPill label={error} tone="danger" size="sm" />
+          </View>
+        ) : null}
+        {successHint ? (
+          <View style={styles.feedbackRow}>
+            <StatusPill label={successHint} tone="success" size="sm" />
           </View>
         ) : null}
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        {successHint ? <Text style={styles.success}>{successHint}</Text> : null}
-
         {patient && consentOk === true && summary != null ? (
           <>
-            <Text style={styles.meta}>
-              Resumen: diagnósticos {summary.diagnostics}, niveles {summary.levels}, sesiones {summary.sessions}. Ficha
-              de paciente: {summary.hasPatient ? 'incluida' : 'no encontrada en almacenamiento local'}.
-            </Text>
-            <Text style={styles.emptyHint}>
-              Puedes exportar aunque algunas tablas estén vacías (por ejemplo, antes de la primera sesión).
-            </Text>
+            <AppCard style={styles.contentCard}>
+              <Text style={styles.contentCardTitle}>Contenido del archivo</Text>
+              <Text style={styles.contentCardBody}>
+                Incluye tu ficha, evaluaciones iniciales, niveles, sesiones e intentos guardados en
+                este dispositivo.
+              </Text>
+            </AppCard>
+
+            <View style={styles.metricsRow}>
+              <MetricTile
+                label="Sesiones"
+                value={String(summary.sessions)}
+                tone={summary.sessions > 0 ? 'success' : 'default'}
+                size="compact"
+              />
+              <MetricTile
+                label="Evaluaciones"
+                value={String(summary.diagnostics)}
+                tone={summary.diagnostics > 0 ? 'success' : 'default'}
+                size="compact"
+              />
+              <InfoTile
+                label="Formato"
+                value="CSV y JSON"
+                helper="CSV recomendado"
+                tone="info"
+                compact
+              />
+            </View>
+
+            {summary.sessions === 0 && summary.diagnostics === 0 ? (
+              <Text style={styles.emptyHint}>
+                Aún no hay sesiones ni evaluaciones registradas. Puedes exportar de todas formas para verificar la estructura.
+              </Text>
+            ) : null}
           </>
         ) : null}
 
         {patient && consentOk === true && summary != null ? (
           busy ? (
             <View style={styles.busyRow}>
-              <ActivityIndicator color={wellness.primaryDark} />
+              <ActivityIndicator color={wellnessColors.primary} />
               <Text style={styles.muted}>Generando archivo…</Text>
             </View>
           ) : (
-            <>
-              <Pressable
-                style={[styles.primaryBtn, !canExport && styles.btnDisabled]}
-                disabled={!canExport}
-                onPress={() => void runExport('json')}
-                accessibilityRole="button"
-                accessibilityLabel="Exportar JSON">
-                <Text style={styles.primaryBtnText}>Exportar JSON</Text>
-              </Pressable>
-
-              <Pressable
-                style={[styles.primaryBtn, !canExport && styles.btnDisabled]}
-                disabled={!canExport}
+            <View style={styles.actionsSection}>
+              <AppButton
+                title="Exportar CSV"
                 onPress={() => void runExport('csv')}
-                accessibilityRole="button"
-                accessibilityLabel="Exportar CSV">
-                <Text style={styles.primaryBtnText}>Exportar CSV</Text>
-              </Pressable>
-            </>
+                variant="primary"
+                disabled={!canExport}
+                iconName="arrow.down.doc.fill"
+              />
+              <Text style={styles.formatHint}>Recomendado para revisión rápida con profesionales.</Text>
+
+              <AppButton
+                title="Exportar JSON"
+                onPress={() => void runExport('json')}
+                variant="secondary"
+                disabled={!canExport}
+                iconName="doc.text.fill"
+                style={styles.secondaryAction}
+              />
+              <Text style={styles.formatHintSecondary}>Formato técnico completo.</Text>
+            </View>
           )
         ) : null}
 
-        <Text style={styles.hint}>
-          En la web, el archivo se descarga con el navegador. En el teléfono, se guarda un archivo temporal y se abre la
-          hoja de compartir para que elijas dónde guardarlo. No enviamos datos automáticamente a correo, nube ni
-          mensajería.
+        <Text style={styles.disclaimer}>
+          En la web, el archivo se descarga con el navegador. En el teléfono, se guarda un archivo
+          temporal y se abre la hoja de compartir. No enviamos datos automáticamente a correo, nube
+          ni mensajería.
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -204,29 +250,15 @@ export function DataExportScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: wellness.screenBg,
+    backgroundColor: wellnessColors.background,
   },
   scroll: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
+    paddingBottom: spacing.xl * 2,
     gap: spacing.md,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: wellness.primaryDark,
-  },
-  lead: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: wellness.textSecondary,
-  },
   centerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  busyRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
@@ -234,74 +266,88 @@ const styles = StyleSheet.create({
   },
   muted: {
     fontSize: 14,
-    color: wellness.textSecondary,
+    color: wellnessColors.textSecondary,
   },
-  warning: {
-    fontSize: 15,
-    color: '#9a3b2f',
-    fontWeight: '600',
-  },
-  blockCard: {
-    padding: spacing.lg,
-    borderRadius: wellnessRadii.card,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    backgroundColor: wellness.card,
-    gap: spacing.sm,
-  },
-  blockTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: wellness.text,
-  },
-  blockText: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: wellness.textSecondary,
-  },
-  emptyHint: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: wellness.textSecondary,
-  },
-  error: {
-    fontSize: 14,
-    color: '#9a3b2f',
-    lineHeight: 20,
-  },
-  success: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#1B5E20',
-    fontWeight: '600',
-  },
-  meta: {
-    fontSize: 14,
-    color: wellness.textSecondary,
-    lineHeight: 20,
-  },
-  primaryBtn: {
-    paddingVertical: spacing.md,
-    borderRadius: wellnessRadii.pill,
-    alignItems: 'center',
-    backgroundColor: wellness.softGreen,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    minHeight: 48,
-    justifyContent: 'center',
-  },
-  btnDisabled: {
-    opacity: 0.45,
-  },
-  primaryBtnText: {
+  emptyTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: wellness.primaryDark,
+    color: wellnessColors.textPrimary,
+    marginBottom: 4,
   },
-  hint: {
+  emptyBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: wellnessColors.textSecondary,
+  },
+  blockTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: wellnessColors.textPrimary,
+    marginTop: spacing.sm,
+  },
+  blockText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: wellnessColors.textSecondary,
+    marginTop: 4,
+  },
+  feedbackRow: {
+    alignItems: 'flex-start',
+  },
+  contentCard: {
+    gap: spacing.xs,
+  },
+  contentCardTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: wellnessColors.textPrimary,
+  },
+  contentCardBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: wellnessColors.textSecondary,
+  },
+  metricsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  emptyHint: {
     fontSize: 13,
     lineHeight: 19,
-    color: wellness.textSecondary,
+    color: wellnessColors.textMuted,
+    fontStyle: 'italic',
+  },
+  busyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+  },
+  actionsSection: {
+    gap: spacing.xs,
     marginTop: spacing.sm,
+  },
+  formatHint: {
+    fontSize: 12,
+    color: wellnessColors.textSecondary,
+    marginBottom: spacing.md,
+    marginLeft: 2,
+  },
+  formatHintSecondary: {
+    fontSize: 12,
+    color: wellnessColors.textMuted,
+    marginLeft: 2,
+  },
+  secondaryAction: {
+    marginTop: spacing.xs,
+  },
+  disclaimer: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: wellnessColors.textMuted,
+    marginTop: spacing.md,
+    borderRadius: wellnessRadius.sm,
+    backgroundColor: wellnessColors.neutralSoft,
+    padding: spacing.md,
   },
 });

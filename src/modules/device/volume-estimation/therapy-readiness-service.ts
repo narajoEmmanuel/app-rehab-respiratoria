@@ -317,7 +317,7 @@ function buildDiagnosticSensorReadinessGate(
     canStartDiagnostic: canStart,
     title: canStart ? 'Sensor conectado' : copy.title,
     message: canStart
-      ? `Calibración activa detectada${deviceSuffix}. Puedes iniciar el diagnóstico con medición real.`
+      ? `Calibración activa detectada${deviceSuffix}. Puedes iniciar la evaluación con medición real.`
       : (options?.notEligibleReason ?? copy.message),
     actionLabel: canStart ? null : copy.actionLabel,
     actionRoute: canStart ? null : copy.actionRoute,
@@ -398,7 +398,7 @@ export function showDiagnosticSensorReadyConfirmation(
   options: DiagnosticSensorReadyConfirmationOptions,
 ): void {
   const { gate, isRepeat, onConfirm } = options;
-  const confirmLabel = isRepeat ? 'Repetir diagnóstico' : 'Iniciar diagnóstico';
+  const confirmLabel = isRepeat ? 'Repetir evaluación' : 'Iniciar evaluación';
 
   Alert.alert(gate.title, gate.message, [
     { text: 'Cancelar', style: 'cancel' },
@@ -425,9 +425,9 @@ const LEVEL_PLAY_MODE_TITLE = '¿Cómo quieres jugar este nivel?';
 const LEVEL_PLAY_MODE_MESSAGE =
   'Elige si quieres iniciar una sesión oficial con sensor o practicar sin medición real.';
 
-const DIAGNOSTIC_PLAY_MODE_TITLE = '¿Cómo quieres realizar el diagnóstico?';
+const DIAGNOSTIC_PLAY_MODE_TITLE = '¿Cómo quieres realizar la evaluación inicial?';
 const DIAGNOSTIC_PLAY_MODE_MESSAGE =
-  'Con sensor mide tu volumen real. Modo práctica simula el flujo con el dedo, sin medición clínica.';
+  'Con sensor se estima tu volumen de referencia. Modo práctica simula el flujo con el dedo y no guarda una evaluación oficial.';
 
 const TOUCH_PRACTICE_ALERT_NOTE =
   'Puedes practicar la actividad sin sensor. Esta opción no usa medición real.';

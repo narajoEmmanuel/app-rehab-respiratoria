@@ -1,26 +1,31 @@
 /**
- * Acceso local-first: seleccionar perfil existente o crear uno nuevo (acción explícita).
+ * Acceso local-first: seleccionar perfil existente o registrar uno nuevo (con datos reales).
  */
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
-import { seedLocalPrototypeConsentForPatient } from '@/src/modules/legal/consent-service';
+import { isConsentActive } from '@/src/modules/legal/consent-service';
+import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
 import {
-  createLocalPatientProfile,
+  createPatient,
   listLocalPatientProfiles,
+  saveCurrentPatient,
 } from '@/src/modules/patient/patient-service';
 import type { PatientRecord } from '@/src/modules/patient/types';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -32,6 +37,15 @@ export function LocalProfileScreen() {
   const [profiles, setProfiles] = useState<PatientRecord[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [busyId, setBusyId] = useState<number | 'create' | null>(null);
+
+  const [nombre, setNombre] = useState('');
+  const [edadText, setEdadText] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [createdPatient, setCreatedPatient] = useState<PatientRecord | null>(null);
+
+  const edadNum = parseInt(edadText, 10);
+  const edadValid = !Number.isNaN(edadNum) && edadNum >= 1 && edadNum <= 120;
+  const canSubmit = nombre.trim().length >= 2 && edadValid && busyId !== 'create';
 
   const refreshProfiles = useCallback(async () => {
     setLoadingList(true);
@@ -52,8 +66,12 @@ export function LocalProfileScreen() {
       setBusyId(patient.paciente_id);
       try {
         await setSessionPatient(patient);
-        await seedLocalPrototypeConsentForPatient(patient.paciente_id);
-        router.replace('/(tabs)');
+        const consentOk = await isConsentActive();
+        if (consentOk) {
+          router.replace('/(tabs)');
+        } else {
+          router.replace(LEGAL_ACCEPT_HREF);
+        }
       } catch {
         Alert.alert('Error', 'No se pudo activar el perfil. Inténtalo nuevamente.');
       } finally {
@@ -63,23 +81,177 @@ export function LocalProfileScreen() {
     [router, setSessionPatient],
   );
 
-  const onCreateProfile = useCallback(() => {
+  const onSubmitCreate = useCallback(() => {
+    if (!canSubmit) return;
     void (async () => {
       setBusyId('create');
       try {
-        const patient = await createLocalPatientProfile();
-        await seedLocalPrototypeConsentForPatient(patient.paciente_id);
-        await setSessionPatient(patient);
-        router.replace('/(tabs)');
+        const patient = await createPatient(nombre.trim(), edadNum);
+        await saveCurrentPatient(patient);
+        setCreatedPatient(patient);
       } catch {
         Alert.alert('Error', 'No se pudo crear el perfil. Inténtalo nuevamente.');
       } finally {
         setBusyId(null);
       }
     })();
-  }, [router, setSessionPatient]);
+  }, [canSubmit, nombre, edadNum]);
+
+  const onContinueAfterCreate = useCallback(() => {
+    if (!createdPatient) return;
+    void (async () => {
+      setBusyId('create');
+      try {
+        await setSessionPatient(createdPatient);
+        router.replace(LEGAL_ACCEPT_HREF);
+      } catch {
+        Alert.alert('Error', 'No se pudo activar el perfil.');
+      } finally {
+        setBusyId(null);
+      }
+    })();
+  }, [createdPatient, router, setSessionPatient]);
 
   const hasProfiles = profiles.length > 0;
+
+  if (createdPatient) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          <Text style={styles.title}>Perfil creado</Text>
+          <Text style={styles.subtitle}>
+            Anota tu clave de acceso en un lugar seguro. La necesitarás para volver a entrar.
+          </Text>
+
+          <View style={styles.keyCard} accessibilityRole="summary">
+            <Text style={styles.keyLabel}>Tu clave de acceso</Text>
+            <Text style={styles.keyValue}>{createdPatient.clave}</Text>
+          </View>
+
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryLine}>
+              <Text style={styles.summaryBold}>Nombre: </Text>
+              {createdPatient.nombre_completo}
+            </Text>
+            <Text style={styles.summaryLine}>
+              <Text style={styles.summaryBold}>Edad: </Text>
+              {createdPatient.edad} años
+            </Text>
+          </View>
+
+          <Text style={styles.legalHint}>
+            El siguiente paso es revisar y aceptar los documentos legales antes de usar la app.
+          </Text>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.primaryBtn,
+              busyId === 'create' && styles.btnDisabled,
+              pressed && !busyId && styles.primaryBtnPressed,
+            ]}
+            onPress={onContinueAfterCreate}
+            disabled={busyId != null}
+            accessibilityRole="button"
+            accessibilityLabel="Revisar documentos">
+            {busyId === 'create' ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.primaryBtnText}>Revisar documentos</Text>
+            )}
+          </Pressable>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  if (showForm || !hasProfiles) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView
+            contentContainerStyle={styles.scroll}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
+            <View style={styles.header}>
+              <Text style={styles.brand}>RESPIRA+</Text>
+              <Text style={styles.title}>Registrar paciente</Text>
+              <Text style={styles.subtitle}>
+                Ingresa tu nombre y edad para crear tu perfil. Se generará una clave automática.
+              </Text>
+            </View>
+
+            <View style={styles.formCard}>
+              <Text style={styles.label}>Nombre completo</Text>
+              <TextInput
+                style={styles.input}
+                value={nombre}
+                onChangeText={setNombre}
+                placeholder="Ej. María González"
+                placeholderTextColor={authPalette.textMuted}
+                autoCapitalize="words"
+                accessibilityLabel="Nombre completo"
+              />
+
+              <Text style={styles.label}>Edad (años)</Text>
+              <TextInput
+                style={styles.input}
+                value={edadText}
+                onChangeText={(t) => setEdadText(t.replace(/[^0-9]/g, ''))}
+                placeholder="Ej. 68"
+                placeholderTextColor={authPalette.textMuted}
+                keyboardType="number-pad"
+                maxLength={3}
+                accessibilityLabel="Edad en años"
+              />
+
+              {edadText.length > 0 && !edadValid ? (
+                <Text style={styles.helperError}>Indica una edad entre 1 y 120 años.</Text>
+              ) : null}
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.primaryBtn,
+                  !canSubmit && styles.btnDisabled,
+                  pressed && canSubmit && styles.primaryBtnPressed,
+                ]}
+                onPress={onSubmitCreate}
+                disabled={!canSubmit}
+                accessibilityRole="button"
+                accessibilityLabel="Crear perfil">
+                {busyId === 'create' ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.primaryBtnText}>Crear perfil</Text>
+                )}
+              </Pressable>
+            </View>
+
+            {hasProfiles ? (
+              <Pressable
+                style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
+                onPress={() => {
+                  setShowForm(false);
+                  setNombre('');
+                  setEdadText('');
+                }}
+                accessibilityRole="button">
+                <Text style={styles.secondaryBtnText}>Volver a perfiles</Text>
+              </Pressable>
+            ) : null}
+
+            <Pressable
+              style={({ pressed }) => [styles.textLinkBtn, pressed && styles.textLinkPressed]}
+              onPress={() => router.push('/auth/login')}
+              accessibilityRole="button">
+              <Text style={styles.textLink}>Acceder con clave</Text>
+            </Pressable>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -89,68 +261,58 @@ export function LocalProfileScreen() {
         showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.brand}>RESPIRA+</Text>
-          <Text style={styles.title}>No hay perfil activo</Text>
+          <Text style={styles.title}>Selecciona tu perfil</Text>
           <Text style={styles.subtitle}>
-            {hasProfiles
-              ? 'Selecciona un perfil de este dispositivo o crea uno nuevo para comenzar.'
-              : 'No hay perfiles locales registrados en este dispositivo.'}
+            Selecciona un perfil de este dispositivo o crea uno nuevo para comenzar.
           </Text>
-          <Text style={styles.hint}>Crea un perfil para comenzar.</Text>
         </View>
 
         <Pressable
           style={({ pressed }) => [
             styles.primaryBtn,
-            busyId === 'create' && styles.btnDisabled,
-            pressed && busyId !== 'create' && styles.primaryBtnPressed,
+            pressed && styles.primaryBtnPressed,
           ]}
-          onPress={onCreateProfile}
+          onPress={() => setShowForm(true)}
           disabled={busyId != null}
           accessibilityRole="button"
-          accessibilityLabel="Crear perfil">
-          {busyId === 'create' ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.primaryBtnText}>Crear perfil</Text>
-          )}
+          accessibilityLabel="Registrar paciente">
+          <Text style={styles.primaryBtnText}>Registrar paciente</Text>
         </Pressable>
 
-        {hasProfiles ? (
-          <View style={styles.listSection}>
-            <Text style={styles.listTitle}>Perfiles en este dispositivo</Text>
-            {loadingList ? (
-              <ActivityIndicator color={authPalette.primary} style={styles.listLoader} />
-            ) : (
-              profiles.map((p) => {
-                const busy = busyId === p.paciente_id;
-                return (
-                  <Pressable
-                    key={`${p.paciente_id}-${p.clave}`}
-                    style={({ pressed }) => [
-                      styles.profileRow,
-                      pressed && !busy && styles.profileRowPressed,
-                    ]}
-                    onPress={() => void enterWithPatient(p)}
-                    disabled={busyId != null}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Usar perfil ${normalizePatientDisplayName(p.nombre_completo)}`}>
-                    <View style={styles.profileRowText}>
-                      <Text style={styles.profileName}>
-                        {normalizePatientDisplayName(p.nombre_completo)}
-                      </Text>
-                      <Text style={styles.profileMeta}>Clave · {p.clave}</Text>
-                    </View>
-                    {busy ? (
-                      <ActivityIndicator color={authPalette.primary} />
-                    ) : (
-                      <Text style={styles.profileAction}>Usar</Text>
-                    )}
-                  </Pressable>
-                );
-              })
-            )}
-          </View>
-        ) : null}
+        <View style={styles.listSection}>
+          <Text style={styles.listTitle}>Perfiles en este dispositivo</Text>
+          {loadingList ? (
+            <ActivityIndicator color={authPalette.primary} style={styles.listLoader} />
+          ) : (
+            profiles.map((p) => {
+              const busy = busyId === p.paciente_id;
+              return (
+                <Pressable
+                  key={`${p.paciente_id}-${p.clave}`}
+                  style={({ pressed }) => [
+                    styles.profileRow,
+                    pressed && !busy && styles.profileRowPressed,
+                  ]}
+                  onPress={() => void enterWithPatient(p)}
+                  disabled={busyId != null}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Usar perfil ${normalizePatientDisplayName(p.nombre_completo)}`}>
+                  <View style={styles.profileRowText}>
+                    <Text style={styles.profileName}>
+                      {normalizePatientDisplayName(p.nombre_completo)}
+                    </Text>
+                    <Text style={styles.profileMeta}>Clave · {p.clave}</Text>
+                  </View>
+                  {busy ? (
+                    <ActivityIndicator color={authPalette.primary} />
+                  ) : (
+                    <Text style={styles.profileAction}>Usar</Text>
+                  )}
+                </Pressable>
+              );
+            })
+          )}
+        </View>
 
         <Pressable
           style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
@@ -170,6 +332,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: authPalette.screenBg,
   },
+  flex: { flex: 1 },
   scroll: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
@@ -198,9 +361,73 @@ const styles = StyleSheet.create({
     color: authPalette.textMuted,
     marginBottom: spacing.sm,
   },
-  hint: {
+  formCard: {
+    backgroundColor: authPalette.cardGlass,
+    borderRadius: wellnessRadii.cardLarge,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: authPalette.border,
+    marginBottom: spacing.lg,
+    ...wellnessShadows.card,
+  },
+  label: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: authPalette.text,
+    marginBottom: spacing.sm,
+  },
+  input: {
+    borderWidth: 2,
+    borderColor: authPalette.border,
+    borderRadius: wellnessRadii.card,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    fontSize: 20,
+    color: authPalette.text,
+    marginBottom: spacing.md,
+  },
+  helperError: {
     fontSize: 15,
+    color: authPalette.errorText,
+    marginBottom: spacing.md,
+  },
+  keyCard: {
+    backgroundColor: authPalette.successBg,
+    borderRadius: wellnessRadii.cardLarge,
+    padding: spacing.lg,
+    borderWidth: 2,
+    borderColor: authPalette.primaryDark,
+    marginBottom: spacing.lg,
+    alignItems: 'center',
+  },
+  keyLabel: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: authPalette.text,
+    marginBottom: spacing.sm,
+  },
+  keyValue: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: authPalette.primaryDark,
+    letterSpacing: 2,
+  },
+  summaryCard: {
+    backgroundColor: authPalette.card,
+    borderRadius: wellnessRadii.card,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: authPalette.border,
+  },
+  summaryLine: { fontSize: 17, color: authPalette.text, marginBottom: spacing.xs },
+  summaryBold: { fontWeight: '700' },
+  legalHint: {
+    fontSize: 15,
+    lineHeight: 22,
     color: authPalette.textMuted,
+    marginBottom: spacing.lg,
+    textAlign: 'center',
   },
   primaryBtn: {
     backgroundColor: authPalette.primary,
@@ -284,5 +511,19 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: authPalette.primary,
+  },
+  textLinkBtn: {
+    marginTop: spacing.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+  },
+  textLinkPressed: {
+    opacity: 0.8,
+  },
+  textLink: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: authPalette.link,
+    textDecorationLine: 'underline',
   },
 });

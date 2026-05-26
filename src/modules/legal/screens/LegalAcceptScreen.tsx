@@ -25,15 +25,14 @@ import {
   type LegalStatementId,
 } from '@/src/modules/legal/constants';
 import { acceptConsent, needsConsent } from '@/src/modules/legal/consent-service';
-import { openLegalDocument } from '@/src/modules/legal/open-legal-document';
+import { LEGAL_DOCUMENT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { AppButton } from '@/src/shared/ui/AppButton';
+import { AppCard } from '@/src/shared/ui/AppCard';
+import { SectionHeader } from '@/src/shared/ui/SectionHeader';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellness, wellnessFloatingTabBarInset, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
-
-const TITLE = 26;
-const BODY = 17;
-const LEAD = 16;
+import { wellnessColors, wellnessRadius } from '@/src/shared/theme/wellness-theme';
 
 const CHECK_LABELS: readonly string[] = [
   'He leído y acepto los Términos y condiciones de uso.',
@@ -64,17 +63,6 @@ export function LegalAcceptScreen() {
       next[index] = !next[index];
       return next;
     });
-  }, []);
-
-  const onOpenDoc = useCallback(() => {
-    void (async () => {
-      try {
-        await openLegalDocument();
-      } catch (e) {
-        const message = e instanceof Error ? e.message : 'No se pudo abrir el documento.';
-        Alert.alert('Documento', message);
-      }
-    })();
   }, []);
 
   const onAccept = useCallback(() => {
@@ -128,12 +116,11 @@ export function LegalAcceptScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.center}>
           <Text style={styles.body}>Inicia sesión para continuar.</Text>
-          <Pressable
-            style={styles.secondaryBtn}
+          <AppButton
+            title="Ir al acceso"
             onPress={() => router.replace('/auth/login')}
-            accessibilityRole="button">
-            <Text style={styles.secondaryBtnText}>Ir al acceso</Text>
-          </Pressable>
+            variant="secondary"
+          />
         </View>
       </SafeAreaView>
     );
@@ -147,23 +134,22 @@ export function LegalAcceptScreen() {
         backFallbackHref="/(tabs)/index"
       />
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: wellnessFloatingTabBarInset + spacing.lg }]}
+        contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Antes de comenzar</Text>
-        <Text style={styles.lead}>
-          Para usar RESPIRA+ necesitas aceptar los documentos legales. El detalle completo está en el PDF; marca cada
-          casilla tras leerlo.
-        </Text>
+        <SectionHeader
+          title="Antes de comenzar"
+          subtitle="Antes de continuar, revisa los documentos de uso, consentimiento y privacidad."
+        />
 
-        <Pressable
-          onPress={onOpenDoc}
+        <AppButton
+          title="Leer documentos"
+          onPress={() => router.push(LEGAL_DOCUMENT_HREF)}
+          variant="secondary"
+          iconName="doc.text.fill"
           style={styles.docLink}
-          accessibilityRole="button"
-          accessibilityLabel="Abrir documento legal completo">
-          <Text style={styles.docLinkText}>Ver términos y condiciones (PDF)</Text>
-        </Pressable>
+        />
 
-        <View style={styles.card}>
+        <AppCard style={styles.checksCard}>
           {CHECK_LABELS.map((label, i) => (
             <Pressable
               key={label}
@@ -177,112 +163,93 @@ export function LegalAcceptScreen() {
               <Text style={styles.checkLabel}>{label}</Text>
             </Pressable>
           ))}
-        </View>
+        </AppCard>
 
-        <Pressable
-          style={[styles.primaryBtn, (!allChecked || busy) && styles.primaryBtnDisabled]}
+        <AppButton
+          title={busy ? '' : 'Aceptar y continuar'}
           onPress={onAccept}
+          variant="primary"
           disabled={!allChecked || busy}
-          accessibilityRole="button"
-          accessibilityLabel="Aceptar y continuar">
-          {busy ? (
+          style={styles.acceptBtn}
+        />
+        {busy ? (
+          <View style={styles.busyOverlay}>
             <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.primaryBtnText}>Aceptar y continuar</Text>
-          )}
-        </Pressable>
+          </View>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: wellness.screenBg },
-  scroll: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
-  title: {
-    fontSize: TITLE,
-    fontWeight: '800',
-    color: wellness.text,
-    marginBottom: spacing.md,
-    letterSpacing: -0.3,
+  safe: { flex: 1, backgroundColor: wellnessColors.background },
+  scroll: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl * 2,
   },
-  lead: {
-    fontSize: BODY,
-    lineHeight: 26,
-    color: wellness.textSecondary,
-    marginBottom: spacing.md,
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  body: {
+    fontSize: 16,
+    color: wellnessColors.textSecondary,
   },
   docLink: {
-    alignSelf: 'flex-start',
+    marginBottom: spacing.md,
+  },
+  checksCard: {
+    gap: 2,
     marginBottom: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  docLinkText: {
-    fontSize: LEAD,
-    fontWeight: '700',
-    color: wellness.primaryDark,
-    textDecorationLine: 'underline',
-  },
-  card: {
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.cardLarge,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    padding: spacing.md,
-    marginBottom: spacing.xl,
-    gap: spacing.sm,
-    ...wellnessShadows.card,
   },
   checkRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.sm + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: wellnessColors.border,
   },
   checkbox: {
-    width: 26,
-    height: 26,
+    width: 24,
+    height: 24,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: wellness.borderStrong,
+    borderColor: wellnessColors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
+    marginTop: 1,
     backgroundColor: '#fff',
   },
   checkboxOn: {
-    borderColor: wellness.primary,
-    backgroundColor: wellness.softGreen,
+    borderColor: wellnessColors.primary,
+    backgroundColor: wellnessColors.primarySubtle,
   },
   checkMark: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
-    color: wellness.primaryDark,
+    color: wellnessColors.primaryDark,
   },
   checkLabel: {
     flex: 1,
-    fontSize: LEAD,
-    lineHeight: 22,
-    color: wellness.text,
+    fontSize: 15,
+    lineHeight: 21,
+    color: wellnessColors.textPrimary,
   },
-  primaryBtn: {
-    backgroundColor: wellness.primary,
-    borderRadius: wellnessRadii.pill,
-    paddingVertical: spacing.md,
+  acceptBtn: {
+    marginTop: spacing.sm,
+    borderRadius: wellnessRadius.md,
+  },
+  busyOverlay: {
+    position: 'absolute',
+    bottom: spacing.xl * 2 + spacing.sm + 14,
+    left: 0,
+    right: 0,
     alignItems: 'center',
-    marginBottom: spacing.xl,
   },
-  primaryBtnDisabled: { opacity: 0.5 },
-  primaryBtnText: { color: '#ffffff', fontSize: BODY, fontWeight: '700' },
-  body: { fontSize: BODY, color: wellness.textSecondary, marginBottom: spacing.md },
-  secondaryBtn: {
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    borderRadius: wellnessRadii.pill,
-    backgroundColor: wellness.softGreen,
-    borderWidth: 1,
-    borderColor: wellness.border,
-  },
-  secondaryBtnText: { fontSize: BODY, fontWeight: '700', color: wellness.primaryDark },
 });

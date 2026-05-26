@@ -183,15 +183,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 1,
     paddingVertical: 0,
-    ...{
-      shadowColor: '#4F6F52',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.06,
-      shadowRadius: 8,
-      elevation: 2,
-    },
+    shadowColor: '#4F6F52',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  /** Larger than before so the mark fills more of the pill without changing the outer badge size. */
   logoImg: {
     width: 50,
     height: 32,

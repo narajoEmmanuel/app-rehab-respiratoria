@@ -33,12 +33,12 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/respira-logo.png",
+          "image": "./assets/images/inicio.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#F7FAF9",
+          "backgroundColor": "#F6F7F6",
           "dark": {
-            "backgroundColor": "#F7FAF9"
+            "backgroundColor": "#F6F7F6"
           }
         }
       ],

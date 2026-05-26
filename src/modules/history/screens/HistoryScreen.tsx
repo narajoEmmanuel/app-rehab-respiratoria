@@ -45,8 +45,11 @@ import { usePatientSession } from '@/src/modules/patient/context/PatientSessionC
 import { readAllAttempts, readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import { todayStatsForPatientAndLevel } from '@/src/modules/session/utils/today-session-stats';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { AppCard } from '@/src/shared/ui/AppCard';
+import { AppButton } from '@/src/shared/ui/AppButton';
+import { SectionHeader } from '@/src/shared/ui/SectionHeader';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellness } from '@/src/shared/theme/wellness-theme';
+import { wellness, wellnessColors } from '@/src/shared/theme/wellness-theme';
 import { dashboardScreen, dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { getLocalDateKey } from '@/src/shared/utils/local-date-key';
 
@@ -293,14 +296,6 @@ export function HistoryScreen() {
             </Text>
             <Text style={styles.heroMotivation}>{heroMotivation}</Text>
 
-            <Pressable
-              onPress={() => router.push('/data-export')}
-              style={({ pressed }) => [styles.exportClinicalRow, pressed && styles.exportClinicalRowPressed]}
-              accessibilityRole="button"
-              accessibilityLabel="Exportar datos clínicos">
-              <Text style={styles.exportClinicalText}>Exportar datos clínicos</Text>
-            </Pressable>
-
             <View style={styles.summaryStack}>
               <SummaryCard
                 label="Racha terapéutica"
@@ -335,9 +330,8 @@ export function HistoryScreen() {
               />
             </View>
 
-            <View style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Tu calendario</Text>
-              <Text style={styles.sectionHint}>Toca un día para ver el detalle.</Text>
+            <AppCard style={styles.calendarCardSpacing}>
+              <SectionHeader title="Tu calendario" subtitle="Toca un día para ver el detalle." />
               <View style={styles.monthNav}>
                 <Pressable
                   onPress={() => shiftMonth(-1)}
@@ -402,7 +396,7 @@ export function HistoryScreen() {
                 <LegendDot color={CAL_BG_PRACTICE} label="Solo práctica (no terapéutica)" />
                 <LegendDot color={CAL_BG.none} label="Sin actividad" />
               </View>
-            </View>
+            </AppCard>
 
             {!hasAnyHistory ? (
               <View style={styles.inlineEmptyCard}>
@@ -413,12 +407,25 @@ export function HistoryScreen() {
               </View>
             ) : null}
 
-            <View style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>Logros recientes</Text>
+            <SectionHeader title="Logros recientes" />
+            <AppCard>
               {achievementsList.map((a) => (
                 <AchievementRow key={a.id} item={a} />
               ))}
-            </View>
+            </AppCard>
+
+            <SectionHeader title="Compartir resumen de progreso" />
+            <AppCard style={styles.exportSection}>
+              <Text style={styles.exportSectionBody}>
+                Genera un archivo con tus sesiones para revisarlo con un profesional de la salud.
+              </Text>
+              <AppButton
+                title="Exportar resumen"
+                onPress={() => router.push('/data-export')}
+                variant="secondary"
+                iconName="doc.text.fill"
+              />
+            </AppCard>
           </>
         )}
       </ScrollView>
@@ -548,10 +555,10 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
   },
   screenTitle: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 26,
+    fontWeight: '800',
     color: dashboardScreen.textPrimaryStrong,
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
     marginBottom: 2,
   },
   tagline: {
@@ -564,23 +571,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     fontSize: 15,
     lineHeight: 21,
-    color: '#374151',
+    color: dashboardScreen.textPrimary,
     fontWeight: '600',
     marginBottom: spacing.sm,
-  },
-  exportClinicalRow: {
-    alignSelf: 'flex-start',
-    marginBottom: spacing.md,
-    paddingVertical: spacing.xs,
-  },
-  exportClinicalRowPressed: {
-    opacity: 0.78,
-  },
-  exportClinicalText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: wellness.primaryDark,
-    textDecorationLine: 'underline',
   },
   summaryStack: {
     marginTop: spacing.md,
@@ -652,7 +645,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 6,
     borderRadius: 4,
-    backgroundColor: '#E8EDEA',
+    backgroundColor: wellnessColors.neutralSoft,
     overflow: 'hidden',
   },
   progressFill: {
@@ -674,25 +667,8 @@ const styles = StyleSheet.create({
   streakFireEmojiMuted: {
     opacity: 0.28,
   },
-  sectionCard: {
+  calendarCardSpacing: {
     marginTop: spacing.lg,
-    backgroundColor: dashboardScreen.cardBg,
-    borderRadius: dashboardScreen.cardRadius,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: dashboardScreen.cardBorderColor,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: dashboardScreen.textPrimary,
-  },
-  sectionHint: {
-    marginTop: 6,
-    fontSize: 15,
-    color: dashboardScreen.textSecondary,
-    marginBottom: spacing.md,
-    lineHeight: 21,
   },
   monthNav: {
     flexDirection: 'row',
@@ -761,10 +737,10 @@ const styles = StyleSheet.create({
   dayCellNum: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#1B1B1B',
+    color: dashboardScreen.textPrimary,
   },
   dayCellNumMuted: {
-    color: '#78909C',
+    color: dashboardScreen.textSecondary,
   },
   practiceDot: {
     position: 'absolute',
@@ -858,6 +834,15 @@ const styles = StyleSheet.create({
   },
   achievementDescLocked: {
     color: dashboardScreen.textSecondary,
+  },
+  exportSection: {
+    marginTop: spacing.sm,
+    gap: spacing.md,
+  },
+  exportSectionBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: wellnessColors.textSecondary,
   },
   loadingBox: {
     paddingVertical: spacing.xl,

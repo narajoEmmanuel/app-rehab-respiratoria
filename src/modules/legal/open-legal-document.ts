@@ -1,5 +1,5 @@
 /**
- * Purpose: Open bundled legal PDF across Expo Go (native) and web/PWA.
+ * Purpose: Open or share the bundled legal PDF across Expo Go (native) and web/PWA.
  * Module: legal
  */
 
@@ -12,16 +12,22 @@ import LEGAL_PDF from '../../../assets/legal/terminos-uso-etico.pdf';
 
 export type OpenLegalDocumentResult = 'opened' | 'cancelled';
 
-/**
- * Opens the full legal PDF: in-browser on web, system handler or share sheet on native.
- */
-export async function openLegalDocument(): Promise<OpenLegalDocumentResult> {
+async function resolvePdfUri(): Promise<string> {
   const asset = Asset.fromModule(LEGAL_PDF);
   await asset.downloadAsync();
-  const sourceUri = asset.localUri ?? asset.uri;
-  if (sourceUri == null || sourceUri === '') {
+  const uri = asset.localUri ?? asset.uri;
+  if (uri == null || uri === '') {
     throw new Error('No se pudo resolver la ruta del documento legal.');
   }
+  return uri;
+}
+
+/**
+ * Opens the full legal PDF in an external viewer (browser on web, system handler on native).
+ * Falls back to the share sheet if the system cannot open the file directly.
+ */
+export async function openLegalDocument(): Promise<OpenLegalDocumentResult> {
+  const sourceUri = await resolvePdfUri();
 
   if (Platform.OS === 'web') {
     if (typeof window !== 'undefined') {
@@ -38,7 +44,24 @@ export async function openLegalDocument(): Promise<OpenLegalDocumentResult> {
       return 'opened';
     }
   } catch {
-    // Falls back to native share sheet when direct open is unavailable in Expo/runtime.
+    // Falls through to share sheet when direct open is unavailable.
+  }
+
+  return shareLegalDocumentPdf();
+}
+
+/**
+ * Opens the native share sheet so the user can send, save, or open the PDF in another app.
+ */
+export async function shareLegalDocumentPdf(): Promise<OpenLegalDocumentResult> {
+  const sourceUri = await resolvePdfUri();
+
+  if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined') {
+      window.open(sourceUri, '_blank', 'noopener,noreferrer');
+      return 'opened';
+    }
+    throw new Error('Vista web no disponible.');
   }
 
   const sharingAvailable = await Sharing.isAvailableAsync();
@@ -48,7 +71,7 @@ export async function openLegalDocument(): Promise<OpenLegalDocumentResult> {
 
   await Sharing.shareAsync(sourceUri, {
     mimeType: 'application/pdf',
-    dialogTitle: 'Términos y condiciones',
+    dialogTitle: 'Documentos legales de RESPIRA+',
     UTI: 'com.adobe.pdf',
   });
   return 'opened';

@@ -1,11 +1,11 @@
 import { Image, StyleSheet, View } from 'react-native';
 
-const RESPIRA_LOGO = require('../../../assets/images/respira-logo.png');
+const INICIO_LOGO = require('../../../assets/images/inicio.png');
 
 export function WebStartupSplash() {
   return (
     <View style={styles.container}>
-      <Image source={RESPIRA_LOGO} style={styles.logo} resizeMode="contain" />
+      <Image source={INICIO_LOGO} style={styles.logo} resizeMode="contain" />
     </View>
   );
 }
@@ -15,10 +15,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F7FAF9',
+    backgroundColor: '#F6F7F6',
   },
   logo: {
-    width: 220,
-    height: 220,
+    width: 240,
+    height: 240,
   },
 });

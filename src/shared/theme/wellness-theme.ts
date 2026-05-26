@@ -37,6 +37,72 @@ export const wellness = {
   tabBarBorder: 'rgba(52, 171, 165, 0.16)',
 } as const;
 
+// ---------------------------------------------------------------------------
+// Extended palette — Fase 2A
+// ---------------------------------------------------------------------------
+
+export const wellnessColors = {
+  primary: '#34aba5',
+  primaryDark: '#1F7E7A',
+  primarySoft: 'rgba(52, 171, 165, 0.10)',
+  primarySubtle: '#F0FAF9',
+
+  background: '#F6F7F6',
+  card: '#FFFFFF',
+  border: '#E8ECE9',
+
+  textPrimary: '#111827',
+  textSecondary: '#6B7280',
+  textMuted: '#9CA3AF',
+
+  success: '#2E7D32',
+  successSoft: '#E8F2E4',
+  warning: '#F59E0B',
+  warningSoft: '#FEF3C7',
+  danger: '#B91C1C',
+  dangerSoft: '#FEE2E2',
+
+  info: '#2563EB',
+  infoSoft: '#DBEAFE',
+  neutral: '#6B7280',
+  neutralSoft: '#F3F4F6',
+} as const;
+
+export const wellnessRadius = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 22,
+  full: 9999,
+} as const;
+
+export const wellnessTypography = {
+  screenTitle: { fontSize: 26, fontWeight: '800' as const, letterSpacing: -0.3 },
+  screenSubtitle: { fontSize: 16, lineHeight: 23, fontWeight: '400' as const },
+  sectionTitle: { fontSize: 18, fontWeight: '800' as const },
+  cardTitle: { fontSize: 16, fontWeight: '700' as const },
+  body: { fontSize: 15, lineHeight: 22, fontWeight: '400' as const },
+  caption: { fontSize: 12, lineHeight: 17, fontWeight: '600' as const, letterSpacing: 0.2 },
+  label: { fontSize: 11, fontWeight: '700' as const, letterSpacing: 0.3 },
+  metricLarge: { fontSize: 30, fontWeight: '800' as const, letterSpacing: -0.3 },
+  metricMedium: { fontSize: 22, fontWeight: '800' as const, letterSpacing: -0.2 },
+  metricSmall: { fontSize: 18, fontWeight: '800' as const },
+  statusValue: { fontSize: 15, fontWeight: '700' as const },
+  /** @deprecated Use metricMedium instead */
+  metric: { fontSize: 22, fontWeight: '800' as const, letterSpacing: -0.2 },
+} as const;
+
+/** Unified theme object for reusable components. */
+export const wellnessTheme = {
+  colors: wellnessColors,
+  radius: wellnessRadius,
+  typography: wellnessTypography,
+} as const;
+
+// ---------------------------------------------------------------------------
+// Legacy exports (unchanged)
+// ---------------------------------------------------------------------------
+
 /** Extra-rounded radii for wellness cards (extends base `radii`). */
 export const wellnessRadii = {
   card: 22,
@@ -55,6 +121,20 @@ export const wellnessShadows = {
     shadowOpacity: 0.07,
     shadowRadius: 16,
     elevation: 4,
+  },
+  soft: {
+    shadowColor: '#4F6F52',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  elevated: {
+    shadowColor: '#1E1E1E',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.10,
+    shadowRadius: 20,
+    elevation: 8,
   },
   cardPress: {
     shadowColor: '#4F6F52',

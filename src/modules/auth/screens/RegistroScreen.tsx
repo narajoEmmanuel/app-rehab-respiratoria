@@ -22,6 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
 import { normalizeDataErrorMessage } from '@/src/lib/supabase';
+import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { createPatient } from '@/src/modules/patient/patient-service';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import type { PatientRecord } from '@/src/modules/patient/types';
@@ -29,9 +30,9 @@ import { spacing } from '@/src/shared/theme/spacing';
 import { wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 
 const TITLE = 26;
-const BODY = 18;
-const LABEL = 17;
-const BTN = 19;
+const BODY = 16;
+const LABEL = 16;
+const BTN = 17;
 
 export function RegistroScreen() {
   const router = useRouter();
@@ -61,7 +62,7 @@ export function RegistroScreen() {
   async function onContinue() {
     if (!registered) return;
     await setSessionPatient(registered);
-    router.replace('/');
+    router.replace(LEGAL_ACCEPT_HREF);
   }
 
   if (registered) {
@@ -90,12 +91,16 @@ export function RegistroScreen() {
             </Text>
           </View>
 
+          <Text style={styles.legalHint}>
+            El siguiente paso es revisar y aceptar los documentos legales.
+          </Text>
+
           <Pressable
             style={styles.primaryBtn}
             onPress={onContinue}
             accessibilityRole="button"
-            accessibilityLabel="Continuar al inicio">
-            <Text style={styles.primaryBtnText}>Continuar al inicio</Text>
+            accessibilityLabel="Revisar documentos">
+            <Text style={styles.primaryBtnText}>Revisar documentos</Text>
           </Pressable>
 
           <Pressable
@@ -194,7 +199,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: BODY,
-    lineHeight: 26,
+    lineHeight: 23,
     color: authPalette.textMuted,
     marginBottom: spacing.xl,
   },
@@ -255,6 +260,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
     color: authPalette.textMuted,
+  },
+  legalHint: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: authPalette.textMuted,
+    textAlign: 'center',
+    marginBottom: spacing.md,
   },
   summaryCard: {
     backgroundColor: authPalette.card,

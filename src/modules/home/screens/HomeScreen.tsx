@@ -17,26 +17,43 @@ import {
   evaluateDiagnosticSensorReadinessOnDemand,
   showDiagnosticPlayModePicker,
   showDiagnosticSensorReadyConfirmation,
+  showLevelPlayModePicker,
   showTherapyReadinessAlert,
+  useTherapyReadinessGate,
 } from '@/src/modules/device/volume-estimation';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import { useCalibrationSnapshot } from '@/src/modules/device/state/use-calibration-snapshot';
-import { getCurrentActiveLevel, hasDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
+import { getCurrentActiveLevel, hasDiagnostic, getLatestDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
+import type { DiagnosticRecord } from '@/src/modules/diagnostics/types';
 import { HomeLastSessionCard } from '@/src/modules/home/components/HomeLastSessionCard';
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { useConsentActive } from '@/src/modules/legal/use-consent-active';
+import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
+import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
+import { getLevelDisplayMeta } from '@/src/modules/session/levels/level-difficulty-config';
+import { getLevelById } from '@/src/modules/session/registry/level-registry';
+import { logLevelSensorModeSelected } from '@/src/modules/session/sensor/level-sensor-debug';
+import { evaluateLevelSensorReadiness } from '@/src/modules/session/sensor/level-sensor-readiness';
+import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
+import { updateDailyProgress } from '@/src/modules/session/session-progress-service';
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
-import { updateDailyProgress } from '@/src/modules/session/session-progress-service';
+import { isLevelEntryLockedForUi } from '@/src/config/dev-level-flags';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { AppCard } from '@/src/shared/ui/AppCard';
+import { AppButton } from '@/src/shared/ui/AppButton';
+import { SectionHeader } from '@/src/shared/ui/SectionHeader';
+import { InfoTile } from '@/src/shared/ui/InfoTile';
+import { MetricTile } from '@/src/shared/ui/MetricTile';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { spacing } from '@/src/shared/theme/spacing';
-import { dashboardScreen, dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
+import { wellnessColors, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import { dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { addDaysLocal, getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 
-const ACCENT = '#34aba5';
+const ACCENT = wellnessColors.primary;
 
 function onLightImpact() {
   if (Platform.OS === 'ios') {
@@ -68,19 +85,39 @@ export function HomeScreen() {
   const { patient, hydrated } = usePatientSession();
   const { ready: consentUiReady, active: consentActive } = useConsentActive();
   const { snapshot: calibrationSnapshot } = useCalibrationSnapshot();
+  const { selectLevel } = useLevelsProgress();
+  const {
+    refresh: refreshTherapyGate,
+    lastReading,
+    sensorConnected: therapyGateSensorConnected,
+    sensorStatus: therapyGateSensorStatus,
+  } = useTherapyReadinessGate();
   const [hasCompletedDiagnostic, setHasCompletedDiagnostic] = useState(false);
   const [currentLevelLabel, setCurrentLevelLabel] = useState('Nivel 1');
+  const [currentLevelHumanName, setCurrentLevelHumanName] = useState('');
+  const [activeLevelId, setActiveLevelId] = useState<LevelId | null>(null);
   const [todayCompletedSessions, setTodayCompletedSessions] = useState(0);
   const [patientSessions, setPatientSessions] = useState<SessionRecord[]>([]);
+  const [latestDiag, setLatestDiag] = useState<DiagnosticRecord | null>(null);
+  const [startingLevel, setStartingLevel] = useState(false);
+  const [lastReadingReceivedAtMs, setLastReadingReceivedAtMs] = useState<number | null>(null);
 
   const bottomPad = dashboardScrollBottomPadding(insets.bottom);
+
+  useEffect(() => {
+    if (!lastReading) return;
+    setLastReadingReceivedAtMs(Date.now());
+  }, [lastReading, lastReading?.distanceMm, lastReading?.timestamp]);
 
   const loadProgress = useCallback(async () => {
     if (!patient) {
       setHasCompletedDiagnostic(false);
       setCurrentLevelLabel('Nivel 1');
+      setCurrentLevelHumanName('');
+      setActiveLevelId(null);
       setTodayCompletedSessions(0);
       setPatientSessions([]);
+      setLatestDiag(null);
       return;
     }
     const [exists, allSessions] = await Promise.all([
@@ -94,18 +131,27 @@ export function HomeScreen() {
     if (exists) {
       const activeLevel = await getCurrentActiveLevel(patient.paciente_id);
       const daily = await updateDailyProgress(patient.paciente_id);
-      setCurrentLevelLabel(activeLevel ? `Nivel ${activeLevel.level_id.split('-')[1]}` : 'Nivel 1');
+      const levelId = activeLevel?.level_id ?? 'level-1';
+      setActiveLevelId(levelId as LevelId);
+      setCurrentLevelLabel(`Nivel ${levelId.split('-')[1]}`);
+      setCurrentLevelHumanName(getLevelDisplayMeta(levelId).humanName);
       setTodayCompletedSessions(daily.completedToday);
+      const diag = await getLatestDiagnostic(patient.paciente_id);
+      setLatestDiag(diag);
     } else {
       setCurrentLevelLabel('Nivel 1');
+      setCurrentLevelHumanName('');
+      setActiveLevelId(null);
       setTodayCompletedSessions(0);
+      setLatestDiag(null);
     }
   }, [patient]);
 
   useFocusEffect(
     useCallback(() => {
       void loadProgress();
-    }, [loadProgress]),
+      void refreshTherapyGate();
+    }, [loadProgress, refreshTherapyGate]),
   );
 
   useEffect(() => {
@@ -124,11 +170,68 @@ export function HomeScreen() {
     return countWeeklyCompleted(patientSessions, getLocalDateKey());
   }, [patientSessions]);
 
-  const goStartTerapia = useCallback(() => {
+  const navigateToSession = useCallback(
+    (levelId: LevelId, inputMode: SessionInputMode) => {
+      selectLevel(levelId);
+      router.push({
+        pathname: '/(tabs)/sesion',
+        params: {
+          levelId,
+          sessionRunId: `${levelId}-${Date.now()}`,
+          inputMode,
+        },
+      });
+    },
+    [router, selectLevel],
+  );
+
+  const beginOfficialSensorSession = useCallback(
+    async (levelId: LevelId) => {
+      setStartingLevel(true);
+      try {
+        const readiness = await evaluateLevelSensorReadiness({
+          inputMode: 'sensor',
+          sensorConnected: therapyGateSensorConnected,
+          sensorStatus: therapyGateSensorStatus,
+          lastReading,
+          receivedAtMs: lastReadingReceivedAtMs,
+          patientId: patient?.paciente_id ?? null,
+        });
+
+        if (!readiness.canStart) {
+          if (readiness.blockReason === 'no_live_reading') {
+            Alert.alert(
+              'Esperando datos del sensor',
+              'Conecta el sensor y verifica que esté enviando lecturas antes de comenzar.',
+              [{ text: 'Entendido', style: 'default' }],
+            );
+            return;
+          }
+          showTherapyReadinessAlert(readiness.gate, (route) => router.push(route));
+          return;
+        }
+
+        navigateToSession(levelId, 'sensor');
+      } finally {
+        setStartingLevel(false);
+      }
+    },
+    [
+      lastReading,
+      lastReadingReceivedAtMs,
+      navigateToSession,
+      patient?.paciente_id,
+      router,
+      therapyGateSensorConnected,
+      therapyGateSensorStatus,
+    ],
+  );
+
+  const goStartRecommendedLevel = useCallback(() => {
     if (!hasCompletedDiagnostic) {
       Alert.alert(
-        'Diagnóstico pendiente',
-        'Primero realiza tu diagnóstico para iniciar terapia.',
+        'Evaluación inicial pendiente',
+        'Completa tu evaluación inicial para personalizar tu terapia.',
       );
       return;
     }
@@ -144,9 +247,37 @@ export function HomeScreen() {
       );
       return;
     }
+    if (!activeLevelId || startingLevel) {
+      onLightImpact();
+      router.push('/(tabs)/terapia');
+      return;
+    }
+    const levelDef = getLevelById(activeLevelId);
+    if (isLevelEntryLockedForUi(false, levelDef?.comingSoon)) {
+      onLightImpact();
+      router.push('/(tabs)/terapia');
+      return;
+    }
     onLightImpact();
-    router.push('/(tabs)/terapia');
-  }, [consentActive, consentUiReady, hasCompletedDiagnostic, router]);
+    showLevelPlayModePicker({
+      onWithSensor: () => {
+        logLevelSensorModeSelected('sensor');
+        void beginOfficialSensorSession(activeLevelId);
+      },
+      onPracticeMode: () => {
+        navigateToSession(activeLevelId, 'touch_practice');
+      },
+    });
+  }, [
+    activeLevelId,
+    beginOfficialSensorSession,
+    consentActive,
+    consentUiReady,
+    hasCompletedDiagnostic,
+    navigateToSession,
+    router,
+    startingLevel,
+  ]);
 
   const goSensorConnection = useCallback(() => {
     if (consentUiReady && !consentActive) {
@@ -218,9 +349,8 @@ export function HomeScreen() {
   const firstName = displayName.trim().split(/\s+/)[0] ?? displayName;
   const therapyCtaDisabled =
     !hasCompletedDiagnostic || !consentUiReady || !consentActive;
-  const heroSubtitle = hasCompletedDiagnostic
-    ? `${currentLevelLabel} · ${todayCompletedSessions} de 6 sesiones hoy`
-    : `${currentLevelLabel}`;
+  const dailyGoalMet = hasCompletedDiagnostic && todayCompletedSessions >= 6;
+  const levelDisplayName = currentLevelHumanName || currentLevelLabel;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -235,57 +365,53 @@ export function HomeScreen() {
           <View style={styles.consentCard} accessibilityRole="alert">
             <Text style={styles.consentTitle}>Consentimiento pendiente</Text>
             <Text style={styles.consentBody}>
-              Sin consentimiento activo no podrás usar Terapia, Historial ni la conexión del sensor. Revisa los
-              documentos y acepta cuando estés listo.
+              Revisa y acepta los documentos para continuar con la terapia.
             </Text>
             <Pressable
               style={styles.consentBtn}
               onPress={() => router.push(LEGAL_ACCEPT_HREF)}
               accessibilityRole="button"
-              accessibilityLabel="Revisar y aceptar documentos legales">
-              <Text style={styles.consentBtnText}>Revisar y aceptar</Text>
+              accessibilityLabel="Revisar documentos legales">
+              <Text style={styles.consentBtnText}>Revisar documentos</Text>
             </Pressable>
           </View>
         ) : null}
 
         {!hasCompletedDiagnostic ? (
-          <>
-            <View style={styles.diagnosticHeroCard}>
-              <Text style={styles.diagnosticHeroKicker}>Antes de la terapia</Text>
-              <Text style={styles.diagnosticHeroTitle}>Realizar primer diagnóstico</Text>
-              <Text style={styles.diagnosticHeroBody}>
-                Antes de iniciar terapia, necesitamos medir tu volumen inspiratorio máximo.
-              </Text>
-              <Pressable
-                style={({ pressed }) => [styles.diagnosticHeroBtn, pressed && styles.diagnosticHeroBtnPressed]}
-                onPress={goDiagnostico}
-                accessibilityRole="button"
-                accessibilityLabel="Realizar primer diagnóstico">
-                <Text style={styles.diagnosticHeroBtnText}>Realizar primer diagnóstico</Text>
-              </Pressable>
+          <AppCard variant="highlight" style={styles.diagnosticHeroCard}>
+            <Text style={styles.diagnosticHeroKicker}>Evaluación inicial</Text>
+            <Text style={styles.diagnosticHeroTitle}>Conoce tu punto de partida</Text>
+            <Text style={styles.diagnosticHeroBody}>
+              Mide tu volumen de referencia para personalizar tus metas de terapia.
+            </Text>
+            <AppButton title="Iniciar evaluación" onPress={goDiagnostico} />
+          </AppCard>
+        ) : dailyGoalMet ? (
+          <AppCard style={styles.heroCardSpacing}>
+            <Text style={styles.heroKicker}>Progreso de hoy</Text>
+            <Text style={styles.heroTitle}>Sesiones de hoy completadas</Text>
+            <Text style={styles.heroSubtitle}>
+              Puedes revisar tu progreso o continuar según la indicación de tu profesional.
+            </Text>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: '100%' }]} />
             </View>
-
-            <View style={[styles.heroCard, styles.heroCardBlocked]}>
-              <Text style={styles.heroKicker}>Sesión recomendada</Text>
-              <Text style={styles.heroTitle}>Terapia guiada</Text>
-              <Text style={styles.heroSubtitleBlocked}>
-                Primero realiza tu diagnóstico para iniciar terapia.
-              </Text>
-              <Pressable
-                style={[styles.primaryCta, styles.primaryCtaBlocked]}
-                disabled
-                accessibilityRole="button"
-                accessibilityLabel="Terapia bloqueada hasta completar diagnóstico"
-                accessibilityState={{ disabled: true }}>
-                <Text style={styles.primaryCtaTextMuted}>Iniciar terapia</Text>
-              </Pressable>
-            </View>
-          </>
+            <AppButton
+              title="Ver historial"
+              onPress={() => {
+                onLightImpact();
+                router.push('/(tabs)/historial');
+              }}
+              variant="secondary"
+            />
+          </AppCard>
         ) : (
-          <View style={styles.heroCard}>
-            <Text style={styles.heroKicker}>Sesión recomendada</Text>
-            <Text style={styles.heroTitle}>Terapia guiada</Text>
-            <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
+          <AppCard style={styles.heroCardSpacing}>
+            <Text style={styles.heroKicker}>Próxima acción</Text>
+            <Text style={styles.heroTitle}>Continúa tu terapia guiada</Text>
+            <Text style={styles.heroSubtitle}>
+              {`Nivel sugerido: ${levelDisplayName}\nHoy: ${todayCompletedSessions} de 6 sesiones`}
+            </Text>
             <View style={styles.progressTrack}>
               <View
                 style={[
@@ -294,51 +420,93 @@ export function HomeScreen() {
                 ]}
               />
             </View>
-            <Pressable
-              style={({ pressed }) => [
-                styles.primaryCta,
-                therapyCtaDisabled && styles.primaryCtaDisabled,
-                pressed && !therapyCtaDisabled && styles.primaryCtaPressed,
-              ]}
-              onPress={goStartTerapia}
-              disabled={!consentUiReady}
-              accessibilityRole="button"
-              accessibilityLabel="Iniciar terapia"
-              accessibilityState={{ disabled: therapyCtaDisabled || !consentUiReady }}>
-              <Text style={styles.primaryCtaText}>
-                {!consentUiReady
+            <AppButton
+              title={
+                !consentUiReady
                   ? 'Preparando…'
                   : !consentActive
                     ? 'Activa el consentimiento para continuar'
-                    : 'Iniciar terapia'}
-              </Text>
-            </Pressable>
-          </View>
+                    : 'Empezar nivel sugerido'
+              }
+              onPress={goStartRecommendedLevel}
+              disabled={therapyCtaDisabled}
+            />
+          </AppCard>
         )}
 
         {!hasAnySession ? (
-          <View style={styles.emptyCard}>
+          <AppCard>
             <Text style={styles.emptyTitle}>Aún no hay sesiones registradas</Text>
             <Text style={styles.emptyBody}>
               Cuando completes tu primera sesión verás aquí un resumen con cumplimiento y volumen. Empieza cuando te
               sientas preparado.
             </Text>
-          </View>
+          </AppCard>
         ) : null}
 
         {lastSession ? <HomeLastSessionCard session={lastSession} /> : null}
 
         {hasAnySession ? (
-          <View style={styles.weekCard}>
-            <Text style={styles.weekKicker}>Constancia</Text>
-            <Text style={styles.weekTitle}>Últimos 7 días</Text>
-            <Text style={styles.weekValue}>
-              {weeklyCompleted === 0
-                ? 'Sin sesiones completadas esta semana'
-                : `${weeklyCompleted} sesión${weeklyCompleted === 1 ? '' : 'es'} completada${weeklyCompleted === 1 ? '' : 's'}`}
-            </Text>
+          <AppCard style={styles.weekCardSpacing}>
+            <SectionHeader title="Constancia" subtitle="Últimos 7 días" />
+            <View style={styles.weekMetricsRow}>
+              <MetricTile
+                label="Esta semana"
+                value={weeklyCompleted === 0 ? '0' : String(weeklyCompleted)}
+                helper={`sesión${weeklyCompleted === 1 ? '' : 'es'} completada${weeklyCompleted === 1 ? '' : 's'}`}
+              />
+              <MetricTile
+                label="Hoy"
+                value={`${todayCompletedSessions}/6`}
+                helper="meta diaria"
+              />
+            </View>
             <Text style={styles.weekHint}>El historial completo está en la pestaña Historial.</Text>
-          </View>
+          </AppCard>
+        ) : null}
+
+        {hasCompletedDiagnostic ? (
+          <AppCard variant="soft" style={styles.evalCardSpacing}>
+            <View style={styles.evalCardHeader}>
+              <View style={styles.evalCardIconWrap}>
+                <IconSymbol name="lungs.fill" size={24} color={ACCENT} />
+              </View>
+              <View style={styles.evalCardHeaderText}>
+                <Text style={styles.evalCardTitle}>Evaluación inicial</Text>
+                <Text style={styles.evalCardSubtitle}>
+                  Actualiza tu volumen de referencia para personalizar tus metas de terapia.
+                </Text>
+              </View>
+            </View>
+            {latestDiag ? (
+              <View style={styles.evalCardMetrics}>
+                <MetricTile
+                  label="Volumen de referencia"
+                  value={`${latestDiag.max_inspiratory_volume} mL`}
+                  iconName="lungs.fill"
+                />
+                <View style={styles.evalCardMetricRow}>
+                  <InfoTile
+                    label="Última evaluación"
+                    value={new Date(latestDiag.diagnostic_date).toLocaleDateString(undefined, {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                    tone="neutral"
+                  />
+                  {latestDiag.diagnostic_number != null ? (
+                    <MetricTile
+                      label="Evaluación"
+                      value={`#${latestDiag.diagnostic_number}`}
+                      size="compact"
+                    />
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+            <AppButton title="Repetir evaluación" onPress={goDiagnostico} variant="secondary" />
+          </AppCard>
         ) : null}
 
         <DeviceCard
@@ -346,11 +514,29 @@ export function HomeScreen() {
           onPress={goSensorConnection}
         />
 
-        {hasCompletedDiagnostic ? (
-          <Pressable style={styles.evalLink} onPress={goDiagnostico} accessibilityRole="button">
-            <Text style={styles.evalLinkText}>Repetir diagnóstico</Text>
-          </Pressable>
-        ) : null}
+        <SectionHeader title="Resumen para tu profesional" />
+        <AppCard
+          pressable
+          onPress={() => {
+            onLightImpact();
+            router.push('/data-export');
+          }}
+          style={styles.exportCardSpacing}>
+          <View style={styles.exportCardHeader}>
+            <View style={styles.exportCardIconWrap}>
+              <IconSymbol name="doc.text.fill" size={22} color={ACCENT} />
+            </View>
+            <View style={styles.exportCardTextCol}>
+              <Text style={styles.exportCardBody}>
+                Comparte tus sesiones y progreso en un archivo exportable.
+              </Text>
+            </View>
+          </View>
+          <View style={styles.exportCardCtaRow}>
+            <Text style={styles.exportCardCtaText}>Exportar resumen</Text>
+            <IconSymbol name="chevron.right" size={16} color={ACCENT} />
+          </View>
+        </AppCard>
 
         <View style={styles.claveRow}>
           <Text style={styles.claveLabel}>Tu clave de acceso</Text>
@@ -473,43 +659,43 @@ function DeviceCard({
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: dashboardScreen.screenBg },
+  safe: { flex: 1, backgroundColor: wellnessColors.background },
   scroll: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
   },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
   greeting: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1A1A1A',
-    letterSpacing: -0.4,
+    fontSize: 26,
+    fontWeight: '800',
+    color: wellnessColors.textPrimary,
+    letterSpacing: -0.3,
     marginBottom: 2,
   },
   tagline: {
     fontSize: 16,
     lineHeight: 22,
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
     marginBottom: spacing.lg,
   },
   consentCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: wellnessColors.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: wellnessColors.border,
     padding: spacing.lg,
     marginBottom: spacing.lg,
   },
   consentTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#111827',
+    color: wellnessColors.textPrimary,
     marginBottom: spacing.sm,
   },
   consentBody: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
     marginBottom: spacing.md,
   },
   consentBtn: {
@@ -525,11 +711,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   diagnosticHeroCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: 'rgba(52, 171, 165, 0.45)',
-    padding: spacing.lg + 4,
     marginBottom: spacing.lg,
     gap: spacing.md,
   },
@@ -543,47 +724,21 @@ const styles = StyleSheet.create({
   diagnosticHeroTitle: {
     fontSize: 26,
     fontWeight: '800',
-    color: '#111827',
+    color: wellnessColors.textPrimary,
     lineHeight: 32,
   },
   diagnosticHeroBody: {
     fontSize: 16,
     lineHeight: 24,
-    color: '#4B5563',
+    color: wellnessColors.textSecondary,
   },
-  diagnosticHeroBtn: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: ACCENT,
-    borderRadius: 16,
-    paddingVertical: 18,
-    paddingHorizontal: spacing.lg,
-    minHeight: 56,
-  },
-  diagnosticHeroBtnPressed: {
-    opacity: 0.92,
-  },
-  diagnosticHeroBtnText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  heroCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#EBEBEB',
-    padding: spacing.lg,
+  heroCardSpacing: {
     marginBottom: spacing.lg,
-  },
-  heroCardBlocked: {
-    borderStyle: 'dashed',
-    opacity: 0.92,
   },
   heroKicker: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: spacing.xs,
@@ -591,26 +746,19 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#111827',
+    color: wellnessColors.textPrimary,
     marginBottom: 6,
   },
   heroSubtitle: {
     fontSize: 15,
     lineHeight: 21,
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
     marginBottom: spacing.md,
-  },
-  heroSubtitleBlocked: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: '#9CA3AF',
-    marginBottom: spacing.md,
-    fontWeight: '600',
   },
   progressTrack: {
     height: 6,
     borderRadius: 4,
-    backgroundColor: '#E8EDEA',
+    backgroundColor: wellnessColors.neutralSoft,
     overflow: 'hidden',
     marginBottom: spacing.md,
   },
@@ -619,93 +767,39 @@ const styles = StyleSheet.create({
     backgroundColor: ACCENT,
     borderRadius: 4,
   },
-  primaryCta: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: ACCENT,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: spacing.lg,
-  },
-  primaryCtaDisabled: {
-    opacity: 0.5,
-  },
-  primaryCtaBlocked: {
-    backgroundColor: '#D1D5DB',
-    opacity: 1,
-  },
-  primaryCtaPressed: {
-    opacity: 0.92,
-  },
-  primaryCtaText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  primaryCtaTextMuted: {
-    color: '#6B7280',
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  emptyCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#EBEBEB',
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-  },
   emptyTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#111827',
+    color: wellnessColors.textPrimary,
     marginBottom: spacing.sm,
   },
   emptyBody: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
   },
-  weekCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#EBEBEB',
-    padding: spacing.lg,
+  weekCardSpacing: {
     marginBottom: spacing.lg,
   },
-  weekKicker: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6B7280',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  weekTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 6,
-  },
-  weekValue: {
-    fontSize: 16,
-    color: '#374151',
-    fontWeight: '600',
+  weekMetricsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
     marginBottom: spacing.sm,
   },
   weekHint: {
     fontSize: 13,
-    color: '#9CA3AF',
+    color: wellnessColors.textMuted,
     lineHeight: 18,
+    marginTop: spacing.xs,
   },
   deviceCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: wellnessColors.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#EBEBEB',
+    borderColor: wellnessColors.border,
     padding: spacing.lg,
     marginBottom: spacing.md,
+    ...wellnessShadows.soft,
   },
   deviceCardPressed: { opacity: 0.94 },
   deviceTopRow: {
@@ -720,7 +814,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 18,
-    backgroundColor: 'rgba(52, 171, 165, 0.14)',
+    backgroundColor: wellnessColors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -731,19 +825,19 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
   },
-  deviceBadgeReady: { backgroundColor: 'rgba(52, 171, 165, 0.12)', borderColor: 'rgba(52, 171, 165, 0.32)' },
-  deviceBadgePending: { backgroundColor: '#F4F6F5', borderColor: '#E5E7EB' },
-  deviceBadgeWarn: { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
+  deviceBadgeReady: { backgroundColor: wellnessColors.primarySoft, borderColor: 'rgba(52, 171, 165, 0.32)' },
+  deviceBadgePending: { backgroundColor: wellnessColors.neutralSoft, borderColor: wellnessColors.border },
+  deviceBadgeWarn: { backgroundColor: wellnessColors.dangerSoft, borderColor: '#FECACA' },
   deviceBadgeText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
-  deviceBadgeTextReady: { color: '#1F7A75' },
-  deviceBadgeTextPending: { color: '#6B7280' },
-  deviceBadgeTextWarn: { color: '#B91C1C' },
-  deviceTitle: { fontSize: 20, fontWeight: '800', color: '#111827', marginTop: 8 },
+  deviceBadgeTextReady: { color: wellnessColors.primaryDark },
+  deviceBadgeTextPending: { color: wellnessColors.textSecondary },
+  deviceBadgeTextWarn: { color: wellnessColors.danger },
+  deviceTitle: { fontSize: 20, fontWeight: '800', color: wellnessColors.textPrimary, marginTop: 8 },
   deviceSubtitle: {
     marginTop: 6,
     fontSize: 14,
     lineHeight: 20,
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
   },
   deviceCtaRow: {
     flexDirection: 'row',
@@ -752,29 +846,94 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     paddingTop: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: '#F1F3F5',
+    borderTopColor: wellnessColors.border,
   },
   deviceCtaLabel: { fontSize: 15, fontWeight: '700', color: ACCENT },
-  evalLink: {
-    alignSelf: 'flex-start',
-    paddingVertical: spacing.sm,
+  evalCardSpacing: {
     marginBottom: spacing.lg,
   },
-  evalLinkText: {
+  evalCardHeader: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  evalCardIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: wellnessColors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  evalCardHeaderText: {
+    flex: 1,
+  },
+  evalCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: wellnessColors.textPrimary,
+    marginBottom: 4,
+  },
+  evalCardSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: wellnessColors.textSecondary,
+  },
+  evalCardMetrics: {
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  evalCardMetricRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  exportCardSpacing: {
+    marginBottom: spacing.lg,
+  },
+  exportCardHeader: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  exportCardIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: wellnessColors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exportCardTextCol: {
+    flex: 1,
+  },
+  exportCardBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: wellnessColors.textSecondary,
+  },
+  exportCardCtaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: wellnessColors.border,
+  },
+  exportCardCtaText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
     color: ACCENT,
   },
   claveRow: {
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: wellnessColors.border,
   },
   claveLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#9CA3AF',
+    color: wellnessColors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     marginBottom: 4,
@@ -782,16 +941,16 @@ const styles = StyleSheet.create({
   claveValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#374151',
+    color: wellnessColors.textPrimary,
     letterSpacing: 1.2,
     marginBottom: 6,
   },
   claveHint: {
     fontSize: 13,
-    color: '#9CA3AF',
+    color: wellnessColors.textMuted,
     lineHeight: 18,
   },
-  mutedBody: { fontSize: 16, color: '#6B7280', marginBottom: spacing.md },
+  mutedBody: { fontSize: 16, color: wellnessColors.textSecondary, marginBottom: spacing.md },
   textLinkWrap: { padding: spacing.md },
   textLink: { fontSize: 16, fontWeight: '700', color: authPalette.link, textDecorationLine: 'underline' },
 });

@@ -5,7 +5,6 @@
 import { useLayoutEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,7 +13,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
-import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+import { AppButton } from '@/src/shared/ui/AppButton';
+import { AppCard } from '@/src/shared/ui/AppCard';
+import { MetricTile } from '@/src/shared/ui/MetricTile';
+import { SectionHeader } from '@/src/shared/ui/SectionHeader';
+import { spacing } from '@/src/shared/theme/spacing';
+import { wellnessColors, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 import {
   getSessionDetail,
@@ -29,17 +33,17 @@ import type { SessionRecord } from '@/src/modules/session/types/session-progress
 
 function getSummaryTitle(session: SessionRecord | null): string {
   if (!session) return 'Resumen de sesión';
-  if (session.perfect && session.completed) return 'Sesión perfecta';
+  if (session.perfect && session.completed) return 'Buen control durante la sesión';
   if (session.completed) return 'Sesión completada';
-  if (session.interrupted && !session.completed) return 'Sesión interrumpida';
+  if (session.interrupted && !session.completed) return 'Sesión detenida';
   return 'Resumen de sesión';
 }
 
 function getSummarySubtitle(session: SessionRecord | null): string {
   if (!session) return 'Consulta los resultados de tu ejercicio.';
-  if (session.perfect && session.completed) return 'Completaste todos los intentos objetivo correctamente.';
+  if (session.perfect && session.completed) return 'Completaste todos los intentos objetivo con buen control.';
   if (session.completed) return 'Estos son los resultados de tu sesión.';
-  if (session.interrupted && !session.completed) return 'La sesión se guardó sin completarse.';
+  if (session.interrupted && !session.completed) return 'Puedes retomarla cuando estés listo.';
   return 'Consulta los resultados de tu ejercicio.';
 }
 
@@ -115,11 +119,11 @@ export function SummaryScreen() {
             No hay una sesión seleccionada. Completa un nivel o abre un resumen desde el flujo de
             terapia.
           </Text>
-          <Pressable
-            style={styles.primaryButton}
-            onPress={() => router.replace('/(tabs)/terapia')}>
-            <Text style={styles.primaryButtonText}>Volver a Terapia</Text>
-          </Pressable>
+          <AppButton
+            title="Volver a Terapia"
+            onPress={() => router.replace('/(tabs)/terapia')}
+            variant="primary"
+          />
         </View>
       </SafeAreaView>
     );
@@ -132,11 +136,11 @@ export function SummaryScreen() {
         <View style={styles.centered}>
           <Text style={styles.title}>{getSummaryTitle(null)}</Text>
           <Text style={styles.detail}>Identificador de sesión no válido.</Text>
-          <Pressable
-            style={styles.primaryButton}
-            onPress={() => router.replace('/(tabs)/terapia')}>
-            <Text style={styles.primaryButtonText}>Volver a Terapia</Text>
-          </Pressable>
+          <AppButton
+            title="Volver a Terapia"
+            onPress={() => router.replace('/(tabs)/terapia')}
+            variant="primary"
+          />
         </View>
       </SafeAreaView>
     );
@@ -149,11 +153,11 @@ export function SummaryScreen() {
         <View style={styles.centered}>
           <Text style={styles.title}>{getSummaryTitle(null)}</Text>
           <Text style={styles.detail}>No se encontró la sesión guardada.</Text>
-          <Pressable
-            style={styles.primaryButton}
-            onPress={() => router.replace('/(tabs)/terapia')}>
-            <Text style={styles.primaryButtonText}>Volver a Terapia</Text>
-          </Pressable>
+          <AppButton
+            title="Volver a Terapia"
+            onPress={() => router.replace('/(tabs)/terapia')}
+            variant="primary"
+          />
         </View>
       </SafeAreaView>
     );
@@ -164,7 +168,7 @@ export function SummaryScreen() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/terapia" />
         <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color={wellness.primary} />
+          <ActivityIndicator size="large" color={wellnessColors.primary} />
           <Text style={styles.loadingText}>Cargando resumen…</Text>
         </View>
       </SafeAreaView>
@@ -193,7 +197,7 @@ export function SummaryScreen() {
         </View>
 
         {showSensorCard ? (
-          <View style={styles.sensorCard}>
+          <AppCard style={styles.sensorCard}>
             <Text style={styles.sensorCardTitle}>Datos del sensor</Text>
             <SensorDataRow label="Fuente" value={session.data_source ?? 'sensor_model'} />
             <SensorDataRow
@@ -219,45 +223,37 @@ export function SummaryScreen() {
             <Text style={styles.sensorCardNote}>
               Datos calculados con el modelo activo del espirómetro seleccionado.
             </Text>
-          </View>
+          </AppCard>
         ) : null}
 
+        <SectionHeader title="Resultados" />
         <View style={styles.card}>
-          <MetricTile label="Sesión completada" value={session.completed ? 'Sí' : 'No'} />
-          <MetricTile label="Repeticiones válidas" value={String(session.valid_attempts)} />
-          <MetricTile label="Repeticiones fallidas" value={String(session.invalid_attempts)} />
+          <MetricTile label="Repeticiones válidas" value={String(session.valid_attempts)} tone="success" />
+          <MetricTile label="No completadas" value={String(session.invalid_attempts)} />
           <MetricTile label="Cumplimiento" value={`${session.compliance_percent}%`} />
           <MetricTile label="Volumen máximo" value={`${session.max_volume} mL`} />
           <MetricTile label="Volumen promedio" value={`${session.avg_volume} mL`} />
-          <MetricTile label="Tiempo máximo sostenido" value={`${maxHoldSeconds.toFixed(1)} s`} />
+          <MetricTile label="Tiempo máx. sostenido" value={`${maxHoldSeconds.toFixed(1)} s`} />
           <MetricTile
-            label="Tiempo promedio sostenido"
+            label="Tiempo prom. sostenido"
             value={`${session.avg_hold_seconds.toFixed(1)} s`}
           />
-          <MetricTile label="Sesión perfecta" value={session.perfect ? 'Sí' : 'No'} />
         </View>
 
-        <Pressable
-          style={styles.primaryButton}
-          onPress={() => router.replace('/(tabs)/terapia')}>
-          <Text style={styles.primaryButtonText}>Volver a Terapia</Text>
-        </Pressable>
-        <Pressable
-          style={styles.secondaryButton}
-          onPress={() => router.replace('/(tabs)/historial')}>
-          <Text style={styles.secondaryButtonText}>Ver Historial</Text>
-        </Pressable>
+        <View style={styles.actionsRow}>
+          <AppButton
+            title="Volver a Terapia"
+            onPress={() => router.replace('/(tabs)/terapia')}
+            variant="primary"
+          />
+          <AppButton
+            title="Ver Historial"
+            onPress={() => router.replace('/(tabs)/historial')}
+            variant="secondary"
+          />
+        </View>
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function MetricTile({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.metricTile}>
-      <Text style={styles.metricTileLabel}>{label}</Text>
-      <Text style={styles.metricTileValue}>{value}</Text>
-    </View>
   );
 }
 
@@ -273,179 +269,128 @@ function SensorDataRow({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: wellness.screenBg,
+    backgroundColor: wellnessColors.background,
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 28,
-    paddingTop: 10,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
+    paddingTop: spacing.md,
   },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    padding: spacing.lg,
+    gap: spacing.md,
   },
   loadingWrap: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    padding: spacing.lg,
   },
   loadingText: {
-    marginTop: 12,
-    color: wellness.textSecondary,
+    marginTop: spacing.md,
+    color: wellnessColors.textSecondary,
     fontSize: 16,
   },
   levelLine: {
-    color: wellness.primaryDark,
+    color: wellnessColors.primaryDark,
     fontSize: 14,
     fontWeight: '700',
-    marginBottom: 10,
+    marginBottom: spacing.sm,
   },
   classificationBanner: {
-    marginBottom: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    marginBottom: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
     borderRadius: wellnessRadii.card,
-    backgroundColor: wellness.softGreen,
+    backgroundColor: wellnessColors.successSoft,
     borderWidth: 1,
-    borderColor: wellness.border,
+    borderColor: wellnessColors.border,
   },
   classificationTitle: {
     fontSize: 13,
     fontWeight: '800',
-    color: wellness.primaryDark,
+    color: wellnessColors.primaryDark,
   },
   classificationNote: {
     marginTop: 4,
     fontSize: 12,
     fontWeight: '600',
-    color: wellness.textSecondary,
+    color: wellnessColors.textSecondary,
     lineHeight: 18,
   },
   sensorCard: {
-    marginBottom: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: wellnessRadii.card,
-    backgroundColor: wellness.card,
-    borderWidth: 1,
-    borderColor: wellness.border,
+    marginBottom: spacing.md,
   },
   sensorCardTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: wellness.primaryDark,
-    marginBottom: 10,
+    color: wellnessColors.primaryDark,
+    marginBottom: spacing.sm,
   },
   sensorDataRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: spacing.md,
     marginBottom: 6,
   },
   sensorDataLabel: {
     flex: 1,
     fontSize: 12,
     fontWeight: '700',
-    color: wellness.textSecondary,
+    color: wellnessColors.textSecondary,
   },
   sensorDataValue: {
     flex: 1,
     fontSize: 13,
     fontWeight: '700',
-    color: wellness.text,
+    color: wellnessColors.textPrimary,
     textAlign: 'right',
   },
   sensorCardNote: {
-    marginTop: 8,
+    marginTop: spacing.sm,
     fontSize: 11,
     fontWeight: '600',
-    color: wellness.textSecondary,
+    color: wellnessColors.textSecondary,
     lineHeight: 16,
   },
   screenTitle: {
-    color: wellness.text,
+    color: wellnessColors.textPrimary,
     fontSize: 26,
     fontWeight: '800',
+    letterSpacing: -0.3,
     marginBottom: 6,
   },
   screenSubtitle: {
-    color: wellness.textSecondary,
+    color: wellnessColors.textSecondary,
     fontSize: 15,
     lineHeight: 22,
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   title: {
-    color: wellness.text,
-    fontSize: 28,
+    color: wellnessColors.textPrimary,
+    fontSize: 26,
     fontWeight: '800',
-    marginBottom: 10,
+    marginBottom: spacing.sm,
     textAlign: 'center',
   },
   detail: {
-    color: wellness.textSecondary,
+    color: wellnessColors.textSecondary,
     fontSize: 16,
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: spacing.md,
   },
   card: {
     width: '100%',
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 20,
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
   },
-  metricTile: {
-    width: '48%',
-    flexGrow: 1,
-    minWidth: 140,
-    borderRadius: wellnessRadii.card,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    backgroundColor: wellness.card,
-    padding: 14,
-  },
-  metricTileLabel: {
-    color: wellness.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 6,
-  },
-  metricTileValue: {
-    color: wellness.text,
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  primaryButton: {
-    width: '100%',
-    backgroundColor: wellness.primary,
-    paddingVertical: 14,
-    borderRadius: wellnessRadii.pill,
-    marginBottom: 10,
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    textAlign: 'center',
-    fontWeight: '800',
-    fontSize: 16,
-  },
-  secondaryButton: {
-    width: '100%',
-    borderWidth: 1,
-    borderColor: wellness.borderStrong,
-    paddingVertical: 12,
-    borderRadius: wellnessRadii.pill,
-    backgroundColor: wellness.softGreen,
-  },
-  secondaryButtonText: {
-    color: wellness.primaryDark,
-    textAlign: 'center',
-    fontWeight: '700',
-    fontSize: 16,
+  actionsRow: {
+    gap: spacing.sm,
   },
 });

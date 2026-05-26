@@ -6,3 +6,4 @@
 import type { Href } from 'expo-router';
 
 export const LEGAL_ACCEPT_HREF = '/legal/accept' as unknown as Href;
+export const LEGAL_DOCUMENT_HREF = '/legal/document' as unknown as Href;

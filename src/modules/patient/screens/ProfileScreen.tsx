@@ -11,14 +11,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getLatestDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
 import type { DiagnosticRecord } from '@/src/modules/diagnostics/types';
-import { formatDisplayDateEs } from '@/src/modules/history/services/history-aggregates';
 import {
-  getAcceptedConsentRecord,
+  isConsentActive,
   withdrawConsent,
 } from '@/src/modules/legal/consent-service';
-import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
-import { openLegalDocument } from '@/src/modules/legal/open-legal-document';
-import type { AcceptedConsentRecord } from '@/src/modules/legal/types';
+import { LEGAL_ACCEPT_HREF, LEGAL_DOCUMENT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { getNotificationPreferences } from '@/src/modules/notifications/storage/notification-preferences-repository';
 import type { NotificationPreferences } from '@/src/modules/notifications/types/notification-preferences';
 import { DeletePatientConfirmModal } from '@/src/modules/patient/components/DeletePatientConfirmModal';
@@ -26,10 +23,6 @@ import { ProfileActionRow } from '@/src/modules/patient/components/ProfileAction
 import { ProfileAvatarPicker } from '@/src/modules/patient/components/ProfileAvatarPicker';
 import { ProfileInfoCard } from '@/src/modules/patient/components/ProfileInfoCard';
 import { ProfileSection } from '@/src/modules/patient/components/ProfileSection';
-import {
-  ProfileStatusBadge,
-  type ProfileConsentBadgeVariant,
-} from '@/src/modules/patient/components/ProfileStatusBadge';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { LOCAL_PROFILE_HREF } from '@/src/modules/auth/local-profile-hrefs';
 import { deleteCurrentPatientLocalData } from '@/src/modules/patient/patient-delete-service';
@@ -41,32 +34,36 @@ import {
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { IconSymbol } from '@/src/shared/ui/icon-symbol';
+import { AppButton } from '@/src/shared/ui/AppButton';
+import { AppCard } from '@/src/shared/ui/AppCard';
+import { StatusPill } from '@/src/shared/ui/StatusPill';
+import { MetricTile } from '@/src/shared/ui/MetricTile';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellness, wellnessFloatingTabBarInset, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+import { wellnessColors, wellnessFloatingTabBarInset, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 import { sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 import {
   DEFAULT_PROFILE_PREFERENCES,
   type ProfilePreferences,
 } from '@/src/modules/patient/types/profile-preferences';
 
+function formatShortDateEs(dateKey: string): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  const now = new Date();
+  const sameYear = dt.getFullYear() === now.getFullYear();
+  return dt.toLocaleDateString('es-MX', {
+    day: 'numeric',
+    month: 'short',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  });
+}
+
 type SessionQuickStats = {
   completedCount: number;
   avgCompliance: number | null;
   lastSessionDateLabel: string | null;
 };
-
-function consentPresentation(record: AcceptedConsentRecord | null): {
-  variant: ProfileConsentBadgeVariant;
-  badgeLabel: string;
-} {
-  if (record == null) {
-    return { variant: 'unavailable', badgeLabel: 'No disponible' };
-  }
-  if (record.consentStatus === 'active') {
-    return { variant: 'active', badgeLabel: 'Activo' };
-  }
-  return { variant: 'withdrawn', badgeLabel: 'Retirado' };
-}
 
 function buildSessionQuickStats(sessions: SessionRecord[], patientId: number): SessionQuickStats {
   const relevant = sessions.filter(
@@ -87,24 +84,15 @@ function buildSessionQuickStats(sessions: SessionRecord[], patientId: number): S
   });
   const last = sorted[0];
   const dayKey = last ? sessionRecordLocalDayKey(last.session_date) : null;
-  const lastSessionDateLabel = dayKey ? formatDisplayDateEs(dayKey) : null;
+  const lastSessionDateLabel = dayKey ? formatShortDateEs(dayKey) : null;
   return { completedCount, avgCompliance, lastSessionDateLabel };
-}
-
-function MetricTile({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.metricTile}>
-      <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
-    </View>
-  );
 }
 
 export function ProfileScreen() {
   const router = useRouter();
   const { patient, clearSession, refreshSession } = usePatientSession();
   const [latestDiagnostic, setLatestDiagnostic] = useState<DiagnosticRecord | null>(null);
-  const [consentRecord, setConsentRecord] = useState<AcceptedConsentRecord | null>(null);
+  const [consentActive, setConsentActive] = useState(false);
   const [prefs, setPrefs] = useState<ProfilePreferences>(DEFAULT_PROFILE_PREFERENCES);
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences | null>(null);
   const [sessionQuickStats, setSessionQuickStats] = useState<SessionQuickStats | null>(null);
@@ -117,8 +105,8 @@ export function ProfileScreen() {
   );
 
   const refreshConsent = useCallback(async () => {
-    const r = await getAcceptedConsentRecord();
-    setConsentRecord(r);
+    const active = await isConsentActive();
+    setConsentActive(active);
   }, []);
 
   const resetProfileLocalState = useCallback(() => {
@@ -126,7 +114,7 @@ export function ProfileScreen() {
     setSessionQuickStats(null);
     setPrefs(DEFAULT_PROFILE_PREFERENCES);
     setNotificationPrefs(null);
-    setConsentRecord(null);
+    setConsentActive(false);
   }, []);
 
   useFocusEffect(
@@ -176,17 +164,6 @@ export function ProfileScreen() {
     [patient],
   );
 
-  const onOpenLegalPdf = useCallback(() => {
-    void (async () => {
-      try {
-        await openLegalDocument();
-      } catch (e) {
-        const message = e instanceof Error ? e.message : 'No se pudo abrir el documento.';
-        Alert.alert('Documento', message);
-      }
-    })();
-  }, []);
-
   const onWithdraw = useCallback(() => {
     Alert.alert(
       'Retirar consentimiento',
@@ -206,8 +183,6 @@ export function ProfileScreen() {
       ],
     );
   }, [refreshConsent]);
-
-  const consentUi = useMemo(() => consentPresentation(consentRecord), [consentRecord]);
 
   const onRequestDeleteProfile = useCallback(() => {
     Alert.alert(
@@ -282,130 +257,132 @@ export function ProfileScreen() {
             onAvatarUriChange={(uri) => void onAvatarChange(uri)}
           />
           <Text style={styles.profileName}>{patientDisplayName}</Text>
-          <Text style={styles.profileMeta}>Clave · {patient.clave}</Text>
-          <View style={styles.badgeRow}>
-            <ProfileStatusBadge label={consentUi.badgeLabel} variant={consentUi.variant} />
+          <View style={styles.profileMetaRow}>
+            <Text style={styles.profileMeta}>Clave {patient.clave}</Text>
+            <View style={styles.profileMetaDot} />
+            <StatusPill
+              label={consentActive ? 'Activo' : 'Pendiente'}
+              tone={consentActive ? 'success' : 'warning'}
+              size="sm"
+            />
           </View>
         </View>
 
         <ProfileSection
           title="Resumen"
           subtitle="Indicadores rápidos basados en sesiones completadas en este dispositivo.">
-          <ProfileInfoCard>
+          <AppCard>
             <View style={styles.metricsRow}>
-              <MetricTile label="Sesiones" value={String(metrics.completedCount)} />
+              <MetricTile label="Sesiones" value={String(metrics.completedCount)} size="compact" />
               <MetricTile
-                label="Cumplimiento medio"
+                label="Avance"
                 value={metrics.avgCompliance != null ? `${Math.round(metrics.avgCompliance)}%` : '—'}
+                size="compact"
               />
-              <MetricTile label="Última sesión" value={metrics.lastSessionDateLabel ?? '—'} />
+              <MetricTile label="Última" value={metrics.lastSessionDateLabel ?? '—'} size="compact" emphasis="status" />
             </View>
-          </ProfileInfoCard>
+          </AppCard>
         </ProfileSection>
 
-        <ProfileSection title="Tu información">
-          <ProfileInfoCard title="Identificación">
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Nombre</Text>
-              <Text style={styles.fieldValue}>{patientDisplayName}</Text>
-            </View>
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Edad</Text>
-              <Text style={styles.fieldValue}>{patient.edad != null ? `${patient.edad} años` : '—'}</Text>
-            </View>
-          </ProfileInfoCard>
-          <ProfileInfoCard title="Último diagnóstico registrado">
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>VIM</Text>
-              <Text style={styles.fieldValue}>
-                {latestDiagnostic ? `${latestDiagnostic.max_inspiratory_volume} mL` : 'No disponible'}
-              </Text>
-            </View>
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Fecha</Text>
-              <Text style={styles.fieldValue}>
-                {latestDiagnostic ? new Date(latestDiagnostic.diagnostic_date).toLocaleDateString() : '—'}
-              </Text>
-            </View>
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Número de diagnóstico</Text>
-              <Text style={styles.fieldValue}>
-                {latestDiagnostic?.diagnostic_number != null ? String(latestDiagnostic.diagnostic_number) : '—'}
-              </Text>
-            </View>
-          </ProfileInfoCard>
-        </ProfileSection>
-
-        <ProfileSection
-          title="Privacidad, consentimiento y términos"
-          subtitle="Estado legal en este dispositivo y acceso al documento PDF.">
-          <ProfileInfoCard>
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Versión aceptada</Text>
-              <Text style={styles.fieldValue}>{consentRecord?.documentVersion ?? '—'}</Text>
-            </View>
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Fecha de aceptación</Text>
-              <Text style={styles.fieldValue}>
-                {consentRecord?.acceptedAt ? new Date(consentRecord.acceptedAt).toLocaleString() : '—'}
-              </Text>
-            </View>
-            {consentRecord?.withdrawnAt ? (
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Fecha de retiro</Text>
-                <Text style={styles.fieldValue}>{new Date(consentRecord.withdrawnAt).toLocaleString()}</Text>
+        <ProfileSection title="Datos personales">
+          <AppCard>
+            <View style={styles.personalRow}>
+              <View style={styles.personalItem}>
+                <Text style={styles.personalLabel}>Nombre</Text>
+                <Text style={styles.personalValue}>{patientDisplayName}</Text>
               </View>
-            ) : null}
+              <View style={styles.personalDivider} />
+              <View style={styles.personalItem}>
+                <Text style={styles.personalLabel}>Edad</Text>
+                <Text style={styles.personalValue}>{patient.edad != null ? `${patient.edad} años` : '—'}</Text>
+              </View>
+            </View>
+          </AppCard>
+        </ProfileSection>
 
-            <View style={styles.divider} />
-            <ProfileActionRow
-              label="Ver documento legal completo"
-              onPress={onOpenLegalPdf}
-              accessibilityLabel="Abrir documento legal completo"
-              variant="link"
-            />
-            <View style={styles.divider} />
-            <ProfileActionRow
-              label="Volver a aceptar términos y consentimiento"
-              onPress={() => router.push(LEGAL_ACCEPT_HREF)}
-              accessibilityLabel="Volver a aceptar documentos legales"
-              variant="primary"
-            />
-
-            {consentRecord?.consentStatus === 'active' ? (
-              <View style={styles.sensitiveZone}>
-                <Text style={styles.sensitiveTitle}>Zona delicada</Text>
-                <Text style={styles.sensitiveText}>
-                  Retirar el consentimiento limita Terapia, Historial y el sensor hasta que vuelvas a aceptar. No
-                  elimina automáticamente archivos que ya hayas exportado.
+        <ProfileSection title="Evaluación inicial">
+          <AppCard variant="soft">
+            <View style={styles.evalMainMetric}>
+              <Text style={styles.evalMainLabel}>Volumen de referencia</Text>
+              <Text style={styles.evalMainValue}>
+                {latestDiagnostic ? `${latestDiagnostic.max_inspiratory_volume} mL` : '—'}
+              </Text>
+            </View>
+            <View style={styles.evalSecondaryRow}>
+              <View style={styles.evalSecondaryItem}>
+                <Text style={styles.evalSecondaryLabel}>Fecha</Text>
+                <Text style={styles.evalSecondaryValue}>
+                  {latestDiagnostic
+                    ? new Date(latestDiagnostic.diagnostic_date).toLocaleDateString(undefined, {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })
+                    : '—'}
                 </Text>
-                <Pressable
-                  style={({ pressed }) => [styles.withdrawOutline, pressed && styles.withdrawOutlinePressed]}
-                  onPress={onWithdraw}
-                  accessibilityRole="button"
-                  accessibilityLabel="Retirar consentimiento">
-                  <Text style={styles.withdrawOutlineText}>Retirar consentimiento</Text>
-                </Pressable>
               </View>
-            ) : null}
-          </ProfileInfoCard>
+              <View style={styles.evalSecondaryItem}>
+                <Text style={styles.evalSecondaryLabel}>Evaluación número</Text>
+                <Text style={styles.evalSecondaryValue}>
+                  {latestDiagnostic?.diagnostic_number != null
+                    ? String(latestDiagnostic.diagnostic_number)
+                    : '—'}
+                </Text>
+              </View>
+            </View>
+          </AppCard>
         </ProfileSection>
 
-        <ProfileSection
-          title="Datos y exportación"
-          subtitle="Genera JSON o CSV solo cuando tú lo decidas; no enviamos datos por correo ni nube.">
-          <ProfileInfoCard>
-            <Text style={styles.exportBody}>
-              Los archivos pueden incluir datos personales y de salud. Trátalos con cuidado y compártelos solo si lo
-              eliges tú.
-            </Text>
-            <ProfileActionRow
-              label="Exportar datos clínicos"
-              onPress={() => router.push('/data-export')}
-              accessibilityLabel="Exportar datos clínicos"
-              variant="primary"
+        <ProfileSection title="Documentos y consentimiento">
+          <AppCard>
+            <StatusPill
+              label={consentActive ? 'Consentimiento activo' : 'Consentimiento pendiente'}
+              tone={consentActive ? 'success' : 'warning'}
             />
-          </ProfileInfoCard>
+            <Text style={styles.consentHint}>
+              {consentActive
+                ? 'Ya aceptaste los documentos requeridos. Puedes consultarlos nuevamente cuando lo necesites.'
+                : 'Necesitas revisar y aceptar los documentos para continuar con la terapia.'}
+            </Text>
+
+            <View style={styles.consentActions}>
+              <AppButton
+                title="Leer documentos"
+                variant="secondary"
+                onPress={() => router.push(LEGAL_DOCUMENT_HREF)}
+              />
+
+              {!consentActive ? (
+                <AppButton
+                  title="Revisar y aceptar documentos"
+                  variant="primary"
+                  onPress={() => router.push(LEGAL_ACCEPT_HREF)}
+                />
+              ) : null}
+            </View>
+          </AppCard>
+
+          {consentActive ? (
+            <View style={styles.sensitiveCard}>
+              <View style={styles.sensitiveHeader}>
+                <IconSymbol name="exclamationmark.triangle.fill" size={16} color={wellnessColors.danger} />
+                <Text style={styles.sensitiveTitle}>Zona delicada</Text>
+              </View>
+              <Text style={styles.sensitiveBody}>
+                Retirar el consentimiento bloqueará Terapia, Historial y Sensor hasta que vuelvas a aceptarlo.
+              </Text>
+              <Text style={styles.sensitiveFootnote}>
+                No elimina automáticamente archivos que ya hayas exportado.
+              </Text>
+              <Pressable
+                style={({ pressed }) => [styles.withdrawOutline, pressed && styles.withdrawOutlinePressed]}
+                onPress={onWithdraw}
+                accessibilityRole="button"
+                accessibilityLabel="Retirar consentimiento">
+                <Text style={styles.withdrawOutlineText}>Retirar consentimiento</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </ProfileSection>
 
         <ProfileSection
@@ -503,7 +480,7 @@ export function ProfileScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F6F7F6',
+    backgroundColor: wellnessColors.background,
   },
   scrollContent: {
     paddingHorizontal: spacing.lg,
@@ -512,121 +489,171 @@ const styles = StyleSheet.create({
   },
   profileHeader: {
     alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.xs,
+    gap: spacing.xs,
   },
   profileName: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#111827',
+    color: wellnessColors.textPrimary,
     textAlign: 'center',
   },
   profileMeta: {
     fontSize: 14,
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
     fontWeight: '600',
   },
-  badgeRow: {
-    marginTop: spacing.xs,
+  profileMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  profileMetaDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: wellnessColors.textMuted,
   },
   metricsRow: {
     flexDirection: 'row',
     gap: spacing.sm,
   },
-  metricTile: {
-    flex: 1,
-    minWidth: 0,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xs,
-    borderRadius: 12,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
+  personalRow: {
+    gap: spacing.sm,
   },
-  metricValue: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#111827',
+  personalItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  personalDivider: {
+    height: 1,
+    backgroundColor: wellnessColors.neutralSoft,
+  },
+  personalLabel: {
+    fontSize: 15,
+    color: wellnessColors.textSecondary,
+    fontWeight: '500',
+  },
+  personalValue: {
+    fontSize: 15,
+    color: wellnessColors.textPrimary,
+    fontWeight: '600',
+  },
+  evalMainMetric: {
+    backgroundColor: 'rgba(52, 171, 165, 0.05)',
+    borderRadius: 14,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.12)',
+    marginBottom: spacing.md,
+  },
+  evalMainLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: wellnessColors.textSecondary,
     marginBottom: 4,
   },
-  metricLabel: {
-    fontSize: 11,
+  evalMainValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: wellnessColors.primaryDark,
+    letterSpacing: -0.3,
+  },
+  evalSecondaryRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  evalSecondaryItem: {
+    flex: 1,
+  },
+  evalSecondaryLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: wellnessColors.textMuted,
+    marginBottom: 2,
+  },
+  evalSecondaryValue: {
+    fontSize: 15,
     fontWeight: '600',
-    color: '#6B7280',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
+    color: wellnessColors.textPrimary,
   },
-  field: {
-    gap: spacing.xs / 2,
+  consentHint: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: wellnessColors.textSecondary,
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
   },
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    color: wellness.textSecondary,
-  },
-  fieldValue: {
-    fontSize: 16,
-    lineHeight: 22,
-    color: wellness.text,
-    fontWeight: '600',
+  consentActions: {
+    gap: spacing.sm,
   },
   divider: {
     height: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: wellnessColors.neutralSoft,
     marginVertical: spacing.xs,
   },
-  sensitiveZone: {
-    marginTop: spacing.md,
+  sensitiveCard: {
+    marginTop: spacing.sm,
     padding: spacing.md,
     borderRadius: wellnessRadii.card,
     borderWidth: 1,
-    borderColor: 'rgba(140, 58, 66, 0.35)',
-    backgroundColor: wellness.errorBg,
-    gap: spacing.sm,
+    borderColor: 'rgba(185, 28, 28, 0.18)',
+    backgroundColor: wellnessColors.dangerSoft,
+  },
+  sensitiveHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: spacing.xs,
   },
   sensitiveTitle: {
     fontSize: 12,
     fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    color: wellness.errorText,
+    color: wellnessColors.danger,
   },
-  sensitiveText: {
+  sensitiveBody: {
     fontSize: 14,
-    lineHeight: 21,
-    color: wellness.text,
+    lineHeight: 20,
+    color: wellnessColors.textPrimary,
+    marginBottom: 4,
+  },
+  sensitiveFootnote: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: wellnessColors.textSecondary,
+    marginBottom: spacing.sm,
   },
   withdrawOutline: {
     alignSelf: 'flex-start',
-    marginTop: spacing.xs,
-    paddingVertical: spacing.sm,
+    paddingVertical: 10,
     paddingHorizontal: spacing.lg,
     borderRadius: wellnessRadii.pill,
     borderWidth: 1.5,
-    borderColor: wellness.errorText,
+    borderColor: wellnessColors.danger,
     backgroundColor: '#FFFFFF',
   },
   withdrawOutlinePressed: {
-    opacity: 0.92,
+    opacity: 0.88,
   },
   deleteSectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
+    color: wellnessColors.textPrimary,
     marginBottom: spacing.xs,
   },
   deleteSectionBody: {
     fontSize: 14,
     lineHeight: 20,
-    color: '#4B5563',
+    color: wellnessColors.textSecondary,
     marginBottom: spacing.sm,
   },
   deleteSectionHint: {
     fontSize: 13,
     lineHeight: 18,
-    color: '#6B7280',
+    color: wellnessColors.textSecondary,
     marginBottom: spacing.md,
   },
   deleteProfileBtn: {
@@ -634,7 +661,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 48,
     borderRadius: wellnessRadii.pill,
-    backgroundColor: '#B91C1C',
+    backgroundColor: wellnessColors.danger,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
   },
@@ -652,34 +679,28 @@ const styles = StyleSheet.create({
   withdrawOutlineText: {
     fontSize: 15,
     fontWeight: '700',
-    color: wellness.errorText,
-  },
-  exportBody: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: wellness.textSecondary,
-    marginBottom: spacing.sm,
+    color: wellnessColors.danger,
   },
   notifStatusLine: {
     fontSize: 15,
     lineHeight: 22,
-    color: wellness.textSecondary,
+    color: wellnessColors.textSecondary,
     fontWeight: '600',
   },
   notifStatusEmphasis: {
-    color: wellness.primaryDark,
+    color: wellnessColors.primaryDark,
     fontWeight: '800',
   },
   helpParagraph: {
     fontSize: 14,
     lineHeight: 21,
-    color: wellness.text,
+    color: wellnessColors.textPrimary,
   },
   helpEmphasis: {
     fontSize: 14,
     lineHeight: 21,
     fontWeight: '700',
-    color: wellness.errorText,
+    color: wellnessColors.danger,
     marginTop: spacing.sm,
   },
   logoutBtn: {
@@ -687,8 +708,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
+    borderColor: wellnessColors.border,
+    backgroundColor: wellnessColors.card,
   },
   logoutPressed: {
     opacity: 0.9,
@@ -696,7 +717,7 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: 17,
     fontWeight: '700',
-    color: wellness.primaryDark,
+    color: wellnessColors.primaryDark,
   },
   emptyState: {
     flex: 1,
@@ -706,7 +727,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: wellness.textSecondary,
+    color: wellnessColors.textSecondary,
     textAlign: 'center',
   },
 });

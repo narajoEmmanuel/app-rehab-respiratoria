@@ -104,7 +104,7 @@ function attemptFromOfficialValidation(
 
 function sessionSummaryModalTitle(kind: SessionSummaryKind, sessionNumber: number): string {
   return kind === 'interrupted'
-    ? `Sesión ${sessionNumber} interrumpida`
+    ? `Sesión ${sessionNumber} detenida`
     : `Sesión ${sessionNumber} completada`;
 }
 
@@ -704,7 +704,7 @@ export function SessionScreen() {
   if (!level) {
     return (
       <SafeAreaView style={styles.centered}>
-        <Text style={styles.title}>Sesión</Text>
+        <Text style={styles.title}>Sesión guiada</Text>
         <Text style={styles.detail}>Nivel no encontrado.</Text>
       </SafeAreaView>
     );
@@ -713,7 +713,7 @@ export function SessionScreen() {
   if (!isRunnerLevel) {
     return (
       <SafeAreaView style={styles.centered}>
-        <Text style={styles.title}>Sesión: {level.title}</Text>
+        <Text style={styles.title}>Sesión guiada: {level.title}</Text>
         <Text style={styles.detail}>Este nivel estará disponible próximamente.</Text>
       </SafeAreaView>
     );
@@ -778,15 +778,15 @@ export function SessionScreen() {
           onPressOut={inputPort.onInhaleEnd}
           onPressStop={() => {
             Alert.alert(
-              '¿Quieres pausar tu sesión?',
-              'Puedes continuar ahora o guardar tu avance parcial y volver a Terapia.',
+              'Detener sesión',
+              'Puedes continuar ahora o guardar tu avance parcial y volver a Terapia. Detén la sesión si sientes dolor, mareo o falta de aire intensa.',
               [
                 {
                   text: 'Continuar sesión',
                   style: 'cancel',
                 },
                 {
-                  text: 'Guardar avance y salir',
+                  text: 'Detener y guardar',
                   style: 'destructive',
                   onPress: () => {
                     const validSnap = currentSessionData?.validRepetitions ?? 0;
@@ -834,8 +834,8 @@ export function SessionScreen() {
               <View style={styles.modalHeroIcon}>
                 <Text style={styles.modalHeroIconText}>✓</Text>
               </View>
-              <Text style={styles.modalHeroTitle}>¡Sesión completada!</Text>
-              <Text style={styles.modalHeroSubtitle}>¡Buen trabajo!</Text>
+              <Text style={styles.modalHeroTitle}>Sesión completada</Text>
+              <Text style={styles.modalHeroSubtitle}>Buen control durante la sesión</Text>
             </View>
             <Text style={styles.modalTitle}>
               {sessionSummaryModalTitle(summaryKind, currentLevelProgress.currentSession)}
@@ -846,11 +846,11 @@ export function SessionScreen() {
             </View>
             <View style={styles.modalGrid}>
               <View style={styles.modalTile}>
-                <Text style={styles.modalTileLabel}>Válidas</Text>
+                <Text style={styles.modalTileLabel}>Repeticiones válidas</Text>
                 <Text style={styles.modalTileValue}>{validAttempts}</Text>
               </View>
               <View style={styles.modalTile}>
-                <Text style={styles.modalTileLabel}>Fallidas</Text>
+                <Text style={styles.modalTileLabel}>No completadas</Text>
                 <Text style={styles.modalTileValue}>{failedAttempts}</Text>
               </View>
             </View>
@@ -864,7 +864,7 @@ export function SessionScreen() {
             {perfectSession ? (
               <View style={styles.modalBadgeRow}>
                 <Text style={styles.modalBadgeStar}>★</Text>
-                <Text style={styles.modalBadgeText}>Sesión perfecta</Text>
+                <Text style={styles.modalBadgeText}>Sesión completada con buen control</Text>
               </View>
             ) : null}
             <View style={styles.modalGrid}>
@@ -883,8 +883,8 @@ export function SessionScreen() {
             </View>
             <Text style={styles.modalMotivation}>
               {perfectSession
-                ? 'Excelente trabajo: repetición tras repetición con precisión.'
-                : 'Buen avance. Sigue practicando para mejorar tu precisión.'}
+                ? 'Tu progreso se construye sesión a sesión. Buen control.'
+                : 'Sigue a tu ritmo. Cada sesión cuenta para tu avance.'}
             </Text>
             <Pressable
               style={[styles.modalPrimaryButton, savingSummary && { opacity: 0.7 }]}
@@ -916,7 +916,7 @@ export function SessionScreen() {
                   params: { sessionId: String(savedSession.session_id) },
                 });
               }}>
-              <Text style={styles.modalPrimaryButtonText}>Continuar</Text>
+              <Text style={styles.modalPrimaryButtonText}>Ver resumen</Text>
             </Pressable>
             <Pressable
               style={styles.modalSecondaryButton}
@@ -966,7 +966,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: wellness.text,
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '800',
   },
   detail: {
