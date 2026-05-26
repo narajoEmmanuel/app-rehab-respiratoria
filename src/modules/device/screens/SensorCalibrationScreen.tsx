@@ -89,6 +89,7 @@ import {
   type SpirometerDevice,
   type SpirometerProfile,
 } from '@/src/modules/device/spirometer';
+import { exportCalibrationTechnicalCsv } from '@/src/modules/export/services/calibration-technical-export-service';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppCard } from '@/src/shared/ui/AppCard';
@@ -881,6 +882,13 @@ export function SensorCalibrationScreen() {
     setStorageMessage(null);
   }, []);
 
+  const handleExportCalibrationTechnical = useCallback(async () => {
+    const result = await exportCalibrationTechnicalCsv();
+    if (!result.ok) {
+      Alert.alert('Exportación', result.message);
+    }
+  }, []);
+
   const onStartVolumeRetake = useCallback(async (volume: number) => {
     const first = await confirmProceed(
       'Repetir volumen',
@@ -1383,6 +1391,17 @@ export function SensorCalibrationScreen() {
             </Text>
           ) : null}
         </AppCard>
+
+        {savedStatus.kind === 'saved' ? (
+          <Pressable
+            onPress={() => void handleExportCalibrationTechnical()}
+            style={({ pressed }) => [styles.techDetailsToggle, pressed && styles.techDetailsTogglePressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Exportar calibración técnica">
+            <Text style={styles.techDetailsToggleText}>Exportar calibración técnica</Text>
+            <Text style={styles.techDetailsToggleChevron}>↓</Text>
+          </Pressable>
+        ) : null}
 
         <Pressable
           onPress={() => setTechDetailsExpanded((prev) => !prev)}

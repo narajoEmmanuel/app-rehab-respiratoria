@@ -27,6 +27,18 @@ export type SessionRecord = {
   official_validation_source?: OfficialAttemptValidationSource;
   max_sensor_estimated_volume_ml?: number | null;
   max_sensor_u95_ml?: number | null;
+  /** Fase 3B: trazabilidad metrológica — perfil de calibración activo al iniciar sesión. */
+  calibration_profile_id?: string | null;
+  /** Fase 3B: modelo activo usado para estimar volumen durante la sesión. */
+  active_model_id?: string | null;
+  /** Fase 3B: tipo de modelo ('linear_regression' | 'piecewise_linear'). */
+  model_kind?: 'linear_regression' | 'piecewise_linear' | string | null;
+  /** Fase 3B: ID del dispositivo espirómetro físico. */
+  spirometer_device_id?: string | null;
+  /** Fase 3B: timestamp de creación de la calibración usada. */
+  calibration_created_at?: number | null;
+  /** Fase 3B: timestamp de última actualización de la calibración usada. */
+  calibration_updated_at?: number | null;
 };
 
 export type AttemptRecord = {
@@ -44,4 +56,20 @@ export type AttemptRecord = {
   sensor_confidence_label?: string | null;
   sensor_volume_reached_conservatively?: boolean;
   sensor_attempt_status?: SensorAttemptEvaluationStatus | null;
+  /** Fase 3B: distancia usada para la estimación de volumen (puede ser filtrada). */
+  distance_mm?: number | null;
+  /** Fase 3B: distancia cruda del sensor antes de cualquier filtro. */
+  raw_distance_mm?: number | null;
+  /** Fase 3B: distancia filtrada si el sistema aplica filtro antes de estimar. */
+  filtered_distance_mm?: number | null;
+  /** Fase 3B: true si la distancia cae dentro del rango calibrado. */
+  in_calibrated_range?: boolean | null;
+  /** Fase 3B: true si el volumen estimado fue clamped al rango. */
+  clamped?: boolean | null;
+  /** Fase 3B: ID del perfil de calibración usado en este intento. */
+  calibration_profile_id?: string | null;
+  /** Fase 3B: ID del modelo activo usado para este intento. */
+  active_model_id?: string | null;
+  /** Fase 3B: tipo de modelo usado para este intento. */
+  model_kind?: string | null;
 };

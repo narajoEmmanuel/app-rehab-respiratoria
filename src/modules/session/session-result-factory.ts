@@ -17,6 +17,12 @@ export type BuildSessionResultParams = {
   invalidAttempts: number;
   attemptsRuntime: SessionAttemptResult[];
   inputMode?: SessionInputMode;
+  calibrationProfileId?: string | null;
+  activeModelId?: string | null;
+  modelKind?: string | null;
+  spirometerDeviceId?: string | null;
+  calibrationCreatedAt?: number | null;
+  calibrationUpdatedAt?: number | null;
 };
 
 export function buildSessionResult(params: BuildSessionResultParams): SessionResult {
@@ -29,6 +35,12 @@ export function buildSessionResult(params: BuildSessionResultParams): SessionRes
     invalidAttempts,
     attemptsRuntime,
     inputMode = DEFAULT_SESSION_INPUT_MODE,
+    calibrationProfileId,
+    activeModelId,
+    modelKind,
+    spirometerDeviceId,
+    calibrationCreatedAt,
+    calibrationUpdatedAt,
   } = params;
 
   const persistence = buildSessionPersistenceFields(inputMode);
@@ -92,5 +104,11 @@ export function buildSessionResult(params: BuildSessionResultParams): SessionRes
     maxSensorEstimatedVolumeMl:
       inputMode === 'sensor' ? maxSensorEstimatedVolumeMl : null,
     maxSensorU95Ml: inputMode === 'sensor' ? maxSensorU95Ml : null,
+    calibrationProfileId: calibrationProfileId ?? null,
+    activeModelId: activeModelId ?? null,
+    modelKind: modelKind ?? null,
+    spirometerDeviceId: spirometerDeviceId ?? null,
+    calibrationCreatedAt: calibrationCreatedAt ?? null,
+    calibrationUpdatedAt: calibrationUpdatedAt ?? null,
   };
 }
