@@ -21,7 +21,8 @@ import {
 } from '@/src/modules/device/volume-estimation';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import { useCalibrationSnapshot } from '@/src/modules/device/state/use-calibration-snapshot';
-import { getCurrentActiveLevel, hasDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
+import { getCurrentActiveLevel, hasDiagnostic, getLatestDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
+import type { DiagnosticRecord } from '@/src/modules/diagnostics/types';
 import { HomeLastSessionCard } from '@/src/modules/home/components/HomeLastSessionCard';
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { useConsentActive } from '@/src/modules/legal/use-consent-active';
@@ -72,6 +73,7 @@ export function HomeScreen() {
   const [currentLevelLabel, setCurrentLevelLabel] = useState('Nivel 1');
   const [todayCompletedSessions, setTodayCompletedSessions] = useState(0);
   const [patientSessions, setPatientSessions] = useState<SessionRecord[]>([]);
+  const [latestDiag, setLatestDiag] = useState<DiagnosticRecord | null>(null);
 
   const bottomPad = dashboardScrollBottomPadding(insets.bottom);
 
@@ -81,6 +83,7 @@ export function HomeScreen() {
       setCurrentLevelLabel('Nivel 1');
       setTodayCompletedSessions(0);
       setPatientSessions([]);
+      setLatestDiag(null);
       return;
     }
     const [exists, allSessions] = await Promise.all([
@@ -96,9 +99,12 @@ export function HomeScreen() {
       const daily = await updateDailyProgress(patient.paciente_id);
       setCurrentLevelLabel(activeLevel ? `Nivel ${activeLevel.level_id.split('-')[1]}` : 'Nivel 1');
       setTodayCompletedSessions(daily.completedToday);
+      const diag = await getLatestDiagnostic(patient.paciente_id);
+      setLatestDiag(diag);
     } else {
       setCurrentLevelLabel('Nivel 1');
       setTodayCompletedSessions(0);
+      setLatestDiag(null);
     }
   }, [patient]);
 
@@ -252,7 +258,7 @@ export function HomeScreen() {
           <>
             <View style={styles.diagnosticHeroCard}>
               <Text style={styles.diagnosticHeroKicker}>Evaluación inicial</Text>
-              <Text style={styles.diagnosticHeroTitle}>Evaluación inicial</Text>
+              <Text style={styles.diagnosticHeroTitle}>Conoce tu punto de partida</Text>
               <Text style={styles.diagnosticHeroBody}>
                 Mide tu volumen de referencia para personalizar tus metas de terapia.
               </Text>
@@ -341,16 +347,86 @@ export function HomeScreen() {
           </View>
         ) : null}
 
+        {hasCompletedDiagnostic ? (
+          <View style={styles.evalCard}>
+            <View style={styles.evalCardHeader}>
+              <View style={styles.evalCardIconWrap}>
+                <IconSymbol name="lungs.fill" size={24} color={ACCENT} />
+              </View>
+              <View style={styles.evalCardHeaderText}>
+                <Text style={styles.evalCardTitle}>Evaluación inicial</Text>
+                <Text style={styles.evalCardSubtitle}>
+                  Actualiza tu volumen de referencia para personalizar tus metas de terapia.
+                </Text>
+              </View>
+            </View>
+            {latestDiag ? (
+              <View style={styles.evalCardMetrics}>
+                <View style={styles.evalCardMetricMain}>
+                  <Text style={styles.evalCardMetricLabel}>Volumen de referencia</Text>
+                  <Text style={styles.evalCardMetricValue}>
+                    {latestDiag.max_inspiratory_volume} mL
+                  </Text>
+                </View>
+                <View style={styles.evalCardMetricRow}>
+                  <View style={styles.evalCardMetricMini}>
+                    <Text style={styles.evalCardMiniLabel}>Última evaluación</Text>
+                    <Text style={styles.evalCardMiniValue}>
+                      {new Date(latestDiag.diagnostic_date).toLocaleDateString(undefined, {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </Text>
+                  </View>
+                  {latestDiag.diagnostic_number != null ? (
+                    <View style={styles.evalCardMetricMini}>
+                      <Text style={styles.evalCardMiniLabel}>Evaluación</Text>
+                      <Text style={styles.evalCardMiniValue}>#{latestDiag.diagnostic_number}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+            <Pressable
+              style={({ pressed }) => [styles.evalCardBtn, pressed && styles.evalCardBtnPressed]}
+              onPress={goDiagnostico}
+              accessibilityRole="button"
+              accessibilityLabel="Repetir evaluación">
+              <Text style={styles.evalCardBtnText}>Repetir evaluación</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         <DeviceCard
           calibrationSnapshot={calibrationSnapshot}
           onPress={goSensorConnection}
         />
 
-        {hasCompletedDiagnostic ? (
-          <Pressable style={styles.evalLink} onPress={goDiagnostico} accessibilityRole="button">
-            <Text style={styles.evalLinkText}>Repetir evaluación</Text>
-          </Pressable>
-        ) : null}
+        <Pressable
+          style={({ pressed }) => [styles.exportCard, pressed && styles.exportCardPressed]}
+          onPress={() => {
+            onLightImpact();
+            router.push('/data-export');
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Exportar resumen de progreso">
+          <View style={styles.exportCardHeader}>
+            <View style={styles.exportCardIconWrap}>
+              <IconSymbol name="doc.text.fill" size={22} color={ACCENT} />
+            </View>
+            <View style={styles.exportCardTextCol}>
+              <Text style={styles.exportCardTitle}>Resumen para tu profesional</Text>
+              <Text style={styles.exportCardBody}>
+                Comparte tus sesiones y progreso en un archivo exportable.
+              </Text>
+            </View>
+          </View>
+          <View style={styles.exportCardCtaRow}>
+            <Text style={styles.exportCardCtaText}>Exportar resumen</Text>
+            <IconSymbol name="chevron.right" size={16} color={ACCENT} />
+          </View>
+        </Pressable>
 
         <View style={styles.claveRow}>
           <Text style={styles.claveLabel}>Tu clave de acceso</Text>
@@ -755,14 +831,154 @@ const styles = StyleSheet.create({
     borderTopColor: '#F1F3F5',
   },
   deviceCtaLabel: { fontSize: 15, fontWeight: '700', color: ACCENT },
-  evalLink: {
-    alignSelf: 'flex-start',
-    paddingVertical: spacing.sm,
+  evalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.25)',
+    padding: spacing.lg,
     marginBottom: spacing.lg,
   },
-  evalLinkText: {
-    fontSize: 15,
+  evalCardHeader: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  evalCardIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: 'rgba(52, 171, 165, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  evalCardHeaderText: {
+    flex: 1,
+  },
+  evalCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  evalCardSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#6B7280',
+  },
+  evalCardMetrics: {
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  evalCardMetricMain: {
+    backgroundColor: 'rgba(52, 171, 165, 0.06)',
+    borderRadius: 12,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.15)',
+  },
+  evalCardMetricLabel: {
+    fontSize: 12,
     fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  evalCardMetricValue: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#1F7A75',
+    letterSpacing: -0.3,
+  },
+  evalCardMetricRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  evalCardMetricMini: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm + 2,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  evalCardMiniLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#9CA3AF',
+    marginBottom: 2,
+  },
+  evalCardMiniValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  evalCardBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: ACCENT,
+    borderRadius: 14,
+    paddingVertical: 14,
+    minHeight: 50,
+  },
+  evalCardBtnPressed: {
+    opacity: 0.92,
+  },
+  evalCardBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  exportCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EBEBEB',
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  exportCardPressed: {
+    opacity: 0.94,
+  },
+  exportCardHeader: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  exportCardIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(52, 171, 165, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exportCardTextCol: {
+    flex: 1,
+  },
+  exportCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  exportCardBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#6B7280',
+  },
+  exportCardCtaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F3F5',
+  },
+  exportCardCtaText: {
+    fontSize: 15,
+    fontWeight: '700',
     color: ACCENT,
   },
   claveRow: {

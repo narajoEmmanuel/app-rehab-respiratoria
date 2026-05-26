@@ -282,8 +282,9 @@ export function ProfileScreen() {
             onAvatarUriChange={(uri) => void onAvatarChange(uri)}
           />
           <Text style={styles.profileName}>{patientDisplayName}</Text>
-          <Text style={styles.profileMeta}>Clave · {patient.clave}</Text>
-          <View style={styles.badgeRow}>
+          <View style={styles.profileMetaRow}>
+            <Text style={styles.profileMeta}>Clave {patient.clave}</Text>
+            <View style={styles.profileMetaDot} />
             <ProfileStatusBadge label={consentUi.badgeLabel} variant={consentUi.variant} />
           </View>
         </View>
@@ -303,39 +304,49 @@ export function ProfileScreen() {
           </ProfileInfoCard>
         </ProfileSection>
 
-        <ProfileSection title="Tu información">
+        <ProfileSection title="Datos personales">
           <ProfileInfoCard>
-            <View style={styles.infoRow}>
-              <View style={styles.infoHalf}>
-                <Text style={styles.fieldLabel}>Nombre</Text>
-                <Text style={styles.fieldValue}>{patientDisplayName}</Text>
+            <View style={styles.personalRow}>
+              <View style={styles.personalItem}>
+                <Text style={styles.personalLabel}>Nombre</Text>
+                <Text style={styles.personalValue}>{patientDisplayName}</Text>
               </View>
-              <View style={styles.infoHalf}>
-                <Text style={styles.fieldLabel}>Edad</Text>
-                <Text style={styles.fieldValue}>{patient.edad != null ? `${patient.edad} años` : '—'}</Text>
-              </View>
-            </View>
-            <View style={styles.divider} />
-            <Text style={styles.infoSectionLabel}>Última evaluación inicial</Text>
-            <View style={styles.infoRow}>
-              <View style={styles.infoHalf}>
-                <Text style={styles.fieldLabel}>Volumen de referencia</Text>
-                <Text style={styles.fieldValue}>
-                  {latestDiagnostic ? `${latestDiagnostic.max_inspiratory_volume} mL` : '—'}
-                </Text>
-              </View>
-              <View style={styles.infoHalf}>
-                <Text style={styles.fieldLabel}>Fecha</Text>
-                <Text style={styles.fieldValue}>
-                  {latestDiagnostic ? new Date(latestDiagnostic.diagnostic_date).toLocaleDateString() : '—'}
-                </Text>
+              <View style={styles.personalDivider} />
+              <View style={styles.personalItem}>
+                <Text style={styles.personalLabel}>Edad</Text>
+                <Text style={styles.personalValue}>{patient.edad != null ? `${patient.edad} años` : '—'}</Text>
               </View>
             </View>
-            <View style={styles.infoRow}>
-              <View style={styles.infoHalf}>
-                <Text style={styles.fieldLabel}>Evaluación número</Text>
-                <Text style={styles.fieldValue}>
-                  {latestDiagnostic?.diagnostic_number != null ? String(latestDiagnostic.diagnostic_number) : '—'}
+          </ProfileInfoCard>
+        </ProfileSection>
+
+        <ProfileSection title="Evaluación inicial">
+          <ProfileInfoCard>
+            <View style={styles.evalMainMetric}>
+              <Text style={styles.evalMainLabel}>Volumen de referencia</Text>
+              <Text style={styles.evalMainValue}>
+                {latestDiagnostic ? `${latestDiagnostic.max_inspiratory_volume} mL` : '—'}
+              </Text>
+            </View>
+            <View style={styles.evalSecondaryRow}>
+              <View style={styles.evalSecondaryItem}>
+                <Text style={styles.evalSecondaryLabel}>Fecha</Text>
+                <Text style={styles.evalSecondaryValue}>
+                  {latestDiagnostic
+                    ? new Date(latestDiagnostic.diagnostic_date).toLocaleDateString(undefined, {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })
+                    : '—'}
+                </Text>
+              </View>
+              <View style={styles.evalSecondaryItem}>
+                <Text style={styles.evalSecondaryLabel}>Evaluación número</Text>
+                <Text style={styles.evalSecondaryValue}>
+                  {latestDiagnostic?.diagnostic_number != null
+                    ? String(latestDiagnostic.diagnostic_number)
+                    : '—'}
                 </Text>
               </View>
             </View>
@@ -396,14 +407,6 @@ export function ProfileScreen() {
             ) : null}
           </ProfileInfoCard>
         </ProfileSection>
-
-        <Pressable
-          style={styles.exportDiscreteLink}
-          onPress={() => router.push('/data-export')}
-          accessibilityRole="button"
-          accessibilityLabel="Exportar resumen de progreso">
-          <Text style={styles.exportDiscreteLinkText}>Exportar resumen</Text>
-        </Pressable>
 
         <ProfileSection
           title="Notificaciones"
@@ -522,8 +525,16 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '600',
   },
-  badgeRow: {
-    marginTop: spacing.xs,
+  profileMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  profileMetaDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#D1D5DB',
   },
   metricsRow: {
     flexDirection: 'row',
@@ -552,21 +563,66 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   },
-  infoRow: {
+  personalRow: {
+    gap: spacing.sm,
+  },
+  personalItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  personalDivider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+  },
+  personalLabel: {
+    fontSize: 15,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  personalValue: {
+    fontSize: 15,
+    color: '#111827',
+    fontWeight: '600',
+  },
+  evalMainMetric: {
+    backgroundColor: 'rgba(52, 171, 165, 0.05)',
+    borderRadius: 14,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.12)',
+    marginBottom: spacing.md,
+  },
+  evalMainLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  evalMainValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#1F7A75',
+    letterSpacing: -0.3,
+  },
+  evalSecondaryRow: {
     flexDirection: 'row',
     gap: spacing.sm,
   },
-  infoHalf: {
+  evalSecondaryItem: {
     flex: 1,
-    gap: spacing.xs / 2,
   },
-  infoSectionLabel: {
+  evalSecondaryLabel: {
     fontSize: 13,
-    fontWeight: '700',
-    color: wellness.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: spacing.xs,
+    fontWeight: '500',
+    color: '#9CA3AF',
+    marginBottom: 2,
+  },
+  evalSecondaryValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#374151',
   },
   field: {
     gap: spacing.xs / 2,
@@ -665,23 +721,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: wellness.errorText,
-  },
-  exportBody: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: wellness.textSecondary,
-    marginBottom: spacing.sm,
-  },
-  exportDiscreteLink: {
-    alignSelf: 'center',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-  },
-  exportDiscreteLinkText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: wellness.primaryDark,
-    textDecorationLine: 'underline',
   },
   notifStatusLine: {
     fontSize: 15,

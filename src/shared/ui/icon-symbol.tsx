@@ -21,6 +21,13 @@ const MAPPING = {
   'person.crop.circle': 'person',
   'dot.radiowaves.left.and.right': 'sensors',
   'checkmark.circle.fill': 'check-circle',
+  'lungs.fill': 'air',
+  'doc.text.fill': 'description',
+  'camera.fill': 'photo-camera',
+  'photo.fill': 'photo-library',
+  'eye.fill': 'visibility',
+  'trash.fill': 'delete',
+  'xmark': 'close',
 } as const;
 
 export type IconSymbolName = keyof typeof MAPPING;
