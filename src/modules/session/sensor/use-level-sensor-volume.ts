@@ -71,7 +71,13 @@ export function useLevelSensorVolume(
   options: UseLevelSensorVolumeOptions,
 ): UseLevelSensorVolumeResult {
   const { enabled, levelId, inputMode, sessionRunId, calibrationId: calibrationIdProp } = options;
-  const { lastReading, status: sensorStatus, mode } = useSensorConnection();
+  const {
+    lastReading,
+    status: sensorStatus,
+    mode,
+    lastDataReceivedAt,
+    sensorStreamState,
+  } = useSensorConnection();
 
   const bundleRef = useRef<LoadActiveVolumeEstimationContextResult | null>(null);
   const snapshotRef = useRef<LevelSensorVolumeSnapshot>({
@@ -117,7 +123,9 @@ export function useLevelSensorVolume(
         ? lastReading.distanceMm
         : null;
 
-    if (lastReading) {
+    if (lastDataReceivedAt !== null) {
+      lastReceivedAtRef.current = lastDataReceivedAt;
+    } else if (lastReading) {
       lastReceivedAtRef.current = Date.now();
     }
 
@@ -125,6 +133,7 @@ export function useLevelSensorVolume(
       lastReading,
       sensorConnected,
       receivedAtMs: lastReceivedAtRef.current,
+      sensorStreamState: mode === 'mock' ? 'receiving_data' : sensorStreamState,
     });
 
     let estimate = EMPTY_ESTIMATE;

@@ -52,4 +52,13 @@ export type SensorConnectionStatus =
 
 export type SensorSourceMode = 'mock' | 'websocket';
 
+/**
+ * Estado del flujo de datos del sensor (WebSocket conectado ≠ datos en vivo).
+ */
+export type SensorStreamState =
+  | 'idle'
+  | 'connected_waiting_stream'
+  | 'receiving_data'
+  | 'stream_paused';
+
 export type SensorMessageParseResult = SensorReading | null;

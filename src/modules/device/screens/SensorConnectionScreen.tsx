@@ -16,6 +16,10 @@ import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 import { SensorLivePreview } from '@/src/modules/device/components/SensorLivePreview';
 import { useCalibrationSnapshot } from '@/src/modules/device/state/use-calibration-snapshot';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
+import {
+  isSensorStreamActivelyReceiving,
+  SENSOR_STREAM_STATE_LABELS,
+} from '@/src/modules/device/stream/sensor-stream-state';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppButton } from '@/src/shared/ui/AppButton';
@@ -100,6 +104,8 @@ export function SensorConnectionScreen() {
     resetConnection,
     startMock,
     stopMock,
+    sensorStreamState,
+    lastDataReceivedAt,
   } = useSensorConnection();
 
   const { snapshot: calibrationSnapshot } = useCalibrationSnapshot();
@@ -107,11 +113,18 @@ export function SensorConnectionScreen() {
 
   const isConnecting = status === 'connecting';
   const isOnline = status === 'connected' || status === 'receiving';
+  const streamReceiving =
+    mode === 'mock' ? isOnline : isSensorStreamActivelyReceiving(sensorStreamState);
   const signalValid =
+    streamReceiving &&
     Boolean(lastReading) &&
     lastReading?.distanceValid === true &&
     typeof lastReading?.distanceMm === 'number' &&
     Number.isFinite(lastReading?.distanceMm ?? NaN);
+  const streamStateMessage =
+    mode === 'websocket' && isOnline && !streamReceiving
+      ? SENSOR_STREAM_STATE_LABELS[sensorStreamState]
+      : undefined;
   const isMock = mode === 'mock' && isOnline;
   const liveReady = isOnline && signalValid;
   const hasCalibration = calibrationSnapshot.kind === 'ready';
@@ -188,7 +201,13 @@ export function SensorConnectionScreen() {
             />
             <InfoTile
               label="Señal"
-              value={signalValid ? 'Válida' : 'Sin lectura'}
+              value={
+                signalValid
+                  ? 'Válida'
+                  : streamStateMessage
+                    ? 'Pausada'
+                    : 'Sin lectura'
+              }
               tone={signalValid ? 'success' : isOnline ? 'warning' : 'neutral'}
               compact
             />
@@ -201,13 +220,14 @@ export function SensorConnectionScreen() {
           </View>
 
           <Text style={styles.hint}>
-            {readyForTherapy
-              ? 'Conexión activa y calibración guardada. El dispositivo está listo.'
-              : isOnline
-                ? hasCalibration
-                  ? 'Sensor conectado. Revisa la señal o actualiza la calibración si lo necesitas.'
-                  : 'Sensor conectado. Falta registrar la calibración local.'
-                : 'Conecta el dispositivo por WiFi local al ESP32.'}
+            {streamStateMessage ??
+              (readyForTherapy
+                ? 'Conexión activa y calibración guardada. El dispositivo está listo.'
+                : isOnline
+                  ? hasCalibration
+                    ? 'Sensor conectado. Revisa la señal o actualiza la calibración si lo necesitas.'
+                    : 'Sensor conectado. Falta registrar la calibración local.'
+                  : 'Conecta el dispositivo por WiFi local al ESP32.')}
           </Text>
 
           {status === 'error' && errorMessage ? (
@@ -298,6 +318,8 @@ export function SensorConnectionScreen() {
             distanceMm={lastReading.distanceMm}
             rawDistanceMm={lastReading.rawDistanceMm}
             distanceValid={lastReading.distanceValid}
+            signalActive={streamReceiving}
+            streamStateMessage={streamStateMessage}
             source={lastReading.source}
             timestamp={lastReading.timestamp}
             sensorStatus={lastReading.sensorStatus}
@@ -349,6 +371,13 @@ export function SensorConnectionScreen() {
                 <DiagRow label="rawDistanceMm" value={formatScalar(lastReading?.rawDistanceMm)} />
                 <DiagRow label="distanceValid" value={formatScalar(lastReading?.distanceValid)} />
                 <DiagRow label="timestamp" value={formatScalar(lastReading?.timestamp)} />
+                <DiagRow label="sensorStreamState" value={sensorStreamState} />
+                <DiagRow
+                  label="lastDataReceivedAt"
+                  value={
+                    lastDataReceivedAt === null ? '—' : String(lastDataReceivedAt)
+                  }
+                />
                 <DiagRow
                   label="mensajes"
                   value={`${messageCount} (${messagesPerSecond.toFixed(1)} mps)`}

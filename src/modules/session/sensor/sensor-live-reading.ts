@@ -1,4 +1,5 @@
-import type { SensorReading } from '@/src/modules/device/types/sensor-reading';
+import { SENSOR_STREAM_DATA_TIMEOUT_MS } from '@/src/modules/device/stream/sensor-stream-state';
+import type { SensorReading, SensorStreamState } from '@/src/modules/device/types/sensor-reading';
 
 /** Ventana para considerar que el feed del sensor sigue activo (recepción en app). */
 export const SENSOR_LIVE_READING_MAX_AGE_MS = 6000;
@@ -6,6 +7,8 @@ export const SENSOR_LIVE_READING_MAX_AGE_MS = 6000;
 export type SensorLiveReadingRejectReason =
   | 'sensor_not_connected'
   | 'no_last_reading'
+  | 'stream_paused'
+  | 'waiting_for_stream'
   | 'distance_valid_false'
   | 'distance_mm_invalid'
   | 'reading_stale_by_receive_time'
@@ -24,6 +27,8 @@ export type IsSensorReadingLiveParams = {
   sensorConnected: boolean;
   /** Momento en que la app recibió la última lectura (preferido sobre reading.timestamp). */
   receivedAtMs?: number | null;
+  /** Estado del flujo WebSocket (pausa por botón físico del ESP32, etc.). */
+  sensorStreamState?: SensorStreamState;
   nowMs?: number;
 };
 
@@ -42,7 +47,13 @@ function resolveDistanceMm(reading: SensorReading): number | null {
 export function checkSensorReadingLive(
   params: IsSensorReadingLiveParams,
 ): SensorLiveReadingCheck {
-  const { lastReading, sensorConnected, receivedAtMs = null, nowMs = Date.now() } = params;
+  const {
+    lastReading,
+    sensorConnected,
+    receivedAtMs = null,
+    sensorStreamState = 'idle',
+    nowMs = Date.now(),
+  } = params;
 
   if (!sensorConnected) {
     return {
@@ -61,6 +72,26 @@ export function checkSensorReadingLive(
       lastReadingAgeMs: null,
       distanceMm: null,
       distanceValid: undefined,
+    };
+  }
+
+  if (sensorStreamState === 'stream_paused') {
+    return {
+      live: false,
+      reason: 'stream_paused',
+      lastReadingAgeMs: null,
+      distanceMm: resolveDistanceMm(lastReading),
+      distanceValid: lastReading.distanceValid,
+    };
+  }
+
+  if (sensorStreamState === 'connected_waiting_stream') {
+    return {
+      live: false,
+      reason: 'waiting_for_stream',
+      lastReadingAgeMs: null,
+      distanceMm: resolveDistanceMm(lastReading),
+      distanceValid: lastReading.distanceValid,
     };
   }
 
@@ -92,11 +123,9 @@ export function checkSensorReadingLive(
       ? nowMs - receiveBase
       : null;
 
-  if (
-    lastReadingAgeMs === null ||
-    lastReadingAgeMs < 0 ||
-    lastReadingAgeMs > SENSOR_LIVE_READING_MAX_AGE_MS
-  ) {
+  const maxAgeMs = Math.min(SENSOR_LIVE_READING_MAX_AGE_MS, SENSOR_STREAM_DATA_TIMEOUT_MS);
+
+  if (lastReadingAgeMs === null || lastReadingAgeMs < 0 || lastReadingAgeMs > maxAgeMs) {
     return {
       live: false,
       reason: 'reading_stale_by_receive_time',
@@ -120,12 +149,14 @@ export function isSensorReadingLive(
   sensorConnected: boolean,
   receivedAtMs?: number | null,
   nowMs?: number,
+  sensorStreamState?: SensorStreamState,
 ): boolean {
   return checkSensorReadingLive({
     lastReading,
     sensorConnected,
     receivedAtMs,
     nowMs,
+    sensorStreamState,
   }).live;
 }
 
@@ -143,6 +174,10 @@ export function describeSensorLiveBlockReason(
       return 'distanceMm ausente o no finito';
     case 'reading_stale_by_receive_time':
       return 'lectura vieja por tiempo desde última recepción en app';
+    case 'stream_paused':
+      return 'transmisión pausada (sin datos nuevos >2 s)';
+    case 'waiting_for_stream':
+      return 'WebSocket conectado, esperando botón físico / primer dato';
     default:
       return 'desconocido';
   }

@@ -10,6 +10,7 @@ import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import {
   showLevelPlayModePicker,
   showTherapyReadinessAlert,
@@ -134,6 +135,7 @@ export function LevelsScreen({
     sensorConnected,
     sensorStatus,
   } = useTherapyReadinessGate();
+  const { lastDataReceivedAt, sensorStreamState } = useSensorConnection();
   const levels = listLevels();
   const [patientLevels, setPatientLevels] = useState<PatientLevelRecord[]>([]);
   const [latestDiagnostic, setLatestDiagnostic] = useState<DiagnosticRecord | null>(null);
@@ -141,13 +143,6 @@ export function LevelsScreen({
     Record<number, LevelDisplayStats>
   >({});
   const [startingLevelId, setStartingLevelId] = useState<LevelId | null>(null);
-  const [lastReadingReceivedAtMs, setLastReadingReceivedAtMs] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!lastReading) return;
-    setLastReadingReceivedAtMs(Date.now());
-  }, [lastReading, lastReading?.distanceMm, lastReading?.timestamp]);
-
   const loadLevelsData = useCallback(async () => {
     if (!patient) {
       setPatientLevels([]);
@@ -211,7 +206,8 @@ export function LevelsScreen({
           sensorConnected,
           sensorStatus,
           lastReading,
-          receivedAtMs: lastReadingReceivedAtMs,
+          receivedAtMs: lastDataReceivedAt,
+          sensorStreamState,
           patientId: patient?.paciente_id ?? null,
         });
 
@@ -235,7 +231,8 @@ export function LevelsScreen({
     },
     [
       lastReading,
-      lastReadingReceivedAtMs,
+      lastDataReceivedAt,
+      sensorStreamState,
       navigateToSession,
       patient?.paciente_id,
       router,
