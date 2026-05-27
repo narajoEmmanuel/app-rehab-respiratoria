@@ -42,6 +42,14 @@ export type SessionRecord = {
   calibration_created_at?: number | null;
   /** Fase 3B: timestamp de última actualización de la calibración usada. */
   calibration_updated_at?: number | null;
+  /** Fase 3D.2: versión del firmware ESP32 activo durante la sesión. null en práctica o sin sensor. */
+  firmware_version?: string | null;
+  /** Fase 3D.2: ID del dispositivo ESP32 activo durante la sesión. null en práctica o sin sensor. */
+  device_id?: string | null;
+  /** Fase 3D.2: estado del sensor al momento de guardar la sesión. */
+  sensor_status?: string | null;
+  /** Fase 3D.2: etiqueta del filtro usado en firmware. */
+  sensor_filter?: string | null;
 };
 
 export type AttemptRecord = {
@@ -85,4 +93,8 @@ export type AttemptRecord = {
   active_model_id?: string | null;
   /** model_kind: tipo de modelo ('linear_regression' | 'piecewise_linear'). null si modo práctica. */
   model_kind?: string | null;
+  /** Fase 3D.2: versión del firmware ESP32 durante este intento. null en práctica. */
+  firmware_version?: string | null;
+  /** Fase 3D.2: ID del dispositivo ESP32 durante este intento. null en práctica. */
+  device_id?: string | null;
 };

@@ -25,6 +25,9 @@ export type SensorLivePreviewProps = {
   distanceValid?: boolean;
   source?: string;
   timestamp?: number;
+  sensorStatus?: string;
+  firmwareVersion?: string;
+  deviceId?: string;
 };
 
 /**
@@ -64,6 +67,9 @@ export function SensorLivePreview({
   distanceValid,
   source,
   timestamp,
+  sensorStatus,
+  firmwareVersion,
+  deviceId,
 }: SensorLivePreviewProps) {
   const hasValidSignal = distanceValid === true;
   const visualPercent = useMemo(() => {
@@ -142,6 +148,18 @@ export function SensorLivePreview({
             ? `${timestamp} · ${formatTimestamp(timestamp)}`
             : '—'}
         </Text>
+      </View>
+      <View style={styles.diagRow}>
+        <Text style={styles.diagKey}>sensorStatus</Text>
+        <Text style={styles.diagValue}>{sensorStatus ?? '—'}</Text>
+      </View>
+      <View style={styles.diagRow}>
+        <Text style={styles.diagKey}>firmware</Text>
+        <Text style={styles.diagValue}>{firmwareVersion ?? '—'}</Text>
+      </View>
+      <View style={styles.diagRow}>
+        <Text style={styles.diagKey}>deviceId</Text>
+        <Text style={styles.diagValue}>{deviceId ?? '—'}</Text>
       </View>
 
       <Text style={styles.disclaimer}>Vista de distancia (no es volumen estimado)</Text>

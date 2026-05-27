@@ -53,6 +53,8 @@ const HEADER: readonly string[] = [
 type CalibrationTechnicalCsvParams = {
   profile: CalibrationProfile;
   activeModel: ActiveCalibrationModel | null;
+  firmwareVersion?: string | null;
+  deviceId?: string | null;
 };
 
 function formatTimestamp(epoch: number | undefined | null): string {
@@ -65,13 +67,14 @@ function getAppVersion(): string {
 }
 
 export function buildCalibrationTechnicalCsv(params: CalibrationTechnicalCsvParams): string {
-  const { profile, activeModel } = params;
+  const { profile, activeModel, firmwareVersion, deviceId } = params;
 
   const lines: string[] = [];
   lines.push('RESPIRA_CALIBRACION_TECNICA');
   lines.push(`app_version,${escapeCsvCell(getAppVersion())}`);
   lines.push(`calibration_export_schema_version,${CALIBRATION_EXPORT_SCHEMA_VERSION}`);
-  lines.push(`firmware_version,`);
+  lines.push(`firmware_version,${escapeCsvCell(firmwareVersion ?? '')}`);
+  lines.push(`device_id,${escapeCsvCell(deviceId ?? '')}`);
   lines.push(`exported_at,${new Date().toISOString()}`);
   lines.push(HEADER.join(','));
 

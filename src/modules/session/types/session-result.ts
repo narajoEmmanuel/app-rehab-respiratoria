@@ -32,6 +32,10 @@ export type SessionAttemptResult = {
   activeModelId?: string | null;
   /** Fase 3B: tipo de modelo usado. */
   modelKind?: string | null;
+  /** Fase 3D.2: versión del firmware ESP32 al momento del intento. */
+  firmwareVersion?: string | null;
+  /** Fase 3D.2: ID del dispositivo ESP32 al momento del intento. */
+  deviceId?: string | null;
 };
 
 export type SessionResult = {
@@ -63,4 +67,12 @@ export type SessionResult = {
   spirometerDeviceId?: string | null;
   calibrationCreatedAt?: number | null;
   calibrationUpdatedAt?: number | null;
+  /** Fase 3D.2: versión del firmware ESP32 activo durante la sesión. */
+  firmwareVersion?: string | null;
+  /** Fase 3D.2: ID del dispositivo ESP32 activo durante la sesión. */
+  deviceId?: string | null;
+  /** Fase 3D.2: estado del sensor al momento de guardar. */
+  sensorStatus?: string | null;
+  /** Fase 3D.2: filtro usado en firmware. */
+  sensorFilter?: string | null;
 };

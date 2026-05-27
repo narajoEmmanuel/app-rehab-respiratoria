@@ -115,6 +115,10 @@ export async function persistSessionResult(result: SessionResult): Promise<Sessi
     spirometer_device_id: result.spirometerDeviceId ?? undefined,
     calibration_created_at: result.calibrationCreatedAt ?? undefined,
     calibration_updated_at: result.calibrationUpdatedAt ?? undefined,
+    firmware_version: result.firmwareVersion ?? undefined,
+    device_id: result.deviceId ?? undefined,
+    sensor_status: result.sensorStatus ?? undefined,
+    sensor_filter: result.sensorFilter ?? undefined,
   });
   for (const attempt of result.attempts) {
     await createAttempt(savedSession.session_id, {
@@ -136,6 +140,8 @@ export async function persistSessionResult(result: SessionResult): Promise<Sessi
       calibration_profile_id: attempt.calibrationProfileId ?? undefined,
       active_model_id: attempt.activeModelId ?? undefined,
       model_kind: attempt.modelKind ?? undefined,
+      firmware_version: attempt.firmwareVersion ?? undefined,
+      device_id: attempt.deviceId ?? undefined,
     });
   }
 

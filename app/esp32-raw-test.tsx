@@ -25,6 +25,12 @@ type Esp32RawSnapshot = {
   rawDistanceMm?: number;
   distanceValid?: boolean;
   timestamp?: number;
+  firmwareVersion?: string;
+  deviceId?: string;
+  sensorStatus?: string;
+  sampleCount?: number;
+  filter?: string;
+  timestampMs?: number;
 };
 
 function statusLabel(status: RawTestStatus): string {
@@ -124,6 +130,18 @@ export default function Esp32RawTestRoute() {
         timestamp:
           typeof parsed.timestamp === 'number' && Number.isFinite(parsed.timestamp)
             ? parsed.timestamp
+            : undefined,
+        firmwareVersion: typeof parsed.firmwareVersion === 'string' ? parsed.firmwareVersion : undefined,
+        deviceId: typeof parsed.deviceId === 'string' ? parsed.deviceId : undefined,
+        sensorStatus: typeof parsed.sensorStatus === 'string' ? parsed.sensorStatus : undefined,
+        sampleCount:
+          typeof parsed.sampleCount === 'number' && Number.isFinite(parsed.sampleCount)
+            ? parsed.sampleCount
+            : undefined,
+        filter: typeof parsed.filter === 'string' ? parsed.filter : undefined,
+        timestampMs:
+          typeof parsed.timestampMs === 'number' && Number.isFinite(parsed.timestampMs)
+            ? parsed.timestampMs
             : undefined,
       });
     } catch {
@@ -300,6 +318,12 @@ export default function Esp32RawTestRoute() {
           <KeyValue k="rawDistanceMm" v={formatNumber(snapshot.rawDistanceMm, ' mm')} />
           <KeyValue k="distanceValid" v={formatBoolean(snapshot.distanceValid)} />
           <KeyValue k="timestamp" v={formatNumber(snapshot.timestamp)} />
+          <KeyValue k="timestampMs" v={formatNumber(snapshot.timestampMs)} />
+          <KeyValue k="sensorStatus" v={snapshot.sensorStatus ?? '—'} />
+          <KeyValue k="sampleCount" v={formatNumber(snapshot.sampleCount)} />
+          <KeyValue k="filter" v={snapshot.filter ?? '—'} />
+          <KeyValue k="firmwareVersion" v={snapshot.firmwareVersion ?? '—'} />
+          <KeyValue k="deviceId" v={snapshot.deviceId ?? '—'} />
         </View>
 
         <View style={styles.card}>

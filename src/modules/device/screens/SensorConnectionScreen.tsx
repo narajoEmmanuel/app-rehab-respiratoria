@@ -300,6 +300,9 @@ export function SensorConnectionScreen() {
             distanceValid={lastReading.distanceValid}
             source={lastReading.source}
             timestamp={lastReading.timestamp}
+            sensorStatus={lastReading.sensorStatus}
+            firmwareVersion={lastReading.firmwareVersion}
+            deviceId={lastReading.deviceId}
           />
         ) : null}
 

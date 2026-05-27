@@ -219,6 +219,17 @@ export function SessionScreen() {
     calibrationCreatedAt: null,
     calibrationUpdatedAt: null,
   });
+  const firmwareTraceRef = useRef<{
+    firmwareVersion: string | null;
+    deviceId: string | null;
+    sensorStatus: string | null;
+    sensorFilter: string | null;
+  }>({
+    firmwareVersion: null,
+    deviceId: null,
+    sensorStatus: null,
+    sensorFilter: null,
+  });
 
   useEffect(() => {
     if (isTouchPractice || !isRunnerLevel || !isFocused || !sessionRunId) {
@@ -297,6 +308,7 @@ export function SessionScreen() {
     ) => {
       if (!patient || !patientLevelId) return;
       const trace = calibrationTraceRef.current;
+      const fwTrace = firmwareTraceRef.current;
       const result = buildSessionResult({
         patientId: patient.paciente_id,
         patientLevelId,
@@ -312,6 +324,10 @@ export function SessionScreen() {
         spirometerDeviceId: trace.spirometerDeviceId,
         calibrationCreatedAt: trace.calibrationCreatedAt,
         calibrationUpdatedAt: trace.calibrationUpdatedAt,
+        firmwareVersion: fwTrace.firmwareVersion,
+        deviceId: fwTrace.deviceId,
+        sensorStatus: fwTrace.sensorStatus,
+        sensorFilter: fwTrace.sensorFilter,
       });
       await persistSessionResult(result);
     },
@@ -589,6 +605,13 @@ export function SessionScreen() {
           spirometerDeviceId: loaded.activeModel?.spirometerDeviceId ?? null,
           calibrationCreatedAt: loaded.calibrationProfile?.createdAt ?? null,
           calibrationUpdatedAt: loaded.calibrationProfile?.updatedAt ?? null,
+        };
+        const reading = sensorConnectionRef.current.lastReading;
+        firmwareTraceRef.current = {
+          firmwareVersion: reading?.firmwareVersion ?? null,
+          deviceId: reading?.deviceId ?? null,
+          sensorStatus: reading?.sensorStatus ?? null,
+          sensorFilter: reading?.filter ?? null,
         };
       } catch {
         /* readiness gate handles missing calibration */
@@ -953,6 +976,7 @@ export function SessionScreen() {
                 if (!patient || !patientLevelId) return;
                 setSavingSummary(true);
                 const trace = calibrationTraceRef.current;
+                const fwTrace = firmwareTraceRef.current;
                 const result = buildSessionResult({
                   patientId: patient.paciente_id,
                   patientLevelId,
@@ -968,6 +992,10 @@ export function SessionScreen() {
                   spirometerDeviceId: trace.spirometerDeviceId,
                   calibrationCreatedAt: trace.calibrationCreatedAt,
                   calibrationUpdatedAt: trace.calibrationUpdatedAt,
+                  firmwareVersion: fwTrace.firmwareVersion,
+                  deviceId: fwTrace.deviceId,
+                  sensorStatus: fwTrace.sensorStatus,
+                  sensorFilter: fwTrace.sensorFilter,
                 });
                 const savedSession = await persistSessionResult(result);
                 if (!isTouchPractice && runnerLevelId) {

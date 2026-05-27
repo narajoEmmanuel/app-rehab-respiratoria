@@ -52,6 +52,16 @@ async function loadCalibrationExportBlock(): Promise<CalibrationExportBlock> {
   }
 }
 
+function extractLatestFirmwareVersion(
+  sessions: { session: { firmware_version?: string | null } }[],
+): string | null {
+  for (let i = sessions.length - 1; i >= 0; i--) {
+    const fw = sessions[i].session.firmware_version;
+    if (fw) return fw;
+  }
+  return null;
+}
+
 export async function getClinicalExportSnapshot(patientId: number): Promise<ClinicalExportSnapshot> {
   const [patient, allDiagnostics, allLevels, sessionBundle, calibration] = await Promise.all([
     readPatientById(patientId),
@@ -61,11 +71,13 @@ export async function getClinicalExportSnapshot(patientId: number): Promise<Clin
     loadCalibrationExportBlock(),
   ]);
 
+  const firmwareVersion = extractLatestFirmwareVersion(sessionBundle.sessions);
+
   return {
     export_version: CLINICAL_EXPORT_FORMAT_VERSION,
     export_schema_version: CLINICAL_EXPORT_SCHEMA_VERSION,
     app_version: getAppVersion(),
-    firmware_version: null,
+    firmware_version: firmwareVersion,
     exported_at: new Date().toISOString(),
     patient,
     diagnostics: allDiagnostics.filter((d) => d.patient_id === patientId),

@@ -23,6 +23,10 @@ export type BuildSessionResultParams = {
   spirometerDeviceId?: string | null;
   calibrationCreatedAt?: number | null;
   calibrationUpdatedAt?: number | null;
+  firmwareVersion?: string | null;
+  deviceId?: string | null;
+  sensorStatus?: string | null;
+  sensorFilter?: string | null;
 };
 
 export function buildSessionResult(params: BuildSessionResultParams): SessionResult {
@@ -41,6 +45,10 @@ export function buildSessionResult(params: BuildSessionResultParams): SessionRes
     spirometerDeviceId,
     calibrationCreatedAt,
     calibrationUpdatedAt,
+    firmwareVersion,
+    deviceId,
+    sensorStatus,
+    sensorFilter,
   } = params;
 
   const persistence = buildSessionPersistenceFields(inputMode);
@@ -110,5 +118,9 @@ export function buildSessionResult(params: BuildSessionResultParams): SessionRes
     spirometerDeviceId: spirometerDeviceId ?? null,
     calibrationCreatedAt: calibrationCreatedAt ?? null,
     calibrationUpdatedAt: calibrationUpdatedAt ?? null,
+    firmwareVersion: firmwareVersion ?? null,
+    deviceId: deviceId ?? null,
+    sensorStatus: sensorStatus ?? null,
+    sensorFilter: sensorFilter ?? null,
   };
 }
