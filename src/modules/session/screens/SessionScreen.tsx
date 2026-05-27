@@ -70,12 +70,23 @@ function simulatedVolumeForHold(targetVolumeMl: number, holdMs: number): number 
   );
 }
 
+type AttemptTraceMeta = {
+  distanceMm?: number | null;
+  rawDistanceMm?: number | null;
+  inCalibratedRange?: boolean | null;
+  clamped?: boolean | null;
+  calibrationProfileId?: string | null;
+  activeModelId?: string | null;
+  modelKind?: string | null;
+};
+
 function attemptFromOfficialValidation(
   valid: boolean,
   holdMs: number,
   validation: OfficialAttemptValidationResult,
   inputMode: ReturnType<typeof parseSessionInputMode>,
   sensorEvaluation?: ReturnType<typeof evaluateSensorAttemptVolume>,
+  traceMeta?: AttemptTraceMeta,
 ): SessionAttemptResult {
   const peakVolume = Math.round(
     validation.officialVolumeMl ??
@@ -99,6 +110,13 @@ function attemptFromOfficialValidation(
     sensorConfidenceLabel: sensorEvaluation.confidenceLabel,
     sensorVolumeReachedConservatively: sensorEvaluation.reachesTargetConservatively,
     sensorAttemptStatus: sensorEvaluation.status,
+    distanceMm: traceMeta?.distanceMm,
+    rawDistanceMm: traceMeta?.rawDistanceMm,
+    inCalibratedRange: traceMeta?.inCalibratedRange,
+    clamped: traceMeta?.clamped,
+    calibrationProfileId: traceMeta?.calibrationProfileId,
+    activeModelId: traceMeta?.activeModelId,
+    modelKind: traceMeta?.modelKind,
   };
 }
 
@@ -186,6 +204,32 @@ export function SessionScreen() {
   const sessionCleanExitRef = useRef(false);
   const stopSessionRef = useRef<() => void>(() => {});
   const sensorInhaleArmedRef = useRef(true);
+  const calibrationTraceRef = useRef<{
+    calibrationProfileId: string | null;
+    activeModelId: string | null;
+    modelKind: string | null;
+    spirometerDeviceId: string | null;
+    calibrationCreatedAt: number | null;
+    calibrationUpdatedAt: number | null;
+  }>({
+    calibrationProfileId: null,
+    activeModelId: null,
+    modelKind: null,
+    spirometerDeviceId: null,
+    calibrationCreatedAt: null,
+    calibrationUpdatedAt: null,
+  });
+  const firmwareTraceRef = useRef<{
+    firmwareVersion: string | null;
+    deviceId: string | null;
+    sensorStatus: string | null;
+    sensorFilter: string | null;
+  }>({
+    firmwareVersion: null,
+    deviceId: null,
+    sensorStatus: null,
+    sensorFilter: null,
+  });
 
   useEffect(() => {
     if (isTouchPractice || !isRunnerLevel || !isFocused || !sessionRunId) {
@@ -263,6 +307,8 @@ export function SessionScreen() {
       attemptsSnapshot: SessionAttemptResult[],
     ) => {
       if (!patient || !patientLevelId) return;
+      const trace = calibrationTraceRef.current;
+      const fwTrace = firmwareTraceRef.current;
       const result = buildSessionResult({
         patientId: patient.paciente_id,
         patientLevelId,
@@ -272,6 +318,16 @@ export function SessionScreen() {
         invalidAttempts: failed,
         attemptsRuntime: attemptsSnapshot,
         inputMode: sessionInputMode,
+        calibrationProfileId: trace.calibrationProfileId,
+        activeModelId: trace.activeModelId,
+        modelKind: trace.modelKind,
+        spirometerDeviceId: trace.spirometerDeviceId,
+        calibrationCreatedAt: trace.calibrationCreatedAt,
+        calibrationUpdatedAt: trace.calibrationUpdatedAt,
+        firmwareVersion: fwTrace.firmwareVersion,
+        deviceId: fwTrace.deviceId,
+        sensorStatus: fwTrace.sensorStatus,
+        sensorFilter: fwTrace.sensorFilter,
       });
       await persistSessionResult(result);
     },
@@ -425,6 +481,17 @@ export function SessionScreen() {
           sensorAttemptEvaluation: sensorAttemptEvaluation ?? undefined,
           activeVolumeEstimate: snap?.estimate,
         });
+      const traceMeta: AttemptTraceMeta | undefined = snap
+        ? {
+            distanceMm: snap.estimate.distanceMm,
+            rawDistanceMm: snap.distanceMm,
+            inCalibratedRange: snap.estimate.inCalibratedRange,
+            clamped: snap.estimate.clamped,
+            calibrationProfileId: calibrationTraceRef.current.calibrationProfileId,
+            activeModelId: calibrationTraceRef.current.activeModelId,
+            modelKind: snap.estimate.modelKind,
+          }
+        : undefined;
       setAttemptsRuntime((prev) => [
         ...prev,
         attemptFromOfficialValidation(
@@ -433,6 +500,7 @@ export function SessionScreen() {
           validation,
           deps.sessionInputMode,
           sensorAttemptEvaluation ?? undefined,
+          traceMeta,
         ),
       ]);
       lastResolvedValidationRef.current = null;
@@ -530,6 +598,21 @@ export function SessionScreen() {
       try {
         const loaded = await loadActiveVolumeEstimationContext();
         calibratedRangeMl = loaded.context.calibratedRangeMl;
+        calibrationTraceRef.current = {
+          calibrationProfileId: loaded.calibrationProfile?.id ?? null,
+          activeModelId: loaded.activeModel?.id ?? null,
+          modelKind: loaded.activeModel?.modelKind ?? null,
+          spirometerDeviceId: loaded.activeModel?.spirometerDeviceId ?? null,
+          calibrationCreatedAt: loaded.calibrationProfile?.createdAt ?? null,
+          calibrationUpdatedAt: loaded.calibrationProfile?.updatedAt ?? null,
+        };
+        const reading = sensorConnectionRef.current.lastReading;
+        firmwareTraceRef.current = {
+          firmwareVersion: reading?.firmwareVersion ?? null,
+          deviceId: reading?.deviceId ?? null,
+          sensorStatus: reading?.sensorStatus ?? null,
+          sensorFilter: reading?.filter ?? null,
+        };
       } catch {
         /* readiness gate handles missing calibration */
       }
@@ -892,6 +975,8 @@ export function SessionScreen() {
               onPress={async () => {
                 if (!patient || !patientLevelId) return;
                 setSavingSummary(true);
+                const trace = calibrationTraceRef.current;
+                const fwTrace = firmwareTraceRef.current;
                 const result = buildSessionResult({
                   patientId: patient.paciente_id,
                   patientLevelId,
@@ -901,6 +986,16 @@ export function SessionScreen() {
                   invalidAttempts: failedAttempts,
                   attemptsRuntime,
                   inputMode: sessionInputMode,
+                  calibrationProfileId: trace.calibrationProfileId,
+                  activeModelId: trace.activeModelId,
+                  modelKind: trace.modelKind,
+                  spirometerDeviceId: trace.spirometerDeviceId,
+                  calibrationCreatedAt: trace.calibrationCreatedAt,
+                  calibrationUpdatedAt: trace.calibrationUpdatedAt,
+                  firmwareVersion: fwTrace.firmwareVersion,
+                  deviceId: fwTrace.deviceId,
+                  sensorStatus: fwTrace.sensorStatus,
+                  sensorFilter: fwTrace.sensorFilter,
                 });
                 const savedSession = await persistSessionResult(result);
                 if (!isTouchPractice && runnerLevelId) {

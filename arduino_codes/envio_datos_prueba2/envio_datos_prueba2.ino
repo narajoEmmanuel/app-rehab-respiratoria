@@ -5,9 +5,13 @@
 #include "Adafruit_VL53L0X.h"
 
 // =========================
-// RESPIRA+ Fase 5.5
-// AP + HTTP diagnostico + WebSocket + VL53L0X real estable
+// RESPIRA+ Fase 3D.2
+// AP + HTTP diagnostico + WebSocket + VL53L0X real + trazabilidad metrológica
 // =========================
+
+const char* FIRMWARE_VERSION = "respira-fw-0.6.0";
+const char* DEVICE_ID = "RESPIRA-ESP32-001";
+const char* FILTER_LABEL = "ema_0.35";
 
 const char* AP_SSID = "RESPIRA_ESP32";
 const char* AP_PASSWORD = "respira123";
@@ -38,6 +42,8 @@ int rawDistanceMm = -1;
 int distanceMm = -1;
 bool sensorOk = false;
 bool distanceValid = false;
+const char* sensorStatus = "initializing";
+unsigned long sampleCount = 0;
 
 // Filtro suave
 bool filterInitialized = false;
@@ -45,7 +51,7 @@ float filteredDistance = 0.0;
 const float FILTER_ALPHA = 0.35;
 
 // Campos compatibles con RESPIRA+
-const char* source = "raw_sensor";
+const char* source = "vl53l0x";
 int volumeMl = 0;
 int sustainedTimeMs = 0;
 int validRepetitions = 0;
@@ -363,12 +369,22 @@ void webSocketEvent(uint8_t clientNumber, WStype_t type, uint8_t* payload, size_
 }
 
 void readVl53l0xSensor() {
+  if (!sensorOk) {
+    rawDistanceMm = -1;
+    distanceMm = -1;
+    distanceValid = false;
+    sensorStatus = "error";
+    return;
+  }
+
   VL53L0X_RangingMeasurementData_t measure;
   lox.rangingTest(&measure, false);
 
   if (measure.RangeStatus != 4) {
     rawDistanceMm = measure.RangeMilliMeter;
     distanceValid = true;
+    sensorStatus = "ok";
+    sampleCount++;
 
     if (!filterInitialized) {
       filteredDistance = rawDistanceMm;
@@ -381,26 +397,29 @@ void readVl53l0xSensor() {
   } else {
     rawDistanceMm = -1;
     distanceValid = false;
+    sensorStatus = "out_of_range";
   }
 }
 
 void sendRawSensorJson() {
-  char jsonBuffer[380];
+  char jsonBuffer[512];
+  unsigned long now = millis();
 
   snprintf(
     jsonBuffer,
     sizeof(jsonBuffer),
-    "{\"source\":\"%s\",\"volumeMl\":%d,\"sustainedTimeMs\":%d,\"validRepetitions\":%d,\"distanceMm\":%d,\"rawDistanceMm\":%d,\"distanceValid\":%s,\"flowState\":\"%s\",\"isValidAttempt\":%s,\"timestamp\":%lu}",
-    source,
-    volumeMl,
-    sustainedTimeMs,
-    validRepetitions,
-    distanceMm,
-    rawDistanceMm,
-    distanceValid ? "true" : "false",
-    flowState,
-    isValidAttempt ? "true" : "false",
-    millis()
+    "{\"source\":\"%s\",\"deviceId\":\"%s\",\"firmwareVersion\":\"%s\","
+    "\"timestampMs\":%lu,\"timestamp\":%lu,"
+    "\"rawDistanceMm\":%d,\"distanceMm\":%d,\"distanceValid\":%s,"
+    "\"sensorStatus\":\"%s\",\"sampleCount\":%lu,\"filter\":\"%s\","
+    "\"volumeMl\":%d,\"sustainedTimeMs\":%d,\"validRepetitions\":%d,"
+    "\"flowState\":\"%s\",\"isValidAttempt\":%s}",
+    source, DEVICE_ID, FIRMWARE_VERSION,
+    now, now,
+    rawDistanceMm, distanceMm, distanceValid ? "true" : "false",
+    sensorStatus, sampleCount, FILTER_LABEL,
+    volumeMl, sustainedTimeMs, validRepetitions,
+    flowState, isValidAttempt ? "true" : "false"
   );
 
   webSocket.broadcastTXT(jsonBuffer);
@@ -412,10 +431,12 @@ void setup() {
 
   Serial.println();
   Serial.println("================================");
-  Serial.println("RESPIRA+ Fase 5.5");
-  Serial.println("VL53L0X real + WebSocket estable");
+  Serial.println("RESPIRA+ Fase 3D.2");
+  Serial.print("Firmware: "); Serial.println(FIRMWARE_VERSION);
+  Serial.print("Device:   "); Serial.println(DEVICE_ID);
+  Serial.println("VL53L0X real + WebSocket + trazabilidad");
   Serial.println("Lectura: 50 ms | Envio: 100 ms");
-  Serial.println("Source: raw_sensor");
+  Serial.print("Source: "); Serial.println(source);
   Serial.println("================================");
 
   Wire.begin(SDA_PIN, SCL_PIN);
@@ -425,16 +446,15 @@ void setup() {
 
   if (!lox.begin()) {
     sensorOk = false;
+    sensorStatus = "error";
     Serial.println("ERROR: No se detecto el VL53L0X.");
     Serial.println("Revisa VCC, GND, SDA GPIO 21 y SCL GPIO 22.");
-
-    while (true) {
-      delay(1000);
-    }
+    Serial.println("Continuando sin sensor (modo degradado)...");
+  } else {
+    sensorOk = true;
+    sensorStatus = "ok";
+    Serial.println("VL53L0X detectado correctamente.");
   }
-
-  sensorOk = true;
-  Serial.println("VL53L0X detectado correctamente.");
 
   WiFi.mode(WIFI_AP);
 
@@ -504,10 +524,19 @@ void loop() {
     lastStatusPrint = now;
 
     Serial.println();
-    Serial.println("---- Estado Fase 5.5 ----");
+    Serial.println("---- Estado Fase 3D.2 ----");
+
+    Serial.print("Firmware: "); Serial.println(FIRMWARE_VERSION);
+    Serial.print("DeviceId: "); Serial.println(DEVICE_ID);
 
     Serial.print("Sensor VL53L0X: ");
     Serial.println(sensorOk ? "OK" : "ERROR");
+
+    Serial.print("sensorStatus: ");
+    Serial.println(sensorStatus);
+
+    Serial.print("sampleCount: ");
+    Serial.println(sampleCount);
 
     Serial.print("rawDistanceMm: ");
     if (rawDistanceMm >= 0) {
@@ -534,13 +563,7 @@ void loop() {
     Serial.print("Dispositivos WiFi conectados: ");
     Serial.println(WiFi.softAPgetStationNum());
 
-    Serial.print("Pagina diagnostico: ");
-    Serial.println("http://192.168.4.1");
-
-    Serial.print("WebSocket: ");
-    Serial.println("ws://192.168.4.1:81");
-
-    Serial.print("Source actual: ");
-    Serial.println(source);
+    Serial.print("Source: "); Serial.println(source);
+    Serial.print("Filter: "); Serial.println(FILTER_LABEL);
   }
 }

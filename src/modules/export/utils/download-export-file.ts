@@ -14,10 +14,10 @@ export type DownloadExportFileResult =
 
 const DEFAULT_CSV = 'respira_export.csv';
 
-/** CSV fijo genérico o reporte clínico dinámico respira_reporte_clinico_* .csv */
+/** CSV fijo genérico, reporte clínico o técnico respira_* .csv */
 function assertCsvFilename(name: string): boolean {
   if (name === DEFAULT_CSV) return true;
-  return /^respira_reporte_clinico_[A-Za-z0-9_-]+\.csv$/.test(name);
+  return /^respira_(reporte_clinico|calibracion_tecnica)_[A-Za-z0-9_-]+\.csv$/.test(name);
 }
 
 function resolveFilename(mimeType: string, csvFileName?: string): string {

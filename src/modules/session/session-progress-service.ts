@@ -109,6 +109,16 @@ export async function persistSessionResult(result: SessionResult): Promise<Sessi
     official_validation_source: result.officialValidationSource,
     max_sensor_estimated_volume_ml: result.maxSensorEstimatedVolumeMl ?? undefined,
     max_sensor_u95_ml: result.maxSensorU95Ml ?? undefined,
+    calibration_profile_id: result.calibrationProfileId ?? undefined,
+    active_model_id: result.activeModelId ?? undefined,
+    model_kind: result.modelKind ?? undefined,
+    spirometer_device_id: result.spirometerDeviceId ?? undefined,
+    calibration_created_at: result.calibrationCreatedAt ?? undefined,
+    calibration_updated_at: result.calibrationUpdatedAt ?? undefined,
+    firmware_version: result.firmwareVersion ?? undefined,
+    device_id: result.deviceId ?? undefined,
+    sensor_status: result.sensorStatus ?? undefined,
+    sensor_filter: result.sensorFilter ?? undefined,
   });
   for (const attempt of result.attempts) {
     await createAttempt(savedSession.session_id, {
@@ -123,6 +133,15 @@ export async function persistSessionResult(result: SessionResult): Promise<Sessi
       sensor_confidence_label: attempt.sensorConfidenceLabel ?? undefined,
       sensor_volume_reached_conservatively: attempt.sensorVolumeReachedConservatively,
       sensor_attempt_status: attempt.sensorAttemptStatus ?? undefined,
+      distance_mm: attempt.distanceMm ?? undefined,
+      raw_distance_mm: attempt.rawDistanceMm ?? undefined,
+      in_calibrated_range: attempt.inCalibratedRange ?? undefined,
+      clamped: attempt.clamped ?? undefined,
+      calibration_profile_id: attempt.calibrationProfileId ?? undefined,
+      active_model_id: attempt.activeModelId ?? undefined,
+      model_kind: attempt.modelKind ?? undefined,
+      firmware_version: attempt.firmwareVersion ?? undefined,
+      device_id: attempt.deviceId ?? undefined,
     });
   }
 

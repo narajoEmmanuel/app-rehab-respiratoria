@@ -15,6 +15,8 @@ export type SensorSource =
   | 'processed'
   | (string & {});
 
+export type SensorStatus = 'ok' | 'out_of_range' | 'initializing' | 'error' | (string & {});
+
 export type SensorReading = {
   timestamp: number;
   volumeMl: number;
@@ -26,6 +28,18 @@ export type SensorReading = {
   flowState?: SensorFlowState;
   isValidAttempt?: boolean;
   source?: SensorSource;
+  /** Fase 3D.2: versión del firmware ESP32 que generó esta lectura. */
+  firmwareVersion?: string;
+  /** Fase 3D.2: identificador único del dispositivo ESP32. */
+  deviceId?: string;
+  /** Fase 3D.2: timestamp en ms desde boot (convive con timestamp para migración). */
+  timestampMs?: number;
+  /** Fase 3D.2: estado del sensor reportado por firmware. */
+  sensorStatus?: SensorStatus;
+  /** Fase 3D.2: número de muestras válidas acumuladas por el firmware. */
+  sampleCount?: number;
+  /** Fase 3D.2: etiqueta del filtro aplicado en firmware (ej. "ema_0.35"). */
+  filter?: string;
 };
 
 export type SensorConnectionStatus =

@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { exportCalibrationTechnicalCsv } from '@/src/modules/export/services/calibration-technical-export-service';
 import { getClinicalExportSnapshot } from '@/src/modules/export/services/clinical-export-service';
 import { exportPatientCsv, exportPatientJson } from '@/src/modules/export/services/patient-clinical-export-service';
 import { isConsentActive } from '@/src/modules/legal/consent-service';
@@ -112,6 +113,29 @@ export function DataExportScreen() {
     },
     [patient, refreshGate],
   );
+
+  const runCalibrationExport = useCallback(async () => {
+    setError(null);
+    setSuccessHint(null);
+    setBusy(true);
+    try {
+      const result = await exportCalibrationTechnicalCsv();
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      setSuccessHint(
+        result.mode === 'web_download'
+          ? 'Descarga de calibración iniciada.'
+          : 'Archivo de calibración generado.',
+      );
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'No se pudo exportar la calibración.';
+      setError(message);
+    } finally {
+      setBusy(false);
+    }
+  }, []);
 
   const showConsentBlock = consentOk === false;
   const canExport =
@@ -233,6 +257,20 @@ export function DataExportScreen() {
                 style={styles.secondaryAction}
               />
               <Text style={styles.formatHintSecondary}>Formato técnico completo.</Text>
+
+              <View style={styles.technicalDivider} />
+              <Text style={styles.technicalSectionTitle}>Calibración técnica</Text>
+              <Text style={styles.formatHintSecondary}>
+                Descarga puntos, modelo y métricas de calibración para revisión técnica.
+              </Text>
+              <AppButton
+                title="Exportar datos técnicos"
+                onPress={() => void runCalibrationExport()}
+                variant="ghost"
+                disabled={busy}
+                iconName="wrench.fill"
+                style={styles.secondaryAction}
+              />
             </View>
           )
         ) : null}
@@ -340,6 +378,17 @@ const styles = StyleSheet.create({
   },
   secondaryAction: {
     marginTop: spacing.xs,
+  },
+  technicalDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: wellnessColors.neutralSoft,
+    marginVertical: spacing.md,
+  },
+  technicalSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: wellnessColors.textSecondary,
+    marginBottom: 2,
   },
   disclaimer: {
     fontSize: 12,

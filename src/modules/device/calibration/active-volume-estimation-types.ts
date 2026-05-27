@@ -31,7 +31,17 @@ export type ActiveVolumeEstimateResult = {
   modelKind: CalibrationModelKind | null;
   spirometerDeviceId: string | null;
   spirometerProfileId: string | null;
+  /**
+   * true when the sensor distance falls within the calibrated distance range
+   * AND the resulting volume was not clamped. false when extrapolating beyond
+   * the range of calibration points or when no calibration is active.
+   */
   inCalibratedRange: boolean;
+  /**
+   * true when the estimated volume was limited (clamped) to the model's
+   * min/max calibrated volume, OR when the distance is outside the calibrated
+   * distance range. In practice mode or without calibration this is false.
+   */
   clamped: boolean;
   status: ActiveVolumeEstimateStatus;
   warning: string | null;
