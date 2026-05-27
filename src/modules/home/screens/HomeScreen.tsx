@@ -92,6 +92,7 @@ export function HomeScreen() {
     sensorConnected: therapyGateSensorConnected,
     sensorStatus: therapyGateSensorStatus,
   } = useTherapyReadinessGate();
+  const { lastDataReceivedAt, sensorStreamState } = useSensorConnection();
   const [hasCompletedDiagnostic, setHasCompletedDiagnostic] = useState(false);
   const [currentLevelLabel, setCurrentLevelLabel] = useState('Nivel 1');
   const [currentLevelHumanName, setCurrentLevelHumanName] = useState('');
@@ -100,14 +101,7 @@ export function HomeScreen() {
   const [patientSessions, setPatientSessions] = useState<SessionRecord[]>([]);
   const [latestDiag, setLatestDiag] = useState<DiagnosticRecord | null>(null);
   const [startingLevel, setStartingLevel] = useState(false);
-  const [lastReadingReceivedAtMs, setLastReadingReceivedAtMs] = useState<number | null>(null);
-
   const bottomPad = dashboardScrollBottomPadding(insets.bottom);
-
-  useEffect(() => {
-    if (!lastReading) return;
-    setLastReadingReceivedAtMs(Date.now());
-  }, [lastReading, lastReading?.distanceMm, lastReading?.timestamp]);
 
   const loadProgress = useCallback(async () => {
     if (!patient) {
@@ -194,7 +188,8 @@ export function HomeScreen() {
           sensorConnected: therapyGateSensorConnected,
           sensorStatus: therapyGateSensorStatus,
           lastReading,
-          receivedAtMs: lastReadingReceivedAtMs,
+          receivedAtMs: lastDataReceivedAt,
+          sensorStreamState,
           patientId: patient?.paciente_id ?? null,
         });
 
@@ -218,7 +213,8 @@ export function HomeScreen() {
     },
     [
       lastReading,
-      lastReadingReceivedAtMs,
+      lastDataReceivedAt,
+      sensorStreamState,
       navigateToSession,
       patient?.paciente_id,
       router,
