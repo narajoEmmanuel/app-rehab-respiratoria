@@ -279,6 +279,40 @@ function recommendationStatusLabel(status: CalibrationRecommendationStatus): str
   }
 }
 
+type PatientCalibrationQuality = 'Alta' | 'Media' | 'Requiere revisión' | 'Pendiente';
+
+/**
+ * Patient-facing quality label derived from model metrics.
+ * Does not alter calibration logic — purely interpretive.
+ */
+function derivePatientCalibrationQuality(
+  recommendation: CalibrationModelRecommendation | null,
+  linearModel: CalibrationModel | null,
+  piecewiseModel: CalibrationModel | null,
+): PatientCalibrationQuality {
+  if (!recommendation) return 'Pendiente';
+
+  const model =
+    recommendation.recommendedKind === 'linear_regression'
+      ? linearModel
+      : (piecewiseModel ?? linearModel);
+  if (!model || model.status !== 'valid') return 'Pendiente';
+
+  const { rSquared, maeMl, maxAbsErrorMl } = model.metrics;
+  if (rSquared == null || maeMl == null || maxAbsErrorMl == null) return 'Pendiente';
+
+  if (rSquared >= 0.98 && maeMl <= 100 && maxAbsErrorMl <= 250) return 'Alta';
+  if (rSquared >= 0.95 && maeMl <= 200 && maxAbsErrorMl <= 500) return 'Media';
+  return 'Requiere revisión';
+}
+
+function patientQualityTone(q: PatientCalibrationQuality): 'success' | 'neutral' | 'danger' {
+  if (q === 'Alta') return 'success';
+  if (q === 'Media') return 'neutral';
+  if (q === 'Requiere revisión') return 'danger';
+  return 'neutral';
+}
+
 function recommendationStatusTone(
   status: CalibrationRecommendationStatus,
 ): 'ok' | 'warn' | 'muted' {
@@ -1374,14 +1408,8 @@ export function SensorCalibrationScreen() {
             />
             <InfoTile
               label="Calidad"
-              value={recommendation ? recommendationStatusLabel(recommendation.status) : '—'}
-              tone={
-                recommendation?.status === 'ready'
-                  ? 'success'
-                  : recommendation?.status === 'needs_recalibration' || recommendation?.status === 'invalid'
-                    ? 'danger'
-                    : 'neutral'
-              }
+              value={derivePatientCalibrationQuality(recommendation, linearModel, piecewiseModel)}
+              tone={patientQualityTone(derivePatientCalibrationQuality(recommendation, linearModel, piecewiseModel))}
               compact
             />
           </View>
@@ -1392,24 +1420,13 @@ export function SensorCalibrationScreen() {
           ) : null}
         </AppCard>
 
-        {savedStatus.kind === 'saved' ? (
-          <Pressable
-            onPress={() => void handleExportCalibrationTechnical()}
-            style={({ pressed }) => [styles.techDetailsToggle, pressed && styles.techDetailsTogglePressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Exportar calibración técnica">
-            <Text style={styles.techDetailsToggleText}>Exportar calibración técnica</Text>
-            <Text style={styles.techDetailsToggleChevron}>↓</Text>
-          </Pressable>
-        ) : null}
-
         <Pressable
           onPress={() => setTechDetailsExpanded((prev) => !prev)}
           style={({ pressed }) => [styles.techDetailsToggle, pressed && styles.techDetailsTogglePressed]}
           accessibilityRole="button"
-          accessibilityLabel={techDetailsExpanded ? 'Ocultar detalles técnicos' : 'Ver puntos capturados'}>
+          accessibilityLabel={techDetailsExpanded ? 'Ocultar detalles técnicos' : 'Ver detalles técnicos'}>
           <Text style={styles.techDetailsToggleText}>
-            {techDetailsExpanded ? 'Ocultar detalles técnicos' : 'Ver puntos capturados'}
+            {techDetailsExpanded ? 'Ocultar detalles técnicos' : 'Ver detalles técnicos'}
           </Text>
           <Text style={styles.techDetailsToggleChevron}>{techDetailsExpanded ? '▾' : '▸'}</Text>
         </Pressable>
@@ -3015,6 +3032,21 @@ export function SensorCalibrationScreen() {
           </View>
         </View>
 
+        {savedStatus.kind === 'saved' ? (
+          <View style={styles.techExportSection}>
+            <Pressable
+              onPress={() => void handleExportCalibrationTechnical()}
+              style={({ pressed }) => [styles.techExportBtn, pressed && styles.techExportBtnPressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Exportar datos técnicos">
+              <Text style={styles.techExportBtnText}>Exportar datos técnicos</Text>
+            </Pressable>
+            <Text style={styles.techExportHint}>
+              Incluye puntos de calibración, modelo y métricas para revisión técnica.
+            </Text>
+          </View>
+        ) : null}
+
         <Pressable
           style={({ pressed }) => [styles.linkBack, pressed && styles.linkBackPressed]}
           onPress={() => router.back()}
@@ -3888,4 +3920,24 @@ const styles = StyleSheet.create({
   techDetailsTogglePressed: { opacity: 0.94 },
   techDetailsToggleText: { fontSize: 15, fontWeight: '700', color: wellness.primaryDark },
   techDetailsToggleChevron: { fontSize: 16, fontWeight: '800', color: wellness.textSecondary },
+  techExportSection: {
+    marginTop: spacing.md,
+    marginBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  techExportBtn: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: wellnessRadii.card,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    alignItems: 'center',
+  },
+  techExportBtnPressed: { opacity: 0.85 },
+  techExportBtnText: { fontSize: 14, fontWeight: '600', color: wellness.textSecondary },
+  techExportHint: {
+    fontSize: 12,
+    color: wellness.textSecondary,
+    textAlign: 'center',
+  },
 });

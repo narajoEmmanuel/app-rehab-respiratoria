@@ -50,7 +50,9 @@ export type TherapyVolumeEstimateSnapshot = {
   roundedVolumeMl: number | null;
   u95Ml: number | null;
   readinessStatus: VolumeEstimationReadinessStatus;
+  /** true when distance_mm is within calibrated range and volume was not clamped. */
   inCalibratedRange: boolean;
+  /** true when the volume estimate was limited to the model's min/max range. */
   clamped: boolean;
   spirometerDeviceId: string | null;
   modelKind: CalibrationModelKind | null;

@@ -27,13 +27,16 @@ export type SessionRecord = {
   official_validation_source?: OfficialAttemptValidationSource;
   max_sensor_estimated_volume_ml?: number | null;
   max_sensor_u95_ml?: number | null;
-  /** Fase 3B: trazabilidad metrológica — perfil de calibración activo al iniciar sesión. */
+  /**
+   * calibration_profile_id: opcional porque sesiones pre-3B y modo práctica no tienen calibración.
+   * Si es null, indica que no se usó calibración para esta sesión.
+   */
   calibration_profile_id?: string | null;
-  /** Fase 3B: modelo activo usado para estimar volumen durante la sesión. */
+  /** Modelo activo usado para estimar volumen. null en sesiones pre-3B o modo práctica. */
   active_model_id?: string | null;
-  /** Fase 3B: tipo de modelo ('linear_regression' | 'piecewise_linear'). */
+  /** Tipo de modelo ('linear_regression' | 'piecewise_linear'). null si sin calibración. */
   model_kind?: 'linear_regression' | 'piecewise_linear' | string | null;
-  /** Fase 3B: ID del dispositivo espirómetro físico. */
+  /** ID del dispositivo espirómetro físico. null si sin calibración. */
   spirometer_device_id?: string | null;
   /** Fase 3B: timestamp de creación de la calibración usada. */
   calibration_created_at?: number | null;
@@ -56,20 +59,30 @@ export type AttemptRecord = {
   sensor_confidence_label?: string | null;
   sensor_volume_reached_conservatively?: boolean;
   sensor_attempt_status?: SensorAttemptEvaluationStatus | null;
-  /** Fase 3B: distancia usada para la estimación de volumen (puede ser filtrada). */
+  /**
+   * distance_mm: distancia (mm) usada para la estimación de volumen.
+   * Puede diferir de raw_distance_mm si se aplicó filtrado o suavizado.
+   */
   distance_mm?: number | null;
-  /** Fase 3B: distancia cruda del sensor antes de cualquier filtro. */
+  /** Distancia cruda (mm) reportada por el sensor antes de cualquier filtro. */
   raw_distance_mm?: number | null;
-  /** Fase 3B: distancia filtrada si el sistema aplica filtro antes de estimar. */
+  /** Distancia filtrada (mm) si el sistema aplica filtro antes de estimar volumen. */
   filtered_distance_mm?: number | null;
-  /** Fase 3B: true si la distancia cae dentro del rango calibrado. */
+  /**
+   * true si distance_mm cae dentro del rango de distancias calibradas y el
+   * volumen resultante no fue clamped. null si no hay calibración activa o es modo práctica.
+   */
   in_calibrated_range?: boolean | null;
-  /** Fase 3B: true si el volumen estimado fue clamped al rango. */
+  /**
+   * true si la estimación de volumen fue limitada al mín/máx del modelo calibrado,
+   * o si la distancia cae fuera del rango de distancias calibradas.
+   * null si no hay calibración activa o es modo práctica.
+   */
   clamped?: boolean | null;
-  /** Fase 3B: ID del perfil de calibración usado en este intento. */
+  /** calibration_profile_id: opcional, identifica el perfil de calibración vigente. null si modo práctica. */
   calibration_profile_id?: string | null;
-  /** Fase 3B: ID del modelo activo usado para este intento. */
+  /** active_model_id: modelo activo usado para estimar volumen. null si modo práctica. */
   active_model_id?: string | null;
-  /** Fase 3B: tipo de modelo usado para este intento. */
+  /** model_kind: tipo de modelo ('linear_regression' | 'piecewise_linear'). null si modo práctica. */
   model_kind?: string | null;
 };

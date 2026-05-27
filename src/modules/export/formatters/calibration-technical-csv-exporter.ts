@@ -4,8 +4,12 @@
  * Notes: Not shown to patient as primary export; accessible via secondary button.
  */
 
+import Constants from 'expo-constants';
+
 import type { ActiveCalibrationModel } from '@/src/modules/device/calibration/active-calibration-types';
 import type { CalibrationProfile } from '@/src/modules/device/calibration/calibration-types';
+
+export const CALIBRATION_EXPORT_SCHEMA_VERSION = '2.0.0';
 
 function escapeCsvCell(value: string | number | boolean | null | undefined): string {
   if (value === null || value === undefined) return '';
@@ -20,12 +24,12 @@ const HEADER: readonly string[] = [
   'calibration_profile_id',
   'calibration_name',
   'calibration_version',
-  'created_at',
-  'updated_at',
+  'calibration_created_at',
+  'calibration_updated_at',
   'spirometer_device_id',
   'spirometer_profile_id',
-  'model_kind',
   'active_model_id',
+  'model_kind',
   'model_slope',
   'model_intercept',
   'model_r2',
@@ -56,12 +60,18 @@ function formatTimestamp(epoch: number | undefined | null): string {
   return new Date(epoch).toISOString();
 }
 
+function getAppVersion(): string {
+  return Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? '';
+}
+
 export function buildCalibrationTechnicalCsv(params: CalibrationTechnicalCsvParams): string {
   const { profile, activeModel } = params;
 
   const lines: string[] = [];
   lines.push('RESPIRA_CALIBRACION_TECNICA');
-  lines.push(`export_version,1.0.0`);
+  lines.push(`app_version,${escapeCsvCell(getAppVersion())}`);
+  lines.push(`calibration_export_schema_version,${CALIBRATION_EXPORT_SCHEMA_VERSION}`);
+  lines.push(`firmware_version,`);
   lines.push(`exported_at,${new Date().toISOString()}`);
   lines.push(HEADER.join(','));
 
@@ -76,12 +86,12 @@ export function buildCalibrationTechnicalCsv(params: CalibrationTechnicalCsvPara
     calibration_profile_id: profile.id,
     calibration_name: profile.name,
     calibration_version: String(profile.version),
-    created_at: formatTimestamp(profile.createdAt),
-    updated_at: formatTimestamp(profile.updatedAt),
+    calibration_created_at: formatTimestamp(profile.createdAt),
+    calibration_updated_at: formatTimestamp(profile.updatedAt),
     spirometer_device_id: profile.spirometerDeviceId,
     spirometer_profile_id: profile.spirometerProfileId,
-    model_kind: modelKind,
     active_model_id: activeModelId,
+    model_kind: modelKind,
     model_slope: slope != null ? String(slope) : '',
     model_intercept: intercept != null ? String(intercept) : '',
     model_r2: metrics?.rSquared != null ? String(metrics.rSquared) : '',

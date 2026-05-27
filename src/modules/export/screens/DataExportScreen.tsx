@@ -259,17 +259,18 @@ export function DataExportScreen() {
               <Text style={styles.formatHintSecondary}>Formato técnico completo.</Text>
 
               <View style={styles.technicalDivider} />
+              <Text style={styles.technicalSectionTitle}>Calibración técnica</Text>
+              <Text style={styles.formatHintSecondary}>
+                Descarga puntos, modelo y métricas de calibración para revisión técnica.
+              </Text>
               <AppButton
-                title="Exportar calibración técnica"
+                title="Exportar datos técnicos"
                 onPress={() => void runCalibrationExport()}
-                variant="secondary"
+                variant="ghost"
                 disabled={busy}
                 iconName="wrench.fill"
                 style={styles.secondaryAction}
               />
-              <Text style={styles.formatHintSecondary}>
-                Descarga los puntos y métricas de calibración para revisión técnica.
-              </Text>
             </View>
           )
         ) : null}
@@ -382,6 +383,12 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     backgroundColor: wellnessColors.neutralSoft,
     marginVertical: spacing.md,
+  },
+  technicalSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: wellnessColors.textSecondary,
+    marginBottom: 2,
   },
   disclaimer: {
     fontSize: 12,
