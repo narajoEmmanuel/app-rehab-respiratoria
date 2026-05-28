@@ -3,6 +3,7 @@
  * No tiene dependencias de React ni de transporte; lo importan pantalla, math y storage.
  */
 
+import type { CalibratedDeviceIdentification } from '@/src/modules/device/calibration/calibrated-device-identification';
 import type { SpirometerProfile } from '@/src/modules/device/spirometer/spirometer-types';
 
 export type CalibrationCapturePoint = {
@@ -46,6 +47,23 @@ export type CalibrationRangeMl = {
   max: number;
 };
 
+export type CalibrationProfileSource =
+  | 'local_calibration'
+  | 'imported_equation'
+  | 'imported_file';
+
+export type ImportedCalibrationMeta = {
+  schemaVersion?: string;
+  spirometerModel?: string;
+  capacityMl: number;
+  slopeMlPerMm: number;
+  interceptMl: number;
+  validDistanceRangeMm: { min: number; max: number };
+  calibrationId?: string;
+  createdBy?: string;
+  importedAt: number;
+};
+
 export type CalibrationProfile = {
   id: string;
   name: string;
@@ -56,7 +74,9 @@ export type CalibrationProfile = {
   globalRange: GlobalDistanceRange;
   relation: VolumeDistanceRelation;
   isExperimental: true;
-  source: 'local_calibration';
+  source: CalibrationProfileSource;
+  /** Metadatos de importación (ecuación o archivo RESPIRA+). */
+  importedMeta?: ImportedCalibrationMeta;
   notes?: string;
   version: number;
   spirometerDeviceId: string;
@@ -64,4 +84,6 @@ export type CalibrationProfile = {
   spirometerProfileSnapshot: SpirometerProfile;
   calibrationRangeMl: CalibrationRangeMl;
   requiredVolumesMl: number[];
+  /** Identificación del espirómetro físico calibrado (modo técnico / exportación). */
+  deviceIdentification?: CalibratedDeviceIdentification;
 };

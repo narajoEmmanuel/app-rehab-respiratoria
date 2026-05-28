@@ -574,14 +574,23 @@ function describeDeviceState(snapshot: CalibrationSnapshot): {
       variant: 'loading',
     };
   }
-  if (snapshot.kind === 'ready') {
+  if (snapshot.kind === 'ready' && snapshot.therapy.isReadyForTherapy) {
     const { profile } = snapshot;
     return {
-      badge: 'Calibración guardada',
+      badge: 'Listo para terapia',
       title: 'Dispositivo RESPIRA+',
-      subtitle: `${profile.points.length} ${profile.points.length === 1 ? 'punto' : 'puntos'} · ${formatShortDate(profile.updatedAt)}`,
+      subtitle: `${snapshot.therapy.spirometerLabel ?? profile.name} · ${formatShortDate(profile.updatedAt)}`,
       ctaLabel: 'Revisar dispositivo',
       variant: 'ready',
+    };
+  }
+  if (snapshot.kind === 'ready') {
+    return {
+      badge: snapshot.therapy.statusLabel,
+      title: 'Dispositivo RESPIRA+',
+      subtitle: snapshot.therapy.detailMessage ?? 'Configura la calibración verificada.',
+      ctaLabel: 'Configurar espirómetro',
+      variant: 'pending',
     };
   }
   if (snapshot.kind === 'corrupt') {

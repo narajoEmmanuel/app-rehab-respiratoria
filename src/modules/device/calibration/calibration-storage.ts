@@ -12,13 +12,21 @@ import { logCalibrationProfileSaved } from '@/src/modules/device/calibration/dia
 import {
   getActiveSpirometerDevice,
   getSpirometerProfileById,
-  SPIROMETER_DEVICE_5000ML_ID,
+  LEGACY_SPIROMETER_DEVICE_5000ML_ID,
+  LEGACY_SPIROMETER_DEVICE_OTHER_ID,
+  SPIROMETER_DEVICE_3000ML_ID,
+  SPIROMETER_PROFILE_3000ML_ID,
 } from '@/src/modules/device/spirometer';
 
 export const CALIBRATION_STORAGE_KEY = '@respira_device_calibration_profile_v1';
 export const CALIBRATION_BY_SPIROMETER_STORAGE_KEY =
   '@respira_device_calibration_profiles_by_spirometer_v1';
 const LEGACY_MIGRATION_FLAG_KEY = '@respira_calibration_legacy_migrated_v1';
+
+const LEGACY_DEVICE_IDS = [
+  LEGACY_SPIROMETER_DEVICE_5000ML_ID,
+  LEGACY_SPIROMETER_DEVICE_OTHER_ID,
+];
 
 export type LoadCalibrationResult =
   | { kind: 'empty' }
@@ -47,7 +55,14 @@ function coerceCalibrationProfile(value: unknown): CalibrationProfile | null {
   if (!Array.isArray(value.points)) return null;
   if (!Array.isArray(value.summaries)) return null;
   if (!isPlainObject(value.globalRange)) return null;
-  if (value.source !== 'local_calibration') return null;
+  const source = value.source;
+  if (
+    source !== 'local_calibration' &&
+    source !== 'imported_equation' &&
+    source !== 'imported_file'
+  ) {
+    return null;
+  }
   if (value.isExperimental !== true) return null;
   if (typeof value.version !== 'number') return null;
 
@@ -63,6 +78,50 @@ function coerceCalibrationProfile(value: unknown): CalibrationProfile | null {
   return value as unknown as CalibrationProfile;
 }
 
+function remapProfileTo3000Device(profile: CalibrationProfile): CalibrationProfile {
+  const defaultProfile = getSpirometerProfileById(SPIROMETER_PROFILE_3000ML_ID);
+  if (!defaultProfile) return profile;
+  return {
+    ...profile,
+    spirometerDeviceId: SPIROMETER_DEVICE_3000ML_ID,
+    spirometerProfileId: defaultProfile.id,
+    spirometerProfileSnapshot: defaultProfile,
+    calibrationRangeMl: {
+      min: defaultProfile.operativeMinVolumeMl,
+      max: defaultProfile.maxVolumeMl,
+    },
+    requiredVolumesMl: [...defaultProfile.requiredVolumesMl],
+  };
+}
+
+function migrateProfilesMapTo3000(
+  map: Record<string, CalibrationProfile>,
+): Record<string, CalibrationProfile> {
+  let changed = false;
+  const next = { ...map };
+
+  for (const legacyId of LEGACY_DEVICE_IDS) {
+    if (legacyId in next && !(SPIROMETER_DEVICE_3000ML_ID in next)) {
+      next[SPIROMETER_DEVICE_3000ML_ID] = remapProfileTo3000Device(next[legacyId]);
+      changed = true;
+    }
+    if (legacyId in next) {
+      delete next[legacyId];
+      changed = true;
+    }
+  }
+
+  if (SPIROMETER_DEVICE_3000ML_ID in next) {
+    const remapped = remapProfileTo3000Device(next[SPIROMETER_DEVICE_3000ML_ID]);
+    if (remapped !== next[SPIROMETER_DEVICE_3000ML_ID]) {
+      next[SPIROMETER_DEVICE_3000ML_ID] = remapped;
+      changed = true;
+    }
+  }
+
+  return changed ? next : map;
+}
+
 async function readProfilesMap(): Promise<Record<string, CalibrationProfile>> {
   try {
     const raw = await AsyncStorage.getItem(CALIBRATION_BY_SPIROMETER_STORAGE_KEY);
@@ -74,7 +133,11 @@ async function readProfilesMap(): Promise<Record<string, CalibrationProfile>> {
       const profile = coerceCalibrationProfile(profileRaw);
       if (profile) map[deviceId] = profile;
     }
-    return map;
+    const migrated = migrateProfilesMapTo3000(map);
+    if (migrated !== map) {
+      await writeProfilesMap(migrated);
+    }
+    return migrated;
   } catch {
     return {};
   }
@@ -89,7 +152,7 @@ async function migrateLegacyCalibrationIfNeeded(): Promise<void> {
   if (migrated === 'true') return;
 
   const map = await readProfilesMap();
-  if (map[SPIROMETER_DEVICE_5000ML_ID]) {
+  if (map[SPIROMETER_DEVICE_3000ML_ID]) {
     await AsyncStorage.setItem(LEGACY_MIGRATION_FLAG_KEY, 'true');
     return;
   }
@@ -120,26 +183,12 @@ async function migrateLegacyCalibrationIfNeeded(): Promise<void> {
     return;
   }
 
-  const defaultProfile = getSpirometerProfileById('spirometer_5000ml_default');
-  if (!defaultProfile) {
-    await AsyncStorage.setItem(LEGACY_MIGRATION_FLAG_KEY, 'true');
-    return;
-  }
-
-  const migratedProfile: CalibrationProfile = {
+  const migratedProfile = remapProfileTo3000Device({
     ...legacyProfile,
     version: CALIBRATION_PROFILE_VERSION,
-    spirometerDeviceId: SPIROMETER_DEVICE_5000ML_ID,
-    spirometerProfileId: defaultProfile.id,
-    spirometerProfileSnapshot: defaultProfile,
-    calibrationRangeMl: {
-      min: defaultProfile.operativeMinVolumeMl,
-      max: defaultProfile.maxVolumeMl,
-    },
-    requiredVolumesMl: [...defaultProfile.requiredVolumesMl],
-  };
+  });
 
-  map[SPIROMETER_DEVICE_5000ML_ID] = migratedProfile;
+  map[SPIROMETER_DEVICE_3000ML_ID] = migratedProfile;
   await writeProfilesMap(map);
   await AsyncStorage.setItem(LEGACY_MIGRATION_FLAG_KEY, 'true');
 }
@@ -148,12 +197,21 @@ export async function saveCalibrationProfileForSpirometer(
   spirometerDeviceId: string,
   profile: CalibrationProfile,
 ): Promise<void> {
-  const payload: CalibrationProfile = { ...profile, version: CALIBRATION_PROFILE_VERSION };
+  const targetId =
+    spirometerDeviceId === SPIROMETER_DEVICE_3000ML_ID ||
+    LEGACY_DEVICE_IDS.includes(spirometerDeviceId)
+      ? SPIROMETER_DEVICE_3000ML_ID
+      : spirometerDeviceId;
+  const payload: CalibrationProfile = {
+    ...profile,
+    spirometerDeviceId: targetId,
+    version: CALIBRATION_PROFILE_VERSION,
+  };
   const map = await readProfilesMap();
-  map[spirometerDeviceId] = payload;
+  map[targetId] = payload;
   try {
     await writeProfilesMap(map);
-    logCalibrationProfileSaved(spirometerDeviceId, payload);
+    logCalibrationProfileSaved(targetId, payload);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Error desconocido';
     throw new Error(`No se pudo guardar la calibración local: ${message}`);
@@ -165,15 +223,21 @@ export async function loadCalibrationProfileForSpirometer(
 ): Promise<CalibrationProfile | null> {
   await migrateLegacyCalibrationIfNeeded();
   const map = await readProfilesMap();
-  return map[spirometerDeviceId] ?? null;
+  const targetId = LEGACY_DEVICE_IDS.includes(spirometerDeviceId)
+    ? SPIROMETER_DEVICE_3000ML_ID
+    : spirometerDeviceId;
+  return map[targetId] ?? null;
 }
 
 export async function clearCalibrationProfileForSpirometer(
   spirometerDeviceId: string,
 ): Promise<void> {
   const map = await readProfilesMap();
-  if (!(spirometerDeviceId in map)) return;
-  delete map[spirometerDeviceId];
+  const targetId = LEGACY_DEVICE_IDS.includes(spirometerDeviceId)
+    ? SPIROMETER_DEVICE_3000ML_ID
+    : spirometerDeviceId;
+  if (!(targetId in map)) return;
+  delete map[targetId];
   try {
     await writeProfilesMap(map);
   } catch (error) {
@@ -216,6 +280,10 @@ export async function loadCalibrationProfileDetailed(
     spirometerDeviceId ?? (await getActiveSpirometerDevice())?.id ?? null;
   if (!deviceId) return { kind: 'empty' };
 
+  const targetId = LEGACY_DEVICE_IDS.includes(deviceId)
+    ? SPIROMETER_DEVICE_3000ML_ID
+    : deviceId;
+
   let map: Record<string, CalibrationProfile>;
   try {
     map = await readProfilesMap();
@@ -224,7 +292,7 @@ export async function loadCalibrationProfileDetailed(
     return { kind: 'corrupt', rawPreview: '', errorMessage: message };
   }
 
-  const profile = map[deviceId];
+  const profile = map[targetId];
   if (!profile) return { kind: 'empty' };
 
   return { kind: 'ok', profile };
@@ -243,7 +311,10 @@ export async function hasCalibrationProfile(spirometerDeviceId?: string): Promis
       spirometerDeviceId ?? (await getActiveSpirometerDevice())?.id ?? null;
     if (!deviceId) return false;
     const map = await readProfilesMap();
-    return deviceId in map;
+    const targetId = LEGACY_DEVICE_IDS.includes(deviceId)
+      ? SPIROMETER_DEVICE_3000ML_ID
+      : deviceId;
+    return targetId in map;
   } catch {
     return false;
   }

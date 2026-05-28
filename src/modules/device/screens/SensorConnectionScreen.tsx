@@ -14,7 +14,11 @@ import * as Haptics from 'expo-haptics';
 
 import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 import { SensorLivePreview } from '@/src/modules/device/components/SensorLivePreview';
-import { useCalibrationSnapshot } from '@/src/modules/device/state/use-calibration-snapshot';
+import {
+  getTherapyFromSnapshot,
+  isTherapyReadyForActiveSpirometer,
+  useCalibrationSnapshot,
+} from '@/src/modules/device/state/use-calibration-snapshot';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import {
   isSensorStreamActivelyReceiving,
@@ -127,8 +131,9 @@ export function SensorConnectionScreen() {
       : undefined;
   const isMock = mode === 'mock' && isOnline;
   const liveReady = isOnline && signalValid;
-  const hasCalibration = calibrationSnapshot.kind === 'ready';
-  const readyForTherapy = liveReady && hasCalibration;
+  const therapyReadiness = getTherapyFromSnapshot(calibrationSnapshot);
+  const therapyReady = isTherapyReadyForActiveSpirometer(calibrationSnapshot);
+  const readyForTherapy = liveReady && therapyReady;
 
   const onConnect = useCallback(() => {
     hapticLight();
@@ -160,11 +165,11 @@ export function SensorConnectionScreen() {
   const connectionPillLabel = useMemo(() => {
     if (status === 'error') return 'Error';
     if (readyForTherapy) return 'Listo';
-    if (liveReady && !hasCalibration) return 'Falta calibración';
+    if (liveReady && !therapyReady) return 'Falta calibración';
     if (isOnline) return 'Conectado';
     if (isConnecting) return 'Conectando…';
     return 'Sin conexión';
-  }, [hasCalibration, isConnecting, isOnline, liveReady, readyForTherapy, status]);
+  }, [isConnecting, isOnline, liveReady, readyForTherapy, status, therapyReady]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -213,8 +218,14 @@ export function SensorConnectionScreen() {
             />
             <InfoTile
               label="Calibración"
-              value={hasCalibration ? 'Lista' : 'Pendiente'}
-              tone={hasCalibration ? 'success' : 'warning'}
+              value={therapyReadiness.statusLabel}
+              tone={
+                therapyReadiness.status === 'ready'
+                  ? 'success'
+                  : therapyReadiness.status === 'needs_review'
+                    ? 'danger'
+                    : 'warning'
+              }
               compact
             />
           </View>
@@ -222,11 +233,12 @@ export function SensorConnectionScreen() {
           <Text style={styles.hint}>
             {streamStateMessage ??
               (readyForTherapy
-                ? 'Conexión activa y calibración guardada. El dispositivo está listo.'
+                ? 'Conexión activa y calibración verificada. Listo para terapia.'
                 : isOnline
-                  ? hasCalibration
-                    ? 'Sensor conectado. Revisa la señal o actualiza la calibración si lo necesitas.'
-                    : 'Sensor conectado. Falta registrar la calibración local.'
+                  ? therapyReady
+                    ? 'Sensor conectado. Revisa la señal si el volumen no aparece en vivo.'
+                    : therapyReadiness.detailMessage ??
+                      'Sensor conectado. Completa la calibración verificada del espirómetro.'
                   : 'Conecta el dispositivo por WiFi local al ESP32.')}
           </Text>
 
@@ -267,48 +279,46 @@ export function SensorConnectionScreen() {
 
         <AppCard>
           <View style={styles.cardHeader}>
-            <View style={[styles.cardIconWrap, hasCalibration && styles.cardIconWrapActive]}>
+            <View style={[styles.cardIconWrap, therapyReady && styles.cardIconWrapActive]}>
               <IconSymbol
                 name="gearshape.fill"
                 size={22}
-                color={hasCalibration ? wellnessColors.primaryDark : wellnessColors.textMuted}
+                color={therapyReady ? wellnessColors.primaryDark : wellnessColors.textMuted}
               />
             </View>
             <View style={styles.cardHeaderText}>
               <Text style={styles.cardTitle}>
                 {calibrationSnapshot.kind === 'loading'
                   ? 'Revisando calibración…'
-                  : hasCalibration
-                    ? 'Calibración guardada'
+                  : therapyReady
+                    ? 'Calibración verificada'
                     : calibrationSnapshot.kind === 'corrupt'
                       ? 'Calibración con errores'
                       : 'Calibración pendiente'}
               </Text>
               <Text style={styles.cardSubtitle}>
-                {calibrationSnapshot.kind === 'ready'
-                  ? `${calibrationSnapshot.profile.points.length} ${calibrationSnapshot.profile.points.length === 1 ? 'punto' : 'puntos'} · ${formatShortDate(calibrationSnapshot.profile.updatedAt)}`
+                {therapyReady
+                  ? `${therapyReadiness.spirometerLabel ?? 'Espirómetro'} · ${formatShortDate(
+                      calibrationSnapshot.kind === 'ready'
+                        ? calibrationSnapshot.profile.updatedAt
+                        : Date.now(),
+                    )}`
                   : calibrationSnapshot.kind === 'corrupt'
-                    ? 'El perfil guardado no se pudo leer. Recalibra desde cero.'
+                    ? 'El perfil guardado no se pudo leer. Configura de nuevo el espirómetro.'
                     : calibrationSnapshot.kind === 'loading'
-                      ? 'Comprobando datos guardados…'
-                      : 'Calibra el dispositivo para mejorar la estimación del volumen.'}
+                      ? 'Comprobando configuración…'
+                      : therapyReadiness.detailMessage ??
+                        'Configura tu espirómetro para estimar el volumen en terapia.'}
               </Text>
             </View>
           </View>
 
           <View style={styles.calibActions}>
             <AppButton
-              title={hasCalibration ? 'Ver calibración' : 'Ir a calibración'}
+              title={therapyReady ? 'Ver espirómetro' : 'Configurar espirómetro'}
               onPress={onOpenCalibration}
               variant="secondary"
             />
-            {hasCalibration ? (
-              <AppButton
-                title="Recalibrar"
-                onPress={onOpenCalibration}
-                variant="ghost"
-              />
-            ) : null}
           </View>
         </AppCard>
 

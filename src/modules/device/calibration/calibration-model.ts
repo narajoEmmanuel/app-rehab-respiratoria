@@ -53,7 +53,7 @@ import type {
 } from '@/src/modules/device/calibration/calibration-types';
 import {
   getSpirometerProfileById,
-  SPIROMETER_PROFILE_5000ML_ID,
+  SPIROMETER_PROFILE_3000ML_ID,
 } from '@/src/modules/device/spirometer';
 import type { SpirometerProfile } from '@/src/modules/device/spirometer/spirometer-types';
 
@@ -502,7 +502,7 @@ function resolveProfileSnapshot(profile: CalibrationProfile): SpirometerProfile 
   const fromId = profile.spirometerProfileId
     ? getSpirometerProfileById(profile.spirometerProfileId)
     : null;
-  return fromId ?? getSpirometerProfileById(SPIROMETER_PROFILE_5000ML_ID)!;
+  return fromId ?? getSpirometerProfileById(SPIROMETER_PROFILE_3000ML_ID)!;
 }
 
 function resolveRequiredVolumes(profile: CalibrationProfile): number[] {
@@ -617,6 +617,10 @@ function withTherapyEvaluation(
     ctx.segmentReport.slopeVariationRatio > MAX_ACCEPTABLE_SLOPE_VARIATION_RATIO;
   const stdCritical = ctx.repeatability.maxStdDistanceMm > MAX_ACCEPTABLE_STD_DISTANCE_MM;
   const retakeVolumesRecommended = ctx.repeatability.volumesRecommendedForRetake.length > 0;
+  const isImportedProfile =
+    ctx.profile.source === 'imported_equation' || ctx.profile.source === 'imported_file';
+  const geometryRequired =
+    !isImportedProfile && ctx.profile.spirometerProfileSnapshot.geometricValidationEnabled;
   const geometryOk = ctx.geometricReport.passesGeometricValidation;
   const isReadyForTherapy =
     ctx.requiredProtocol.meetsRequiredProtocol &&
@@ -627,7 +631,7 @@ function withTherapyEvaluation(
     !stdCritical &&
     !segmentSlopeCritical &&
     !retakeVolumesRecommended &&
-    geometryOk &&
+    (!geometryRequired || geometryOk) &&
     uncertainty.hasAcceptableUncertainty;
   const therapyReadinessReason = deriveTherapyReadinessReason({
     isReadyForTherapy,

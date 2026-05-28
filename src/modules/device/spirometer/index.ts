@@ -13,10 +13,11 @@ export {
   getRecommendedVolumeChipsMl,
   getSpirometerProfileById,
   listSpirometerProfiles,
+  LEGACY_SPIROMETER_DEVICE_5000ML_ID,
+  LEGACY_SPIROMETER_DEVICE_OTHER_ID,
   SPIROMETER_DEVICE_3000ML_ID,
-  SPIROMETER_DEVICE_5000ML_ID,
   SPIROMETER_PROFILE_3000ML_ID,
-  SPIROMETER_PROFILE_5000ML_ID,
+  VOLUME_CHIPS_3000ML_ML,
 } from '@/src/modules/device/spirometer/spirometer-profiles';
 
 export {

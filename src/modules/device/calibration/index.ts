@@ -2,6 +2,8 @@ export {
   CALIBRATION_PROFILE_VERSION,
   type CalibrationCapturePoint,
   type CalibrationProfile,
+  type CalibrationProfileSource,
+  type ImportedCalibrationMeta,
   type GlobalDistanceRange,
   type VolumeCalibrationSummary,
   type VolumeDistanceRelation,
@@ -185,6 +187,37 @@ export {
   estimateVolumeFromActiveModel,
   type EstimateVolumeFromActiveModelParams,
 } from '@/src/modules/device/calibration/active-volume-estimator';
+
+export {
+  buildImportedCalibrationBundle,
+  persistImportedCalibrationBundle,
+  saveImportedEquationCalibration,
+  saveImportedFileCalibration,
+  validateEquationInput,
+  validateImportedCalibrationJson,
+  volumeFromLinear,
+} from '@/src/modules/device/calibration/imported-calibration-service';
+
+export {
+  IMPORTED_CALIBRATION_JSON_SCHEMA_VERSION,
+  type ImportedCalibrationJson,
+  type ImportedEquationInput,
+} from '@/src/modules/device/calibration/imported-calibration-types';
+
+export {
+  coerceCalibratedDeviceIdentification,
+  createDefaultCalibratedDeviceIdentification,
+  formatCalibrationDateIso,
+  mergeCalibratedDeviceIdentification,
+  type CalibratedDeviceIdentification,
+} from '@/src/modules/device/calibration/calibrated-device-identification';
+
+export {
+  resolveTherapyCalibrationReadiness,
+  therapyCalibrationStatusLabel,
+  type TherapyCalibrationReadiness,
+  type TherapyCalibrationStatus,
+} from '@/src/modules/device/calibration/therapy-calibration-readiness';
 
 export {
   ACTIVE_CALIBRATION_BY_SPIROMETER_STORAGE_KEY,

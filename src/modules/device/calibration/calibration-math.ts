@@ -759,6 +759,7 @@ export type BuildCalibrationProfileOptions = {
   spirometerDeviceId: string;
   spirometerProfileId: string;
   spirometerProfileSnapshot: SpirometerProfile;
+  deviceIdentification?: CalibrationProfile['deviceIdentification'];
   /** Inyectable para tests; por defecto `Date.now()`. */
   now?: number;
 };
@@ -795,5 +796,8 @@ export function buildCalibrationProfile(
       max: snapshot.maxVolumeMl,
     },
     requiredVolumesMl: [...snapshot.requiredVolumesMl],
+    deviceIdentification:
+      options.deviceIdentification ??
+      options.previous?.deviceIdentification,
   };
 }
