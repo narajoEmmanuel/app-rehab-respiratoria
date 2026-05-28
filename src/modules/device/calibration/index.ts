@@ -213,6 +213,12 @@ export {
 } from '@/src/modules/device/calibration/calibrated-device-identification';
 
 export {
+  RESPIRA_SYSTEM_COMPONENTS,
+  respiraSystemComponentsCsvFields,
+  type RespiraSystemComponents,
+} from '@/src/modules/device/calibration/respira-system-components';
+
+export {
   resolveTherapyCalibrationReadiness,
   therapyCalibrationStatusLabel,
   type TherapyCalibrationReadiness,

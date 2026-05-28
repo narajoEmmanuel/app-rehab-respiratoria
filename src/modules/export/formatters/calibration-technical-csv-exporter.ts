@@ -11,10 +11,16 @@ import {
   createDefaultCalibratedDeviceIdentification,
   mergeCalibratedDeviceIdentification,
 } from '@/src/modules/device/calibration/calibrated-device-identification';
+import { respiraSystemComponentsCsvFields } from '@/src/modules/device/calibration/respira-system-components';
 import type { CalibrationProfile } from '@/src/modules/device/calibration/calibration-types';
 import { volumeFromLinear } from '@/src/modules/device/calibration/imported-calibration-service';
+import {
+  buildTechnicalMetricsCsvFields,
+  CALIBRATION_TECHNICAL_METRICS_COLUMNS,
+  type CalibrationTechnicalExportContext,
+} from '@/src/modules/export/formatters/calibration-technical-export-context';
 
-export const CALIBRATION_EXPORT_SCHEMA_VERSION = '2.1.0';
+export const CALIBRATION_EXPORT_SCHEMA_VERSION = '2.3.0';
 
 function escapeCsvCell(value: string | number | boolean | null | undefined): string {
   if (value === null || value === undefined) return '';
@@ -41,7 +47,10 @@ const HEADER: readonly string[] = [
   'device_model',
   'device_nominal_capacity_ml',
   'device_serial_number',
-  'device_sensor_module_id',
+  'system_microcontroller',
+  'system_sensor',
+  'system_firmware_reference',
+  'system_communication',
   'calibration_operator',
   'calibration_date',
   'technical_notes',
@@ -91,11 +100,16 @@ const HEADER: readonly string[] = [
   'source',
 ] as const;
 
+const FULL_HEADER: readonly string[] = [...HEADER, ...CALIBRATION_TECHNICAL_METRICS_COLUMNS];
+
 export type CalibrationTechnicalCsvParams = {
   profile: CalibrationProfile;
   activeModel: ActiveCalibrationModel | null;
   firmwareVersion?: string | null;
   deviceId?: string | null;
+  filterLabel?: string | null;
+  sensorStatus?: string | null;
+  technicalContext?: CalibrationTechnicalExportContext;
 };
 
 function formatTimestamp(epoch: number | undefined | null): string {
@@ -107,8 +121,18 @@ function getAppVersion(): string {
   return Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? '';
 }
 
+function summariesJson(profile: CalibrationProfile): string {
+  if (!profile.summaries?.length) return '';
+  try {
+    return JSON.stringify(profile.summaries);
+  } catch {
+    return '';
+  }
+}
+
 export function buildCalibrationTechnicalCsv(params: CalibrationTechnicalCsvParams): string {
-  const { profile, activeModel, firmwareVersion, deviceId } = params;
+  const { profile, activeModel, firmwareVersion, deviceId, filterLabel, sensorStatus, technicalContext } =
+    params;
 
   const lines: string[] = [];
   lines.push('RESPIRA_CALIBRACION_TECNICA');
@@ -117,7 +141,7 @@ export function buildCalibrationTechnicalCsv(params: CalibrationTechnicalCsvPara
   lines.push(`firmware_version,${escapeCsvCell(firmwareVersion ?? '')}`);
   lines.push(`device_id,${escapeCsvCell(deviceId ?? '')}`);
   lines.push(`exported_at,${new Date().toISOString()}`);
-  lines.push(HEADER.join(','));
+  lines.push(FULL_HEADER.join(','));
 
   const deviceIdMeta = mergeCalibratedDeviceIdentification(profile.deviceIdentification);
   const modelKind = activeModel?.modelKind ?? '';
@@ -158,7 +182,7 @@ export function buildCalibrationTechnicalCsv(params: CalibrationTechnicalCsvPara
     device_model: deviceIdMeta.model,
     device_nominal_capacity_ml: String(deviceIdMeta.nominalCapacityMl),
     device_serial_number: deviceIdMeta.serialNumber ?? '',
-    device_sensor_module_id: deviceIdMeta.sensorModuleId ?? '',
+    ...respiraSystemComponentsCsvFields(),
     calibration_operator: deviceIdMeta.calibrationOperator ?? '',
     calibration_date: deviceIdMeta.calibrationDateIso,
     technical_notes: deviceIdMeta.technicalNotes ?? profile.notes ?? '',
@@ -184,20 +208,37 @@ export function buildCalibrationTechnicalCsv(params: CalibrationTechnicalCsvPara
     therapy_ready: activeModel?.isReadyForTherapy ? 'true' : 'false',
     firmware_version: firmwareVersion ?? '',
     device_id: deviceId ?? '',
-    filter_label: '',
-    sensor_status: '',
+    filter_label: filterLabel ?? technicalContext?.filterLabel ?? '',
+    sensor_status: sensorStatus ?? technicalContext?.sensorStatus ?? '',
     notes: profile.notes ?? '',
+    ...buildTechnicalMetricsCsvFields({
+      ...technicalContext,
+      activeModel: technicalContext?.activeModel ?? activeModel,
+      filterLabel: filterLabel ?? technicalContext?.filterLabel,
+      sensorStatus: sensorStatus ?? technicalContext?.sensorStatus,
+    }),
+    volume_summaries_json: summariesJson(profile),
+    global_distance_min_mm:
+      profile.globalRange.minDistanceMm != null
+        ? String(profile.globalRange.minDistanceMm)
+        : '',
+    global_distance_max_mm:
+      profile.globalRange.maxDistanceMm != null
+        ? String(profile.globalRange.maxDistanceMm)
+        : '',
+    global_distance_range_mm:
+      profile.globalRange.rangeMm != null ? String(profile.globalRange.rangeMm) : '',
   };
 
   const uncertaintyByVolume = activeModel?.uncertaintyByVolumeMl ?? {};
 
   const emitRow = (row: Record<string, string>) => {
     const full: Record<string, string> = { ...baseFields };
-    for (const k of HEADER) {
+    for (const k of FULL_HEADER) {
       if (k in row) full[k] = row[k];
       else if (!(k in full)) full[k] = '';
     }
-    lines.push(HEADER.map((k) => escapeCsvCell(full[k])).join(','));
+    lines.push(FULL_HEADER.map((k) => escapeCsvCell(full[k])).join(','));
   };
 
   for (const point of profile.points) {

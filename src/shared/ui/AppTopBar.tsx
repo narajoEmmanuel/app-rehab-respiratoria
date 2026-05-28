@@ -88,7 +88,12 @@ export function AppTopBar({
               style={styles.leftBadge}
               accessibilityRole="image"
               accessibilityLabel={appBrand.name}>
-              <Image source={appBrand.logo} style={styles.logoImg} resizeMode="contain" />
+              <Image
+                source={appBrand.logo}
+                style={styles.logoImg}
+                resizeMode="contain"
+                accessibilityIgnoresInvertColors
+              />
             </View>
             <View style={styles.brandBlock}>
               <Text style={styles.brandLine} accessibilityLabel="Respira+">
@@ -131,7 +136,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xs,
     paddingBottom: spacing.md,
-    backgroundColor: 'transparent',
+    backgroundColor: wellness.screenBg,
+    zIndex: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(52, 171, 165, 0.12)',
   },
   row: {
     flexDirection: 'row',

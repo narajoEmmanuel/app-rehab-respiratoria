@@ -8,8 +8,8 @@ export type CalibratedDeviceIdentification = {
   brand: string;
   model: string;
   nominalCapacityMl: number;
+  /** Identificador físico del espirómetro (n.º de serie, etiqueta, etc.). */
   serialNumber?: string;
-  sensorModuleId?: string;
   calibrationOperator?: string;
   /** Fecha de calibración en formato ISO (YYYY-MM-DD). */
   calibrationDateIso: string;
@@ -68,7 +68,6 @@ export function coerceCalibratedDeviceIdentification(
     model: value.model,
     nominalCapacityMl: value.nominalCapacityMl,
     serialNumber: typeof value.serialNumber === 'string' ? value.serialNumber : undefined,
-    sensorModuleId: typeof value.sensorModuleId === 'string' ? value.sensorModuleId : undefined,
     calibrationOperator:
       typeof value.calibrationOperator === 'string' ? value.calibrationOperator : undefined,
     calibrationDateIso: value.calibrationDateIso,
