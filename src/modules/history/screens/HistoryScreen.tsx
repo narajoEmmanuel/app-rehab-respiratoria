@@ -5,9 +5,10 @@
  * Notes: Intended to show historical sessions and trends.
  *        Diagnostic is not required to view this screen.
  */
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -31,7 +32,6 @@ import {
   globalMaxSensorVolumeMlForPatient,
   groupSessionsByDay,
   monthGridDates,
-  pickMotivationalLine,
   computeStreakDays,
   therapeuticActivityDayKeys,
   practiceActivityDayKeys,
@@ -43,31 +43,125 @@ import { getCurrentActiveLevel } from '@/src/modules/diagnostics/diagnostic-serv
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { readAllAttempts, readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
-import { todayStatsForPatientAndLevel } from '@/src/modules/session/utils/today-session-stats';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppCard } from '@/src/shared/ui/AppCard';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { SectionHeader } from '@/src/shared/ui/SectionHeader';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellness, wellnessColors } from '@/src/shared/theme/wellness-theme';
-import { dashboardScreen, dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
-import { getLocalDateKey } from '@/src/shared/utils/local-date-key';
+import { wellness, wellnessColors, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import { dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
+import { addDaysLocal, getLocalDateKey } from '@/src/shared/utils/local-date-key';
+
+/** Meta visual de sostén (3 s del juego); solo etiqueta UI. */
+const SUSTAIN_META_SECONDS = 3;
+
+const SCREEN_BG = '#E8F4F1';
 
 const CAL_BG: Record<CalendarDayKind, string> = {
-  none: '#E8ECE9',
-  perfect: '#2E7D32',
+  none: '#CFD8DC',
+  perfect: '#43A047',
   good: '#A5D6A7',
   incomplete: '#FFE082',
   interrupted: '#EF9A9A',
 };
-const CAL_BG_PRACTICE = '#D6EAF8';
+const CAL_BG_PRACTICE = '#81D4FA';
+
+const CALENDAR_LEGEND: { color: string; label: string }[] = [
+  { color: CAL_BG.perfect, label: 'Cumplimiento completo' },
+  { color: CAL_BG.good, label: 'Avance parcial' },
+  { color: CAL_BG.incomplete, label: 'Sesión incompleta' },
+  { color: CAL_BG.interrupted, label: 'Interrumpido' },
+  { color: CAL_BG_PRACTICE, label: 'Solo práctica (no terapéutica)' },
+  { color: CAL_BG.none, label: 'Sin actividad' },
+];
+
+const STREAK_GRADIENT = ['#6AD4BC', '#3DB8A8', '#2A9E88'] as const;
 
 const WEEK_LABELS = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
 
-function StreakFireIcon({ active }: { active: boolean }) {
+const BADGE_SLOT_SIZE = 40;
+
+type BadgeVariant = 'yellow' | 'teal' | 'blue';
+
+const BADGE_PALETTES: Record<
+  BadgeVariant,
+  {
+    slotBg: string;
+    ribbonLeft: readonly [string, string];
+    ribbonRight: readonly [string, string];
+    ring: readonly [string, string, string];
+    core: readonly [string, string];
+  }
+> = {
+  yellow: {
+    slotBg: '#FFF8E8',
+    ribbonLeft: ['#FFE082', '#FFC107'],
+    ribbonRight: ['#FFD54F', '#FFB300'],
+    ring: ['#FFE082', '#FFC107', '#F9A825'],
+    core: ['#FFFDE7', '#FFD54F'],
+  },
+  teal: {
+    slotBg: '#E8F6F5',
+    ribbonLeft: ['#80CBC4', '#4DB6AC'],
+    ribbonRight: ['#4DB6AC', '#26A69A'],
+    ring: ['#B2DFDB', '#4DB6AC', '#00897B'],
+    core: ['#E0F2F1', '#80CBC4'],
+  },
+  blue: {
+    slotBg: '#E8F4FC',
+    ribbonLeft: ['#90CAF9', '#64B5F6'],
+    ribbonRight: ['#64B5F6', '#42A5F5'],
+    ring: ['#BBDEFB', '#64B5F6', '#1E88E5'],
+    core: ['#E3F2FD', '#90CAF9'],
+  },
+};
+
+function SummaryBadgeIcon({ variant }: { variant: BadgeVariant }) {
+  const palette = BADGE_PALETTES[variant];
+
+  return (
+    <View
+      style={[badgeStyles.slot, { backgroundColor: palette.slotBg }]}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants">
+      <View style={badgeStyles.canvas}>
+        <LinearGradient
+          colors={[...palette.ribbonLeft]}
+          style={[badgeStyles.ribbon, badgeStyles.ribbonLeft]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+        <LinearGradient
+          colors={[...palette.ribbonRight]}
+          style={[badgeStyles.ribbon, badgeStyles.ribbonRight]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+        <LinearGradient
+          colors={[...palette.ring]}
+          style={badgeStyles.outerRing}
+          start={{ x: 0.25, y: 0.1 }}
+          end={{ x: 0.95, y: 1 }}
+        />
+        {variant === 'teal' ? <View style={badgeStyles.innerRing} /> : null}
+        <LinearGradient
+          colors={[...palette.core]}
+          style={badgeStyles.core}
+          start={{ x: 0.25, y: 0.2 }}
+          end={{ x: 1, y: 1 }}
+        />
+        <View style={badgeStyles.shine} />
+        {variant === 'yellow' ? <View style={badgeStyles.yellowAccent} /> : null}
+        {variant === 'blue' ? <View style={badgeStyles.blueLevelMark} /> : null}
+      </View>
+    </View>
+  );
+}
+
+function StreakFireEmoji({ muted }: { muted: boolean }) {
   return (
     <Text
-      style={[styles.streakFireEmoji, !active && styles.streakFireEmojiMuted]}
+      style={[styles.streakFireEmoji, muted && styles.streakFireEmojiMuted]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants">
       🔥
@@ -75,43 +169,64 @@ function StreakFireIcon({ active }: { active: boolean }) {
   );
 }
 
-function SummaryCard({
+function StreakHeroCard({ streakDays }: { streakDays: number }) {
+  const active = streakDays > 0;
+  return (
+    <LinearGradient
+      colors={[...STREAK_GRADIENT]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.streakHero}>
+      <View style={styles.streakHeroContent}>
+        <StreakFireEmoji muted={!active} />
+        <View style={styles.streakHeroText}>
+          <Text style={styles.streakHeroNumber}>{streakDays}</Text>
+          <Text style={styles.streakHeroLabel}>días de racha activa</Text>
+        </View>
+      </View>
+    </LinearGradient>
+  );
+}
+
+function StatMiniCard({
+  badgeVariant,
   label,
   value,
-  badge,
-  progress,
-  hint,
-  trailingDecoration,
 }: {
+  badgeVariant: BadgeVariant;
   label: string;
   value: string;
-  badge: string;
-  progress?: number;
-  hint?: string;
-  trailingDecoration?: ReactNode;
 }) {
-  const safeProgress = Math.max(0, Math.min(progress ?? 0, 1));
   return (
-    <View style={styles.summaryCard}>
-      <View style={styles.summaryTextColumn}>
-        <View style={styles.summaryHeaderRow}>
-          <View style={styles.summaryStatusDot} />
-          <Text style={styles.summaryLabel}>{label}</Text>
-          <View style={styles.summaryBadge}>
-            <Text style={styles.summaryBadgeText}>{badge}</Text>
-          </View>
-        </View>
-        <Text style={styles.summaryValue}>{value}</Text>
-        {hint ? <Text style={styles.summaryHint}>{hint}</Text> : null}
-        {progress != null ? (
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${safeProgress * 100}%` }]} />
-          </View>
-        ) : null}
+    <View style={styles.statMiniCard}>
+      <View style={styles.statMiniIconSlot}>
+        <SummaryBadgeIcon variant={badgeVariant} />
       </View>
-      {trailingDecoration ? (
-        <View style={styles.summaryTrailing}>{trailingDecoration}</View>
-      ) : null}
+      <Text style={styles.statMiniValue}>{value}</Text>
+      <Text style={styles.statMiniLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function MetricProgressRow({
+  label,
+  valueText,
+  progress,
+}: {
+  label: string;
+  valueText: string;
+  progress: number;
+}) {
+  const safeProgress = Math.max(0, Math.min(progress, 1));
+  return (
+    <View style={styles.metricRow}>
+      <View style={styles.metricRowHeader}>
+        <Text style={styles.metricLabel}>{label}</Text>
+        <Text style={styles.metricValue}>{valueText}</Text>
+      </View>
+      <View style={styles.metricTrack}>
+        <View style={[styles.metricFill, { width: `${safeProgress * 100}%` }]} />
+      </View>
     </View>
   );
 }
@@ -203,36 +318,50 @@ export function HistoryScreen() {
     [therapeuticDayKeys, patientId, todayKey],
   );
 
-  const { completed: completedToday } = useMemo(
-    () =>
-      patientId >= 0
-        ? todayStatsForPatientAndLevel(sessions, patientId, historyLevelId, todayKey)
-        : { completed: 0, perfect: 0 },
-    [sessions, patientId, historyLevelId, todayKey],
-  );
-
   const bestSensorVolumeMl = useMemo(
     () => (patientId >= 0 ? globalMaxSensorVolumeMlForPatient(sessions, patientId) : null),
     [sessions, patientId],
   );
 
-  const todayKind: CalendarDayKind | null = useMemo(() => {
-    const list = byDay.get(todayKey) ?? [];
-    if (list.length === 0) return null;
-    return classifyCalendarDay(list);
-  }, [byDay, todayKey]);
+  const historyLevelOrdinal = historyLevelId.replace('level-', '');
 
-  const heroMotivation = pickMotivationalLine({
-    completedToday,
-    streakDays,
-    calendarKind: todayKind,
-  });
+  const patientSessions = useMemo(
+    () => (patientId >= 0 ? sessions.filter((s) => s.patient_id === patientId) : []),
+    [sessions, patientId],
+  );
+
+  const displayStats = useMemo(() => {
+    const sessionIds = new Set(patientSessions.map((s) => s.session_id));
+    let totalValidReps = 0;
+    let holdSumMs = 0;
+    let holdCount = 0;
+    for (const s of patientSessions) {
+      totalValidReps += s.valid_attempts ?? 0;
+    }
+    for (const a of attempts) {
+      if (!sessionIds.has(a.session_id) || a.hold_ms <= 0) continue;
+      holdSumMs += a.hold_ms;
+      holdCount++;
+    }
+    let weeklyActiveDays = 0;
+    for (let i = 0; i < 7; i++) {
+      if (therapeuticDayKeys.has(addDaysLocal(todayKey, -i))) weeklyActiveDays++;
+    }
+    return {
+      totalSessions: patientSessions.length,
+      totalValidReps,
+      levelLabel: `Nivel ${historyLevelOrdinal}`,
+      avgHoldSeconds: holdCount > 0 ? holdSumMs / holdCount / 1000 : null,
+      weeklyActiveDays,
+    };
+  }, [patientSessions, attempts, therapeuticDayKeys, todayKey, historyLevelOrdinal]);
 
   const monthCells = useMemo(() => monthGridDates(viewYear, viewMonth), [viewYear, viewMonth]);
 
   const monthTitle = useMemo(() => {
     const d = new Date(viewYear, viewMonth, 1);
-    return d.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+    const raw = d.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
   }, [viewYear, viewMonth]);
 
   const achievementsList = useMemo(() => {
@@ -245,9 +374,24 @@ export function HistoryScreen() {
     });
   }, [patient, historyLevelId, sessions, streakDays]);
 
-  const historyLevelOrdinal = historyLevelId.replace('level-', '');
-
   const hasAnyHistory = therapeuticDayKeys.size > 0 || practiceDayKeys.size > 0;
+  const selectedDateKey = selectedDay?.dateKey ?? null;
+
+  const vimValueText =
+    bestSensorVolumeMl != null && bestSensorVolumeMl > 0
+      ? `${Math.round(bestSensorVolumeMl)} mL`
+      : 'Pendiente';
+  const vimProgress = bestSensorVolumeMl != null && bestSensorVolumeMl > 0 ? 1 : 0;
+  const adherenceValueText = `${displayStats.weeklyActiveDays}/7 días`;
+  const adherenceProgress = displayStats.weeklyActiveDays / 7;
+  const sustainValueText =
+    displayStats.avgHoldSeconds != null
+      ? `${displayStats.avgHoldSeconds.toFixed(1)} s / ${SUSTAIN_META_SECONDS} s meta`
+      : 'Pendiente';
+  const sustainProgress =
+    displayStats.avgHoldSeconds != null
+      ? Math.min(displayStats.avgHoldSeconds / SUSTAIN_META_SECONDS, 1)
+      : 0;
 
   const shiftMonth = (delta: number) => {
     const d = new Date(viewYear, viewMonth + delta, 1);
@@ -290,48 +434,14 @@ export function HistoryScreen() {
           </View>
         ) : (
           <>
-            <Text style={styles.screenTitle}>Tu historial</Text>
-            <Text style={styles.tagline}>
-              Cada sesión cuenta para fortalecer tu respiración.
-            </Text>
-            <Text style={styles.heroMotivation}>{heroMotivation}</Text>
-
-            <View style={styles.summaryStack}>
-              <SummaryCard
-                label="Racha terapéutica"
-                value={`${streakDays} ${streakDays === 1 ? 'día' : 'días'}`}
-                badge={streakDays > 0 ? 'Activa' : 'Pendiente'}
-                progress={Math.min(streakDays / 7, 1)}
-                hint="Días seguidos con sesión de sensor"
-                trailingDecoration={<StreakFireIcon active={streakDays > 0} />}
-              />
-              <SummaryCard
-                label={`Sesiones hoy · Nivel ${historyLevelOrdinal}`}
-                value={`${Math.min(completedToday, LEVEL1_DAILY_GOAL)}/${LEVEL1_DAILY_GOAL}`}
-                badge={
-                  completedToday >= LEVEL1_DAILY_GOAL
-                    ? 'Completado'
-                    : completedToday > 0
-                      ? 'Parcial'
-                      : 'Pendiente'
-                }
-                progress={Math.min(completedToday / LEVEL1_DAILY_GOAL, 1)}
-                hint="Solo sensor · Meta diaria de tu nivel activo"
-              />
-              <SummaryCard
-                label="Mejor volumen con sensor"
-                value={
-                  bestSensorVolumeMl != null && bestSensorVolumeMl > 0
-                    ? `${Math.round(bestSensorVolumeMl)} mL`
-                    : 'Pendiente'
-                }
-                badge={bestSensorVolumeMl != null && bestSensorVolumeMl > 0 ? 'Récord' : 'Pendiente'}
-                hint="Mayor volumen estimado · Solo sensor"
-              />
+            <View style={styles.pageHeader}>
+              <Text style={styles.pageTitle}>Mi progreso</Text>
+              <Text style={styles.pageMonth}>{monthTitle}</Text>
             </View>
 
-            <AppCard style={styles.calendarCardSpacing}>
-              <SectionHeader title="Tu calendario" subtitle="Toca un día para ver el detalle." />
+            <StreakHeroCard streakDays={streakDays} />
+
+            <AppCard style={styles.calendarCard}>
               <View style={styles.monthNav}>
                 <Pressable
                   onPress={() => shiftMonth(-1)}
@@ -364,6 +474,7 @@ export function HistoryScreen() {
                   const list = byDay.get(dateKey) ?? [];
                   const kind = list.length === 0 ? 'none' : classifyCalendarDay(list);
                   const isToday = dateKey === todayKey;
+                  const isSelected = dateKey === selectedDateKey;
                   const hasPracticeOnly = kind === 'none' && practiceDayKeys.has(dateKey);
                   return (
                     <Pressable
@@ -373,6 +484,7 @@ export function HistoryScreen() {
                         styles.dayCell,
                         { backgroundColor: hasPracticeOnly ? CAL_BG_PRACTICE : CAL_BG[kind] },
                         isToday && styles.dayCellToday,
+                        isSelected && styles.dayCellSelected,
                       ]}
                       accessibilityRole="button"
                       accessibilityLabel={`Día ${dateKey}`}>
@@ -380,39 +492,73 @@ export function HistoryScreen() {
                         style={[
                           styles.dayCellNum,
                           kind === 'none' && !hasPracticeOnly && styles.dayCellNumMuted,
+                          (kind === 'perfect' || kind === 'good') && styles.dayCellNumOnColor,
                         ]}>
                         {Number(dateKey.slice(8, 10))}
                       </Text>
-                      {hasPracticeOnly ? <View style={styles.practiceDot} /> : null}
                     </Pressable>
                   );
                 })}
               </View>
-              <View style={styles.legend}>
-                <LegendDot color={CAL_BG.perfect} label="Cumplimiento completo" />
-                <LegendDot color={CAL_BG.good} label="Avance parcial" />
-                <LegendDot color={CAL_BG.incomplete} label="Sesión incompleta" />
-                <LegendDot color={CAL_BG.interrupted} label="Interrumpido" />
-                <LegendDot color={CAL_BG_PRACTICE} label="Solo práctica (no terapéutica)" />
-                <LegendDot color={CAL_BG.none} label="Sin actividad" />
+              <View style={styles.legendContainer}>
+                {CALENDAR_LEGEND.map((item) => (
+                  <LegendDot key={item.label} color={item.color} label={item.label} />
+                ))}
               </View>
+            </AppCard>
+
+            <View style={styles.statMiniRow}>
+              <StatMiniCard
+                badgeVariant="yellow"
+                label="Sesiones totales"
+                value={String(displayStats.totalSessions)}
+              />
+              <StatMiniCard
+                badgeVariant="teal"
+                label="Repeticiones"
+                value={String(displayStats.totalValidReps)}
+              />
+              <StatMiniCard
+                badgeVariant="blue"
+                label="Nivel actual"
+                value={displayStats.levelLabel}
+              />
+            </View>
+
+            <AppCard style={styles.metricsCard}>
+              <Text style={styles.metricsTitle}>Progreso por métrica</Text>
+              <MetricProgressRow label="VIM logrado" valueText={vimValueText} progress={vimProgress} />
+              <MetricProgressRow
+                label="Adherencia semanal"
+                valueText={adherenceValueText}
+                progress={adherenceProgress}
+              />
+              <MetricProgressRow
+                label="Tiempo promedio sostén"
+                valueText={sustainValueText}
+                progress={sustainProgress}
+              />
             </AppCard>
 
             {!hasAnyHistory ? (
               <View style={styles.inlineEmptyCard}>
-                <Text style={styles.inlineEmptyTitle}>No hay sesiones registradas todavía.</Text>
+                <Text style={styles.inlineEmptyTitle}>Aún no hay sesiones registradas</Text>
                 <Text style={styles.inlineEmptyText}>
-                  Completa tu primera sesión para empezar tu progreso.
+                  Completa tu primera sesión para ver tu progreso aquí.
                 </Text>
               </View>
             ) : null}
 
-            <SectionHeader title="Logros recientes" />
-            <AppCard>
-              {achievementsList.map((a) => (
-                <AchievementRow key={a.id} item={a} />
-              ))}
-            </AppCard>
+            {achievementsList.length > 0 ? (
+              <>
+                <SectionHeader title="Logros" />
+                <AppCard>
+                  {achievementsList.map((a) => (
+                    <AchievementRow key={a.id} item={a} />
+                  ))}
+                </AppCard>
+              </>
+            ) : null}
 
             <SectionHeader title="Compartir resumen de progreso" />
             <AppCard style={styles.exportSection}>
@@ -538,7 +684,9 @@ export function HistoryScreen() {
 function LegendDot({ color, label }: { color: string; label: string }) {
   return (
     <View style={styles.legendItem}>
-      <View style={[styles.legendDot, { backgroundColor: color }]} />
+      <View style={styles.legendDotSlot}>
+        <View style={[styles.legendDot, { backgroundColor: color }]} />
+      </View>
       <Text style={styles.legendLabel}>{label}</Text>
     </View>
   );
@@ -547,128 +695,84 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: dashboardScreen.screenBg,
+    backgroundColor: SCREEN_BG,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: dashboardScreen.screenPaddingHorizontal,
-    paddingTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
   },
   screenTitle: {
     fontSize: 26,
     fontWeight: '800',
-    color: dashboardScreen.textPrimaryStrong,
+    color: wellness.text,
     letterSpacing: -0.3,
     marginBottom: 2,
   },
   tagline: {
     fontSize: 16,
     lineHeight: 22,
-    color: dashboardScreen.textSecondary,
+    color: wellness.textSecondary,
     marginBottom: spacing.sm,
   },
-  heroMotivation: {
-    marginTop: spacing.xs,
-    fontSize: 15,
-    lineHeight: 21,
-    color: dashboardScreen.textPrimary,
-    fontWeight: '600',
-    marginBottom: spacing.sm,
-  },
-  summaryStack: {
-    marginTop: spacing.md,
+  pageHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
     gap: spacing.md,
-    width: '100%',
   },
-  summaryCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    backgroundColor: dashboardScreen.cardBg,
-    borderRadius: dashboardScreen.cardRadius,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    borderWidth: 1,
-    borderColor: dashboardScreen.cardBorderColor,
+  pageTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: wellness.text,
+    letterSpacing: -0.4,
+    flexShrink: 0,
   },
-  summaryTextColumn: {
-    flex: 1,
-    minWidth: 0,
-  },
-  summaryHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  summaryStatusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: wellness.primary,
-  },
-  summaryLabel: {
+  pageMonth: {
     fontSize: 16,
-    fontWeight: '700',
-    color: dashboardScreen.textPrimary,
-    lineHeight: 22,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+    textAlign: 'right',
     flex: 1,
   },
-  summaryBadge: {
-    borderRadius: 8,
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: 4,
-    backgroundColor: 'rgba(52, 171, 165, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(52, 171, 165, 0.22)',
+  streakHero: {
+    borderRadius: wellnessRadii.cardLarge,
+    paddingVertical: spacing.lg + 4,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    ...wellnessShadows.card,
   },
-  summaryBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: wellness.primaryDark,
-  },
-  summaryValue: {
-    marginTop: 6,
-    fontSize: 24,
-    fontWeight: '700',
-    color: dashboardScreen.textPrimary,
-    lineHeight: 30,
-  },
-  summaryHint: {
-    marginTop: 8,
-    fontSize: 14,
-    fontWeight: '500',
-    color: dashboardScreen.textSecondary,
-    lineHeight: 20,
-  },
-  progressTrack: {
-    marginTop: spacing.sm,
-    width: '100%',
-    height: 6,
-    borderRadius: 4,
-    backgroundColor: wellnessColors.neutralSoft,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-    backgroundColor: wellness.primary,
-  },
-  summaryTrailing: {
-    marginLeft: spacing.md,
-    justifyContent: 'center',
+  streakHeroContent: {
+    flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'center',
-    minWidth: 52,
+    gap: spacing.md,
+  },
+  streakHeroText: {
+    flex: 1,
   },
   streakFireEmoji: {
-    fontSize: 44,
-    lineHeight: 50,
+    fontSize: 48,
+    lineHeight: 52,
   },
   streakFireEmojiMuted: {
-    opacity: 0.28,
+    opacity: 0.55,
   },
-  calendarCardSpacing: {
-    marginTop: spacing.lg,
+  streakHeroNumber: {
+    fontSize: 42,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    lineHeight: 46,
+  },
+  streakHeroLabel: {
+    marginTop: 2,
+    fontSize: 17,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.92)',
+    lineHeight: 22,
+  },
+  calendarCard: {
+    marginBottom: spacing.md,
   },
   monthNav: {
     flexDirection: 'row',
@@ -677,31 +781,28 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   monthNavBtn: {
-    minWidth: dashboardScreen.primaryButtonMinHeight,
-    minHeight: dashboardScreen.primaryButtonMinHeight,
-    paddingHorizontal: spacing.md,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
-    backgroundColor: dashboardScreen.cardBg,
-    borderWidth: 1,
-    borderColor: dashboardScreen.cardBorderColor,
+    backgroundColor: '#F0F7F5',
   },
   monthNavBtnText: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
     color: wellness.primaryDark,
-    lineHeight: 26,
+    lineHeight: 28,
   },
   monthTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
-    color: dashboardScreen.textPrimary,
+    color: wellness.text,
     textTransform: 'capitalize',
   },
   weekRow: {
     flexDirection: 'row',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   weekCell: {
     flex: 1,
@@ -709,8 +810,8 @@ const styles = StyleSheet.create({
   },
   weekCellText: {
     fontWeight: '700',
-    color: dashboardScreen.textSecondary,
-    fontSize: 14,
+    color: wellness.textSecondary,
+    fontSize: 13,
   },
   grid: {
     flexDirection: 'row',
@@ -722,78 +823,169 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
-    marginBottom: 6,
-    padding: 4,
+    marginBottom: 4,
   },
   dayCellEmpty: {
     width: '14.28%',
     aspectRatio: 1,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   dayCellToday: {
     borderWidth: 2,
     borderColor: wellness.primary,
   },
+  dayCellSelected: {
+    borderWidth: 2,
+    borderColor: '#1578A8',
+    transform: [{ scale: 1.06 }],
+  },
   dayCellNum: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
-    color: dashboardScreen.textPrimary,
+    color: '#37474F',
   },
   dayCellNumMuted: {
-    color: dashboardScreen.textSecondary,
+    color: '#90A4AE',
   },
-  practiceDot: {
-    position: 'absolute',
-    bottom: 4,
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: '#2196F3',
+  dayCellNumOnColor: {
+    color: '#1B5E20',
   },
-  legend: {
-    marginTop: spacing.md,
-    gap: spacing.sm,
+  legendContainer: {
+    flexDirection: 'column',
+    marginTop: spacing.sm,
+    gap: 6,
+    alignSelf: 'stretch',
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
+    width: '100%',
+  },
+  legendDotSlot: {
+    width: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   legendDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   legendLabel: {
+    flex: 1,
+    flexShrink: 1,
+    fontSize: 12,
+    lineHeight: 16,
+    color: wellness.textSecondary,
+    fontWeight: '600',
+  },
+  statMiniRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  statMiniCard: {
+    flex: 1,
+    backgroundColor: wellness.card,
+    borderRadius: wellnessRadii.card,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: wellness.border,
+    ...wellnessShadows.card,
+    minWidth: 0,
+  },
+  statMiniIconSlot: {
+    height: BADGE_SLOT_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statMiniValue: {
+    marginTop: 6,
+    fontSize: 20,
+    fontWeight: '800',
+    color: wellness.text,
+    textAlign: 'center',
+  },
+  statMiniLabel: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+  metricsCard: {
+    marginBottom: spacing.md,
+  },
+  metricsTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: wellness.text,
+    marginBottom: spacing.md,
+  },
+  metricRow: {
+    marginBottom: spacing.md,
+  },
+  metricRowHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginBottom: 8,
+  },
+  metricLabel: {
+    flex: 1,
     fontSize: 15,
-    color: dashboardScreen.textPrimary,
+    fontWeight: '600',
+    color: wellness.text,
+  },
+  metricValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: wellness.primaryDark,
+    textAlign: 'right',
+    flexShrink: 0,
+  },
+  metricTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#E8EDEA',
+    overflow: 'hidden',
+  },
+  metricFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: wellness.primary,
   },
   emptyCard: {
     marginTop: spacing.md,
     padding: spacing.lg,
-    borderRadius: dashboardScreen.cardRadius,
-    backgroundColor: dashboardScreen.cardBg,
+    borderRadius: wellnessRadii.card,
+    backgroundColor: wellness.card,
     borderWidth: 1,
-    borderColor: dashboardScreen.cardBorderColor,
+    borderColor: wellness.border,
   },
   inlineEmptyCard: {
-    marginTop: spacing.lg,
+    marginBottom: spacing.md,
     padding: spacing.lg,
-    borderRadius: dashboardScreen.cardRadius,
-    backgroundColor: dashboardScreen.cardBg,
+    borderRadius: wellnessRadii.card,
+    backgroundColor: wellness.softGreen,
     borderWidth: 1,
-    borderColor: dashboardScreen.cardBorderColor,
+    borderColor: wellness.border,
   },
   inlineEmptyTitle: {
     fontSize: 17,
-    fontWeight: '700',
-    color: dashboardScreen.textPrimary,
+    fontWeight: '800',
+    color: wellness.text,
     textAlign: 'center',
   },
   inlineEmptyText: {
     marginTop: spacing.sm,
     fontSize: 15,
-    color: dashboardScreen.textSecondary,
+    color: wellness.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -802,7 +994,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: dashboardScreen.cardBorderColor,
+    borderBottomColor: wellness.border,
   },
   achievementRowLocked: {
     opacity: 0.45,
@@ -813,7 +1005,7 @@ const styles = StyleSheet.create({
     color: '#F9A825',
   },
   achievementIconLocked: {
-    color: dashboardScreen.textSecondary,
+    color: wellness.textSecondary,
   },
   achievementTextWrap: {
     flex: 1,
@@ -821,19 +1013,19 @@ const styles = StyleSheet.create({
   achievementTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: dashboardScreen.textPrimary,
+    color: wellness.text,
   },
   achievementTitleLocked: {
-    color: dashboardScreen.textSecondary,
+    color: wellness.textSecondary,
   },
   achievementDesc: {
     marginTop: 4,
     fontSize: 15,
-    color: dashboardScreen.textSecondary,
+    color: wellness.textSecondary,
     lineHeight: 22,
   },
   achievementDescLocked: {
-    color: dashboardScreen.textSecondary,
+    color: wellness.textSecondary,
   },
   exportSection: {
     marginTop: spacing.sm,
@@ -860,16 +1052,17 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   modalCard: {
-    backgroundColor: dashboardScreen.cardBg,
-    borderRadius: dashboardScreen.cardRadius,
+    backgroundColor: wellness.card,
+    borderRadius: wellnessRadii.cardLarge,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: dashboardScreen.cardBorderColor,
+    borderColor: wellness.border,
+    maxHeight: '85%',
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: dashboardScreen.textPrimary,
+    color: wellness.text,
     textTransform: 'capitalize',
   },
   modalChipRow: {
@@ -899,7 +1092,7 @@ const styles = StyleSheet.create({
   modalChipText: {
     fontSize: 13,
     fontWeight: '600',
-    color: dashboardScreen.textPrimary,
+    color: wellness.text,
   },
   modalSection: {
     marginBottom: spacing.md,
@@ -907,20 +1100,20 @@ const styles = StyleSheet.create({
   modalSectionTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: dashboardScreen.textSecondary,
+    color: wellness.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 6,
   },
   modalLine: {
     fontSize: 16,
-    color: dashboardScreen.textPrimary,
+    color: wellness.text,
     marginBottom: 4,
     lineHeight: 24,
   },
   modalLineMuted: {
     fontSize: 14,
-    color: dashboardScreen.textSecondary,
+    color: wellness.textSecondary,
     marginBottom: 4,
     lineHeight: 20,
   },
@@ -934,15 +1127,105 @@ const styles = StyleSheet.create({
   modalClose: {
     marginTop: spacing.lg,
     backgroundColor: wellness.primary,
-    borderRadius: dashboardScreen.primaryButtonRadius,
-    paddingVertical: dashboardScreen.primaryButtonPaddingVertical,
+    borderRadius: 12,
+    paddingVertical: 14,
     alignItems: 'center',
-    minHeight: dashboardScreen.primaryButtonMinHeight,
+    minHeight: 48,
     justifyContent: 'center',
   },
   modalCloseText: {
     color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '700',
+  },
+});
+
+const badgeStyles = StyleSheet.create({
+  slot: {
+    width: BADGE_SLOT_SIZE,
+    height: BADGE_SLOT_SIZE,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.1)',
+  },
+  canvas: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ribbon: {
+    position: 'absolute',
+    top: 0,
+    width: 9,
+    height: 12,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  ribbonLeft: {
+    left: 4,
+    transform: [{ rotate: '-20deg' }],
+  },
+  ribbonRight: {
+    right: 4,
+    transform: [{ rotate: '20deg' }],
+  },
+  outerRing: {
+    position: 'absolute',
+    bottom: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.55)',
+  },
+  innerRing: {
+    position: 'absolute',
+    bottom: 3,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.45)',
+  },
+  core: {
+    position: 'absolute',
+    bottom: 5,
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.6)',
+  },
+  shine: {
+    position: 'absolute',
+    bottom: 14,
+    left: 5,
+    width: 9,
+    height: 4,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  yellowAccent: {
+    position: 'absolute',
+    top: 1,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+    opacity: 0.75,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 193, 7, 0.35)',
+  },
+  blueLevelMark: {
+    position: 'absolute',
+    bottom: 9,
+    width: 7,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
   },
 });

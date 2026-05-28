@@ -8,7 +8,11 @@ import {
   evaluateDiagnosticSensorReadinessOnDemand,
   type DiagnosticSensorReadinessGate,
 } from '@/src/modules/device/volume-estimation';
-import type { SensorConnectionStatus, SensorReading } from '@/src/modules/device/types/sensor-reading';
+import type {
+  SensorConnectionStatus,
+  SensorReading,
+  SensorStreamState,
+} from '@/src/modules/device/types/sensor-reading';
 import { logLevelSensorReadinessCheck } from '@/src/modules/session/sensor/level-sensor-debug';
 import { checkSensorReadingLive } from '@/src/modules/session/sensor/sensor-live-reading';
 import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
@@ -19,6 +23,7 @@ export type EvaluateLevelSensorReadinessParams = {
   sensorStatus: SensorConnectionStatus;
   lastReading: SensorReading | null;
   receivedAtMs?: number | null;
+  sensorStreamState?: SensorStreamState;
   patientId?: number | null;
   spirometerDeviceId?: string;
   /** Si false, la calibración puede pasar sin lectura viva (p. ej. al montar la sesión). */
@@ -73,6 +78,7 @@ export async function evaluateLevelSensorReadiness(
     sensorStatus,
     lastReading,
     receivedAtMs = null,
+    sensorStreamState = 'idle',
     patientId,
     spirometerDeviceId,
     requireLiveReading = true,
@@ -88,6 +94,7 @@ export async function evaluateLevelSensorReadiness(
     lastReading,
     sensorConnected,
     receivedAtMs,
+    sensorStreamState,
   });
   const hasLiveReading = liveCheck.live;
   const spirometerId = audit.resolvedSpirometerId ?? audit.activeSpirometerId;

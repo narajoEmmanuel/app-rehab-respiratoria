@@ -23,6 +23,9 @@ export type SensorLivePreviewProps = {
   distanceMm?: number;
   rawDistanceMm?: number;
   distanceValid?: boolean;
+  /** Si false, no se trata la señal como activa aunque distanceValid sea true. */
+  signalActive?: boolean;
+  streamStateMessage?: string;
   source?: string;
   timestamp?: number;
   sensorStatus?: string;
@@ -65,13 +68,15 @@ export function SensorLivePreview({
   distanceMm,
   rawDistanceMm,
   distanceValid,
+  signalActive = true,
+  streamStateMessage,
   source,
   timestamp,
   sensorStatus,
   firmwareVersion,
   deviceId,
 }: SensorLivePreviewProps) {
-  const hasValidSignal = distanceValid === true;
+  const hasValidSignal = signalActive && distanceValid === true;
   const visualPercent = useMemo(() => {
     if (!hasValidSignal || distanceMm === undefined || !Number.isFinite(distanceMm)) {
       return 0;
@@ -101,8 +106,14 @@ export function SensorLivePreview({
     <View style={styles.card}>
       <Text style={styles.sectionLabel}>Vista previa en vivo (distancia)</Text>
 
+      {streamStateMessage ? (
+        <Text style={styles.streamStateBanner}>{streamStateMessage}</Text>
+      ) : null}
+
       {!hasValidSignal ? (
-        <Text style={styles.noSignal}>Sin señal válida</Text>
+        <Text style={styles.noSignal}>
+          {streamStateMessage ? 'Sin señal activa (dato no actualizado)' : 'Sin señal válida'}
+        </Text>
       ) : (
         <Text style={styles.percentLabel}>{visualPercent} %</Text>
       )}
@@ -188,6 +199,13 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: spacing.sm,
+  },
+  streamStateBanner: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+    marginBottom: spacing.sm,
+    lineHeight: 20,
   },
   noSignal: {
     fontSize: 16,
