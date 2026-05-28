@@ -71,6 +71,7 @@ Documentación de módulos:
 - [Módulo session (terapia)](src/modules/session/README.md)
 - [Flujo del sensor](docs/sensor-flow.md)
 - [Calibración](docs/calibration/README.md)
+- [Auditoría técnica sensor / ESP32 / calibración (mayo 2026)](docs/AUDITORIA-TECNICA-SENSOR-ESP32.md)
 
 ---
 
