@@ -376,11 +376,11 @@ export function HomeScreen() {
         {!hasCompletedDiagnostic ? (
           <AppCard variant="highlight" style={styles.diagnosticHeroCard}>
             <Text style={styles.diagnosticHeroKicker}>Evaluación inicial</Text>
-            <Text style={styles.diagnosticHeroTitle}>Conoce tu punto de partida</Text>
+            <Text style={styles.diagnosticHeroTitle}>Realiza tu prueba diagnóstico</Text>
             <Text style={styles.diagnosticHeroBody}>
               Mide tu volumen de referencia para personalizar tus metas de terapia.
             </Text>
-            <AppButton title="Iniciar evaluación" onPress={goDiagnostico} />
+            <AppButton title="Iniciar diagnóstico" onPress={goDiagnostico} />
           </AppCard>
         ) : dailyGoalMet ? (
           <AppCard style={styles.heroCardSpacing}>
