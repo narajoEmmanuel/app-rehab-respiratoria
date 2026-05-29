@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,16 +11,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
+import { MeasuredVolumeHero } from '@/src/modules/device/components/MeasuredVolumeHero';
 import {
   resolveTherapyCalibrationReadiness,
   type TherapyCalibrationReadiness,
 } from '@/src/modules/device/calibration/therapy-calibration-readiness';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import { isSensorStreamActivelyReceiving } from '@/src/modules/device/stream/sensor-stream-state';
+import { useActiveVolumeEstimate } from '@/src/modules/device/volume-estimation';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { AppCard } from '@/src/shared/ui/AppCard';
-import { SectionHeader } from '@/src/shared/ui/SectionHeader';
 import { StatusPill } from '@/src/shared/ui/StatusPill';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessColors, wellnessShadows } from '@/src/shared/theme/wellness-theme';
@@ -46,37 +46,27 @@ function calibrationTone(
   return 'warning';
 }
 
-function formatLastCalibrationDate(epoch: number | undefined | null): string | null {
-  if (!epoch || !Number.isFinite(epoch)) return null;
-  try {
-    return new Date(epoch).toLocaleDateString(undefined, {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-  } catch {
-    return null;
-  }
-}
-
 type PatientUiState = 'pending' | 'ready' | 'ready_sensor_blocked';
 
 export function SensorCalibrationPatientScreen({ onOpenTechnical }: SensorCalibrationPatientScreenProps) {
   const router = useRouter();
-  const { status, mode, lastReading, sensorStreamState } = useSensorConnection();
+  const { status, mode, sensorStreamState } = useSensorConnection();
 
   const [loading, setLoading] = useState(true);
   const [therapy, setTherapy] = useState<TherapyCalibrationReadiness | null>(null);
+
+  const { estimate, loading: volumeLoading, sensorConnected } = useActiveVolumeEstimate({
+    enabled: true,
+  });
 
   const isOnline = status === 'connected' || status === 'receiving';
   const streamReceiving =
     mode === 'mock' ? isOnline : isSensorStreamActivelyReceiving(sensorStreamState);
   const signalValid =
     streamReceiving &&
-    Boolean(lastReading) &&
-    lastReading?.distanceValid === true &&
-    typeof lastReading?.distanceMm === 'number' &&
-    Number.isFinite(lastReading.distanceMm);
+    sensorConnected &&
+    estimate.roundedVolumeMl !== null &&
+    estimate.status === 'ok';
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -99,7 +89,6 @@ export function SensorCalibrationPatientScreen({ onOpenTechnical }: SensorCalibr
   }, [canStartTherapy, therapyReady]);
 
   const statusLabel = therapy?.statusLabel ?? 'Calibración pendiente';
-  const lastCalibrationDate = formatLastCalibrationDate(therapy?.activeModel?.activatedAt);
 
   const onStartTherapy = useCallback(() => {
     hapticLight();
@@ -138,15 +127,7 @@ export function SensorCalibrationPatientScreen({ onOpenTechnical }: SensorCalibr
     };
   }, [isOnline, onCalibrate, onOpenSensorConnection, onStartTherapy, uiState]);
 
-  const helperText = useMemo(() => {
-    if (uiState === 'pending') {
-      return 'Realiza la calibración técnica antes de iniciar terapia.';
-    }
-    if (uiState === 'ready_sensor_blocked') {
-      return 'Conecta el sensor para iniciar terapia.';
-    }
-    return null;
-  }, [uiState]);
+  const showMeasuredVolume = therapyReady && sensorConnected && streamReceiving;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -156,11 +137,6 @@ export function SensorCalibrationPatientScreen({ onOpenTechnical }: SensorCalibr
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        <SectionHeader
-          title="Calibración"
-          subtitle="Espirómetro RESPIRA+ y sensor para terapia."
-        />
-
         {loading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator color={wellnessColors.primary} />
@@ -169,21 +145,22 @@ export function SensorCalibrationPatientScreen({ onOpenTechnical }: SensorCalibr
           <>
             <AppCard style={styles.heroCard}>
               <Text style={styles.heroTitle}>{SPIROMETER_DISPLAY_NAME}</Text>
-              <View style={styles.statusRow}>
-                <StatusPill
-                  label={statusLabel}
-                  tone={calibrationTone(therapy?.status ?? 'pending')}
-                  size="sm"
-                />
-              </View>
-              {helperText ? <Text style={styles.helperText}>{helperText}</Text> : null}
-              {uiState !== 'pending' && lastCalibrationDate ? (
-                <Text style={styles.metaText}>Última calibración: {lastCalibrationDate}</Text>
-              ) : null}
+              <StatusPill
+                label={statusLabel}
+                tone={calibrationTone(therapy?.status ?? 'pending')}
+                size="sm"
+              />
               {therapy?.status === 'needs_review' && therapy.detailMessage ? (
                 <Text style={styles.warnText}>{therapy.detailMessage}</Text>
               ) : null}
             </AppCard>
+
+            {therapyReady ? (
+              <MeasuredVolumeHero
+                volumeMl={showMeasuredVolume ? estimate.roundedVolumeMl : null}
+                loading={volumeLoading}
+              />
+            ) : null}
 
             <AppButton
               title={primaryAction.title}
@@ -191,16 +168,6 @@ export function SensorCalibrationPatientScreen({ onOpenTechnical }: SensorCalibr
               disabled={primaryAction.disabled}
               variant="primary"
             />
-
-            {uiState !== 'pending' ? (
-              <Pressable
-                onPress={onCalibrate}
-                style={({ pressed }) => [styles.secondaryLink, pressed && styles.secondaryLinkPressed]}
-                accessibilityRole="button"
-                accessibilityLabel="Ver configuración técnica">
-                <Text style={styles.secondaryLinkText}>Ver configuración técnica</Text>
-              </Pressable>
-            ) : null}
           </>
         )}
       </ScrollView>
@@ -213,7 +180,8 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxl,
-    gap: spacing.lg,
+    gap: spacing.xl,
+    paddingTop: spacing.md,
   },
   loadingWrap: { paddingVertical: spacing.xxl, alignItems: 'center' },
   heroCard: {
@@ -227,33 +195,9 @@ const styles = StyleSheet.create({
     color: wellnessColors.textPrimary,
     letterSpacing: -0.3,
   },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  helperText: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: wellnessColors.textSecondary,
-  },
-  metaText: {
-    fontSize: 14,
-    color: wellnessColors.textMuted,
-  },
   warnText: {
     fontSize: 14,
     lineHeight: 20,
     color: wellness.errorText,
-  },
-  secondaryLink: {
-    alignSelf: 'center',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-  },
-  secondaryLinkPressed: { opacity: 0.65 },
-  secondaryLinkText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: wellnessColors.primary,
   },
 });

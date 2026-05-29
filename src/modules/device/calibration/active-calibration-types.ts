@@ -72,12 +72,37 @@ export type ActiveCalibrationClinicalStatus = {
   note: string;
 };
 
+export type PredefinedCalibrationLinearMetrics = {
+  slope: number;
+  intercept: number;
+  rSquared: number;
+  maeMl: number;
+  rmseMl: number;
+  maxAbsErrorMl: number;
+};
+
+/** Metadatos de calibración predeterminada RESPIRA+ (team_validated). */
+export type PredefinedCalibrationMetadata = {
+  source: 'team_validated';
+  predefinedId: string;
+  originLabel: string;
+  displayRangeMl: ActiveCalibrationRangeMl;
+  capacityMl: number;
+  clampMinMl: number;
+  clampMaxMl: number;
+  linearModel: PredefinedCalibrationLinearMetrics;
+  /** Curva por tramos de referencia (solo exportación CSV; no modelo activo). */
+  piecewiseReferencePoints?: { volumeMl: number; distanceMm: number; estimated?: boolean }[];
+};
+
 /** Punto de la curva calibrada congelada al activar el modelo (desde summaries del perfil). */
 export type ActiveCalibrationCurvePoint = {
   volumeMl: number;
   avgDistanceMm: number;
   repetitions: number;
   u95Ml: number | null;
+  /** Punto de suavizado / no medido en banco (p. ej. 0 mL estimado). */
+  estimated?: boolean;
 };
 
 /** Snapshot de la curva volumen–distancia para estimación por tramos independiente del perfil guardado. */
@@ -124,6 +149,8 @@ export type ActiveCalibrationModel = {
   calibrationCurve?: ActiveCalibrationCurve;
   /** Incertidumbre U95 por volumen calibrado al momento de la activación. */
   uncertaintyByVolumeMl?: Record<number, ActiveCalibrationUncertaintyByVolumeEntry>;
+  /** Calibración predeterminada RESPIRA+ con política de extrapolación explícita. */
+  predefinedCalibration?: PredefinedCalibrationMetadata;
 };
 
 export type ActiveCalibrationTechnicalSummary = {

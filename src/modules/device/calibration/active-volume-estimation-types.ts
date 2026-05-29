@@ -21,6 +21,13 @@ export type ActiveVolumeEstimateUsedSegment = {
   distanceToMm: number;
 };
 
+/** Zona metrológica de la estimación (modo técnico / trazabilidad). */
+export type ActiveVolumeEstimateZone =
+  | 'calibrated'
+  | 'smooth_below_calibrated'
+  | 'below_zero_estimate'
+  | 'clamped_capacity';
+
 export type ActiveVolumeEstimateResult = {
   estimatedVolumeMl: number | null;
   roundedVolumeMl: number | null;
@@ -46,4 +53,6 @@ export type ActiveVolumeEstimateResult = {
   status: ActiveVolumeEstimateStatus;
   warning: string | null;
   usedSegment: ActiveVolumeEstimateUsedSegment | null;
+  /** Presente cuando el modelo define política de extrapolación (p. ej. calibración predeterminada). */
+  estimationZone?: ActiveVolumeEstimateZone | null;
 };

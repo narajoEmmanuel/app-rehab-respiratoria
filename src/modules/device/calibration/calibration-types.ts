@@ -50,7 +50,8 @@ export type CalibrationRangeMl = {
 export type CalibrationProfileSource =
   | 'local_calibration'
   | 'imported_equation'
-  | 'imported_file';
+  | 'imported_file'
+  | 'team_validated';
 
 export type ImportedCalibrationMeta = {
   schemaVersion?: string;

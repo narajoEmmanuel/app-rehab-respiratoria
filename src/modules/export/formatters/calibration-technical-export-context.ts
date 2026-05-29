@@ -134,6 +134,17 @@ export const CALIBRATION_TECHNICAL_METRICS_COLUMNS = [
   'piecewise_model_distance_range_mm',
   'piecewise_model_warnings_json',
   'piecewise_segments_json',
+  'predefined_calibration_id',
+  'calibration_origin_label',
+  'display_range_min_ml',
+  'display_range_max_ml',
+  'capacity_ml',
+  'active_model_kind',
+  'clamp_min_ml',
+  'clamp_max_ml',
+  'linear_model_metrics_json',
+  'piecewise_reference_json',
+  'calibration_point_estimated',
 ] as const;
 
 export function buildTechnicalMetricsCsvFields(
@@ -262,6 +273,22 @@ export function buildTechnicalMetricsCsvFields(
     fields.piecewise_segments_json = jsonCell(
       ctx.piecewiseModel.coefficients,
     );
+  }
+
+  const predefined = active?.predefinedCalibration;
+  if (predefined) {
+    fields.predefined_calibration_id = predefined.predefinedId;
+    fields.calibration_origin_label = predefined.originLabel;
+    fields.display_range_min_ml = String(predefined.displayRangeMl.min);
+    fields.display_range_max_ml = String(predefined.displayRangeMl.max);
+    fields.capacity_ml = String(predefined.capacityMl);
+    fields.clamp_min_ml = String(predefined.clampMinMl);
+    fields.clamp_max_ml = String(predefined.clampMaxMl);
+    fields.active_model_kind = active?.modelKind ?? '';
+    fields.linear_model_metrics_json = jsonCell(predefined.linearModel);
+    fields.piecewise_reference_json = jsonCell(predefined.piecewiseReferencePoints ?? []);
+  } else if (active) {
+    fields.active_model_kind = active.modelKind;
   }
 
   return fields;

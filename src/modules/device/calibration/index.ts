@@ -151,9 +151,11 @@ export {
   ACTIVE_CALIBRATION_MODEL_VERSION,
   type ActiveCalibrationClinicalStatus,
   type ActiveCalibrationCoverageSummary,
+  type PredefinedCalibrationLinearMetrics,
   type ActiveCalibrationCurve,
   type ActiveCalibrationCurvePoint,
   type ActiveCalibrationDistanceRangeMm,
+  type PredefinedCalibrationMetadata,
   type ActiveCalibrationGeometricSummary,
   type ActiveCalibrationModel,
   type ActiveCalibrationProtocolSummary,
@@ -224,6 +226,24 @@ export {
   type TherapyCalibrationReadiness,
   type TherapyCalibrationStatus,
 } from '@/src/modules/device/calibration/therapy-calibration-readiness';
+
+export {
+  RESPIRA_3000_CALIBRATED_POINTS,
+  RESPIRA_3000_ESTIMATED_ZERO_POINT,
+  RESPIRA_3000_LINEAR_MODEL,
+  RESPIRA_3000_LINEAR_FALLBACK,
+  RESPIRA_3000_PREDEFINED_DEFAULT_ACTIVE_MODEL_KIND,
+  RESPIRA_3000_PIECEWISE_REFERENCE_POINTS,
+  RESPIRA_3000_PREDEFINED_SOURCE,
+  type PredefinedCalibrationPoint,
+} from '@/src/modules/device/calibration/predefined-calibration-models';
+
+export {
+  buildRespira3000PredefinedCalibrationBundle,
+  ensureRespira3000PredefinedCalibrationInstalled,
+  persistRespira3000PredefinedCalibrationBundle,
+  type EnsurePredefinedCalibrationResult,
+} from '@/src/modules/device/calibration/predefined-calibration-service';
 
 export {
   ACTIVE_CALIBRATION_BY_SPIROMETER_STORAGE_KEY,

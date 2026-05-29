@@ -20,7 +20,7 @@ import {
   type CalibrationTechnicalExportContext,
 } from '@/src/modules/export/formatters/calibration-technical-export-context';
 
-export const CALIBRATION_EXPORT_SCHEMA_VERSION = '2.3.0';
+export const CALIBRATION_EXPORT_SCHEMA_VERSION = '2.4.0';
 
 function escapeCsvCell(value: string | number | boolean | null | undefined): string {
   if (value === null || value === undefined) return '';
@@ -145,11 +145,15 @@ export function buildCalibrationTechnicalCsv(params: CalibrationTechnicalCsvPara
 
   const deviceIdMeta = mergeCalibratedDeviceIdentification(profile.deviceIdentification);
   const modelKind = activeModel?.modelKind ?? '';
+  const predefined = activeModel?.predefinedCalibration;
   const activeModelId = activeModel?.id ?? '';
   const recommendedModel = activeModel?.recommendedModel ?? null;
-  const slope = recommendedModel?.coefficients.slope;
-  const intercept = recommendedModel?.coefficients.intercept;
-  const metrics = recommendedModel?.metrics;
+  const linearForExport =
+    activeModel?.linearModel ??
+    (recommendedModel?.kind === 'linear_regression' ? recommendedModel : null);
+  const slope = linearForExport?.coefficients.slope;
+  const intercept = linearForExport?.coefficients.intercept;
+  const metrics = linearForExport?.metrics ?? recommendedModel?.metrics;
 
   const capacityMl =
     deviceIdMeta.nominalCapacityMl ??
@@ -176,7 +180,10 @@ export function buildCalibrationTechnicalCsv(params: CalibrationTechnicalCsvPara
     calibration_version: String(profile.version),
     calibration_created_at: formatTimestamp(profile.createdAt),
     calibration_updated_at: formatTimestamp(profile.updatedAt),
-    calibration_source: profile.source,
+    calibration_source: predefined?.source ?? profile.source,
+    active_model_kind: modelKind,
+    clamp_min_ml: predefined ? String(predefined.clampMinMl) : '0',
+    clamp_max_ml: predefined ? String(predefined.clampMaxMl) : String(capacityMl),
     device_internal_label: deviceIdMeta.internalLabel,
     device_brand: deviceIdMeta.brand,
     device_model: deviceIdMeta.model,
@@ -241,7 +248,41 @@ export function buildCalibrationTechnicalCsv(params: CalibrationTechnicalCsvPara
     lines.push(FULL_HEADER.map((k) => escapeCsvCell(full[k])).join(','));
   };
 
-  for (const point of profile.points) {
+  const curvePointsForExport =
+    profile.points.length > 0
+      ? null
+      : (activeModel?.calibrationCurve?.points ?? []).map((p) => ({
+          id: `curve-${p.volumeMl}`,
+          volumeMl: p.volumeMl,
+          distanceMm: p.avgDistanceMm,
+          estimated: p.estimated === true,
+        }));
+
+  const exportPointRows =
+    profile.points.length > 0
+      ? profile.points.map((point) => ({ point, fromCurve: false as const }))
+      : (curvePointsForExport ?? []).map((curve) => ({
+          point: {
+            id: curve.id,
+            volumeMl: curve.volumeMl,
+            distanceMm: curve.distanceMm,
+            rawDistanceMm: curve.distanceMm,
+            distanceValid: true,
+            source: profile.source,
+            timestamp: profile.updatedAt,
+            repetitionNumber: 0,
+            createdAt: profile.updatedAt,
+            sampleCount: 0,
+            minSampleDistanceMm: curve.distanceMm,
+            maxSampleDistanceMm: curve.distanceMm,
+            stdDistanceMm: 0,
+          },
+          fromCurve: true as const,
+          estimated: curve.estimated,
+        }));
+
+  for (const row of exportPointRows) {
+    const point = row.point;
     const u95Entry = uncertaintyByVolume[point.volumeMl];
     const u95Ml = u95Entry?.u95Ml;
     const predicted =
@@ -274,10 +315,12 @@ export function buildCalibrationTechnicalCsv(params: CalibrationTechnicalCsvPara
       accepted: point.distanceValid ? 'true' : 'false',
       rejection_reason: point.distanceValid ? '' : 'distance_invalid',
       source: point.source,
+      calibration_point_estimated:
+        'estimated' in row && row.estimated ? 'true' : 'false',
     });
   }
 
-  if (profile.points.length === 0) {
+  if (exportPointRows.length === 0) {
     emitRow({});
   }
 

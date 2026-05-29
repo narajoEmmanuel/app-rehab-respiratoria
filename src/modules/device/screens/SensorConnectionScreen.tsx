@@ -13,7 +13,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
 import { isSensorDebugEnabled } from '@/src/modules/app-mode';
+import { MeasuredVolumeHero } from '@/src/modules/device/components/MeasuredVolumeHero';
 import { SensorLivePreview } from '@/src/modules/device/components/SensorLivePreview';
+import { useActiveVolumeEstimate } from '@/src/modules/device/volume-estimation';
 import {
   getTherapyFromSnapshot,
   isTherapyReadyForActiveSpirometer,
@@ -113,6 +115,8 @@ export function SensorConnectionScreen() {
   } = useSensorConnection();
 
   const { snapshot: calibrationSnapshot } = useCalibrationSnapshot();
+  const { estimate, loading: volumeLoading, sensorConnected: volumeSensorConnected } =
+    useActiveVolumeEstimate({ enabled: true });
   const [techExpanded, setTechExpanded] = useState(false);
 
   const isConnecting = status === 'connecting';
@@ -322,8 +326,22 @@ export function SensorConnectionScreen() {
           </View>
         </AppCard>
 
-        {/* SensorLivePreview */}
-        {lastReading ? (
+        {therapyReady ? (
+          <MeasuredVolumeHero
+            label="Volumen estimado"
+            volumeMl={
+              volumeSensorConnected &&
+              streamReceiving &&
+              estimate.status === 'ok' &&
+              estimate.roundedVolumeMl !== null
+                ? estimate.roundedVolumeMl
+                : null
+            }
+            loading={volumeLoading}
+          />
+        ) : null}
+
+        {debug && lastReading ? (
           <SensorLivePreview
             distanceMm={lastReading.distanceMm}
             rawDistanceMm={lastReading.rawDistanceMm}

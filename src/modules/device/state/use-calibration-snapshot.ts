@@ -8,10 +8,12 @@ import {
   loadCalibrationProfileDetailed,
   type CalibrationProfile,
 } from '@/src/modules/device/calibration';
+import { ensureRespira3000PredefinedCalibrationInstalled } from '@/src/modules/device/calibration/predefined-calibration-service';
 import {
   resolveTherapyCalibrationReadiness,
   type TherapyCalibrationReadiness,
 } from '@/src/modules/device/calibration/therapy-calibration-readiness';
+import { SPIROMETER_DEVICE_3000ML_ID } from '@/src/modules/device/spirometer';
 
 export type CalibrationSnapshot =
   | { kind: 'loading' }
@@ -41,6 +43,7 @@ export function useCalibrationSnapshot(): UseCalibrationSnapshotResult {
   const [snapshot, setSnapshot] = useState<CalibrationSnapshot>({ kind: 'loading' });
 
   const refresh = useCallback(async () => {
+    await ensureRespira3000PredefinedCalibrationInstalled(SPIROMETER_DEVICE_3000ML_ID);
     const result = await loadCalibrationProfileDetailed();
     const therapy = await resolveTherapyCalibrationReadiness();
     if (result.kind === 'ok') {

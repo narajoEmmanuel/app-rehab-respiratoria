@@ -11,6 +11,7 @@ import type {
   ActiveVolumeEstimateResult,
   ActiveVolumeEstimateStatus,
   ActiveVolumeEstimateUsedSegment,
+  ActiveVolumeEstimateZone,
 } from '@/src/modules/device/calibration/active-volume-estimation-types';
 
 const OUT_OF_RANGE_WARNING =
@@ -44,6 +45,7 @@ function emptyResult(
     clamped: false,
     warning: null,
     usedSegment: null,
+    estimationZone: null,
     ...overrides,
   };
 }
@@ -103,48 +105,109 @@ function resolveU95ForDistance(
 type PiecewiseEstimate = {
   volumeMl: number;
   usedSegment: ActiveVolumeEstimateUsedSegment | null;
+  estimationZone: ActiveVolumeEstimateZone | null;
+  inCalibratedRange: boolean;
+  volumeClamped: boolean;
 };
+
+function interpolateSegment(
+  distanceMm: number,
+  left: ActiveCalibrationCurvePoint,
+  right: ActiveCalibrationCurvePoint,
+): { volumeMl: number; usedSegment: ActiveVolumeEstimateUsedSegment } {
+  const span = right.avgDistanceMm - left.avgDistanceMm;
+  const t = span === 0 ? 0.5 : (distanceMm - left.avgDistanceMm) / span;
+  return {
+    volumeMl: left.volumeMl + t * (right.volumeMl - left.volumeMl),
+    usedSegment: {
+      volumeFromMl: left.volumeMl,
+      volumeToMl: right.volumeMl,
+      distanceFromMm: left.avgDistanceMm,
+      distanceToMm: right.avgDistanceMm,
+    },
+  };
+}
+
+function isInPrimaryCalibratedVolume(volumeMl: number, activeModel: ActiveCalibrationModel): boolean {
+  const { min, max } = activeModel.calibratedRangeMl;
+  return volumeMl >= min && volumeMl <= max;
+}
 
 function piecewiseEstimateFromCurve(
   distanceMm: number,
   points: ActiveCalibrationCurvePoint[],
+  activeModel: ActiveCalibrationModel,
 ): PiecewiseEstimate {
   const sorted = sortedCurvePoints(points);
   const n = sorted.length;
-  if (n === 0) return { volumeMl: 0, usedSegment: null };
+  if (n === 0) {
+    return {
+      volumeMl: 0,
+      usedSegment: null,
+      estimationZone: null,
+      inCalibratedRange: false,
+      volumeClamped: false,
+    };
+  }
   if (n === 1) {
-    return { volumeMl: sorted[0].volumeMl, usedSegment: null };
+    return {
+      volumeMl: sorted[0].volumeMl,
+      usedSegment: null,
+      estimationZone: isInPrimaryCalibratedVolume(sorted[0].volumeMl, activeModel)
+        ? 'calibrated'
+        : null,
+      inCalibratedRange: isInPrimaryCalibratedVolume(sorted[0].volumeMl, activeModel),
+      volumeClamped: false,
+    };
   }
 
   const first = sorted[0];
   const last = sorted[n - 1];
 
   if (distanceMm <= first.avgDistanceMm) {
-    return { volumeMl: first.volumeMl, usedSegment: null };
+    return {
+      volumeMl: first.volumeMl,
+      usedSegment: null,
+      estimationZone: null,
+      inCalibratedRange: isInPrimaryCalibratedVolume(first.volumeMl, activeModel),
+      volumeClamped: false,
+    };
   }
+
   if (distanceMm >= last.avgDistanceMm) {
-    return { volumeMl: last.volumeMl, usedSegment: null };
+    return {
+      volumeMl: last.volumeMl,
+      usedSegment: null,
+      estimationZone: isInPrimaryCalibratedVolume(last.volumeMl, activeModel) ? 'calibrated' : null,
+      inCalibratedRange: isInPrimaryCalibratedVolume(last.volumeMl, activeModel),
+      volumeClamped: false,
+    };
   }
 
   for (let i = 1; i < n; i++) {
     const left = sorted[i - 1];
     const right = sorted[i];
     if (distanceMm >= left.avgDistanceMm && distanceMm <= right.avgDistanceMm) {
-      const span = right.avgDistanceMm - left.avgDistanceMm;
-      const t = span === 0 ? 0.5 : (distanceMm - left.avgDistanceMm) / span;
+      const { volumeMl, usedSegment } = interpolateSegment(distanceMm, left, right);
+      const inCalibrated = isInPrimaryCalibratedVolume(volumeMl, activeModel);
+
       return {
-        volumeMl: left.volumeMl + t * (right.volumeMl - left.volumeMl),
-        usedSegment: {
-          volumeFromMl: left.volumeMl,
-          volumeToMl: right.volumeMl,
-          distanceFromMm: left.avgDistanceMm,
-          distanceToMm: right.avgDistanceMm,
-        },
+        volumeMl,
+        usedSegment,
+        estimationZone: inCalibrated ? 'calibrated' : null,
+        inCalibratedRange: inCalibrated,
+        volumeClamped: false,
       };
     }
   }
 
-  return { volumeMl: last.volumeMl, usedSegment: null };
+  return {
+    volumeMl: last.volumeMl,
+    usedSegment: null,
+    estimationZone: null,
+    inCalibratedRange: isInPrimaryCalibratedVolume(last.volumeMl, activeModel),
+    volumeClamped: false,
+  };
 }
 
 function linearEstimateVolume(
@@ -160,31 +223,55 @@ function linearEstimateVolume(
   return raw;
 }
 
+function resolveVolumeClampBounds(activeModel: ActiveCalibrationModel): { min: number; max: number } {
+  const predefined = activeModel.predefinedCalibration;
+  if (predefined) {
+    return {
+      min: predefined.displayRangeMl.min,
+      max: predefined.capacityMl,
+    };
+  }
+  return {
+    min: activeModel.calibratedRangeMl.min,
+    max: activeModel.calibratedRangeMl.max,
+  };
+}
+
 function finalizeEstimate(params: {
   activeModel: ActiveCalibrationModel;
   distanceMm: number;
   rawVolumeMl: number;
   inDistanceRange: boolean;
+  inCalibratedRange: boolean;
   usedSegment: ActiveVolumeEstimateUsedSegment | null;
   curvePoints: ActiveCalibrationCurvePoint[];
+  estimationZone?: ActiveVolumeEstimateZone | null;
+  preClamped?: boolean;
 }): ActiveVolumeEstimateResult {
-  const { activeModel, distanceMm, rawVolumeMl, inDistanceRange, usedSegment, curvePoints } =
-    params;
-  const volMin = activeModel.calibratedRangeMl.min;
-  const volMax = activeModel.calibratedRangeMl.max;
+  const {
+    activeModel,
+    distanceMm,
+    rawVolumeMl,
+    inDistanceRange,
+    inCalibratedRange,
+    usedSegment,
+    curvePoints,
+    estimationZone = null,
+    preClamped = false,
+  } = params;
+
+  const { min: volMin, max: volMax } = resolveVolumeClampBounds(activeModel);
   const { value: estimatedVolumeMl, clamped: volumeClamped } = clampVolume(
     rawVolumeMl,
     volMin,
     volMax,
   );
-  const clamped = volumeClamped || !inDistanceRange;
+  const clamped = volumeClamped || preClamped || !inDistanceRange;
 
   const fallbackU95 = activeModel.uncertainty.maxU95Ml;
   const u95Ml = resolveU95ForDistance(distanceMm, curvePoints, fallbackU95);
-  const lowerBoundMl =
-    u95Ml !== null ? estimatedVolumeMl - u95Ml : null;
-  const upperBoundMl =
-    u95Ml !== null ? estimatedVolumeMl + u95Ml : null;
+  const lowerBoundMl = u95Ml !== null ? estimatedVolumeMl - u95Ml : null;
+  const upperBoundMl = u95Ml !== null ? estimatedVolumeMl + u95Ml : null;
 
   let status: ActiveVolumeEstimateStatus = 'ok';
   let warning: string | null = null;
@@ -208,11 +295,12 @@ function finalizeEstimate(params: {
     modelKind: activeModel.modelKind,
     spirometerDeviceId: activeModel.spirometerDeviceId,
     spirometerProfileId: activeModel.spirometerProfileId,
-    inCalibratedRange: inDistanceRange && !volumeClamped,
+    inCalibratedRange: inCalibratedRange && !volumeClamped && !preClamped,
     clamped,
     status,
     warning,
     usedSegment,
+    estimationZone,
   };
 }
 
@@ -285,25 +373,37 @@ export function estimateVolumeFromActiveModel(
         warning: 'El modelo lineal activo no tiene coeficientes válidos.',
       });
     }
+
+    const predefined = activeModel.predefinedCalibration;
+    const volMin = predefined?.clampMinMl ?? resolveVolumeClampBounds(activeModel).min;
+    const volMax = predefined?.clampMaxMl ?? predefined?.capacityMl ?? resolveVolumeClampBounds(activeModel).max;
+    const { value: adjustedRaw, clamped: preClamped } = clampVolume(raw, volMin, volMax);
+
     return finalizeEstimate({
       activeModel,
       distanceMm,
-      rawVolumeMl: raw,
+      rawVolumeMl: adjustedRaw,
       inDistanceRange,
+      inCalibratedRange: inDistanceRange && !preClamped,
       usedSegment: null,
       curvePoints,
+      estimationZone: null,
+      preClamped,
     });
   }
 
   if (activeModel.modelKind === 'piecewise_linear') {
-    const { volumeMl, usedSegment } = piecewiseEstimateFromCurve(distanceMm, curvePoints);
+    const piecewise = piecewiseEstimateFromCurve(distanceMm, curvePoints, activeModel);
     return finalizeEstimate({
       activeModel,
       distanceMm,
-      rawVolumeMl: volumeMl,
+      rawVolumeMl: piecewise.volumeMl,
       inDistanceRange,
-      usedSegment,
+      inCalibratedRange: piecewise.inCalibratedRange,
+      usedSegment: piecewise.usedSegment,
       curvePoints,
+      estimationZone: piecewise.estimationZone,
+      preClamped: piecewise.volumeClamped,
     });
   }
 

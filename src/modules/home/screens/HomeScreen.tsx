@@ -559,7 +559,8 @@ function formatShortDate(ts: number): string {
 }
 
 function describeDeviceState(snapshot: CalibrationSnapshot): {
-  badge: string;
+  badge: string | null;
+  showBadge: boolean;
   title: string;
   subtitle: string;
   ctaLabel: string;
@@ -567,46 +568,51 @@ function describeDeviceState(snapshot: CalibrationSnapshot): {
 } {
   if (snapshot.kind === 'loading') {
     return {
-      badge: 'Cargando',
+      badge: null,
+      showBadge: false,
       title: 'Dispositivo RESPIRA+',
-      subtitle: 'Revisando estado del sensor…',
-      ctaLabel: 'Preparar dispositivo',
+      subtitle: 'Revisando el estado del sensor…',
+      ctaLabel: 'Revisar sensor',
       variant: 'loading',
     };
   }
   if (snapshot.kind === 'ready' && snapshot.therapy.isReadyForTherapy) {
     const { profile } = snapshot;
     return {
-      badge: 'Listo para terapia',
+      badge: snapshot.therapy.statusLabel,
+      showBadge: true,
       title: 'Dispositivo RESPIRA+',
       subtitle: `${snapshot.therapy.spirometerLabel ?? profile.name} · ${formatShortDate(profile.updatedAt)}`,
-      ctaLabel: 'Revisar dispositivo',
+      ctaLabel: 'Revisar sensor',
       variant: 'ready',
     };
   }
   if (snapshot.kind === 'ready') {
     return {
       badge: snapshot.therapy.statusLabel,
+      showBadge: true,
       title: 'Dispositivo RESPIRA+',
-      subtitle: snapshot.therapy.detailMessage ?? 'Configura la calibración verificada.',
+      subtitle: snapshot.therapy.detailMessage ?? 'Completa la calibración verificada del espirómetro.',
       ctaLabel: 'Configurar espirómetro',
       variant: 'pending',
     };
   }
   if (snapshot.kind === 'corrupt') {
     return {
-      badge: 'Revisar dispositivo',
+      badge: 'Revisar calibración',
+      showBadge: true,
       title: 'Dispositivo RESPIRA+',
       subtitle: 'La calibración guardada no se pudo leer.',
-      ctaLabel: 'Revisar dispositivo',
+      ctaLabel: 'Revisar sensor',
       variant: 'warn',
     };
   }
   return {
-    badge: 'Sin preparar',
+    badge: null,
+    showBadge: false,
     title: 'Dispositivo RESPIRA+',
-    subtitle: 'Conecta y calibra para usar lectura confiable.',
-    ctaLabel: 'Preparar dispositivo',
+    subtitle: 'Conecta el sensor y verifica la calibración del espirómetro.',
+    ctaLabel: 'Configurar sensor',
     variant: 'pending',
   };
 }
@@ -626,7 +632,7 @@ function DeviceCard({
       style={({ pressed }) => [styles.deviceCard, pressed && styles.deviceCardPressed]}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${state.title}. ${state.badge}. ${state.subtitle}`}>
+      accessibilityLabel={`${state.title}. ${state.showBadge && state.badge ? state.badge : ''} ${state.subtitle}`}>
       <View style={styles.deviceTopRow}>
         <View style={styles.deviceIconWrap}>
           <View style={styles.deviceIcon}>
@@ -634,24 +640,26 @@ function DeviceCard({
           </View>
         </View>
         <View style={styles.deviceContent}>
-          <View
-            style={[
-              styles.deviceBadge,
-              isReady ? styles.deviceBadgeReady : isWarn ? styles.deviceBadgeWarn : styles.deviceBadgePending,
-            ]}>
-            <Text
+          {state.showBadge && state.badge ? (
+            <View
               style={[
-                styles.deviceBadgeText,
-                isReady
-                  ? styles.deviceBadgeTextReady
-                  : isWarn
-                    ? styles.deviceBadgeTextWarn
-                    : styles.deviceBadgeTextPending,
+                styles.deviceBadge,
+                isReady ? styles.deviceBadgeReady : isWarn ? styles.deviceBadgeWarn : styles.deviceBadgePending,
               ]}>
-              {state.badge}
-            </Text>
-          </View>
-          <Text style={styles.deviceTitle}>{state.title}</Text>
+              <Text
+                style={[
+                  styles.deviceBadgeText,
+                  isReady
+                    ? styles.deviceBadgeTextReady
+                    : isWarn
+                      ? styles.deviceBadgeTextWarn
+                      : styles.deviceBadgeTextPending,
+                ]}>
+                {state.badge}
+              </Text>
+            </View>
+          ) : null}
+          <Text style={[styles.deviceTitle, !state.showBadge && styles.deviceTitleNoBadge]}>{state.title}</Text>
           <Text style={styles.deviceSubtitle}>{state.subtitle}</Text>
           <View style={styles.deviceCtaRow}>
             <Text style={styles.deviceCtaLabel}>{state.ctaLabel}</Text>
@@ -838,6 +846,7 @@ const styles = StyleSheet.create({
   deviceBadgeTextPending: { color: wellnessColors.textSecondary },
   deviceBadgeTextWarn: { color: wellnessColors.danger },
   deviceTitle: { fontSize: 20, fontWeight: '800', color: wellnessColors.textPrimary, marginTop: 8 },
+  deviceTitleNoBadge: { marginTop: 0 },
   deviceSubtitle: {
     marginTop: 6,
     fontSize: 14,

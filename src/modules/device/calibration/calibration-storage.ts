@@ -59,7 +59,8 @@ function coerceCalibrationProfile(value: unknown): CalibrationProfile | null {
   if (
     source !== 'local_calibration' &&
     source !== 'imported_equation' &&
-    source !== 'imported_file'
+    source !== 'imported_file' &&
+    source !== 'team_validated'
   ) {
     return null;
   }
