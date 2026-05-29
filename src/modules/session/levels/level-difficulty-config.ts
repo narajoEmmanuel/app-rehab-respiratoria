@@ -7,6 +7,7 @@
 
 import type { RunnerGameLevelId } from '@/src/modules/levels/types/runner-levels';
 import { isRunnerGameLevel } from '@/src/modules/levels/types/runner-levels';
+import { LEVEL_ONE_OFFICIAL_EVAL_MS } from '@/src/modules/session/engine/level-one/level-one-repetition-rules';
 
 export type LevelDifficultyConfig = {
   /** Multiplier applied to the patient's diagnostic target volume. */
@@ -63,7 +64,7 @@ export function getLevelDisplayMeta(levelId: string): LevelDisplayMeta {
 const LEVEL_DIFFICULTY: Record<RunnerGameLevelId, LevelDifficultyConfig> = {
   'level-1': {
     targetVolumeMultiplier: 1.0,
-    requiredHoldMs: 3000,
+    requiredHoldMs: LEVEL_ONE_OFFICIAL_EVAL_MS,
     restMs: 3000,
     repetitionsPerSession: 10,
     sessionsToCompleteLevel: 6,
@@ -71,7 +72,7 @@ const LEVEL_DIFFICULTY: Record<RunnerGameLevelId, LevelDifficultyConfig> = {
   },
   'level-2': {
     targetVolumeMultiplier: 1.05,
-    requiredHoldMs: 3000,
+    requiredHoldMs: LEVEL_ONE_OFFICIAL_EVAL_MS,
     restMs: 2800,
     repetitionsPerSession: 10,
     sessionsToCompleteLevel: 6,
@@ -79,7 +80,7 @@ const LEVEL_DIFFICULTY: Record<RunnerGameLevelId, LevelDifficultyConfig> = {
   },
   'level-3': {
     targetVolumeMultiplier: 1.1,
-    requiredHoldMs: 3500,
+    requiredHoldMs: LEVEL_ONE_OFFICIAL_EVAL_MS,
     restMs: 2800,
     repetitionsPerSession: 10,
     sessionsToCompleteLevel: 6,
@@ -87,7 +88,7 @@ const LEVEL_DIFFICULTY: Record<RunnerGameLevelId, LevelDifficultyConfig> = {
   },
   'level-4': {
     targetVolumeMultiplier: 1.15,
-    requiredHoldMs: 3500,
+    requiredHoldMs: LEVEL_ONE_OFFICIAL_EVAL_MS,
     restMs: 2500,
     repetitionsPerSession: 10,
     sessionsToCompleteLevel: 6,
@@ -95,7 +96,7 @@ const LEVEL_DIFFICULTY: Record<RunnerGameLevelId, LevelDifficultyConfig> = {
   },
   'level-5': {
     targetVolumeMultiplier: 1.2,
-    requiredHoldMs: 4000,
+    requiredHoldMs: LEVEL_ONE_OFFICIAL_EVAL_MS,
     restMs: 2500,
     repetitionsPerSession: 10,
     sessionsToCompleteLevel: 6,
