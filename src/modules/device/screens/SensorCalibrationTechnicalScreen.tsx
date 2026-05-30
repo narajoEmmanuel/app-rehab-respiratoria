@@ -68,7 +68,6 @@ export function SensorCalibrationTechnicalScreen({
     estimate,
     loading: volumeLoading,
     sensorConnected,
-    activeModel,
     calibrationProfile,
   } = useActiveVolumeEstimate({ enabled: true });
 
