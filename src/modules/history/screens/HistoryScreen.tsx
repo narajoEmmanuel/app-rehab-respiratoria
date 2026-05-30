@@ -53,8 +53,8 @@ import { dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { addDaysLocal, getLocalDateKey } from '@/src/shared/utils/local-date-key';
 import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 
-/** Meta visual de sostén (3 s del juego); solo etiqueta UI. */
-const SUSTAIN_META_SECONDS = 3;
+/** Meta visual de sostén (2 s del juego); solo etiqueta UI. */
+const SUSTAIN_META_SECONDS = 2;
 
 const SCREEN_BG = '#E8F4F1';
 

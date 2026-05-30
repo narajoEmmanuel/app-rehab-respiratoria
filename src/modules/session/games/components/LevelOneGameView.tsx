@@ -192,7 +192,7 @@ export function LevelOneGameView({
   const [crashToastVisible, setCrashToastVisible] = useState(false);
   const crashSequenceRef = useRef(0);
   const rabbitIsInspiring = phase === 'inhaling' || phase === 'evaluating';
-  /** Solo durante los 3 s oficiales de sostén. */
+  /** Solo durante los 2 s oficiales de sostén. */
   const showGoalBarrier = obstacleActive;
   const inEvaluating = phase === 'evaluating';
   const inRest = phase === 'resting';
@@ -885,11 +885,11 @@ export function LevelOneGameView({
               <View style={styles.introCard}>
                 <Text style={styles.introKicker}>Terapia respiratoria</Text>
                 <Text style={styles.introLine}>
-                  Con <Text style={styles.introStrong}>INSPIRA</Text>, sube hasta la meta.
+                  Con <Text style={styles.introStrong}>INSPIRA</Text>, alcanza la meta en 1.5 s.
                 </Text>
                 <Text style={styles.introLine}>
-                  Con <Text style={styles.introStrong}>SOSTÉN</Text>, prepárate 2 s y luego supera el
-                  obstáculo 3 s.
+                  Con <Text style={styles.introStrong}>SOSTÉN</Text>, alcanza la meta en 1.5 s y luego
+                  supera el obstáculo 2 s.
                 </Text>
                 <Text style={styles.introLine}>
                   Con <Text style={styles.introStrong}>DESCANSA</Text>, exhala y prepárate otra vez.

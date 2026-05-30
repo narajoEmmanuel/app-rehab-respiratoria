@@ -1,15 +1,15 @@
 /**
- * Reglas Nivel 1: ascenso libre → prep «Sostén» (2 s) → evaluación con obstáculo (3 s).
+ * Reglas Nivel 1: ascenso libre → prep «Sostén» (1.5 s) → evaluación con obstáculo (2 s).
  */
 import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
 import { isTouchPracticeSession } from '@/src/modules/session/session-input-mode';
 
 /** Tiempo para subir a la meta antes del sostén oficial (sin obstáculo). */
-export const LEVEL_ONE_ASCENT_MS = 2000;
-/** @deprecated Alias: ascenso 2 s (no es fase extra de prep). */
+export const LEVEL_ONE_ASCENT_MS = 1500;
+/** @deprecated Alias: ascenso 1.5 s (no es fase extra de prep). */
 export const LEVEL_ONE_HOLD_PREP_MS = LEVEL_ONE_ASCENT_MS;
 /** Evaluación oficial con obstáculo activo. */
-export const LEVEL_ONE_OFFICIAL_EVAL_MS = 3000;
+export const LEVEL_ONE_OFFICIAL_EVAL_MS = 2000;
 /** Alias clínico / HUD. */
 export const LEVEL_ONE_REQUIRED_SUSTAIN_MS = LEVEL_ONE_OFFICIAL_EVAL_MS;
 
@@ -96,7 +96,7 @@ export function isAboveObstacle(inspirationNorm: number): boolean {
 export type LevelOneRepetitionTickResult = {
   runtime: LevelOneAttemptRuntime;
   liveFail: LevelOneFailReason | null;
-  /** Tras 2 s de ascenso, iniciar de inmediato los 3 s de sostén oficial. */
+  /** Tras 1.5 s de ascenso, iniciar de inmediato los 2 s de sostén oficial. */
   shouldBeginOfficialEval: boolean;
 };
 

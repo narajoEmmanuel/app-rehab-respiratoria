@@ -1,5 +1,5 @@
 /**
- * Motor Nivel 1: ascenso 2 s → sostén oficial 3 s (obstáculo) → resultado → descanso.
+ * Motor Nivel 1: ascenso 1.5 s → sostén oficial 2 s (obstáculo) → resultado → descanso.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
@@ -494,10 +494,10 @@ export function useLevelOneGame({
   useEffect(() => () => clearTimers(), [clearTimers]);
 
   const evalSecondsRemaining = Math.max(0, Math.ceil(phaseCountdownMs / 1000));
+  const ascentMsRemaining =
+    phase === 'inhaling' ? Math.max(0, LEVEL_ONE_ASCENT_MS - holdMs) : 0;
   const ascentSecondsRemaining =
-    phase === 'inhaling'
-      ? Math.max(0, Math.ceil((LEVEL_ONE_ASCENT_MS - holdMs) / 1000))
-      : 0;
+    ascentMsRemaining > 0 ? Math.ceil(ascentMsRemaining / 500) / 2 : 0;
   const holdPrepSecondsRemaining = ascentSecondsRemaining;
   const sustainSecondsRemaining =
     phase === 'evaluating' ? evalSecondsRemaining : 0;

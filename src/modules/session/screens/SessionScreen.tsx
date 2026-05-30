@@ -35,6 +35,7 @@ import { usePatientSession } from '@/src/modules/patient/context/PatientSessionC
 import {
   computeInspirationNorm,
   evaluateLevelOneAttemptRelease,
+  LEVEL_ONE_ASCENT_MS,
 } from '@/src/modules/session/engine/level-one/level-one-repetition-rules';
 import {
   useLevelOneGame,
@@ -65,8 +66,8 @@ import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 type SessionSummaryKind = 'completed' | 'interrupted' | null;
 /** En práctica, alcanzar la meta antes del countdown de 3 s si mantiene presionado. */
-/** A los 2 s de presión el volumen simulado alcanza la meta (antes del sostén 3 s). */
-const PRACTICE_VOLUME_RAMP_MS = 2000;
+/** A los 1.5 s de presión el volumen simulado alcanza la meta (antes del sostén 2 s). */
+const PRACTICE_VOLUME_RAMP_MS = LEVEL_ONE_ASCENT_MS;
 /** Umbral mínimo de volumen (mL) para detectar inicio de inspiración con sensor. */
 const SENSOR_INHALE_START_MIN_ML = 60;
 const SENSOR_INHALE_START_TARGET_RATIO = 0.07;
