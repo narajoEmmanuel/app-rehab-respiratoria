@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { exportCalibrationTechnicalCsv } from '@/src/modules/export/services/calibration-technical-export-service';
 import { getClinicalExportSnapshot } from '@/src/modules/export/services/clinical-export-service';
 import { exportPatientCsv, exportPatientJson } from '@/src/modules/export/services/patient-clinical-export-service';
+import { isTechnicalCalibrationEnabled } from '@/src/modules/app-mode';
 import { isConsentActive } from '@/src/modules/legal/consent-service';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
@@ -33,6 +34,7 @@ type SnapshotSummary = {
 
 export function DataExportScreen() {
   const router = useRouter();
+  const technicalCalibrationEnabled = isTechnicalCalibrationEnabled();
   const { patient, hydrated } = usePatientSession();
   const [consentOk, setConsentOk] = useState<boolean | null>(null);
   const [summary, setSummary] = useState<SnapshotSummary | null>(null);
@@ -258,19 +260,23 @@ export function DataExportScreen() {
               />
               <Text style={styles.formatHintSecondary}>Formato técnico completo.</Text>
 
-              <View style={styles.technicalDivider} />
-              <Text style={styles.technicalSectionTitle}>Calibración técnica</Text>
-              <Text style={styles.formatHintSecondary}>
-                Descarga puntos, modelo y métricas de calibración para revisión técnica.
-              </Text>
-              <AppButton
-                title="Exportar datos técnicos"
-                onPress={() => void runCalibrationExport()}
-                variant="ghost"
-                disabled={busy}
-                iconName="wrench.fill"
-                style={styles.secondaryAction}
-              />
+              {technicalCalibrationEnabled ? (
+                <>
+                  <View style={styles.technicalDivider} />
+                  <Text style={styles.technicalSectionTitle}>Calibración técnica</Text>
+                  <Text style={styles.formatHintSecondary}>
+                    Descarga puntos, modelo y métricas de calibración para revisión técnica.
+                  </Text>
+                  <AppButton
+                    title="Exportar datos técnicos"
+                    onPress={() => void runCalibrationExport()}
+                    variant="ghost"
+                    disabled={busy}
+                    iconName="wrench.fill"
+                    style={styles.secondaryAction}
+                  />
+                </>
+              ) : null}
             </View>
           )
         ) : null}

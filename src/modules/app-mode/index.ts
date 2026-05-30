@@ -10,5 +10,9 @@ export {
   isOfflineSensorTestEnabled,
   isSensorDebugEnabled,
 } from '@/src/modules/app-mode/app-mode-config';
+export {
+  isTechnicalCalibrationEnabled,
+  technicalCalibrationFallbackRoute,
+} from '@/src/modules/device/calibration/technical-calibration-flags';
 export { AppModeProvider, useAppMode } from '@/src/modules/app-mode/app-mode-context';
 export type { AppModeContextValue } from '@/src/modules/app-mode/app-mode-context';

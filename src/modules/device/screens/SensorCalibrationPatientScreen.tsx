@@ -11,11 +11,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
-import { MeasuredVolumeHero } from '@/src/modules/device/components/MeasuredVolumeHero';
+import { ensureRespira3000PredefinedCalibrationInstalled } from '@/src/modules/device/calibration/predefined-calibration-service';
 import {
   resolveTherapyCalibrationReadiness,
   type TherapyCalibrationReadiness,
 } from '@/src/modules/device/calibration/therapy-calibration-readiness';
+import { MeasuredVolumeHero } from '@/src/modules/device/components/MeasuredVolumeHero';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import { isSensorStreamActivelyReceiving } from '@/src/modules/device/stream/sensor-stream-state';
 import { useActiveVolumeEstimate } from '@/src/modules/device/volume-estimation';
@@ -27,10 +28,12 @@ import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessColors, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 
 export type SensorCalibrationPatientScreenProps = {
-  onOpenTechnical: () => void;
+  technicalCalibrationEnabled?: boolean;
+  onOpenTechnical?: () => void;
 };
 
 const SPIROMETER_DISPLAY_NAME = 'Espirómetro RESPIRA+ 3000 mL';
+const DEFAULT_LOAD_ERROR = 'No fue posible cargar la calibración RESPIRA+.';
 
 function hapticLight() {
   if (Platform.OS === 'ios') {
@@ -48,12 +51,16 @@ function calibrationTone(
 
 type PatientUiState = 'pending' | 'ready' | 'ready_sensor_blocked';
 
-export function SensorCalibrationPatientScreen({ onOpenTechnical }: SensorCalibrationPatientScreenProps) {
+export function SensorCalibrationPatientScreen({
+  technicalCalibrationEnabled = false,
+  onOpenTechnical,
+}: SensorCalibrationPatientScreenProps) {
   const router = useRouter();
   const { status, mode, sensorStreamState } = useSensorConnection();
 
   const [loading, setLoading] = useState(true);
   const [therapy, setTherapy] = useState<TherapyCalibrationReadiness | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const { estimate, loading: volumeLoading, sensorConnected } = useActiveVolumeEstimate({
     enabled: true,
@@ -70,10 +77,21 @@ export function SensorCalibrationPatientScreen({ onOpenTechnical }: SensorCalibr
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
+
+    if (!technicalCalibrationEnabled) {
+      await ensureRespira3000PredefinedCalibrationInstalled();
+    }
+
     const readiness = await resolveTherapyCalibrationReadiness();
     setTherapy(readiness);
+
+    if (!technicalCalibrationEnabled && !readiness.isReadyForTherapy) {
+      setLoadError(DEFAULT_LOAD_ERROR);
+    }
+
     setLoading(false);
-  }, []);
+  }, [technicalCalibrationEnabled]);
 
   useEffect(() => {
     void refresh();
@@ -88,7 +106,11 @@ export function SensorCalibrationPatientScreen({ onOpenTechnical }: SensorCalibr
     return 'ready';
   }, [canStartTherapy, therapyReady]);
 
-  const statusLabel = therapy?.statusLabel ?? 'Calibración pendiente';
+  const statusLabel = useMemo(() => {
+    if (therapyReady) return 'Calibración verificada';
+    if (!technicalCalibrationEnabled && loadError) return 'Calibración no disponible';
+    return therapy?.statusLabel ?? 'Calibración pendiente';
+  }, [loadError, technicalCalibrationEnabled, therapy?.statusLabel, therapyReady]);
 
   const onStartTherapy = useCallback(() => {
     hapticLight();
@@ -102,14 +124,21 @@ export function SensorCalibrationPatientScreen({ onOpenTechnical }: SensorCalibr
 
   const onCalibrate = useCallback(() => {
     hapticLight();
-    onOpenTechnical();
+    onOpenTechnical?.();
   }, [onOpenTechnical]);
 
   const primaryAction = useMemo(() => {
     if (uiState === 'pending') {
+      if (technicalCalibrationEnabled) {
+        return {
+          title: 'Calibrar espirómetro',
+          onPress: onCalibrate,
+          disabled: false,
+        };
+      }
       return {
-        title: 'Calibrar espirómetro',
-        onPress: onCalibrate,
+        title: isOnline ? 'Revisar sensor' : 'Conectar sensor',
+        onPress: onOpenSensorConnection,
         disabled: false,
       };
     }
@@ -125,9 +154,17 @@ export function SensorCalibrationPatientScreen({ onOpenTechnical }: SensorCalibr
       onPress: onStartTherapy,
       disabled: false,
     };
-  }, [isOnline, onCalibrate, onOpenSensorConnection, onStartTherapy, uiState]);
+  }, [isOnline, onCalibrate, onOpenSensorConnection, onStartTherapy, technicalCalibrationEnabled, uiState]);
 
   const showMeasuredVolume = therapyReady && sensorConnected && streamReceiving;
+
+  const infoMessage = useMemo(() => {
+    if (loadError) return loadError;
+    if (therapy?.status === 'needs_review' && therapy.detailMessage) {
+      return technicalCalibrationEnabled ? therapy.detailMessage : DEFAULT_LOAD_ERROR;
+    }
+    return null;
+  }, [loadError, technicalCalibrationEnabled, therapy?.detailMessage, therapy?.status]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -150,9 +187,7 @@ export function SensorCalibrationPatientScreen({ onOpenTechnical }: SensorCalibr
                 tone={calibrationTone(therapy?.status ?? 'pending')}
                 size="sm"
               />
-              {therapy?.status === 'needs_review' && therapy.detailMessage ? (
-                <Text style={styles.warnText}>{therapy.detailMessage}</Text>
-              ) : null}
+              {infoMessage ? <Text style={styles.warnText}>{infoMessage}</Text> : null}
             </AppCard>
 
             {therapyReady ? (

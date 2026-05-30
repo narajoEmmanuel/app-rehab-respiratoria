@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
-import { isSensorDebugEnabled } from '@/src/modules/app-mode';
+import { isSensorDebugEnabled, isTechnicalCalibrationEnabled } from '@/src/modules/app-mode';
 import { MeasuredVolumeHero } from '@/src/modules/device/components/MeasuredVolumeHero';
 import { SensorLivePreview } from '@/src/modules/device/components/SensorLivePreview';
 import { useActiveVolumeEstimate } from '@/src/modules/device/volume-estimation';
@@ -92,6 +92,7 @@ function formatShortDate(ts: number): string {
 export function SensorConnectionScreen() {
   const router = useRouter();
   const debug = isSensorDebugEnabled();
+  const technicalCalibrationEnabled = isTechnicalCalibrationEnabled();
 
   const {
     status,
@@ -308,22 +309,28 @@ export function SensorConnectionScreen() {
                         : Date.now(),
                     )}`
                   : calibrationSnapshot.kind === 'corrupt'
-                    ? 'El perfil guardado no se pudo leer. Configura de nuevo el espirómetro.'
+                    ? technicalCalibrationEnabled
+                      ? 'El perfil guardado no se pudo leer. Configura de nuevo el espirómetro.'
+                      : 'No fue posible cargar la calibración RESPIRA+.'
                     : calibrationSnapshot.kind === 'loading'
                       ? 'Comprobando configuración…'
-                      : therapyReadiness.detailMessage ??
-                        'Configura tu espirómetro para estimar el volumen en terapia.'}
+                      : technicalCalibrationEnabled
+                        ? (therapyReadiness.detailMessage ??
+                          'Configura tu espirómetro para estimar el volumen en terapia.')
+                        : 'Conecta el sensor RESPIRA+ para usar la calibración validada.'}
               </Text>
             </View>
           </View>
 
-          <View style={styles.calibActions}>
-            <AppButton
-              title={therapyReady ? 'Ver espirómetro' : 'Configurar espirómetro'}
-              onPress={onOpenCalibration}
-              variant="secondary"
-            />
-          </View>
+          {technicalCalibrationEnabled ? (
+            <View style={styles.calibActions}>
+              <AppButton
+                title={therapyReady ? 'Ver espirómetro' : 'Configurar espirómetro'}
+                onPress={onOpenCalibration}
+                variant="secondary"
+              />
+            </View>
+          ) : null}
         </AppCard>
 
         {therapyReady ? (

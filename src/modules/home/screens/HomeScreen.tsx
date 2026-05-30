@@ -21,6 +21,7 @@ import {
   showTherapyReadinessAlert,
   useTherapyReadinessGate,
 } from '@/src/modules/device/volume-estimation';
+import { isTechnicalCalibrationEnabled } from '@/src/modules/app-mode';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import { useCalibrationSnapshot } from '@/src/modules/device/state/use-calibration-snapshot';
 import { getCurrentActiveLevel, hasDiagnostic, getLatestDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
@@ -558,7 +559,10 @@ function formatShortDate(ts: number): string {
   }
 }
 
-function describeDeviceState(snapshot: CalibrationSnapshot): {
+function describeDeviceState(
+  snapshot: CalibrationSnapshot,
+  technicalCalibrationEnabled: boolean,
+): {
   badge: string | null;
   showBadge: boolean;
   title: string;
@@ -579,7 +583,7 @@ function describeDeviceState(snapshot: CalibrationSnapshot): {
   if (snapshot.kind === 'ready' && snapshot.therapy.isReadyForTherapy) {
     const { profile } = snapshot;
     return {
-      badge: snapshot.therapy.statusLabel,
+      badge: 'Calibración verificada',
       showBadge: true,
       title: 'Dispositivo RESPIRA+',
       subtitle: `${snapshot.therapy.spirometerLabel ?? profile.name} · ${formatShortDate(profile.updatedAt)}`,
@@ -589,20 +593,24 @@ function describeDeviceState(snapshot: CalibrationSnapshot): {
   }
   if (snapshot.kind === 'ready') {
     return {
-      badge: snapshot.therapy.statusLabel,
+      badge: technicalCalibrationEnabled ? snapshot.therapy.statusLabel : 'Calibración pendiente',
       showBadge: true,
       title: 'Dispositivo RESPIRA+',
-      subtitle: snapshot.therapy.detailMessage ?? 'Completa la calibración verificada del espirómetro.',
-      ctaLabel: 'Configurar espirómetro',
+      subtitle: technicalCalibrationEnabled
+        ? (snapshot.therapy.detailMessage ?? 'Completa la calibración verificada del espirómetro.')
+        : 'Conecta el sensor RESPIRA+ para usar la calibración validada.',
+      ctaLabel: technicalCalibrationEnabled ? 'Configurar espirómetro' : 'Conectar sensor',
       variant: 'pending',
     };
   }
   if (snapshot.kind === 'corrupt') {
     return {
-      badge: 'Revisar calibración',
-      showBadge: true,
+      badge: technicalCalibrationEnabled ? 'Revisar calibración' : null,
+      showBadge: technicalCalibrationEnabled,
       title: 'Dispositivo RESPIRA+',
-      subtitle: 'La calibración guardada no se pudo leer.',
+      subtitle: technicalCalibrationEnabled
+        ? 'La calibración guardada no se pudo leer.'
+        : 'No fue posible cargar la calibración RESPIRA+.',
       ctaLabel: 'Revisar sensor',
       variant: 'warn',
     };
@@ -611,8 +619,10 @@ function describeDeviceState(snapshot: CalibrationSnapshot): {
     badge: null,
     showBadge: false,
     title: 'Dispositivo RESPIRA+',
-    subtitle: 'Conecta el sensor y verifica la calibración del espirómetro.',
-    ctaLabel: 'Configurar sensor',
+    subtitle: technicalCalibrationEnabled
+      ? 'Conecta el sensor y verifica la calibración del espirómetro.'
+      : 'Conecta el sensor RESPIRA+ para comenzar.',
+    ctaLabel: technicalCalibrationEnabled ? 'Configurar sensor' : 'Conectar sensor',
     variant: 'pending',
   };
 }
@@ -624,7 +634,7 @@ function DeviceCard({
   calibrationSnapshot: CalibrationSnapshot;
   onPress: () => void;
 }) {
-  const state = describeDeviceState(calibrationSnapshot);
+  const state = describeDeviceState(calibrationSnapshot, isTechnicalCalibrationEnabled());
   const isReady = state.variant === 'ready';
   const isWarn = state.variant === 'warn';
   return (

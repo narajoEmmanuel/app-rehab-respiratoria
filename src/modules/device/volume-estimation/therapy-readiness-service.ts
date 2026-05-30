@@ -7,6 +7,7 @@ import {
   resolveDiagnosticCalibration,
   type DiagnosticCalibrationBlockReason,
 } from '@/src/modules/device/calibration/diagnostic-calibration-readiness';
+import { technicalCalibrationFallbackRoute } from '@/src/modules/device/calibration/technical-calibration-flags';
 import type { ActiveVolumeEstimateResult } from '@/src/modules/device/calibration/active-volume-estimation-types';
 import {
   deriveVolumeEstimationReadiness,
@@ -105,6 +106,8 @@ type GateCopy = Pick<
 >;
 
 function copyForStatus(status: TherapyReadinessStatus): GateCopy {
+  const calibrationRoute = technicalCalibrationFallbackRoute();
+
   switch (status) {
     case 'loading':
       return {
@@ -119,8 +122,8 @@ function copyForStatus(status: TherapyReadinessStatus): GateCopy {
         canStartTherapy: false,
         title: 'Revisa la calibración',
         message: 'Selecciona el espirómetro que vas a usar antes de comenzar.',
-        actionLabel: 'Ir a calibración',
-        actionRoute: '/sensor-calibration',
+        actionLabel: calibrationRoute === '/sensor-calibration' ? 'Ir a calibración' : 'Revisar sensor',
+        actionRoute: calibrationRoute,
       };
     case 'no_active_model':
       return {
@@ -128,8 +131,8 @@ function copyForStatus(status: TherapyReadinessStatus): GateCopy {
         title: 'Revisa la calibración',
         message:
           'Antes de iniciar, activa un modelo de calibración para el espirómetro seleccionado.',
-        actionLabel: 'Ir a calibración',
-        actionRoute: '/sensor-calibration',
+        actionLabel: calibrationRoute === '/sensor-calibration' ? 'Ir a calibración' : 'Revisar sensor',
+        actionRoute: calibrationRoute,
       };
     case 'model_stale':
       return {
@@ -137,16 +140,16 @@ function copyForStatus(status: TherapyReadinessStatus): GateCopy {
         title: 'Modelo desactualizado',
         message:
           'El modelo activo está desactualizado. Revisa la calibración antes de comenzar.',
-        actionLabel: 'Actualizar calibración',
-        actionRoute: '/sensor-calibration',
+        actionLabel: calibrationRoute === '/sensor-calibration' ? 'Actualizar calibración' : 'Revisar sensor',
+        actionRoute: calibrationRoute,
       };
     case 'model_not_ready_for_therapy':
       return {
         canStartTherapy: false,
         title: 'Revisa la calibración',
         message: 'Esta actividad requiere sensor y calibración activa.',
-        actionLabel: 'Ir a calibración',
-        actionRoute: '/sensor-calibration',
+        actionLabel: calibrationRoute === '/sensor-calibration' ? 'Ir a calibración' : 'Revisar sensor',
+        actionRoute: calibrationRoute,
       };
     case 'sensor_disconnected':
       return {
@@ -169,8 +172,8 @@ function copyForStatus(status: TherapyReadinessStatus): GateCopy {
         canStartTherapy: false,
         title: 'Revisa la calibración',
         message: 'El modelo activo requiere reactivación antes de comenzar.',
-        actionLabel: 'Ir a calibración',
-        actionRoute: '/sensor-calibration',
+        actionLabel: calibrationRoute === '/sensor-calibration' ? 'Ir a calibración' : 'Revisar sensor',
+        actionRoute: calibrationRoute,
       };
     case 'out_of_range':
       return {
@@ -178,8 +181,8 @@ function copyForStatus(status: TherapyReadinessStatus): GateCopy {
         title: 'Lectura fuera de rango',
         message:
           'La lectura actual está fuera del rango calibrado. Ajusta el espirómetro o revisa el montaje.',
-        actionLabel: 'Revisar calibración',
-        actionRoute: '/sensor-calibration',
+        actionLabel: calibrationRoute === '/sensor-calibration' ? 'Revisar calibración' : 'Revisar sensor',
+        actionRoute: calibrationRoute,
       };
     case 'ready':
       return {

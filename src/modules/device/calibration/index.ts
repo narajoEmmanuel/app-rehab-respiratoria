@@ -246,6 +246,11 @@ export {
 } from '@/src/modules/device/calibration/predefined-calibration-service';
 
 export {
+  isTechnicalCalibrationEnabled,
+  technicalCalibrationFallbackRoute,
+} from '@/src/modules/device/calibration/technical-calibration-flags';
+
+export {
   ACTIVE_CALIBRATION_BY_SPIROMETER_STORAGE_KEY,
   clearActiveCalibrationModelForSpirometer,
   hasActiveCalibrationModelForSpirometer,
