@@ -25,28 +25,47 @@ El proyecto comenzó orientado a **EPOC**. Tras revisión con especialista en re
 | Área | Estado |
 |------|--------|
 | Conexión global ESP32 (WebSocket) | Implementada (`SensorConnectionProvider`) |
-| Perfiles 5000 mL / 3000 mL | Implementados |
-| Calibración por `spirometerDeviceId` | Implementada |
-| Modelo activo por espirómetro | Implementado |
-| Incertidumbre metrológica (U95) | Implementada |
-| Validación geométrica / repetibilidad / recaptura | Implementadas |
+| Espirómetro activo | **RESPIRA+ 3000 mL** (único perfil en flujo paciente) |
+| Calibración predeterminada | Modelo lineal validado por el equipo; clamp **0–3000 mL** |
+| Estimación de volumen | **En la app** (`distanceMm` → mL); el ESP32 solo envía distancia |
+| Calibración técnica multi-volumen | Implementada; **oculta** con `EXPO_PUBLIC_ENABLE_TECHNICAL_CALIBRATION=false` |
+| Incertidumbre metrológica (U95) | Implementada; visible solo en modo técnico/debug |
+| Validación geométrica / repetibilidad | Implementadas (modo técnico; perfil legacy 5000 mL) |
 | Estimación de volumen en vivo | `useActiveVolumeEstimate` |
+| UI paciente — volumen en conexión | Termómetro visual 0–3000 mL (`VolumeThermometer`) |
+| Terapia — lecturas obsoletas | Bloqueadas; no se reutiliza el último volumen si la señal no está viva |
 | Compuerta al iniciar terapia | `useTherapyReadinessGate` |
 | Modo práctica táctil | Opt-in vía `EXPO_PUBLIC_ENABLE_TOUCH_PRACTICE_MODE` |
 | Clasificación de sesiones | Sensor · Práctica · Sin clasificar |
-| Historial / resumen / exportación | Distinguen origen y campos de sensor |
+| Historial / resumen / exportación | Distinguen origen; export técnico solo en modo técnico/debug |
 | Supabase / auth online | Opcional; por defecto **local-first** |
+
+### Modelo lineal predeterminado (RESPIRA+ 3000 mL)
+
+```
+Volumen (mL) = 32.566738232013954 × distanceMm − 1270.5786467848384
+```
+
+Resultado acotado entre **0** y **3000 mL**. Constantes en `predefined-calibration-models.ts`.
+
+### Legacy (no activo en flujo paciente)
+
+| Elemento | Notas |
+|----------|--------|
+| Perfil 5000 mL | Conservado en código/storage para migraciones; no es opción activa |
+| Opción «Otro» espirómetro | Eliminada del flujo paciente |
+| Calibración técnica en UI | Disponible solo con `EXPO_PUBLIC_ENABLE_TECHNICAL_CALIBRATION=true` |
 
 ---
 
 ## Funcionalidades principales
 
 - Conexión **ESP32** por WiFi (AP `RESPIRA_ESP32`) y **WebSocket** (`ws://192.168.4.1:81`).
-- **Perfiles de espirómetro** (5000 mL y 3000 mL) y dispositivos físicos con calibración independiente.
-- **Calibración** multi-volumen, repetibilidad, validación geométrica (perfil 5000 mL), incertidumbre **U95**.
-- **Modelo activo** (`linear_regression` / `piecewise_linear`) por espirómetro.
-- **Estimación de volumen** en calibración y en sesión.
-- **Terapia guiada** (niveles) con validación al iniciar actividad.
+- **Espirómetro RESPIRA+ 3000 mL** con calibración lineal predeterminada instalada al primer uso.
+- El **firmware envía distancia** (`distanceMm`, `rawDistanceMm`, `distanceValid`); la **app calcula el volumen** en mL.
+- **Pantalla de conexión** con termómetro visual de volumen (0–3000 mL) y estado de señal en tiempo real.
+- **Calibración técnica** multi-volumen, repetibilidad, U95 y export CSV — solo con flag de modo técnico.
+- **Terapia guiada** (niveles) con validación al iniciar actividad y bloqueo de lecturas obsoletas.
 - **Modo práctica táctil** (opcional, según configuración del dispositivo).
 - **Historial**, **resumen** de sesión y **exportación clínica** (CSV / JSON, versión **2.1.0**).
 
@@ -61,7 +80,7 @@ El proyecto comenzó orientado a **EPOC**. Tras revisión con especialista en re
 | **TypeScript** | Tipado en `src/` |
 | **Expo Router** | Rutas en `app/` |
 | **AsyncStorage** | Persistencia local (sesiones, calibración, perfil) |
-| **ESP32 + VL53L0X** | Distancia → volumen vía modelos calibrados |
+| **ESP32 + VL53L0X** | Distancia por WebSocket; volumen calculado en app |
 | **WebSocket** | Un único cliente global en la app |
 | **Supabase** | Opcional; congelado con `EXPO_PUBLIC_ENABLE_CLOUD_AUTH=false` |
 
@@ -79,60 +98,72 @@ Documentación de módulos:
 
 ```mermaid
 flowchart LR
-  A[Conectar sensor] --> B[Seleccionar espirómetro]
-  B --> C[Calibrar volúmenes]
-  C --> D[Guardar calibración]
-  D --> E[Activar modelo]
-  E --> F[Iniciar terapia]
-  F --> G[Validar intentos]
-  G --> H[Guardar sesión]
-  H --> I[Historial / exportar]
+  A[Conectar sensor] --> B[Ver volumen en vivo]
+  B --> C[Iniciar terapia]
+  C --> D[Validar intentos]
+  D --> E[Guardar sesión]
+  E --> F[Historial / exportar]
 ```
+
+En flujo paciente la calibración predeterminada RESPIRA+ 3000 mL se instala automáticamente; no requiere pasos manuales. La calibración técnica multi-volumen está disponible solo con `EXPO_PUBLIC_ENABLE_TECHNICAL_CALIBRATION=true`.
 
 Detalle paso a paso: [docs/sensor-flow.md](docs/sensor-flow.md).
 
 | Paso | Pantalla / ruta |
 |------|-----------------|
-| 1. Conectar | `/sensor-connection` |
-| 2–5. Calibrar y modelo | `/sensor-calibration` |
-| 6–7. Terapia y sesión | `/(tabs)/terapia` → `/(tabs)/sesion` |
-| 8–9. Historial / exportación | `/(tabs)/historial`, `/(tabs)/resumen`, `/data-export` |
+| 1. Conectar + volumen en vivo | `/sensor-connection` |
+| 2. Terapia y sesión | `/(tabs)/terapia` → `/(tabs)/sesion` |
+| 3. Historial / exportación | `/(tabs)/historial`, `/(tabs)/resumen`, `/data-export` |
+| Calibración técnica (solo flag) | `/sensor-calibration` |
 
 ---
 
-## Perfiles de espirómetro
+## Perfil de espirómetro activo
 
-Definidos en `src/modules/device/spirometer/spirometer-profiles.ts`.
+Definido en `src/modules/device/spirometer/spirometer-profiles.ts` y `predefined-calibration-models.ts`.
 
 | Concepto | Descripción |
 |----------|-------------|
-| **`SpirometerProfile`** | Plantilla de capacidad (5000 o 3000 mL), chips de volumen, rangos y reglas geométricas |
-| **`SpirometerDevice`** | Unidad física (`spirometerDeviceId`); cada una tiene su propia calibración y modelo activo |
-| **Calibración** | Se guarda por `spirometerDeviceId`, no por sesión |
+| **`SpirometerDevice`** | Unidad física RESPIRA+ 3000 mL (`spirometerDeviceId`) |
+| **Calibración predeterminada** | Modelo lineal validado; se instala con `ensureRespira3000PredefinedCalibrationInstalled` |
+| **Clamp de volumen** | 0–3000 mL en estimación y UI |
+| **Cálculo de volumen** | En la app a partir de `distanceMm`; el ESP32 no envía volumen clínico |
 
-| Perfil | ID | Rango recomendado | Geométrica |
-|--------|-----|-------------------|------------|
-| 5000 mL | `spirometer_5000ml_default` | 500–3000 mL (+ extendido hasta 5000) | Activada |
-| 3000 mL | `spirometer_3000ml_default` | 500–3000 mL | Desactivada (pendiente medición física) |
+| Perfil activo | ID | Rango UI | Modelo |
+|---------------|-----|----------|--------|
+| RESPIRA+ 3000 mL | `spirometer_3000ml_default` | 0–3000 mL | Lineal predeterminado |
 
-**Agregar un espirómetro futuro:** crear entrada en `spirometer-profiles.ts`, registrar dispositivo en `spirometer-storage` / UI de selección, y ajustar `expectedDistanceStepMm` / `geometricValidationEnabled` cuando existan medidas físicas.
+### Legacy (referencia histórica)
+
+| Perfil | ID | Notas |
+|--------|-----|-------|
+| 5000 mL (Besmed CIYO/TB-93500) | `spirometer_5000ml_default` | Perfil legacy; calibración multi-volumen y validación geométrica conservadas en código para migraciones. **No es opción activa** en flujo paciente. |
 
 ---
 
 ## Calibración
 
-Procedimiento en `SensorCalibrationScreen` y servicios bajo `src/modules/device/calibration/`.
+En **flujo paciente**, la calibración lineal predeterminada RESPIRA+ 3000 mL se aplica automáticamente. No hay pasos manuales ni pantalla de calibración visible (`EXPO_PUBLIC_ENABLE_TECHNICAL_CALIBRATION=false` por defecto).
 
-| Regla | Valor |
-|-------|--------|
-| Rango operativo (perfil 5000) | 500–3000 mL recomendado; extendido hasta 5000 mL |
-| Volúmenes obligatorios | 6: 500, 1000, 1500, 2000, 2500, 3000 mL |
-| Mediciones por volumen obligatorio | 5 |
-| Puntos mínimos para terapia | 30 |
+| Regla (flujo paciente) | Valor |
+|------------------------|--------|
+| Modelo activo | Lineal: `32.566738… × distanceMm − 1270.5786…` |
+| Clamp de volumen | 0–3000 mL |
+| Origen del volumen | Calculado en app; ESP32 envía solo distancia |
 | Bloqueo por distancia | `distanceMm < 30` mm (VL53L0X inestable) |
-| Repetibilidad | Desv. típica y variación de pendiente acotadas |
-| Incertidumbre | U95 con factor k=2; umbral máximo 250 mL |
-| Modelo activo | Uno por espirómetro; usado por `useActiveVolumeEstimate` |
+| Lecturas obsoletas en terapia | Bloqueadas si la señal no está viva |
+
+### Calibración técnica (modo técnico)
+
+Procedimiento completo en `SensorCalibrationScreen` y servicios bajo `src/modules/device/calibration/`. Solo accesible con `EXPO_PUBLIC_ENABLE_TECHNICAL_CALIBRATION=true`.
+
+| Regla (modo técnico) | Valor |
+|----------------------|--------|
+| Volúmenes obligatorios | 6: 500, 1000, 1500, 2000, 2500, 3000 mL |
+| Mediciones por volumen | 5 |
+| Puntos mínimos para terapia | 30 |
+| Incertidumbre U95 | Factor k=2; umbral máximo 250 mL |
+| Validación geométrica | Solo perfil legacy 5000 mL |
 
 Más detalle: [docs/calibration/README.md](docs/calibration/README.md).
 
@@ -188,7 +219,8 @@ Copiar `.env.example` → `.env` ( **no subir** `.env` a Git).
 |----------|-------------------|--------|
 | `EXPO_PUBLIC_ENABLE_CLOUD_AUTH` | `false` | `false` = local-first sin login obligatorio |
 | `EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST` | `false` | Bypass de consentimiento en rutas de sensor (solo `__DEV__`) |
-| `EXPO_PUBLIC_ENABLE_SENSOR_DEBUG` | `false` | Laboratorio de hardware y diagnóstico avanzado del sensor (solo `__DEV__`) |
+| `EXPO_PUBLIC_ENABLE_SENSOR_DEBUG` | `false` | Diagnóstico avanzado: distancia, JSON, laboratorio hardware (solo `__DEV__`) |
+| `EXPO_PUBLIC_ENABLE_TECHNICAL_CALIBRATION` | `false` | Calibración técnica multi-volumen, U95 y export CSV en UI |
 | `EXPO_PUBLIC_ENABLE_TOUCH_PRACTICE_MODE` | `false` | Botón “Practicar sin sensor” en terapia |
 
 Opcionales para nube (solo si se reactiva auth):
@@ -226,8 +258,8 @@ Atajos: `npm run android` · `npm run ios` · `npm run web`.
 | `/(tabs)/sesion` | Sesión activa (barra oculta) |
 | `/(tabs)/historial` | Historial |
 | `/(tabs)/resumen` | Resumen post-sesión |
-| `/sensor-connection` | Conexión global del sensor |
-| `/sensor-calibration` | Calibración, modelo, U95 |
+| `/sensor-connection` | Conexión global, termómetro de volumen, estado de señal |
+| `/sensor-calibration` | Calibración técnica (solo con flag técnico) |
 | `/profile` | Perfil |
 | `/data-export` | Exportación |
 | `/hardware-lab` | Hub de diagnóstico (según modo) |
@@ -242,10 +274,12 @@ Atajos: `npm run android` · `npm run ios` · `npm run web`.
 | AP SSID | `RESPIRA_ESP32` |
 | IP | `192.168.4.1` |
 | WebSocket | `ws://192.168.4.1:81` |
-| Sensor | VL53L0X (GY-530), I2C `0x29` |
+| Microcontrolador | ESP32 WROOM 32 WiFi + Bluetooth 4.2 DevKit V1 |
+| Sensor | VL53L0X (GY-530 ToF), I2C `0x29` |
 | Payload típico | `source`, `distanceMm`, `rawDistanceMm`, `distanceValid`, `timestamp` |
+| Volumen clínico | **No** lo calcula el firmware; la app convierte distancia → mL |
 
-Firmware de referencia: `RESPIRA_WebSocket/`, `arduino_codes/`.
+Firmware de referencia: `arduino_codes/envio_datos_stream_button/envio_datos_stream_button.ino`
 
 ---
 
@@ -258,7 +292,7 @@ src/modules/
   device/
     adapters/                 # useEsp32WebSocketSensor
     calibration/              # Modelos, storage, incertidumbre
-    components/               # SensorLivePreview, etc.
+    components/               # VolumeThermometer, SensorLivePreview, etc.
     ingestion/                # parseSensorMessage
     mocks/                    # Lecturas simuladas (desarrollo)
     screens/                  # Conexión, calibración, Hardware Lab

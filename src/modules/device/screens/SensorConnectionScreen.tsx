@@ -13,7 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
 import { isSensorDebugEnabled, isTechnicalCalibrationEnabled } from '@/src/modules/app-mode';
-import { MeasuredVolumeHero } from '@/src/modules/device/components/MeasuredVolumeHero';
+import { VolumeThermometer } from '@/src/modules/device/components/VolumeThermometer';
+import { RESPIRA_3000_CLAMP_MAX_ML } from '@/src/modules/device/calibration/predefined-calibration-models';
 import { SensorLivePreview } from '@/src/modules/device/components/SensorLivePreview';
 import { useActiveVolumeEstimate } from '@/src/modules/device/volume-estimation';
 import {
@@ -139,6 +140,15 @@ export function SensorConnectionScreen() {
   const therapyReadiness = getTherapyFromSnapshot(calibrationSnapshot);
   const therapyReady = isTherapyReadyForActiveSpirometer(calibrationSnapshot);
   const readyForTherapy = liveReady && therapyReady;
+
+  const volumeIsLive =
+    volumeSensorConnected &&
+    streamReceiving &&
+    signalValid &&
+    estimate.status === 'ok' &&
+    estimate.roundedVolumeMl !== null;
+
+  const displayVolumeMl = volumeIsLive ? estimate.roundedVolumeMl : null;
 
   const onConnect = useCallback(() => {
     hapticLight();
@@ -334,17 +344,32 @@ export function SensorConnectionScreen() {
         </AppCard>
 
         {therapyReady ? (
-          <MeasuredVolumeHero
+          <VolumeThermometer
             label="Volumen estimado"
-            volumeMl={
-              volumeSensorConnected &&
-              streamReceiving &&
-              estimate.status === 'ok' &&
-              estimate.roundedVolumeMl !== null
-                ? estimate.roundedVolumeMl
-                : null
-            }
+            valueMl={displayVolumeMl}
+            maxMl={RESPIRA_3000_CLAMP_MAX_ML}
+            isLive={volumeIsLive}
             loading={volumeLoading}
+            status={volumeIsLive ? 'live' : isOnline ? 'waiting' : 'neutral'}
+            helperText={
+              volumeIsLive
+                ? undefined
+                : isOnline
+                  ? streamStateMessage ?? 'Esperando señal del sensor'
+                  : 'Conecta el sensor para ver el volumen en vivo'
+            }
+          />
+        ) : null}
+
+        {readyForTherapy ? (
+          <AppButton
+            title="Continuar a terapia"
+            onPress={() => {
+              hapticLight();
+              router.push('/(tabs)/terapia');
+            }}
+            variant="primary"
+            iconName="arrow.right.circle.fill"
           />
         ) : null}
 

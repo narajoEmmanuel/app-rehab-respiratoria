@@ -12,10 +12,10 @@ Concentra el **único transporte WebSocket**, ingestión de mensajes, **calibrac
 | `ingestion/` | `parseSensorMessage` → `SensorReading` |
 | `adapters/` | `useEsp32WebSocketSensor` (mock / websocket) |
 | `state/` | `SensorConnectionProvider`, `useCalibrationSnapshot` |
-| `spirometer/` | Perfiles 5000 / 3000 mL y dispositivos físicos |
-| `calibration/` | Captura, modelos, incertidumbre, storage activo |
+| `spirometer/` | Perfil activo RESPIRA+ 3000 mL; legacy 5000 mL en storage |
+| `calibration/` | Modelo predeterminado, captura técnica, incertidumbre, storage activo |
 | `volume-estimation/` | `useActiveVolumeEstimate`, compuerta de terapia |
-| `components/` | `SensorLivePreview`, etc. |
+| `components/` | `VolumeThermometer`, `SensorLivePreview`, etc. |
 | `screens/` | `SensorConnectionScreen`, `SensorCalibrationScreen`, `HardwareLabScreen` |
 | `mocks/` | `mock-sensor-readings` (lecturas de prueba sin hardware; solo diagnóstico) |
 | `types/` | Contratos de lectura y conexión |
@@ -24,12 +24,13 @@ Concentra el **único transporte WebSocket**, ingestión de mensajes, **calibrac
 
 ## Flujo de datos
 
-1. ESP32 envía JSON por WebSocket.
+1. ESP32 envía JSON por WebSocket (**solo distancia**: `distanceMm`, `rawDistanceMm`, `distanceValid`).
 2. `Esp32WebSocketClient` recibe y parsea con `parseSensorMessage`.
 3. `useEsp32WebSocketSensor` actualiza estado (modo `mock` o `websocket`).
 4. `SensorConnectionProvider` expone lectura y controles a toda la app.
-5. `useActiveVolumeEstimate` aplica el **modelo activo** del espirómetro seleccionado.
-6. Terapia y calibración consumen el mismo stream; **no abren sockets adicionales**.
+5. `useActiveVolumeEstimate` aplica el **modelo activo** (lineal predeterminado RESPIRA+ 3000 mL en flujo paciente) y calcula volumen en mL.
+6. Terapia y conexión consumen el mismo stream; **no abren sockets adicionales**.
+7. Si la señal deja de estar viva, la terapia **no reutiliza** el último volumen.
 
 ---
 
@@ -37,8 +38,8 @@ Concentra el **único transporte WebSocket**, ingestión de mensajes, **calibrac
 
 | Ruta | Pantalla |
 |------|----------|
-| `/sensor-connection` | Conexión, selección de espirómetro, enlace a calibración |
-| `/sensor-calibration` | Calibración, repetibilidad, U95, modelo activo |
+| `/sensor-connection` | Conexión, termómetro de volumen, estado de señal |
+| `/sensor-calibration` | Calibración técnica (solo con `EXPO_PUBLIC_ENABLE_TECHNICAL_CALIBRATION`) |
 | `/hardware-lab` | Hub de diagnóstico (acceso según `app-mode`) |
 | `/esp32-raw-test` | Prueba mínima WS (solo con `EXPO_PUBLIC_ENABLE_SENSOR_DEBUG`) |
 
@@ -49,7 +50,8 @@ Concentra el **único transporte WebSocket**, ingestión de mensajes, **calibrac
 | Variable | Efecto en device |
 |----------|------------------|
 | `EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST` | Bypass consentimiento en rutas sensor (`__DEV__`) |
-| `EXPO_PUBLIC_ENABLE_SENSOR_DEBUG` | Diagnóstico avanzado, laboratorio de hardware y prueba WebSocket |
+| `EXPO_PUBLIC_ENABLE_SENSOR_DEBUG` | Diagnóstico avanzado, distancia, JSON, laboratorio hardware |
+| `EXPO_PUBLIC_ENABLE_TECHNICAL_CALIBRATION` | Calibración multi-volumen, U95, export CSV en UI |
 | `EXPO_PUBLIC_ENABLE_CLOUD_AUTH` | Influencia acceso a Hardware Lab |
 
 ---

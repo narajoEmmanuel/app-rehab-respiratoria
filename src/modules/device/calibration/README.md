@@ -4,6 +4,30 @@ Documentación técnica del **módulo de calibración local** (ESP32 + VL53L0X �
 
 ---
 
+## 0. Estado actual — flujo paciente (2026)
+
+| Aspecto | Valor activo |
+|---------|--------------|
+| Espirómetro | **RESPIRA+ 3000 mL** (único perfil en UI paciente) |
+| Modelo predeterminado | Lineal: `Volumen = 32.566738232013954 × distanceMm − 1270.5786467848384` |
+| Clamp | 0–3000 mL |
+| Cálculo de volumen | **En la app**; el ESP32 envía solo `distanceMm` |
+| Calibración técnica UI | Oculta (`EXPO_PUBLIC_ENABLE_TECHNICAL_CALIBRATION=false`) |
+| Export técnico (U95, R², CSV) | Solo modo técnico/debug |
+| UI conexión | Termómetro visual 0–3000 mL (`VolumeThermometer`) |
+| Firmware de referencia | `arduino_codes/envio_datos_stream_button/envio_datos_stream_button.ino` |
+| Hardware | ESP32 WROOM 32 DevKit V1 + VL53L0X (GY-530) |
+
+### Legacy (conservado en código, no activo en paciente)
+
+- Perfil **5000 mL** (Besmed CIYO/TB-93500): calibración multi-volumen, validación geométrica y constantes en `calibration-constants.ts`.
+- Opción **«Otro»** espirómetro: eliminada del flujo paciente.
+- Firmware `envio_datos_prueba2.ino`: variante histórica con JSON enriquecido; ver sección 4 para detalle legacy.
+
+Las secciones siguientes documentan el **sistema completo** incluyendo calibración técnica y perfiles legacy. Donvergencia con el flujo paciente actual, prevalece la sección 0.
+
+---
+
 ## 1. Propósito del sistema de calibración
 
 ### 1.1 Qué se calibra
@@ -12,7 +36,7 @@ El sistema relaciona la **distancia medida por el sensor ToF VL53L0X** (posició
 
 ### 1.2 Por qué hace falta el espirómetro real
 
-El sensor solo ve **milímetros de desplazamiento**. El volumen clínico útil depende de la **geometría del cilindro**, del **montaje del sensor** y de la **orientación** respecto al pistón. Sin puntos tomados con el volumen **real** indicado por el espirómetro (Besmed CIYO/TB-93500, 5000 mL en las constantes del código), la app no puede anclar la escala física a la escala clínica.
+El sensor solo ve **milímetros de desplazamiento**. El volumen clínico útil depende de la **geometría del cilindro**, del **montaje del sensor** y de la **orientación** respecto al pistón. En **flujo paciente**, la app usa el modelo lineal predeterminado RESPIRA+ 3000 mL validado por el equipo. En **calibración técnica** (modo técnico), se registran puntos con el volumen real indicado por el espirómetro — incluyendo el perfil legacy Besmed CIYO/TB-93500 (**5000 mL**, constantes en `calibration-constants.ts`).
 
 ### 1.3 De mm a mL
 
@@ -36,7 +60,7 @@ En la UI y en tipos/comentarios del código se deja explícito que la estimació
 
 - **RESPIRA+** se orienta a **ejercicios respiratorios postoperatorios** con **espirómetro incentivador volumétrico**.
 - Variables de interés en el ecosistema de la app incluyen, entre otras: **volumen inspirado estimado**, **tiempo sostenido**, **repeticiones válidas**, **cumplimiento** y **progreso** (según módulos de terapia y juego; **esta documentación no los modifica**).
-- El canal `raw_sensor` del ESP32 puede incluir campos de flujo/volumen simulados a cero; la **calibración local** usa prioritariamente **`distanceMm`**, **`rawDistanceMm`** y **`distanceValid`**.
+- El canal `raw_sensor` del ESP32 puede incluir campos de flujo/volumen simulados a cero; la **app ignora esos stubs** y calcula volumen a partir de **`distanceMm`**, **`rawDistanceMm`** y **`distanceValid`**.
 - **No** se mide presión inspiratoria en este pipeline de calibración.
 - El **volumen es indirecto**: se infiere del **desplazamiento** observado por el ToF, no de un medidor de volumen integrado en el teléfono.
 
@@ -74,19 +98,27 @@ ESP32 + VL53L0X (I2C)
 | Modelo y estimación | `calibration-model.ts` | Ajuste lineal, piecewise, `recommendCalibrationModel`, `estimateVolumeFromDistance`. |
 | API pública del módulo | `index.ts` | Reexportaciones. |
 | Pantalla de calibración | `SensorCalibrationScreen.tsx` | Conexión compartida, buffer temporal, registro de puntos, tablas e informes. |
-| Pantalla de conexión | `SensorConnectionScreen.tsx` | URL WS, conectar/desconectar, acceso a calibración, *badge* “listo” con `useCalibrationSnapshot`. |
+| Pantalla de conexión | `SensorConnectionScreen.tsx` | Conexión, termómetro de volumen (`VolumeThermometer`), estado de señal. |
 | Estado global del sensor | `SensorConnectionProvider.tsx` | Instancia única de `useEsp32WebSocketSensor`. |
 | Hook sensor | `use-esp32-websocket-sensor.ts` | URL por defecto `ws://192.168.4.1:81`, mock, timeouts, mensajes/s. |
 | Cliente WS | `esp32-websocket-client.ts` | `WebSocket` nativo, delega parseo a `parseSensorMessage`. |
 | Parseo | `parse-sensor-message.ts` | JSON → `SensorReading`, tolerancia a campos faltantes. |
 | Tipos de lectura | `sensor-reading.ts` | `SensorReading`, `SensorConnectionStatus`, `SensorSource`. |
-| Firmware | `arduino_codes/envio_datos_prueba2/envio_datos_prueba2.ino` | AP WiFi, HTTP 80, WebSocket 81, VL53L0X. |
+| Modelo predeterminado | `predefined-calibration-models.ts` | Ecuación lineal RESPIRA+ 3000 mL, clamp 0–3000. |
+| Firmware (referencia) | `arduino_codes/envio_datos_stream_button/envio_datos_stream_button.ino` | AP WiFi, HTTP 80, WebSocket 81, VL53L0X, streaming por botón. |
+| Firmware (legacy) | `arduino_codes/envio_datos_prueba2/envio_datos_prueba2.ino` | Variante histórica con JSON enriquecido. |
 
 ---
 
-## 4. Adquisición en ESP32 (`envio_datos_prueba2.ino`)
+## 4. Adquisición en ESP32
 
-### 4.1 Librerías y stack
+### 4.0 Firmware de referencia (`envio_datos_stream_button.ino`)
+
+Firmware activo de producción: streaming por botón GPIO26, AP `RESPIRA_ESP32`, WebSocket puerto 81. El JSON envía **`distanceMm`**, **`rawDistanceMm`**, **`distanceValid`** y campos stub de volumen/flujo a cero. **La app calcula el volumen clínico**; el firmware no lo determina.
+
+### 4.1 Variante legacy (`envio_datos_prueba2.ino`)
+
+Documentación histórica del pipeline de adquisición. Misma topología AP/WS; JSON con metrología adicional (`deviceId`, `firmwareVersion`, etc.). Ver auditoría en `docs/AUDITORIA-TECNICA-SENSOR-ESP32.md`.
 
 - `WiFi.h` — modo **Access Point**.
 - `WebServer.h` — HTTP en puerto **80** (página de diagnóstico en `/`).
@@ -94,7 +126,7 @@ ESP32 + VL53L0X (I2C)
 - `Wire.h` — bus **I2C**.
 - `Adafruit_VL53L0X.h` — driver del VL53L0X.
 
-### 4.2 Pines y bus I2C
+### 4.2 Librerías y stack (legacy `envio_datos_prueba2.ino`)
 
 - **SDA**: GPIO **21**  
 - **SCL**: GPIO **22**  
