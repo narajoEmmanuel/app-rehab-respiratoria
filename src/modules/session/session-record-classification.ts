@@ -1,3 +1,4 @@
+import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 import type { SessionDataSource, SessionInputMode } from '@/src/modules/session/session-input-mode';
 import type { AttemptRecord, SessionRecord } from '@/src/modules/session/types/session-progress';
 
@@ -43,7 +44,7 @@ export function sessionClassificationUiLabel(record: SessionRecord): SessionClas
 export function sessionClassificationMainTitle(record: SessionRecord): string {
   const classification = resolveSessionClassification(record);
   if (!classification.isClassified) return 'Sesión sin clasificar';
-  return classification.isPracticeSession ? 'Modo práctica' : 'Sesión con sensor';
+  return classification.isPracticeSession ? 'Modo práctica' : 'Sesión completada';
 }
 
 export function sessionClassificationSummaryNote(record: SessionRecord): string | null {
@@ -60,7 +61,7 @@ export function sessionClassificationSummaryNote(record: SessionRecord): string 
 export const isSensorMeasuredSession = isTherapeuticSessionRecord;
 
 export function sessionSensorDataCardVisible(record: SessionRecord): boolean {
-  return isSensorMeasuredSession(record);
+  return isSensorDebugEnabled() && isSensorMeasuredSession(record);
 }
 
 export function formatExportOptionalNumber(value: number | null | undefined): string {

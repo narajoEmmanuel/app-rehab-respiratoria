@@ -435,7 +435,7 @@ export function HomeScreen() {
           <AppCard>
             <Text style={styles.emptyTitle}>Aún no hay sesiones registradas</Text>
             <Text style={styles.emptyBody}>
-              Cuando completes tu primera sesión verás aquí un resumen con cumplimiento y volumen. Empieza cuando te
+              Cuando completes tu primera sesión verás aquí un resumen con tu progreso y volumen. Empieza cuando te
               sientas preparado.
             </Text>
           </AppCard>

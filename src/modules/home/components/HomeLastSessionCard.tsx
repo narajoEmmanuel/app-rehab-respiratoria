@@ -7,6 +7,8 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 import { formatDisplayDateEs } from '@/src/modules/history/services/history-aggregates';
+import { TARGET_ATTEMPTS } from '@/src/modules/session/session-progress-service';
+import { describeSessionProgress } from '@/src/modules/session/patient-ui/session-progress-copy';
 import { sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness } from '@/src/shared/theme/wellness-theme';
@@ -19,31 +21,43 @@ export function HomeLastSessionCard({ session }: Props) {
   const dayKey = sessionRecordLocalDayKey(session.session_date);
   const dateLabel = dayKey ? formatDisplayDateEs(dayKey) : 'Fecha no disponible';
   const statusLabel = session.interrupted ? 'Interrumpida' : session.completed ? 'Completada' : 'Sin completar';
-  const volMax = session.max_volume > 0 ? `${Math.round(session.max_volume)} ml` : '—';
-  const volAvg = session.avg_volume > 0 ? `${Math.round(session.avg_volume)} ml` : '—';
+  const volMax = session.max_volume > 0 ? `${Math.round(session.max_volume)} mL` : '—';
+  const volAvg = session.avg_volume > 0 ? `${Math.round(session.avg_volume)} mL` : '—';
+  const progress = describeSessionProgress({
+    validAttempts: session.valid_attempts,
+    targetAttempts: TARGET_ATTEMPTS,
+    perfect: session.perfect,
+    completed: session.completed,
+    interrupted: session.interrupted,
+  });
 
   return (
     <View style={styles.card} accessibilityRole="summary">
       <Text style={styles.kicker}>Última sesión</Text>
       <Text style={styles.title}>{dateLabel}</Text>
       <Text style={styles.status}>{statusLabel}</Text>
-      <View style={styles.metrics}>
-        <View style={styles.metric}>
-          <Text style={styles.metricLabel}>Cumplimiento</Text>
-          <Text style={styles.metricValue}>{Math.round(session.compliance_percent)}%</Text>
+      <View style={styles.progressBlock}>
+        <Text style={styles.progressHeadline}>{progress.headline}</Text>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${Math.round(progress.progressRatio * 100)}%` }]} />
         </View>
+        <Text style={styles.progressMeta}>
+          {session.valid_attempts} repeticiones válidas de {TARGET_ATTEMPTS}
+        </Text>
+      </View>
+      <View style={styles.metrics}>
         <View style={styles.metric}>
           <Text style={styles.metricLabel}>Repeticiones válidas</Text>
           <Text style={styles.metricValue}>{session.valid_attempts}</Text>
         </View>
+        <View style={styles.metric}>
+          <Text style={styles.metricLabel}>Volumen máximo</Text>
+          <Text style={styles.metricValue}>{volMax}</Text>
+        </View>
       </View>
       <View style={styles.metrics}>
         <View style={styles.metric}>
-          <Text style={styles.metricLabel}>Volumen máx.</Text>
-          <Text style={styles.metricValue}>{volMax}</Text>
-        </View>
-        <View style={styles.metric}>
-          <Text style={styles.metricLabel}>Volumen prom.</Text>
+          <Text style={styles.metricLabel}>Volumen promedio</Text>
           <Text style={styles.metricValue}>{volAvg}</Text>
         </View>
       </View>
@@ -79,6 +93,32 @@ const styles = StyleSheet.create({
     color: wellness.primary,
     fontWeight: '600',
     marginBottom: spacing.md,
+  },
+  progressBlock: {
+    marginBottom: spacing.md,
+  },
+  progressHeadline: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: wellness.text,
+    marginBottom: spacing.sm,
+  },
+  progressTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#E8EDEA',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: wellness.primary,
+  },
+  progressMeta: {
+    marginTop: spacing.sm,
+    fontSize: 12,
+    fontWeight: '600',
+    color: wellness.textSecondary,
   },
   metrics: {
     flexDirection: 'row',

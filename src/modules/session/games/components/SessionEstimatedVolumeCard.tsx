@@ -25,7 +25,7 @@ function resolveChipPresentation(
 
   if (displaySource === 'sensor' && status === 'ready') {
     return {
-      label: 'Sensor activo · En rango',
+      label: 'Sensor conectado',
       tone: 'ok',
     };
   }

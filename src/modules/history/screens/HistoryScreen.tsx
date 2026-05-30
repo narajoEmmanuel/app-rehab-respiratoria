@@ -51,6 +51,7 @@ import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessColors, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 import { dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { addDaysLocal, getLocalDateKey } from '@/src/shared/utils/local-date-key';
+import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 
 /** Meta visual de sostén (3 s del juego); solo etiqueta UI. */
 const SUSTAIN_META_SECONDS = 3;
@@ -67,11 +68,11 @@ const CAL_BG: Record<CalendarDayKind, string> = {
 const CAL_BG_PRACTICE = '#81D4FA';
 
 const CALENDAR_LEGEND: { color: string; label: string }[] = [
-  { color: CAL_BG.perfect, label: 'Cumplimiento completo' },
-  { color: CAL_BG.good, label: 'Avance parcial' },
+  { color: CAL_BG.perfect, label: 'Meta del día' },
+  { color: CAL_BG.good, label: 'Buen avance' },
   { color: CAL_BG.incomplete, label: 'Sesión incompleta' },
-  { color: CAL_BG.interrupted, label: 'Interrumpido' },
-  { color: CAL_BG_PRACTICE, label: 'Solo práctica (no terapéutica)' },
+  { color: CAL_BG.interrupted, label: 'Interrumpida' },
+  { color: CAL_BG_PRACTICE, label: 'Práctica (sin sensor)' },
   { color: CAL_BG.none, label: 'Sin actividad' },
 ];
 
@@ -377,6 +378,8 @@ export function HistoryScreen() {
   const hasAnyHistory = therapeuticDayKeys.size > 0 || practiceDayKeys.size > 0;
   const selectedDateKey = selectedDay?.dateKey ?? null;
 
+  const sensorDebug = isSensorDebugEnabled();
+
   const vimValueText =
     bestSensorVolumeMl != null && bestSensorVolumeMl > 0
       ? `${Math.round(bestSensorVolumeMl)} mL`
@@ -527,14 +530,14 @@ export function HistoryScreen() {
 
             <AppCard style={styles.metricsCard}>
               <Text style={styles.metricsTitle}>Progreso por métrica</Text>
-              <MetricProgressRow label="VIM logrado" valueText={vimValueText} progress={vimProgress} />
+              <MetricProgressRow label="Mejor volumen" valueText={vimValueText} progress={vimProgress} />
               <MetricProgressRow
-                label="Adherencia semanal"
+                label="Constancia semanal"
                 valueText={adherenceValueText}
                 progress={adherenceProgress}
               />
               <MetricProgressRow
-                label="Tiempo promedio sostén"
+                label="Tiempo sostenido"
                 valueText={sustainValueText}
                 progress={sustainProgress}
               />
@@ -592,7 +595,7 @@ export function HistoryScreen() {
                   </View>
                   {selectedDay.classification.sensorSessionsCount > 0 ? (
                     <View style={[styles.modalChip, styles.modalChipSensor]}>
-                      <Text style={styles.modalChipText}>Sensor</Text>
+                      <Text style={styles.modalChipText}>Con medición</Text>
                     </View>
                   ) : null}
                   {selectedDay.classification.practiceSessionsCount > 0 ? (
@@ -627,17 +630,17 @@ export function HistoryScreen() {
 
                 {selectedDay.classification.sensorSessionsCount > 0 ? (
                   <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>Sesiones con sensor</Text>
+                    <Text style={styles.modalSectionTitle}>Tu inspiración</Text>
                     <Text style={styles.modalLine}>
                       {selectedDay.classification.sensorSessionsCount}{' '}
                       {selectedDay.classification.sensorSessionsCount === 1 ? 'sesión' : 'sesiones'}
                       {selectedDay.maxVolumeMl != null && selectedDay.maxVolumeMl > 0
-                        ? ` · Máx. ${selectedDay.maxVolumeMl} mL`
+                        ? ` · Mejor volumen ${selectedDay.maxVolumeMl} mL`
                         : ''}
                     </Text>
-                    {selectedDay.classification.maxSensorU95Ml != null ? (
+                    {sensorDebug && selectedDay.classification.maxSensorU95Ml != null ? (
                       <Text style={styles.modalLineMuted}>
-                        U95 máx. ±{Math.round(selectedDay.classification.maxSensorU95Ml)} mL
+                        U95 máx. ±{Math.round(selectedDay.classification.maxSensorU95Ml)} mL (debug)
                       </Text>
                     ) : null}
                   </View>

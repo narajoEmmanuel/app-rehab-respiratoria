@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
 import { loadActiveVolumeEstimationContext, showTherapyReadinessAlert } from '@/src/modules/device/volume-estimation';
+import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
 import { evaluateLevelSensorReadiness } from '@/src/modules/session/sensor/level-sensor-readiness';
@@ -58,6 +59,7 @@ import {
 } from '@/src/modules/session/session-input-mode';
 import { buildSessionResult } from '@/src/modules/session/session-result-factory';
 import { persistSessionResult, TARGET_ATTEMPTS } from '@/src/modules/session/session-progress-service';
+import { describeSessionProgress } from '@/src/modules/session/patient-ui/session-progress-copy';
 import type { SessionAttemptResult } from '@/src/modules/session/types/session-result';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
@@ -795,7 +797,9 @@ export function SessionScreen() {
       ? 'sensor'
       : 'fallback';
   const sessionDisplayU95Ml =
-    isTouchPractice || !sessionShowsSensorVolume ? null : levelSensor.displayU95Ml;
+    isTouchPractice || !sessionShowsSensorVolume || !isSensorDebugEnabled()
+      ? null
+      : levelSensor.displayU95Ml;
   const sessionDisplayStatus = isTouchPractice ? undefined : volumeEstimateStatus;
   const sessionVolumeHudMessage = isTouchPractice
     ? null
@@ -838,8 +842,14 @@ export function SessionScreen() {
   const validAttempts = currentSessionData?.validRepetitions ?? 0;
   const failedAttempts = currentSessionData?.failedRepetitions ?? 0;
   const totalAttempts = validAttempts + failedAttempts;
-  const sessionCompliance =
-    totalAttempts > 0 ? Math.round((validAttempts / TARGET_ATTEMPTS) * 100) : 0;
+  const perfectSession =
+    validAttempts === TARGET_ATTEMPTS && totalAttempts === TARGET_ATTEMPTS;
+  const sessionProgress = describeSessionProgress({
+    validAttempts,
+    targetAttempts: TARGET_ATTEMPTS,
+    perfect: perfectSession,
+    completed: summaryKind === 'completed',
+  });
   const maxVolume = attemptsRuntime.length > 0 ? Math.max(...attemptsRuntime.map((item) => item.peakVolume)) : 0;
   const avgVolume =
     attemptsRuntime.length > 0
@@ -851,8 +861,6 @@ export function SessionScreen() {
       : 0;
   const maxHoldSeconds =
     attemptsRuntime.length > 0 ? Math.max(...attemptsRuntime.map((item) => item.holdMs)) / 1000 : 0;
-  const perfectSession =
-    validAttempts === TARGET_ATTEMPTS && totalAttempts === TARGET_ATTEMPTS;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -928,6 +936,7 @@ export function SessionScreen() {
           displayU95Ml={sessionDisplayU95Ml}
           displayVolumeStatus={sessionDisplayStatus}
           volumeHudMessage={sessionVolumeHudMessage}
+          showSensorDebugMetrics={isSensorDebugEnabled()}
           sessionInputMode={sessionInputMode}
           targetVolume={targetVolume}
           sensorStatusSlot={
@@ -972,11 +981,22 @@ export function SessionScreen() {
               </View>
             </View>
             <View style={styles.modalComplianceBlock}>
-              <Text style={styles.modalComplianceLabel}>Cumplimiento</Text>
+              <Text style={styles.modalComplianceLabel}>Progreso de sesión</Text>
+              <Text style={styles.modalProgressHeadline}>{sessionProgress.headline}</Text>
+              {sessionProgress.support ? (
+                <Text style={styles.modalProgressSupport}>{sessionProgress.support}</Text>
+              ) : null}
               <View style={styles.modalComplianceTrack}>
-                <View style={[styles.modalComplianceFill, { width: `${sessionCompliance}%` }]} />
+                <View
+                  style={[
+                    styles.modalComplianceFill,
+                    { width: `${Math.round(sessionProgress.progressRatio * 100)}%` },
+                  ]}
+                />
               </View>
-              <Text style={styles.modalCompliancePct}>{sessionCompliance}%</Text>
+              <Text style={styles.modalProgressMeta}>
+                {validAttempts} repeticiones válidas de {TARGET_ATTEMPTS}
+              </Text>
             </View>
             {perfectSession ? (
               <View style={styles.modalBadgeRow}>
@@ -1223,6 +1243,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: wellness.textSecondary,
     marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  modalProgressHeadline: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+    marginBottom: 4,
+  },
+  modalProgressSupport: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  modalProgressMeta: {
+    marginTop: 8,
+    fontSize: 13,
+    fontWeight: '600',
+    color: wellness.textSecondary,
   },
   modalComplianceTrack: {
     height: 10,

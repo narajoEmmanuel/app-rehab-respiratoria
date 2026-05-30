@@ -65,6 +65,13 @@ type SessionQuickStats = {
   lastSessionDateLabel: string | null;
 };
 
+function sessionAvanceLabel(avgCompliance: number | null): string {
+  if (avgCompliance == null) return '—';
+  if (avgCompliance >= 85) return 'Buen avance';
+  if (avgCompliance >= 50) return 'En camino';
+  return 'Sigue practicando';
+}
+
 function buildSessionQuickStats(sessions: SessionRecord[], patientId: number): SessionQuickStats {
   const relevant = sessions.filter(
     (s) => s.patient_id === patientId && s.completed && s.interrupted !== true,
@@ -276,7 +283,7 @@ export function ProfileScreen() {
               <MetricTile label="Sesiones" value={String(metrics.completedCount)} size="compact" />
               <MetricTile
                 label="Avance"
-                value={metrics.avgCompliance != null ? `${Math.round(metrics.avgCompliance)}%` : '—'}
+                value={sessionAvanceLabel(metrics.avgCompliance)}
                 size="compact"
               />
               <MetricTile label="Última" value={metrics.lastSessionDateLabel ?? '—'} size="compact" emphasis="status" />

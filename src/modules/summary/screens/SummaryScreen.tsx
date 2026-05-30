@@ -23,12 +23,15 @@ import { wellnessColors, wellnessRadii } from '@/src/shared/theme/wellness-theme
 import {
   getSessionDetail,
   type SessionDetail,
+  TARGET_ATTEMPTS,
 } from '@/src/modules/session/session-progress-service';
 import {
   sessionClassificationMainTitle,
   sessionClassificationSummaryNote,
   sessionSensorDataCardVisible,
 } from '@/src/modules/session/session-record-classification';
+import { describeSessionProgress } from '@/src/modules/session/patient-ui/session-progress-copy';
+import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 
 function getSummaryTitle(session: SessionRecord | null): string {
@@ -179,8 +182,16 @@ export function SummaryScreen() {
   const classificationTitle = sessionClassificationMainTitle(session);
   const classificationNote = sessionClassificationSummaryNote(session);
   const showSensorCard = sessionSensorDataCardVisible(session);
+  const sensorDebug = isSensorDebugEnabled();
   const sensorMaxMl = session.max_sensor_estimated_volume_ml;
   const sensorU95Ml = session.max_sensor_u95_ml;
+  const sessionProgress = describeSessionProgress({
+    validAttempts: session.valid_attempts,
+    targetAttempts: TARGET_ATTEMPTS,
+    perfect: session.perfect,
+    completed: session.completed,
+    interrupted: session.interrupted,
+  });
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -198,7 +209,7 @@ export function SummaryScreen() {
 
         {showSensorCard ? (
           <AppCard style={styles.sensorCard}>
-            <Text style={styles.sensorCardTitle}>Datos del sensor</Text>
+            <Text style={styles.sensorCardTitle}>Datos del sensor (debug)</Text>
             <SensorDataRow label="Fuente" value={session.data_source ?? 'sensor_model'} />
             <SensorDataRow
               label="Validación"
@@ -212,25 +223,43 @@ export function SummaryScreen() {
                   : '—'
               }
             />
-            <SensorDataRow
-              label="U95 máximo"
-              value={
-                typeof sensorU95Ml === 'number' && Number.isFinite(sensorU95Ml)
-                  ? `±${Math.round(sensorU95Ml)} mL`
-                  : '—'
-              }
-            />
+            {sensorDebug ? (
+              <SensorDataRow
+                label="U95 máximo"
+                value={
+                  typeof sensorU95Ml === 'number' && Number.isFinite(sensorU95Ml)
+                    ? `±${Math.round(sensorU95Ml)} mL`
+                    : '—'
+                }
+              />
+            ) : null}
             <Text style={styles.sensorCardNote}>
-              Datos calculados con el modelo activo del espirómetro seleccionado.
+              Visible solo con depuración del sensor activada.
             </Text>
           </AppCard>
         ) : null}
 
         <SectionHeader title="Resultados" />
+        <View style={styles.progressBlock}>
+          <Text style={styles.progressHeadline}>{sessionProgress.headline}</Text>
+          {sessionProgress.support ? (
+            <Text style={styles.progressSupport}>{sessionProgress.support}</Text>
+          ) : null}
+          <View style={styles.progressTrack}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${Math.round(sessionProgress.progressRatio * 100)}%` },
+              ]}
+            />
+          </View>
+          <Text style={styles.progressMeta}>
+            {session.valid_attempts} repeticiones válidas de {TARGET_ATTEMPTS}
+          </Text>
+        </View>
         <View style={styles.card}>
           <MetricTile label="Repeticiones válidas" value={String(session.valid_attempts)} tone="success" />
           <MetricTile label="No completadas" value={String(session.invalid_attempts)} />
-          <MetricTile label="Cumplimiento" value={`${session.compliance_percent}%`} />
           <MetricTile label="Volumen máximo" value={`${session.max_volume} mL`} />
           <MetricTile label="Volumen promedio" value={`${session.avg_volume} mL`} />
           <MetricTile label="Tiempo máx. sostenido" value={`${maxHoldSeconds.toFixed(1)} s`} />
@@ -389,6 +418,45 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.sm,
     marginBottom: spacing.lg,
+  },
+  progressBlock: {
+    width: '100%',
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    borderRadius: wellnessRadii.card,
+    backgroundColor: wellnessColors.successSoft,
+    borderWidth: 1,
+    borderColor: wellnessColors.border,
+  },
+  progressHeadline: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: wellnessColors.primaryDark,
+  },
+  progressSupport: {
+    marginTop: 4,
+    fontSize: 14,
+    fontWeight: '600',
+    color: wellnessColors.textSecondary,
+    lineHeight: 20,
+  },
+  progressTrack: {
+    marginTop: spacing.sm,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(61, 90, 74, 0.12)',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+    backgroundColor: wellnessColors.primary,
+  },
+  progressMeta: {
+    marginTop: spacing.sm,
+    fontSize: 13,
+    fontWeight: '600',
+    color: wellnessColors.textSecondary,
   },
   actionsRow: {
     gap: spacing.sm,

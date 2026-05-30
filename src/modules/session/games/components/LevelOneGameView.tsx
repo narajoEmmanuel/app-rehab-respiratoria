@@ -119,6 +119,8 @@ type LevelOneGameViewProps = {
   displayVolumeStatus?: string;
   /** Mensaje breve cuando no hay volumen vivo (p. ej. señal obsoleta). */
   volumeHudMessage?: string | null;
+  /** Muestra U95 y detalle técnico solo en depuración del sensor. */
+  showSensorDebugMetrics?: boolean;
   sessionInputMode?: SessionInputMode;
   targetVolume: number;
   holdMs?: number;
@@ -156,6 +158,7 @@ export function LevelOneGameView({
   displayU95Ml = null,
   displayVolumeStatus,
   volumeHudMessage = null,
+  showSensorDebugMetrics = false,
   sessionInputMode = 'sensor',
   targetVolume,
   holdMs = 0,
@@ -923,21 +926,23 @@ export function LevelOneGameView({
                 style={styles.volumeBar}
                 accessibilityRole="text"
                 accessibilityLabel={volumeHudMessage}>
-                <Text style={styles.volumeBarLabel}>Volumen estimado</Text>
+                <Text style={styles.volumeBarLabel}>Volumen medido</Text>
                 <Text style={styles.volumeBarWaiting}>{volumeHudMessage}</Text>
               </View>
             ) : (
               <View
                 style={styles.volumeBar}
                 accessibilityRole="text"
-                accessibilityLabel={`Volumen estimado ${Math.round(displayVolumeMl)} mililitros. Medido con sensor RESPIRA más.`}>
-                <Text style={styles.volumeBarLabel}>Volumen estimado</Text>
+                accessibilityLabel={`Volumen medido ${Math.round(displayVolumeMl)} mililitros.`}>
+                <Text style={styles.volumeBarLabel}>Volumen medido</Text>
                 <View style={styles.volumeBarValueRow}>
                   <Text style={styles.volumeBarValue}>
                     {Math.round(displayVolumeMl)}
                     <Text style={styles.volumeBarUnit}> mL</Text>
                   </Text>
-                  {displayU95Ml !== null && Number.isFinite(displayU95Ml) ? (
+                  {showSensorDebugMetrics &&
+                  displayU95Ml !== null &&
+                  Number.isFinite(displayU95Ml) ? (
                     <Text style={styles.volumeBarU95}>±{Math.round(displayU95Ml)} mL</Text>
                   ) : null}
                 </View>
