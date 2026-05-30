@@ -13,7 +13,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
 import { loadActiveVolumeEstimationContext, showTherapyReadinessAlert } from '@/src/modules/device/volume-estimation';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
+import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
 import { evaluateLevelSensorReadiness } from '@/src/modules/session/sensor/level-sensor-readiness';
+import {
+  therapyHudShowsEstimatedVolume,
+  therapyVolumeHudMessage,
+} from '@/src/modules/session/sensor/level-sensor-volume-status';
 import { useLevelSensorVolume } from '@/src/modules/session/sensor/use-level-sensor-volume';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
 import { saveLevelOneActiveRun } from '@/src/modules/levels/storage/level-one-active-run-storage';
@@ -365,12 +370,16 @@ export function SessionScreen() {
   const syncSensorInspirationInputs = useCallback(() => {
     if (isTouchPracticeRef.current) return;
     const snap = levelSensorGetSnapshotRef.current();
-    inspirationInputsRef.current.displayVolumeMl = snap.estimatedVolumeMl;
     inspirationInputsRef.current.targetVolume = targetVolumeRef.current;
     inspirationInputsRef.current.holdMs = holdMsRef.current;
+    if (!snap.hasLiveReading) {
+      inspirationInputsRef.current.displayVolumeMl = 0;
+      return;
+    }
+    inspirationInputsRef.current.displayVolumeMl = snap.estimatedVolumeMl;
     if (
       holdMsRef.current > 0 &&
-      (snap.estimatedVolumeMl > peakSensorVolumeRef.current)
+      snap.estimatedVolumeMl > peakSensorVolumeRef.current
     ) {
       peakSensorVolumeRef.current = snap.estimatedVolumeMl;
     }
@@ -378,6 +387,10 @@ export function SessionScreen() {
 
   const getInspirationNorm = useCallback(() => {
     syncSensorInspirationInputs();
+    if (!isTouchPracticeRef.current) {
+      const snap = levelSensorGetSnapshotRef.current();
+      if (!snap.hasLiveReading) return 0;
+    }
     return computeInspirationNorm({
       displayVolumeMl: inspirationInputsRef.current.displayVolumeMl,
       targetVolumeMl: inspirationInputsRef.current.targetVolume,
@@ -424,8 +437,13 @@ export function SessionScreen() {
         inCalibratedRange: snap.estimate.inCalibratedRange,
         clamped: snap.estimate.clamped,
       });
+    const sensorSignalLive = snap?.hasLiveReading ?? false;
+    const attemptValid =
+      releaseEval.valid &&
+      (isTouchPracticeSession(deps.sessionInputMode) || sensorSignalLive);
+
     const validation = buildOfficialValidationFromLevelOneRelease({
-      release: releaseEval,
+      release: { ...releaseEval, valid: attemptValid },
       targetVolumeMl: deps.targetVolume,
       officialVolumeMl,
       inputMode: deps.sessionInputMode,
@@ -434,7 +452,7 @@ export function SessionScreen() {
         | OfficialAttemptValidationResult['confidenceLabel']
         | undefined,
     });
-    return { valid: releaseEval.valid, failReason: releaseEval.failReason, validation };
+    return { valid: attemptValid, failReason: releaseEval.failReason, validation };
   }, []);
 
   const lastResolvedValidationRef = useRef<OfficialAttemptValidationResult | null>(null);
@@ -546,7 +564,7 @@ export function SessionScreen() {
     }
     if (sensorEffectPhase !== 'ready' || !sensorInhaleArmedRef.current) return;
     const snap = levelSensorGetSnapshotRef.current();
-    if (!snap.sensorConnected || snap.distanceMm === null) return;
+    if (!snap.hasLiveReading || !snap.sensorConnected || snap.distanceMm === null) return;
     if (snap.estimatedVolumeMl < sensorInhaleStartThresholdMl) return;
     sensorInhaleArmedRef.current = false;
     sensorEffectOnInhaleStart();
@@ -762,16 +780,31 @@ export function SessionScreen() {
     };
   }
 
+  const sessionShowsSensorVolume =
+    !isTouchPractice &&
+    therapyHudShowsEstimatedVolume(volumeEstimateStatus, levelSensor.hasLiveReading);
+
   const sessionDisplayVolumeMl = isTouchPractice
     ? simulatedVolume
-    : levelSensor.displayVolumeMl;
+    : sessionShowsSensorVolume
+      ? levelSensor.displayVolumeMl
+      : 0;
   const sessionDisplaySource: SessionDisplayVolumeSource = isTouchPractice
     ? 'fallback'
-    : levelSensor.modelReady && levelSensor.sensorConnected
+    : sessionShowsSensorVolume
       ? 'sensor'
       : 'fallback';
-  const sessionDisplayU95Ml = isTouchPractice ? null : levelSensor.displayU95Ml;
+  const sessionDisplayU95Ml =
+    isTouchPractice || !sessionShowsSensorVolume ? null : levelSensor.displayU95Ml;
   const sessionDisplayStatus = isTouchPractice ? undefined : volumeEstimateStatus;
+  const sessionVolumeHudMessage = isTouchPractice
+    ? null
+    : sessionShowsSensorVolume
+      ? null
+      : therapyVolumeHudMessage(
+          volumeEstimateStatus,
+          levelSensor.sensorStatus as SensorConnectionStatus,
+        );
 
   if (isLoading || !activeLevelLoaded || (!isTouchPractice && !sensorEntryReady)) {
     return (
@@ -894,6 +927,7 @@ export function SessionScreen() {
           displayVolumeSource={sessionDisplaySource}
           displayU95Ml={sessionDisplayU95Ml}
           displayVolumeStatus={sessionDisplayStatus}
+          volumeHudMessage={sessionVolumeHudMessage}
           sessionInputMode={sessionInputMode}
           targetVolume={targetVolume}
           sensorStatusSlot={

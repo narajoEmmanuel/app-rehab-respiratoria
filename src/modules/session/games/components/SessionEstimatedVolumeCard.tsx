@@ -74,6 +74,8 @@ export function SessionEstimatedVolumeCard({
     );
   }
 
+  if (displaySource !== 'sensor') return null;
+
   const presentation = resolveChipPresentation(status, displaySource);
   if (!presentation) return null;
 

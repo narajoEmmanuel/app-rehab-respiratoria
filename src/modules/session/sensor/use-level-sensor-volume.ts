@@ -17,9 +17,12 @@ import {
   logLevelSensorSubscribe,
   logLevelSensorUnsubscribe,
 } from '@/src/modules/session/sensor/level-sensor-debug';
+import { resolveTherapyVolumeEstimateStatus } from '@/src/modules/session/sensor/level-sensor-volume-status';
 import { checkSensorReadingLive } from '@/src/modules/session/sensor/sensor-live-reading';
 
 const DISPLAY_THROTTLE_MS = 120;
+/** Re-evalúa lectura obsoleta aunque lastReading no cambie. */
+const LIVE_STALE_POLL_MS = 400;
 
 const EMPTY_ESTIMATE: ActiveVolumeEstimateResult = {
   estimatedVolumeMl: null,
@@ -58,6 +61,7 @@ export type UseLevelSensorVolumeOptions = {
 export type UseLevelSensorVolumeResult = {
   modelReady: boolean;
   sensorConnected: boolean;
+  hasLiveReading: boolean;
   sensorStatus: string;
   /** Solo para chip de volumen en HUD (throttled). */
   displayVolumeMl: number;
@@ -98,6 +102,7 @@ export function useLevelSensorVolume(
   const [calibrationId, setCalibrationId] = useState<string | null>(null);
   const [displayVolumeMl, setDisplayVolumeMl] = useState(0);
   const [displayU95Ml, setDisplayU95Ml] = useState<number | null>(null);
+  const [hasLiveReading, setHasLiveReading] = useState(false);
   const [volumeEstimateStatus, setVolumeEstimateStatus] =
     useState<VolumeEstimationReadinessStatus>('loading');
 
@@ -111,6 +116,7 @@ export function useLevelSensorVolume(
       const ml = displayPendingRef.current;
       setDisplayVolumeMl(ml);
       setDisplayU95Ml(snapshotRef.current.estimate.u95Ml);
+      setHasLiveReading(snapshotRef.current.hasLiveReading);
     }, DISPLAY_THROTTLE_MS);
   }, []);
 
@@ -136,8 +142,11 @@ export function useLevelSensorVolume(
       sensorStreamState: mode === 'mock' ? 'receiving_data' : sensorStreamState,
     });
 
+    const readingIsLive = liveCheck.live;
+    const modelActive = bundle?.activeModel != null;
+
     let estimate = EMPTY_ESTIMATE;
-    if (bundle?.activeModel && sensorConnected && distanceMm !== null) {
+    if (readingIsLive && modelActive && sensorConnected && distanceMm !== null) {
       estimate = estimateVolumeForCurrentSensorReading({
         context: bundle.context,
         activeModel: bundle.activeModel,
@@ -148,19 +157,35 @@ export function useLevelSensorVolume(
       });
     }
 
-    const ml = Math.max(0, estimate.roundedVolumeMl ?? 0);
+    const readinessStatus = resolveTherapyVolumeEstimateStatus({
+      modelReady: modelActive,
+      sensorConnected,
+      liveCheck,
+      estimateStatus: readingIsLive ? estimate.status : undefined,
+    });
+
+    const ml = readingIsLive ? Math.max(0, estimate.roundedVolumeMl ?? 0) : 0;
+
     snapshotRef.current = {
       estimatedVolumeMl: ml,
-      distanceMm,
-      estimate,
-      hasLiveReading: liveCheck.live,
+      distanceMm: readingIsLive ? distanceMm : null,
+      estimate: readingIsLive ? estimate : EMPTY_ESTIMATE,
+      hasLiveReading: readingIsLive,
       sensorConnected,
-      modelReady: bundle?.activeModel != null,
+      modelReady: modelActive,
     };
 
     displayPendingRef.current = ml;
+    setVolumeEstimateStatus(readinessStatus);
     scheduleDisplayFlush();
-  }, [lastReading, scheduleDisplayFlush, sensorConnected]);
+  }, [
+    lastDataReceivedAt,
+    lastReading,
+    mode,
+    scheduleDisplayFlush,
+    sensorConnected,
+    sensorStreamState,
+  ]);
 
   useEffect(() => {
     if (!enabled) {
@@ -171,6 +196,7 @@ export function useLevelSensorVolume(
       bundleRef.current = null;
       setModelReady(false);
       setCalibrationId(null);
+      setHasLiveReading(false);
       sessionStartLoggedRef.current = false;
       if (displayFlushTimerRef.current) {
         clearTimeout(displayFlushTimerRef.current);
@@ -191,7 +217,9 @@ export function useLevelSensorVolume(
       const ready = loaded.activeModel != null;
       setModelReady(ready);
       setCalibrationId(loaded.context.activeModelId ?? null);
-      setVolumeEstimateStatus(ready ? 'ready' : 'no_active_model');
+      if (!ready) {
+        setVolumeEstimateStatus('no_active_model');
+      }
     });
 
     return () => {
@@ -231,9 +259,16 @@ export function useLevelSensorVolume(
     applyReading();
   }, [applyReading, enabled, modelReady]);
 
+  useEffect(() => {
+    if (!enabled || !modelReady) return;
+    const id = setInterval(applyReading, LIVE_STALE_POLL_MS);
+    return () => clearInterval(id);
+  }, [applyReading, enabled, modelReady]);
+
   return {
     modelReady,
     sensorConnected,
+    hasLiveReading,
     sensorStatus,
     displayVolumeMl,
     displayU95Ml,

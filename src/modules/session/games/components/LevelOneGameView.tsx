@@ -117,6 +117,8 @@ type LevelOneGameViewProps = {
   displayVolumeSource: 'sensor' | 'fallback';
   displayU95Ml?: number | null;
   displayVolumeStatus?: string;
+  /** Mensaje breve cuando no hay volumen vivo (p. ej. señal obsoleta). */
+  volumeHudMessage?: string | null;
   sessionInputMode?: SessionInputMode;
   targetVolume: number;
   holdMs?: number;
@@ -153,6 +155,7 @@ export function LevelOneGameView({
   displayVolumeSource,
   displayU95Ml = null,
   displayVolumeStatus,
+  volumeHudMessage = null,
   sessionInputMode = 'sensor',
   targetVolume,
   holdMs = 0,
@@ -915,33 +918,31 @@ export function LevelOneGameView({
                   </Text>
                 </View>
               </Pressable>
+            ) : volumeHudMessage ? (
+              <View
+                style={styles.volumeBar}
+                accessibilityRole="text"
+                accessibilityLabel={volumeHudMessage}>
+                <Text style={styles.volumeBarLabel}>Volumen estimado</Text>
+                <Text style={styles.volumeBarWaiting}>{volumeHudMessage}</Text>
+              </View>
             ) : (
               <View
                 style={styles.volumeBar}
                 accessibilityRole="text"
-                accessibilityLabel={
-                  displayVolumeSource === 'sensor'
-                    ? `Volumen estimado ${Math.round(displayVolumeMl)} mililitros. Medido con sensor RESPIRA más.`
-                    : `Volumen estimado ${Math.round(displayVolumeMl)} mililitros. Esperando lectura del sensor.`
-                }>
-                <Text style={styles.volumeBarLabel}>
-                  {displayVolumeSource === 'sensor' ? 'Volumen estimado' : 'Volumen estimado'}
-                </Text>
+                accessibilityLabel={`Volumen estimado ${Math.round(displayVolumeMl)} mililitros. Medido con sensor RESPIRA más.`}>
+                <Text style={styles.volumeBarLabel}>Volumen estimado</Text>
                 <View style={styles.volumeBarValueRow}>
                   <Text style={styles.volumeBarValue}>
                     {Math.round(displayVolumeMl)}
                     <Text style={styles.volumeBarUnit}> mL</Text>
                   </Text>
-                  {displayVolumeSource === 'sensor' &&
-                  displayU95Ml !== null &&
-                  Number.isFinite(displayU95Ml) ? (
+                  {displayU95Ml !== null && Number.isFinite(displayU95Ml) ? (
                     <Text style={styles.volumeBarU95}>±{Math.round(displayU95Ml)} mL</Text>
                   ) : null}
                 </View>
                 <Text style={styles.volumeBarHint}>
-                  {displayVolumeSource === 'sensor'
-                    ? 'Inspira con el espirómetro · el conejo sigue tu volumen'
-                    : 'Esperando datos del sensor…'}
+                  Inspira con el espirómetro · el conejo sigue tu volumen
                 </Text>
               </View>
             )}
@@ -1729,6 +1730,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 12,
     fontWeight: '600',
+    color: wellness.textSecondary,
+    textAlign: 'center',
+  },
+  volumeBarWaiting: {
+    marginTop: 10,
+    fontSize: 15,
+    fontWeight: '700',
     color: wellness.textSecondary,
     textAlign: 'center',
   },
