@@ -83,16 +83,15 @@ import {
 } from '@/src/modules/device/calibration';
 import {
   buildGeometricSegmentsMl,
-  createDefaultSpirometerDevicesIfNeeded,
-  getActiveSpirometerContext,
   getExtendedRangeMinVolumeMl,
   getExtendedVolumeChipsMl,
   getRecommendedVolumeChipsMl,
-  listSpirometerDevices,
-  SPIROMETER_DEVICE_3000ML_ID,
+  listTechnicalCalibrationSpirometerOptions,
   type SpirometerDevice,
   type SpirometerProfile,
+  type TechnicalSpirometerOption,
 } from '@/src/modules/device/spirometer';
+import { getErrorMessage } from '@/src/shared/utils/get-error-message';
 import { exportCalibrationTechnicalCsv } from '@/src/modules/export/services/calibration-technical-export-service';
 import type { CalibrationTechnicalExportContext } from '@/src/modules/export/formatters/calibration-technical-export-context';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
@@ -569,6 +568,10 @@ export function SensorCalibrationTechnicalCaptureScreen({
     null,
   );
   const [spirometerReady, setSpirometerReady] = useState(false);
+  const technicalSpirometerOptions = useMemo(
+    () => listTechnicalCalibrationSpirometerOptions(),
+    [],
+  );
   const [activeCalibrationModel, setActiveCalibrationModel] =
     useState<ActiveCalibrationModel | null>(null);
   const [showActiveModelSummary, setShowActiveModelSummary] = useState(false);
@@ -916,59 +919,125 @@ export function SensorCalibrationTechnicalCaptureScreen({
     [applyLoadCalibrationResult, loadActiveModelForDevice],
   );
 
+  const applyTechnicalSpirometerOption = useCallback((option: TechnicalSpirometerOption) => {
+    setActiveSpirometerDevice(option.device);
+    setActiveSpirometerProfile(option.profile);
+    setDeviceIdentification((prev) =>
+      mergeCalibratedDeviceIdentification({
+        ...prev,
+        internalLabel: option.device.label,
+        nominalCapacityMl: option.profile.maxVolumeMl,
+        model: option.profile.maxVolumeMl >= 5000 ? 'MV1811-5' : prev.model,
+      }),
+    );
+    setPoints([]);
+    setSavedProfile(null);
+    setSavedStatus({ kind: 'none' });
+    setHasUnsavedChanges(false);
+    setActiveCalibrationModel(null);
+    setShowActiveModelSummary(false);
+    setStorageMessage(null);
+  }, []);
+
+  const onSelectTechnicalSpirometer = useCallback(
+    async (option: TechnicalSpirometerOption) => {
+      if (activeSpirometerDevice?.id === option.device.id) return;
+      if (points.length > 0) {
+        const ok = await confirmProceed(
+          'Cambiar espirómetro',
+          'Cambiar el tipo borrará los puntos capturados en esta sesión. ¿Continuar?',
+          { confirmLabel: 'Cambiar' },
+        );
+        if (!ok) return;
+      }
+      hapticLight();
+      applyTechnicalSpirometerOption(option);
+    },
+    [activeSpirometerDevice?.id, applyTechnicalSpirometerOption, points.length],
+  );
+
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      await createDefaultSpirometerDevicesIfNeeded();
-      await listSpirometerDevices();
-      const context = await getActiveSpirometerContext();
-      if (cancelled) return;
-      if (context) {
-        setActiveSpirometerDevice(context.device);
-        setActiveSpirometerProfile(context.profile);
-        await loadCalibrationForDevice(SPIROMETER_DEVICE_3000ML_ID);
-      }
-      if (!cancelled) setSpirometerReady(true);
-    })();
+    const defaultOption = technicalSpirometerOptions[0] ?? null;
+    if (defaultOption) {
+      applyTechnicalSpirometerOption(defaultOption);
+    }
+    if (!cancelled) setSpirometerReady(true);
     return () => {
       cancelled = true;
     };
-  }, [loadCalibrationForDevice]);
+  }, [applyTechnicalSpirometerOption, technicalSpirometerOptions]);
 
   const markDirty = useCallback(() => {
     setHasUnsavedChanges(true);
     setStorageMessage(null);
   }, []);
 
+  const canExportTechnicalCsv = useMemo(() => {
+    if (!liveProfile || !linearModel) return false;
+    const validPoints = liveProfile.points.filter((p) => p.distanceValid);
+    const uniqueVolumes = new Set(validPoints.map((p) => p.volumeMl));
+    return (
+      uniqueVolumes.size >= 2 &&
+      typeof linearModel.coefficients.slope === 'number' &&
+      typeof linearModel.coefficients.intercept === 'number'
+    );
+  }, [liveProfile, linearModel]);
+
   const handleExportCalibrationTechnical = useCallback(async () => {
-    const profileForExport = savedProfile
-      ? { ...savedProfile, deviceIdentification }
-      : liveProfile && points.length > 0
-        ? { ...liveProfile, deviceIdentification }
-        : null;
-    if (!profileForExport) {
-      Alert.alert('Exportación', 'Guarda la calibración antes de exportar el archivo técnico.');
+    if (!liveProfile || points.length < 2) {
+      Alert.alert(
+        'Exportación',
+        'Se requieren al menos 2 puntos para calcular regresión. Se recomiendan 5 o más.',
+      );
       return;
     }
-    const result = await exportCalibrationTechnicalCsv({
-      profile: { ...profileForExport, deviceIdentification },
-      firmwareVersion: lastReading?.firmwareVersion,
-      deviceId: lastReading?.deviceId,
-      filterLabel: lastReading?.filter ?? null,
-      sensorStatus: status,
-      technicalContext: technicalExportContext,
-    });
-    if (!result.ok) {
-      Alert.alert('Exportación', result.message);
+    if (!canExportTechnicalCsv || !linearModel) {
+      Alert.alert(
+        'Exportación',
+        'Aún no hay un modelo lineal válido. Captura más puntos con señal válida.',
+      );
+      return;
+    }
+    const profileForExport: CalibrationProfile = {
+      ...liveProfile,
+      id: `technical-export-${Date.now()}`,
+      deviceIdentification,
+      updatedAt: Date.now(),
+    };
+    try {
+      const result = await exportCalibrationTechnicalCsv({
+        profile: profileForExport,
+        firmwareVersion: lastReading?.firmwareVersion,
+        deviceId: lastReading?.deviceId,
+        filterLabel: lastReading?.filter ?? null,
+        sensorStatus: status,
+        exportSessionOnly: true,
+        technicalContext: {
+          ...technicalExportContext,
+          linearModel,
+          activeModel: null,
+        },
+      });
+      if (!result.ok) {
+        Alert.alert(
+          'No se pudo exportar el CSV técnico',
+          'reason' in result ? result.message : 'Error desconocido',
+        );
+      }
+    } catch (error) {
+      console.warn('[TECH_CALIB] export failed', error);
+      Alert.alert('No se pudo exportar el CSV técnico', getErrorMessage(error));
     }
   }, [
+    canExportTechnicalCsv,
     deviceIdentification,
     lastReading?.deviceId,
     lastReading?.filter,
     lastReading?.firmwareVersion,
+    linearModel,
     liveProfile,
     points.length,
-    savedProfile,
     status,
     technicalExportContext,
   ]);
@@ -1528,17 +1597,56 @@ export function SensorCalibrationTechnicalCaptureScreen({
           ) : null}
         </AppCard>
 
+        <Text style={styles.sectionEyebrow}>Tipo de espirómetro</Text>
+
+        {spirometerReady && technicalSpirometerOptions.length > 0 ? (
+          <View style={styles.card}>
+            <Text style={styles.cardHint}>
+              Solo modo técnico. No modifica la calibración predeterminada del paciente.
+            </Text>
+            <View style={styles.spirometerSelectorRow}>
+              {technicalSpirometerOptions.map((option) => {
+                const selected = activeSpirometerDevice?.id === option.device.id;
+                return (
+                  <Pressable
+                    key={option.device.id}
+                    onPress={() => void onSelectTechnicalSpirometer(option)}
+                    style={({ pressed }) => [
+                      styles.spirometerOption,
+                      selected && styles.spirometerOptionSelected,
+                      pressed && styles.spirometerOptionPressed,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Seleccionar ${option.spirometerTypeLabel}`}>
+                    <Text
+                      style={[
+                        styles.spirometerOptionLabel,
+                        selected && styles.spirometerOptionLabelSelected,
+                      ]}>
+                      {option.spirometerTypeLabel}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
         <Text style={styles.sectionEyebrow}>Identificación del dispositivo</Text>
 
         {spirometerReady && activeSpirometerDevice && activeSpirometerProfile ? (
           <>
           <View style={styles.card}>
-            <Text style={styles.cardTitleStrong}>Espirómetro RESPIRA+ 3000 mL</Text>
+            <Text style={styles.cardTitleStrong}>{activeSpirometerDevice.label}</Text>
             <Text style={styles.cardHint}>
-              Marcas de 250 mL a 3000 mL · paso 250 mL.
+              Marcas de {activeSpirometerProfile.operativeMinVolumeMl} mL a{' '}
+              {activeSpirometerProfile.maxVolumeMl} mL.
             </Text>
             <View style={styles.resultsGrid}>
-              <MetricCell label="Capacidad nominal" value="3000 mL" />
+              <MetricCell
+                label="Capacidad nominal"
+                value={`${activeSpirometerProfile.maxVolumeMl} mL`}
+              />
               <MetricCell
                 label="Rango"
                 value={`${activeSpirometerProfile.operativeMinVolumeMl}–${activeSpirometerProfile.maxVolumeMl} mL`}
@@ -3096,7 +3204,7 @@ export function SensorCalibrationTechnicalCaptureScreen({
           <View style={styles.saveSuccessBanner} accessibilityRole="alert">
             <Text style={styles.saveSuccessTitle}>Calibración guardada y activada correctamente.</Text>
             <Text style={styles.saveSuccessHint}>
-              El archivo técnico ya está listo para exportarse.
+              Puedes exportar el CSV técnico cuando quieras; no es necesario guardar antes.
             </Text>
             <Pressable
               onPress={() => setSaveSuccessVisible(false)}
@@ -3119,20 +3227,22 @@ export function SensorCalibrationTechnicalCaptureScreen({
             onPress={() => void handleExportCalibrationTechnical()}
             style={({ pressed }) => [
               styles.secondaryBtn,
-              savedStatus.kind !== 'saved' && styles.btnDisabled,
-              pressed && savedStatus.kind === 'saved' && styles.secondaryBtnPressed,
+              !canExportTechnicalCsv && styles.btnDisabled,
+              pressed && canExportTechnicalCsv && styles.secondaryBtnPressed,
             ]}
-            disabled={savedStatus.kind !== 'saved'}
+            disabled={!canExportTechnicalCsv}
             accessibilityRole="button"
-            accessibilityLabel="Exportar archivo técnico de calibración">
+            accessibilityLabel="Exportar CSV técnico de calibración">
             <Text
-              style={[
-                styles.secondaryBtnText,
-                savedStatus.kind !== 'saved' && styles.btnTextDisabled,
-              ]}>
-              Exportar archivo técnico de calibración
+              style={[styles.secondaryBtnText, !canExportTechnicalCsv && styles.btnTextDisabled]}>
+              Exportar CSV técnico
             </Text>
           </Pressable>
+          {!canExportTechnicalCsv ? (
+            <Text style={styles.cardHint}>
+              Captura al menos 2 volúmenes distintos con señal válida para habilitar la exportación.
+            </Text>
+          ) : null}
         </View>
 
         <Pressable

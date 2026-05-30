@@ -131,7 +131,7 @@ export function SensorCalibrationPatientScreen({
     if (uiState === 'pending') {
       if (technicalCalibrationEnabled) {
         return {
-          title: 'Calibrar espirómetro',
+          title: 'Nueva calibración técnica',
           onPress: onCalibrate,
           disabled: false,
         };

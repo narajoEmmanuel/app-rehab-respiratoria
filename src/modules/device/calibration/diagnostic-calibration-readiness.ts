@@ -10,11 +10,10 @@ import {
   type BuildActiveCalibrationModelOptions,
 } from '@/src/modules/device/calibration/active-calibration-model';
 import {
-  logActiveCalibrationModelSaved,
-  modelCoefficientsAvailableForLog,
-} from '@/src/modules/device/calibration/diagnostic-calibration-debug';
-import {
   ACTIVE_CALIBRATION_BY_SPIROMETER_STORAGE_KEY,
+  CALIBRATION_BY_SPIROMETER_STORAGE_KEY,
+} from '@/src/modules/device/calibration/calibration-storage-keys';
+import {
   loadActiveCalibrationModelForSpirometer,
   listActiveCalibrationModelsBySpirometer,
   saveActiveCalibrationModelForSpirometer,
@@ -26,7 +25,6 @@ import {
   recommendCalibrationModel,
 } from '@/src/modules/device/calibration/calibration-model';
 import {
-  CALIBRATION_BY_SPIROMETER_STORAGE_KEY,
   listCalibrationProfilesBySpirometer,
   loadCalibrationProfileForSpirometer,
 } from '@/src/modules/device/calibration/calibration-storage';
@@ -38,6 +36,16 @@ import {
 } from '@/src/modules/device/spirometer';
 
 const LOG_TAG = '[RehabCalib]';
+
+function modelCoefficientsAvailableForLog(model: ActiveCalibrationModel | null): boolean {
+  if (!model) return false;
+  if (hasActiveCalibrationCurveSnapshot(model)) return true;
+  if (model.modelKind === 'linear_regression') {
+    const c = model.linearModel?.coefficients;
+    return c != null && typeof c.slope === 'number' && typeof c.intercept === 'number';
+  }
+  return false;
+}
 
 export const DIAGNOSTIC_CALIBRATION_STORAGE = {
   profileMapKey: CALIBRATION_BY_SPIROMETER_STORAGE_KEY,
@@ -228,7 +236,6 @@ async function ensureForDevice(
       buildOptions,
     );
     await saveActiveCalibrationModelForSpirometer(model);
-    logActiveCalibrationModelSaved(model);
     return {
       kind: 'ready',
       deviceId: spirometerDeviceId,

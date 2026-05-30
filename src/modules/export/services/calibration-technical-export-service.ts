@@ -24,14 +24,25 @@ export type CalibrationTechnicalExportOptions = {
   filterLabel?: string | null;
   sensorStatus?: string | null;
   technicalContext?: CalibrationTechnicalExportContext;
+  /** Captura técnica: no leer ni mezclar modelo activo del paciente desde storage. */
+  exportSessionOnly?: boolean;
 };
 
 export async function exportCalibrationTechnicalCsv(
   options?: CalibrationTechnicalExportOptions,
 ): Promise<CalibrationExportResult> {
-  const loaded = await loadActiveVolumeEstimationContext();
-  const calibrationProfile = options?.profile ?? loaded.calibrationProfile;
-  const activeModel = loaded.activeModel;
+  let calibrationProfile = options?.profile ?? null;
+  let activeModel = options?.exportSessionOnly
+    ? (options.technicalContext?.activeModel ?? null)
+    : null;
+
+  if (!calibrationProfile) {
+    const loaded = await loadActiveVolumeEstimationContext();
+    calibrationProfile = loaded.calibrationProfile;
+    if (!options?.exportSessionOnly) {
+      activeModel = loaded.activeModel;
+    }
+  }
 
   if (!calibrationProfile) {
     return {

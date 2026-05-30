@@ -50,8 +50,19 @@ export async function getPatientByCode(code: string): Promise<PatientRecord | nu
   return getPatientByClave(code);
 }
 
-export async function createPatient(nombreCompleto: string, edad: number): Promise<PatientRecord> {
+/**
+ * Registro local: AsyncStorage únicamente (no Supabase, calibración ni sensor).
+ * Deja al paciente como activo en la sesión local.
+ */
+export async function createPatientLocal(nombreCompleto: string, edad: number): Promise<PatientRecord> {
   const trimmedName = nombreCompleto.trim();
+  if (trimmedName.length < 2) {
+    throw new Error('Indica un nombre de al menos 2 caracteres.');
+  }
+  if (!Number.isFinite(edad) || edad < 1 || edad > 120) {
+    throw new Error('Indica una edad entre 1 y 120 años.');
+  }
+
   const nextId = await allocateNextPatientId();
   const clave = await generatePatientKey();
   const now = new Date().toISOString();
@@ -68,7 +79,12 @@ export async function createPatient(nombreCompleto: string, edad: number): Promi
   };
 
   await appendPatient(row);
+  await writeCurrentClave(row.clave);
   return row;
+}
+
+export async function createPatient(nombreCompleto: string, edad: number): Promise<PatientRecord> {
+  return createPatientLocal(nombreCompleto, edad);
 }
 
 export async function saveCurrentPatient(patient: PatientRecord): Promise<void> {

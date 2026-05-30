@@ -8,7 +8,10 @@ import {
   CALIBRATION_PROFILE_VERSION,
   type CalibrationProfile,
 } from '@/src/modules/device/calibration/calibration-types';
-import { logCalibrationProfileSaved } from '@/src/modules/device/calibration/diagnostic-calibration-debug';
+import {
+  CALIBRATION_BY_SPIROMETER_STORAGE_KEY,
+  CALIBRATION_STORAGE_KEY,
+} from '@/src/modules/device/calibration/calibration-storage-keys';
 import {
   getActiveSpirometerDevice,
   getSpirometerProfileById,
@@ -18,9 +21,7 @@ import {
   SPIROMETER_PROFILE_3000ML_ID,
 } from '@/src/modules/device/spirometer';
 
-export const CALIBRATION_STORAGE_KEY = '@respira_device_calibration_profile_v1';
-export const CALIBRATION_BY_SPIROMETER_STORAGE_KEY =
-  '@respira_device_calibration_profiles_by_spirometer_v1';
+export { CALIBRATION_STORAGE_KEY, CALIBRATION_BY_SPIROMETER_STORAGE_KEY } from '@/src/modules/device/calibration/calibration-storage-keys';
 const LEGACY_MIGRATION_FLAG_KEY = '@respira_calibration_legacy_migrated_v1';
 
 const LEGACY_DEVICE_IDS = [
@@ -212,10 +213,9 @@ export async function saveCalibrationProfileForSpirometer(
   map[targetId] = payload;
   try {
     await writeProfilesMap(map);
-    logCalibrationProfileSaved(targetId, payload);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Error desconocido';
-    throw new Error(`No se pudo guardar la calibración local: ${message}`);
+    console.warn(`[RehabCalib] No se pudo guardar la calibración local: ${message}`);
   }
 }
 

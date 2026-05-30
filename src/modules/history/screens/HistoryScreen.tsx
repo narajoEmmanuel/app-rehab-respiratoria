@@ -270,15 +270,30 @@ export function HistoryScreen() {
       return;
     }
     setLoading(true);
+    console.log('[HISTORY] loading local data');
+    const fallbackLevel: LevelId = patient.current_level_id ?? 'level-1';
     try {
-      const [sess, att, active] = await Promise.all([
-        readAllSessions(),
-        readAllAttempts(),
-        getCurrentActiveLevel(patient.paciente_id),
-      ]);
+      const [sess, att] = await Promise.all([readAllSessions(), readAllAttempts()]);
+      const patientSessions = sess.filter((s) => s.patient_id === patient.paciente_id);
+      console.log('[HISTORY] local sessions:', patientSessions.length);
+
+      let levelId: LevelId = fallbackLevel;
+      try {
+        const active = await getCurrentActiveLevel(patient.paciente_id);
+        if (active?.level_id) levelId = active.level_id;
+      } catch (levelError) {
+        console.warn('[HISTORY] Network ignored:', levelError);
+      }
+
       setSessions(sess);
       setAttempts(att);
-      setHistoryLevelId(active?.level_id ?? 'level-1');
+      setHistoryLevelId(levelId);
+      console.log('[HISTORY] loaded successfully');
+    } catch (error) {
+      console.warn('[HISTORY] ignored error', error);
+      setSessions([]);
+      setAttempts([]);
+      setHistoryLevelId(fallbackLevel);
     } finally {
       setLoading(false);
     }

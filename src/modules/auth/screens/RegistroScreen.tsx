@@ -21,11 +21,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
-import { normalizeDataErrorMessage } from '@/src/lib/supabase';
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
-import { createPatient } from '@/src/modules/patient/patient-service';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+import { createPatientLocal } from '@/src/modules/patient/patient-service';
 import type { PatientRecord } from '@/src/modules/patient/types';
+import { getErrorMessage } from '@/src/shared/utils/get-error-message';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 
@@ -47,13 +47,18 @@ export function RegistroScreen() {
   const canSubmit = nombre.trim().length >= 2 && edadValid && !loading;
 
   async function onCreate() {
+    console.log('[REGISTER] pressed');
     if (!canSubmit) return;
     setLoading(true);
     try {
-      const patient = await createPatient(nombre, edadNum);
+      console.log('[REGISTER] validating fields');
+      console.log('[REGISTER] creating local patient');
+      const patient = await createPatientLocal(nombre, edadNum);
+      console.log('[REGISTER] saved patient', patient);
       setRegistered(patient);
     } catch (error) {
-      Alert.alert('Conexión', normalizeDataErrorMessage(error));
+      console.error('[REGISTER] failed full object:', error);
+      Alert.alert('No se pudo crear el registro', getErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -61,8 +66,14 @@ export function RegistroScreen() {
 
   async function onContinue() {
     if (!registered) return;
-    await setSessionPatient(registered);
-    router.replace(LEGAL_ACCEPT_HREF);
+    try {
+      await setSessionPatient(registered);
+      console.log('[REGISTER] navigation success');
+      router.replace(LEGAL_ACCEPT_HREF);
+    } catch (error) {
+      console.error('[REGISTER] failed full object:', error);
+      Alert.alert('No se pudo activar el registro', getErrorMessage(error));
+    }
   }
 
   if (registered) {
