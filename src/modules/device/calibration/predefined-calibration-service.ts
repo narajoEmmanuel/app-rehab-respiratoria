@@ -26,6 +26,7 @@ import {
 } from '@/src/modules/device/calibration/calibration-types';
 import type { ImportedCalibrationBundle } from '@/src/modules/device/calibration/imported-calibration-service';
 import {
+  RESPIRA_3000_CALIBRATED_DISTANCE_RANGE_MM,
   RESPIRA_3000_CALIBRATED_POINTS,
   RESPIRA_3000_CLAMP_MAX_ML,
   RESPIRA_3000_CLAMP_MIN_ML,
@@ -36,6 +37,7 @@ import {
   RESPIRA_3000_PREDEFINED_DEFAULT_ACTIVE_MODEL_KIND,
   RESPIRA_3000_PREDEFINED_ORIGIN_LABEL,
   RESPIRA_3000_PREDEFINED_SOURCE,
+  isRespira3000PredefinedProfileId,
   type PredefinedCalibrationPoint,
 } from '@/src/modules/device/calibration/predefined-calibration-models';
 import {
@@ -53,11 +55,6 @@ function newId(prefix: string): string {
 
 function sortedByDistance(points: readonly PredefinedCalibrationPoint[]): PredefinedCalibrationPoint[] {
   return [...points].sort((a, b) => a.distanceMm - b.distanceMm);
-}
-
-function distanceMmForVolumeMl(volumeMl: number): number {
-  const { slope, intercept } = RESPIRA_3000_LINEAR_MODEL;
-  return (volumeMl - intercept) / slope;
 }
 
 function buildSummariesFromPoints(
@@ -103,8 +100,7 @@ function buildPredefinedMetadata(): PredefinedCalibrationMetadata {
 
 function buildPrimaryLinearModel(profileId: string, now: number): CalibrationModel {
   const { slope, intercept, rSquared, maeMl, rmseMl, maxAbsErrorMl } = RESPIRA_3000_LINEAR_MODEL;
-  const dMin = distanceMmForVolumeMl(RESPIRA_3000_CLAMP_MIN_ML);
-  const dMax = distanceMmForVolumeMl(RESPIRA_3000_CLAMP_MAX_ML);
+  const { min: dMin, max: dMax } = RESPIRA_3000_CALIBRATED_DISTANCE_RANGE_MM;
   return {
     id: newId('cmd-predefined-linear'),
     calibrationProfileId: profileId,
@@ -115,7 +111,7 @@ function buildPrimaryLinearModel(profileId: string, now: number): CalibrationMod
     coefficients: { slope, intercept },
     pointsUsed: RESPIRA_3000_CALIBRATED_POINTS.length,
     volumeRangeMl: { ...RESPIRA_3000_DISPLAY_RANGE_ML },
-    distanceRangeMm: { min: Math.min(dMin, dMax), max: Math.max(dMin, dMax) },
+    distanceRangeMm: { min: dMin, max: dMax },
     metrics: { rSquared, rmseMl, maeMl, maxAbsErrorMl },
     status: 'valid',
     warnings: [],
@@ -280,15 +276,44 @@ export async function persistRespira3000PredefinedCalibrationBundle(
   await saveActiveCalibrationModelForSpirometer(bundle.activeModel);
 }
 
+function predefinedProfileId(model: ActiveCalibrationModel): string {
+  return model.predefinedCalibration?.predefinedId ?? model.calibrationProfileId;
+}
+
 function isTeamValidatedPredefined(model: ActiveCalibrationModel): boolean {
+  const profileId = predefinedProfileId(model);
   return (
-    model.predefinedCalibration?.predefinedId === RESPIRA_3000_PREDEFINED_CALIBRATION_ID ||
-    model.calibrationProfileId === RESPIRA_3000_PREDEFINED_CALIBRATION_ID
+    model.predefinedCalibration?.source === RESPIRA_3000_PREDEFINED_SOURCE ||
+    isRespira3000PredefinedProfileId(profileId)
   );
 }
 
-function needsLinearPredefinedMigration(model: ActiveCalibrationModel): boolean {
-  return isTeamValidatedPredefined(model) && model.modelKind !== 'linear_regression';
+function isCurrentPredefinedBundle(model: ActiveCalibrationModel): boolean {
+  if (!isTeamValidatedPredefined(model)) return false;
+  if (predefinedProfileId(model) !== RESPIRA_3000_PREDEFINED_CALIBRATION_ID) return false;
+  if (model.modelKind !== 'linear_regression') return false;
+  const slope = model.linearModel?.coefficients.slope;
+  const intercept = model.linearModel?.coefficients.intercept;
+  if (typeof slope !== 'number' || typeof intercept !== 'number') return false;
+  return (
+    Math.abs(slope - RESPIRA_3000_LINEAR_MODEL.slope) < 1e-9 &&
+    Math.abs(intercept - RESPIRA_3000_LINEAR_MODEL.intercept) < 1e-6
+  );
+}
+
+function needsPredefinedUpgrade(model: ActiveCalibrationModel): boolean {
+  return isTeamValidatedPredefined(model) && !isCurrentPredefinedBundle(model);
+}
+
+function isStoredTeamValidatedProfile(profile: CalibrationProfile): boolean {
+  return profile.source === 'team_validated' && isRespira3000PredefinedProfileId(profile.id);
+}
+
+function needsProfilePredefinedUpgrade(profile: CalibrationProfile): boolean {
+  return (
+    isStoredTeamValidatedProfile(profile) &&
+    profile.id !== RESPIRA_3000_PREDEFINED_CALIBRATION_ID
+  );
 }
 
 export type EnsurePredefinedCalibrationResult = {
@@ -298,7 +323,7 @@ export type EnsurePredefinedCalibrationResult = {
     | 'user_local_profile'
     | 'no_device'
     | 'installed'
-    | 'migrated_to_linear'
+    | 'migrated_predefined_version'
     | 'already_linear_predefined';
 };
 
@@ -308,15 +333,12 @@ export async function ensureRespira3000PredefinedCalibrationInstalled(
   const existingActive = await loadActiveCalibrationModelForSpirometer(spirometerDeviceId);
 
   if (existingActive) {
-    if (needsLinearPredefinedMigration(existingActive)) {
+    if (needsPredefinedUpgrade(existingActive)) {
       const bundle = buildRespira3000PredefinedCalibrationBundle(existingActive.activatedAt);
       await persistRespira3000PredefinedCalibrationBundle(bundle);
-      return { installed: true, reason: 'migrated_to_linear' };
+      return { installed: true, reason: 'migrated_predefined_version' };
     }
-    if (
-      isTeamValidatedPredefined(existingActive) &&
-      existingActive.modelKind === 'linear_regression'
-    ) {
+    if (isCurrentPredefinedBundle(existingActive)) {
       return { installed: false, reason: 'already_linear_predefined' };
     }
     return { installed: false, reason: 'active_model_exists' };
@@ -325,6 +347,12 @@ export async function ensureRespira3000PredefinedCalibrationInstalled(
   const profile = await loadCalibrationProfileForSpirometer(spirometerDeviceId);
   if (profile?.source === 'local_calibration' && profile.points.length > 0) {
     return { installed: false, reason: 'user_local_profile' };
+  }
+
+  if (profile && needsProfilePredefinedUpgrade(profile)) {
+    const bundle = buildRespira3000PredefinedCalibrationBundle();
+    await persistRespira3000PredefinedCalibrationBundle(bundle);
+    return { installed: true, reason: 'migrated_predefined_version' };
   }
 
   const bundle = buildRespira3000PredefinedCalibrationBundle();
