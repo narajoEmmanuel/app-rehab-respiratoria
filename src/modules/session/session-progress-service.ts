@@ -2,7 +2,7 @@ import { getCurrentActiveLevel, getPatientLevels, savePatientLevels, ensurePatie
 import type { PatientLevelRecord } from '@/src/modules/diagnostics/types';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { updatePatientCurrentLevel } from '@/src/modules/patient/patient-service';
-import { supabase } from '@/src/lib/supabase';
+import { useCloudDataStore, getCloudSupabaseClient } from '@/src/lib/cloud-data-store';
 import {
   buildLevelUnlockDiagnosticSnapshot,
   logLevelUnlockDiagnostics,
@@ -166,19 +166,23 @@ export async function updateDailyProgress(patientId: number): Promise<{ complete
     levelId,
     today,
   );
-  if (supabase != null) {
-    const dailyGoalCompleted = completedToday >= TARGET_PERFECT_SESSIONS;
-    const { error } = await supabase.from('daily_progress').upsert(
-      {
-        patient_id: patientId,
-        progress_date: today,
-        sessions_completed: completedToday,
-        perfect_sessions_completed: perfectSessionsCompleted,
-        daily_goal_completed: dailyGoalCompleted,
-      },
-      { onConflict: 'patient_id,progress_date' },
-    );
-    if (error) throw error;
+  if (useCloudDataStore()) {
+    try {
+      const dailyGoalCompleted = completedToday >= TARGET_PERFECT_SESSIONS;
+      const { error } = await getCloudSupabaseClient().from('daily_progress').upsert(
+        {
+          patient_id: patientId,
+          progress_date: today,
+          sessions_completed: completedToday,
+          perfect_sessions_completed: perfectSessionsCompleted,
+          daily_goal_completed: dailyGoalCompleted,
+        },
+        { onConflict: 'patient_id,progress_date' },
+      );
+      if (error) console.warn('[session-progress] daily_progress sync failed', error);
+    } catch (error) {
+      console.warn('[session-progress] daily_progress sync failed', error);
+    }
   }
   return { completedToday, remainingToday: Math.max(0, TARGET_PERFECT_SESSIONS - completedToday) };
 }

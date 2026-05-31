@@ -30,6 +30,7 @@ export { allocateNextPatientId, bumpPatientIdSequenceFloor } from '@/src/modules
 export {
   createLocalPatientProfile,
   createPatient,
+  createPatientLocal,
   generatePatientKey,
   getCurrentPatient,
   getPatientByClave,

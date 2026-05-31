@@ -23,10 +23,10 @@ import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
 import {
-  createPatient,
+  createPatientLocal,
   listLocalPatientProfiles,
-  saveCurrentPatient,
 } from '@/src/modules/patient/patient-service';
+import { getErrorMessage } from '@/src/shared/utils/get-error-message';
 import type { PatientRecord } from '@/src/modules/patient/types';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
@@ -72,8 +72,9 @@ export function LocalProfileScreen() {
         } else {
           router.replace(LEGAL_ACCEPT_HREF);
         }
-      } catch {
-        Alert.alert('Error', 'No se pudo activar el perfil. Inténtalo nuevamente.');
+      } catch (error) {
+        console.error('[REGISTER] failed full object:', error);
+        Alert.alert('No se pudo activar el perfil', getErrorMessage(error));
       } finally {
         setBusyId(null);
       }
@@ -86,11 +87,13 @@ export function LocalProfileScreen() {
     void (async () => {
       setBusyId('create');
       try {
-        const patient = await createPatient(nombre.trim(), edadNum);
-        await saveCurrentPatient(patient);
+        console.log('[REGISTER] creating local patient');
+        const patient = await createPatientLocal(nombre.trim(), edadNum);
+        console.log('[REGISTER] saved patient', patient);
         setCreatedPatient(patient);
-      } catch {
-        Alert.alert('Error', 'No se pudo crear el perfil. Inténtalo nuevamente.');
+      } catch (error) {
+        console.error('[REGISTER] failed full object:', error);
+        Alert.alert('No se pudo crear el registro', getErrorMessage(error));
       } finally {
         setBusyId(null);
       }
@@ -104,8 +107,9 @@ export function LocalProfileScreen() {
       try {
         await setSessionPatient(createdPatient);
         router.replace(LEGAL_ACCEPT_HREF);
-      } catch {
-        Alert.alert('Error', 'No se pudo activar el perfil.');
+      } catch (error) {
+        console.error('[REGISTER] failed full object:', error);
+        Alert.alert('No se pudo activar el perfil', getErrorMessage(error));
       } finally {
         setBusyId(null);
       }

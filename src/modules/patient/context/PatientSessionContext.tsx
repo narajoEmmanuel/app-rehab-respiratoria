@@ -19,6 +19,7 @@ import {
   saveCurrentPatient as persistCurrentPatient,
 } from '@/src/modules/patient/patient-service';
 import type { PatientRecord } from '@/src/modules/patient/types';
+import { getErrorMessage } from '@/src/shared/utils/get-error-message';
 
 type PatientSessionContextValue = {
   patient: PatientRecord | null;
@@ -63,8 +64,13 @@ export function PatientSessionProvider({ children }: { children: React.ReactNode
   }, []);
 
   const setSessionPatient = useCallback(async (p: PatientRecord) => {
-    await persistCurrentPatient(p);
-    setPatient(p);
+    try {
+      await persistCurrentPatient(p);
+      setPatient(p);
+    } catch (error) {
+      console.error('[ERROR DETALLE] setSessionPatient', error);
+      throw new Error(getErrorMessage(error));
+    }
   }, []);
 
   const clearSession = useCallback(async () => {

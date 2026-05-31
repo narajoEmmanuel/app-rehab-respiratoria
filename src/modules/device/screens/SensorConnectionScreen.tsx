@@ -339,6 +339,17 @@ export function SensorConnectionScreen() {
                 onPress={onOpenCalibration}
                 variant="secondary"
               />
+              <AppButton
+                title="Modo técnico de calibración"
+                onPress={() => {
+                  hapticLight();
+                  router.push({
+                    pathname: '/sensor-calibration',
+                    params: { openCapture: '1' },
+                  });
+                }}
+                variant="ghost"
+              />
             </View>
           ) : null}
         </AppCard>

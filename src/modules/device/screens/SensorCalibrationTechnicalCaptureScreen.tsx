@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,17 +16,13 @@ import * as Haptics from 'expo-haptics';
 
 import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
-import {
-  useActiveVolumeEstimate,
-  volumeEstimationCardStatusLabel,
-} from '@/src/modules/device/volume-estimation';
+import { volumeFromLinear } from '@/src/modules/device/calibration/imported-calibration-service';
 import {
   activeModelCardStatusLabel,
   buildActiveCalibrationModel,
   buildActiveCalibrationTechnicalSummary,
   clearActiveCalibrationModelForSpirometer,
   isActiveCalibrationModelStale,
-  loadActiveCalibrationModelForSpirometer,
   resolveActiveModelCardStatus,
   saveActiveCalibrationModelForSpirometer,
   buildCalibrationProfile,
@@ -83,16 +79,22 @@ import {
 } from '@/src/modules/device/calibration';
 import {
   buildGeometricSegmentsMl,
-  createDefaultSpirometerDevicesIfNeeded,
-  getActiveSpirometerContext,
   getExtendedRangeMinVolumeMl,
   getExtendedVolumeChipsMl,
   getRecommendedVolumeChipsMl,
-  listSpirometerDevices,
-  SPIROMETER_DEVICE_3000ML_ID,
+  listTechnicalCalibrationSpirometerOptions,
   type SpirometerDevice,
   type SpirometerProfile,
+  type TechnicalSpirometerOption,
 } from '@/src/modules/device/spirometer';
+import { getErrorMessage } from '@/src/shared/utils/get-error-message';
+import {
+  BUFFER_MAX_SAMPLES,
+  BUFFER_WINDOW_MS,
+  useTechnicalCaptureSensorBuffer,
+  type BufferStats,
+  type SignalStability,
+} from '@/src/modules/device/screens/use-technical-capture-sensor-buffer';
 import { exportCalibrationTechnicalCsv } from '@/src/modules/export/services/calibration-technical-export-service';
 import type { CalibrationTechnicalExportContext } from '@/src/modules/export/formatters/calibration-technical-export-context';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
@@ -111,34 +113,11 @@ import {
   wellnessShadows,
 } from '@/src/shared/theme/wellness-theme';
 
-const BUFFER_MAX_SAMPLES = 20;
-const BUFFER_WINDOW_MS = 2000;
 const MIN_SAMPLES_TO_REGISTER = 5;
 /** A partir de esta desviación estándar marcamos la señal como variable y avisamos. */
 const STABILITY_VARIABLE_STD_MM = 5;
 /** Por debajo de esto consideramos la señal estable visualmente. */
 const STABILITY_STABLE_STD_MM = 2.5;
-
-export type ValidSample = {
-  distanceMm: number;
-  rawDistanceMm: number;
-  timestamp: number;
-  source: string;
-  receivedAt: number;
-};
-
-export type BufferStats = {
-  sampleCount: number;
-  avgDistanceMm: number;
-  avgRawDistanceMm: number;
-  minDistanceMm: number;
-  maxDistanceMm: number;
-  stdDistanceMm: number;
-  latestSource: string;
-  latestTimestamp: number;
-};
-
-export type SignalStability = 'insufficient' | 'stable' | 'acceptable' | 'variable';
 
 function newCaptureId(): string {
   if (typeof globalThis.crypto !== 'undefined' && 'randomUUID' in globalThis.crypto) {
@@ -180,33 +159,7 @@ function parseVolumeMlInput(text: string): number | null {
   return n;
 }
 
-function computeBufferStats(buf: ValidSample[]): BufferStats | null {
-  const n = buf.length;
-  if (n === 0) return null;
-  const ds = buf.map((s) => s.distanceMm);
-  const rs = buf.map((s) => s.rawDistanceMm);
-  const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
-  const avgDistanceMm = sum(ds) / n;
-  const avgRawDistanceMm = sum(rs) / n;
-  let stdDistanceMm = 0;
-  if (n >= 2) {
-    const variance = ds.reduce((acc, v) => acc + (v - avgDistanceMm) * (v - avgDistanceMm), 0) / n;
-    stdDistanceMm = Math.sqrt(variance);
-  }
-  const last = buf[n - 1];
-  return {
-    sampleCount: n,
-    avgDistanceMm,
-    avgRawDistanceMm,
-    minDistanceMm: Math.min(...ds),
-    maxDistanceMm: Math.max(...ds),
-    stdDistanceMm,
-    latestSource: last.source,
-    latestTimestamp: last.timestamp,
-  };
-}
-
-function classifyStability(stats: BufferStats | null): SignalStability {
+function classifyStabilityForUi(stats: BufferStats | null): SignalStability {
   if (!stats || stats.sampleCount < MIN_SAMPLES_TO_REGISTER) return 'insufficient';
   if (stats.stdDistanceMm <= STABILITY_STABLE_STD_MM) return 'stable';
   if (stats.stdDistanceMm <= STABILITY_VARIABLE_STD_MM) return 'acceptable';
@@ -549,9 +502,8 @@ export function SensorCalibrationTechnicalCaptureScreen({
   const router = useRouter();
   const [volumeInput, setVolumeInput] = useState('');
   const [points, setPoints] = useState<CalibrationCapturePoint[]>([]);
-  const [buffer, setBuffer] = useState<ValidSample[]>([]);
   const [savedProfile, setSavedProfile] = useState<CalibrationProfile | null>(null);
-  const [savedStatus, setSavedStatus] = useState<SavedStatus>({ kind: 'loading' });
+  const [savedStatus, setSavedStatus] = useState<SavedStatus>({ kind: 'none' });
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [storageBusy, setStorageBusy] = useState<'idle' | 'saving' | 'loading' | 'clearing'>(
     'idle',
@@ -569,6 +521,10 @@ export function SensorCalibrationTechnicalCaptureScreen({
     null,
   );
   const [spirometerReady, setSpirometerReady] = useState(false);
+  const technicalSpirometerOptions = useMemo(
+    () => listTechnicalCalibrationSpirometerOptions(),
+    [],
+  );
   const [activeCalibrationModel, setActiveCalibrationModel] =
     useState<ActiveCalibrationModel | null>(null);
   const [showActiveModelSummary, setShowActiveModelSummary] = useState(false);
@@ -609,37 +565,12 @@ export function SensorCalibrationTechnicalCaptureScreen({
   const distanceAboveSensorMin =
     distanceIsFinite && (distanceMm as number) >= MIN_RELIABLE_SENSOR_DISTANCE_MM;
 
-  useEffect(() => {
-    if (!lastReading) return;
-    if (lastReading.distanceValid !== true) return;
-    const dm = lastReading.distanceMm;
-    if (typeof dm !== 'number' || !Number.isFinite(dm)) return;
-    const rawCandidate = lastReading.rawDistanceMm;
-    const sample: ValidSample = {
-      distanceMm: dm,
-      rawDistanceMm:
-        typeof rawCandidate === 'number' && Number.isFinite(rawCandidate) ? rawCandidate : dm,
-      timestamp: lastReading.timestamp,
-      source: String(lastReading.source ?? mode),
-      receivedAt: Date.now(),
-    };
-    setBuffer((prev) => {
-      const now = sample.receivedAt;
-      const merged = [...prev, sample].filter((s) => now - s.receivedAt <= BUFFER_WINDOW_MS);
-      return merged.length > BUFFER_MAX_SAMPLES
-        ? merged.slice(merged.length - BUFFER_MAX_SAMPLES)
-        : merged;
-    });
-  }, [lastReading, mode]);
-
-  useEffect(() => {
-    if (status === 'idle' || status === 'disconnected' || status === 'error') {
-      setBuffer([]);
-    }
-  }, [status]);
-
-  const bufferStats = useMemo(() => computeBufferStats(buffer), [buffer]);
-  const stability = useMemo(() => classifyStability(bufferStats), [bufferStats]);
+  const { bufferStats, stability: rawStability, getBufferStatsSnapshot, clearBuffer } =
+    useTechnicalCaptureSensorBuffer(lastReading, mode, status);
+  const stability = useMemo(
+    () => classifyStabilityForUi(bufferStats) ?? rawStability,
+    [bufferStats, rawStability],
+  );
   const isVariableSignal = stability === 'variable';
   const hasEnoughSamples =
     bufferStats !== null && bufferStats.sampleCount >= MIN_SAMPLES_TO_REGISTER;
@@ -830,15 +761,13 @@ export function SensorCalibrationTechnicalCaptureScreen({
       geometricReport,
       requiredCoverage,
       uncertaintySummary,
-      activeModel: activeCalibrationModel,
+      activeModel: null,
       sensorStatus: status,
-      filterLabel: lastReading?.filter ?? null,
+      filterLabel: null,
     }),
     [
-      activeCalibrationModel,
       coverage,
       geometricReport,
-      lastReading?.filter,
       linearModel,
       piecewiseModel,
       recommendation,
@@ -901,74 +830,136 @@ export function SensorCalibrationTechnicalCaptureScreen({
     }
   }, []);
 
-  const loadActiveModelForDevice = useCallback(async (deviceId: string) => {
-    const model = await loadActiveCalibrationModelForSpirometer(deviceId);
-    setActiveCalibrationModel(model);
+  const applyTechnicalSpirometerOption = useCallback((option: TechnicalSpirometerOption) => {
+    setActiveSpirometerDevice((prev) =>
+      prev?.id === option.device.id ? prev : option.device,
+    );
+    setActiveSpirometerProfile((prev) =>
+      prev?.id === option.profile.id ? prev : option.profile,
+    );
+    setDeviceIdentification((prev) => {
+      const next = mergeCalibratedDeviceIdentification({
+        ...prev,
+        internalLabel: option.device.label,
+        nominalCapacityMl: option.profile.maxVolumeMl,
+        model: option.profile.maxVolumeMl >= 5000 ? 'MV1811-5' : prev.model,
+      });
+      if (
+        prev.internalLabel === next.internalLabel &&
+        prev.nominalCapacityMl === next.nominalCapacityMl &&
+        prev.model === next.model
+      ) {
+        return prev;
+      }
+      return next;
+    });
+    setPoints([]);
+    setSavedProfile(null);
+    setSavedStatus({ kind: 'none' });
+    setHasUnsavedChanges(false);
+    setActiveCalibrationModel(null);
     setShowActiveModelSummary(false);
+    setStorageMessage(null);
   }, []);
 
-  const loadCalibrationForDevice = useCallback(
-    async (deviceId: string) => {
-      const result = await loadCalibrationProfileDetailed(deviceId);
-      applyLoadCalibrationResult(result);
-      await loadActiveModelForDevice(deviceId);
+  const onSelectTechnicalSpirometer = useCallback(
+    async (option: TechnicalSpirometerOption) => {
+      if (activeSpirometerDevice?.id === option.device.id) return;
+      if (points.length > 0) {
+        const ok = await confirmProceed(
+          'Cambiar espirómetro',
+          'Cambiar el tipo borrará los puntos capturados en esta sesión. ¿Continuar?',
+          { confirmLabel: 'Cambiar' },
+        );
+        if (!ok) return;
+      }
+      hapticLight();
+      applyTechnicalSpirometerOption(option);
     },
-    [applyLoadCalibrationResult, loadActiveModelForDevice],
+    [activeSpirometerDevice?.id, applyTechnicalSpirometerOption, points.length],
   );
 
+  const didInitTechnicalRef = useRef(false);
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      await createDefaultSpirometerDevicesIfNeeded();
-      await listSpirometerDevices();
-      const context = await getActiveSpirometerContext();
-      if (cancelled) return;
-      if (context) {
-        setActiveSpirometerDevice(context.device);
-        setActiveSpirometerProfile(context.profile);
-        await loadCalibrationForDevice(SPIROMETER_DEVICE_3000ML_ID);
-      }
-      if (!cancelled) setSpirometerReady(true);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [loadCalibrationForDevice]);
+    if (didInitTechnicalRef.current) return;
+    didInitTechnicalRef.current = true;
+    const defaultOption = technicalSpirometerOptions[0] ?? null;
+    if (defaultOption) {
+      applyTechnicalSpirometerOption(defaultOption);
+    }
+    setSpirometerReady(true);
+  }, [applyTechnicalSpirometerOption, technicalSpirometerOptions]);
 
   const markDirty = useCallback(() => {
     setHasUnsavedChanges(true);
     setStorageMessage(null);
   }, []);
 
+  const canExportTechnicalCsv = useMemo(() => {
+    if (!liveProfile || !linearModel) return false;
+    const validPoints = liveProfile.points.filter((p) => p.distanceValid);
+    const uniqueVolumes = new Set(validPoints.map((p) => p.volumeMl));
+    return (
+      uniqueVolumes.size >= 2 &&
+      typeof linearModel.coefficients.slope === 'number' &&
+      typeof linearModel.coefficients.intercept === 'number'
+    );
+  }, [liveProfile, linearModel]);
+
   const handleExportCalibrationTechnical = useCallback(async () => {
-    const profileForExport = savedProfile
-      ? { ...savedProfile, deviceIdentification }
-      : liveProfile && points.length > 0
-        ? { ...liveProfile, deviceIdentification }
-        : null;
-    if (!profileForExport) {
-      Alert.alert('Exportación', 'Guarda la calibración antes de exportar el archivo técnico.');
+    if (!liveProfile || points.length < 2) {
+      Alert.alert(
+        'Exportación',
+        'Se requieren al menos 2 puntos para calcular regresión. Se recomiendan 5 o más.',
+      );
       return;
     }
-    const result = await exportCalibrationTechnicalCsv({
-      profile: { ...profileForExport, deviceIdentification },
-      firmwareVersion: lastReading?.firmwareVersion,
-      deviceId: lastReading?.deviceId,
-      filterLabel: lastReading?.filter ?? null,
-      sensorStatus: status,
-      technicalContext: technicalExportContext,
-    });
-    if (!result.ok) {
-      Alert.alert('Exportación', result.message);
+    if (!canExportTechnicalCsv || !linearModel) {
+      Alert.alert(
+        'Exportación',
+        'Aún no hay un modelo lineal válido. Captura más puntos con señal válida.',
+      );
+      return;
+    }
+    const profileForExport: CalibrationProfile = {
+      ...liveProfile,
+      id: `technical-export-${Date.now()}`,
+      deviceIdentification,
+      updatedAt: Date.now(),
+    };
+    try {
+      const result = await exportCalibrationTechnicalCsv({
+        profile: profileForExport,
+        firmwareVersion: lastReading?.firmwareVersion,
+        deviceId: lastReading?.deviceId,
+        filterLabel: lastReading?.filter ?? null,
+        sensorStatus: status,
+        exportSessionOnly: true,
+        technicalContext: {
+          ...technicalExportContext,
+          linearModel,
+          activeModel: null,
+        },
+      });
+      if (!result.ok) {
+        Alert.alert(
+          'No se pudo exportar el CSV técnico',
+          'reason' in result ? result.message : 'Error desconocido',
+        );
+      }
+    } catch (error) {
+      console.warn('[TECH_CALIB] export failed', error);
+      Alert.alert('No se pudo exportar el CSV técnico', getErrorMessage(error));
     }
   }, [
+    canExportTechnicalCsv,
     deviceIdentification,
     lastReading?.deviceId,
     lastReading?.filter,
     lastReading?.firmwareVersion,
+    linearModel,
     liveProfile,
     points.length,
-    savedProfile,
     status,
     technicalExportContext,
   ]);
@@ -1027,7 +1018,8 @@ export function SensorCalibrationTechnicalCaptureScreen({
   }, [markDirty, retakeDraftPoints, retakeVolumeMl]);
 
   const onRegister = useCallback(() => {
-    if (!canRegister || volumeMl === null || !bufferStats || isRegistering) return;
+    const stats = getBufferStatsSnapshot() ?? bufferStats;
+    if (!canRegister || volumeMl === null || !stats || isRegistering) return;
     setIsRegistering(true);
     hapticLight();
     if (retakeVolumeMl !== null && volumeMl === retakeVolumeMl) {
@@ -1036,17 +1028,17 @@ export function SensorCalibrationTechnicalCaptureScreen({
         const next: CalibrationCapturePoint = {
           id: newCaptureId(),
           volumeMl,
-          distanceMm: bufferStats.avgDistanceMm,
-          rawDistanceMm: bufferStats.avgRawDistanceMm,
+          distanceMm: stats.avgDistanceMm,
+          rawDistanceMm: stats.avgRawDistanceMm,
           distanceValid: true,
-          source: bufferStats.latestSource,
-          timestamp: bufferStats.latestTimestamp,
+          source: stats.latestSource,
+          timestamp: stats.latestTimestamp,
           repetitionNumber: prev.length + 1,
           createdAt: Date.now(),
-          sampleCount: bufferStats.sampleCount,
-          minSampleDistanceMm: bufferStats.minDistanceMm,
-          maxSampleDistanceMm: bufferStats.maxDistanceMm,
-          stdDistanceMm: bufferStats.stdDistanceMm,
+          sampleCount: stats.sampleCount,
+          minSampleDistanceMm: stats.minDistanceMm,
+          maxSampleDistanceMm: stats.maxDistanceMm,
+          stdDistanceMm: stats.stdDistanceMm,
         };
         return [...prev, next];
       });
@@ -1058,17 +1050,17 @@ export function SensorCalibrationTechnicalCaptureScreen({
       const next: CalibrationCapturePoint = {
         id: newCaptureId(),
         volumeMl,
-        distanceMm: bufferStats.avgDistanceMm,
-        rawDistanceMm: bufferStats.avgRawDistanceMm,
+        distanceMm: stats.avgDistanceMm,
+        rawDistanceMm: stats.avgRawDistanceMm,
         distanceValid: true,
-        source: bufferStats.latestSource,
-        timestamp: bufferStats.latestTimestamp,
+        source: stats.latestSource,
+        timestamp: stats.latestTimestamp,
         repetitionNumber: sameVol + 1,
         createdAt: Date.now(),
-        sampleCount: bufferStats.sampleCount,
-        minSampleDistanceMm: bufferStats.minDistanceMm,
-        maxSampleDistanceMm: bufferStats.maxDistanceMm,
-        stdDistanceMm: bufferStats.stdDistanceMm,
+        sampleCount: stats.sampleCount,
+        minSampleDistanceMm: stats.minDistanceMm,
+        maxSampleDistanceMm: stats.maxDistanceMm,
+        stdDistanceMm: stats.stdDistanceMm,
       };
       return [...prev, next];
     });
@@ -1077,6 +1069,7 @@ export function SensorCalibrationTechnicalCaptureScreen({
   }, [
     bufferStats,
     canRegister,
+    getBufferStatsSnapshot,
     isRegistering,
     markDirty,
     retakeDraftPoints.length,
@@ -1096,15 +1089,15 @@ export function SensorCalibrationTechnicalCaptureScreen({
     setPoints([]);
     setRetakeVolumeMl(null);
     setRetakeDraftPoints([]);
-    setBuffer([]);
+    clearBuffer();
     markDirty();
-  }, [markDirty, points.length, retakeVolumeMl]);
+  }, [clearBuffer, markDirty, points.length, retakeVolumeMl]);
 
   const onResetConnection = useCallback(() => {
     hapticLight();
-    setBuffer([]);
+    clearBuffer();
     resetConnection();
-  }, [resetConnection]);
+  }, [clearBuffer, resetConnection]);
 
   const onSaveCalibration = useCallback(async () => {
     if (storageBusy !== 'idle' || !activeSpirometerDevice || !activeSpirometerProfile) return;
@@ -1302,20 +1295,14 @@ export function SensorCalibrationTechnicalCaptureScreen({
     );
   }, [activeCalibrationModel, activeSpirometerDevice]);
 
-  const {
-    refresh: refreshVolumeEstimate,
-    context: volumeEstimationContext,
-    estimate: liveVolumeEstimate,
-    status: volumeEstimateStatus,
-    message: volumeEstimateMessage,
-    sensorConnected: sensorConnectedForEstimate,
-  } = useActiveVolumeEstimate({
-    spirometerDeviceId: activeSpirometerDevice?.id,
-    hasUnsavedChanges,
-    enabled: spirometerReady && !!activeSpirometerDevice?.id,
-  });
-
-  const liveEstimateStatusLabel = volumeEstimationCardStatusLabel(volumeEstimateStatus);
+  const previewVolumeMl = useMemo(() => {
+    if (!linearModel || !bufferStats) return null;
+    const slope = linearModel.coefficients.slope;
+    const intercept = linearModel.coefficients.intercept;
+    if (typeof slope !== 'number' || typeof intercept !== 'number') return null;
+    const raw = volumeFromLinear(bufferStats.avgDistanceMm, slope, intercept);
+    return Number.isFinite(raw) ? Math.round(raw) : null;
+  }, [bufferStats, linearModel]);
 
   const runActivateWithProfile = useCallback(
     async (profile: CalibrationProfile) => {
@@ -1341,7 +1328,6 @@ export function SensorCalibrationTechnicalCaptureScreen({
         await saveActiveCalibrationModelForSpirometer(model);
         setActiveCalibrationModel(model);
         setShowActiveModelSummary(true);
-        await refreshVolumeEstimate();
         setSaveSuccessVisible(true);
         setStorageMessage(`Modelo activo guardado para ${activeSpirometerDevice.label}.`);
       } catch (error) {
@@ -1358,7 +1344,6 @@ export function SensorCalibrationTechnicalCaptureScreen({
       linearModel,
       piecewiseModel,
       recommendation,
-      refreshVolumeEstimate,
       storageBusy,
     ],
   );
@@ -1432,7 +1417,6 @@ export function SensorCalibrationTechnicalCaptureScreen({
       await clearActiveCalibrationModelForSpirometer(activeSpirometerDevice.id);
       setActiveCalibrationModel(null);
       setShowActiveModelSummary(false);
-      await refreshVolumeEstimate();
       setStorageMessage(`Modelo activo eliminado para ${activeSpirometerDevice.label}.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error al borrar el modelo activo.';
@@ -1440,7 +1424,7 @@ export function SensorCalibrationTechnicalCaptureScreen({
     } finally {
       setActiveModelBusy('idle');
     }
-  }, [activeCalibrationModel, activeSpirometerDevice, refreshVolumeEstimate]);
+  }, [activeCalibrationModel, activeSpirometerDevice]);
 
   const canClearActiveModel =
     activeCalibrationModel !== null && activeModelBusy === 'idle' && storageBusy === 'idle';
@@ -1528,17 +1512,56 @@ export function SensorCalibrationTechnicalCaptureScreen({
           ) : null}
         </AppCard>
 
+        <Text style={styles.sectionEyebrow}>Tipo de espirómetro</Text>
+
+        {spirometerReady && technicalSpirometerOptions.length > 0 ? (
+          <View style={styles.card}>
+            <Text style={styles.cardHint}>
+              Solo modo técnico. No modifica la calibración predeterminada del paciente.
+            </Text>
+            <View style={styles.spirometerSelectorRow}>
+              {technicalSpirometerOptions.map((option) => {
+                const selected = activeSpirometerDevice?.id === option.device.id;
+                return (
+                  <Pressable
+                    key={option.device.id}
+                    onPress={() => void onSelectTechnicalSpirometer(option)}
+                    style={({ pressed }) => [
+                      styles.spirometerOption,
+                      selected && styles.spirometerOptionSelected,
+                      pressed && styles.spirometerOptionPressed,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Seleccionar ${option.spirometerTypeLabel}`}>
+                    <Text
+                      style={[
+                        styles.spirometerOptionLabel,
+                        selected && styles.spirometerOptionLabelSelected,
+                      ]}>
+                      {option.spirometerTypeLabel}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
         <Text style={styles.sectionEyebrow}>Identificación del dispositivo</Text>
 
         {spirometerReady && activeSpirometerDevice && activeSpirometerProfile ? (
           <>
           <View style={styles.card}>
-            <Text style={styles.cardTitleStrong}>Espirómetro RESPIRA+ 3000 mL</Text>
+            <Text style={styles.cardTitleStrong}>{activeSpirometerDevice.label}</Text>
             <Text style={styles.cardHint}>
-              Marcas de 250 mL a 3000 mL · paso 250 mL.
+              Marcas de {activeSpirometerProfile.operativeMinVolumeMl} mL a{' '}
+              {activeSpirometerProfile.maxVolumeMl} mL.
             </Text>
             <View style={styles.resultsGrid}>
-              <MetricCell label="Capacidad nominal" value="3000 mL" />
+              <MetricCell
+                label="Capacidad nominal"
+                value={`${activeSpirometerProfile.maxVolumeMl} mL`}
+              />
               <MetricCell
                 label="Rango"
                 value={`${activeSpirometerProfile.operativeMinVolumeMl}–${activeSpirometerProfile.maxVolumeMl} mL`}
@@ -3005,90 +3028,61 @@ export function SensorCalibrationTechnicalCaptureScreen({
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Prueba de estimación en vivo</Text>
+          <Text style={styles.cardTitleStrong}>Vista previa de volumen (sesión)</Text>
           <Text style={styles.cardHint}>
-            Lectura en vivo con el modelo activo del espirómetro seleccionado.
+            Estimación con el modelo lineal de los puntos capturados aquí. No usa el modelo activo del paciente.
           </Text>
           <View
             style={[
               styles.savedBadge,
-              volumeEstimateStatus === 'ready'
+              previewVolumeMl !== null && linearModel?.status === 'valid'
                 ? styles.savedBadgeOk
-                : volumeEstimateStatus === 'no_active_model' ||
-                    volumeEstimateStatus === 'sensor_disconnected' ||
-                    volumeEstimateStatus === 'loading'
-                  ? styles.savedBadgeMuted
-                  : styles.savedBadgeWarn,
+                : styles.savedBadgeMuted,
             ]}>
             <Text
               style={
-                volumeEstimateStatus === 'ready'
+                previewVolumeMl !== null && linearModel?.status === 'valid'
                   ? styles.savedBadgeText
-                  : volumeEstimateStatus === 'no_active_model' ||
-                      volumeEstimateStatus === 'sensor_disconnected' ||
-                      volumeEstimateStatus === 'loading'
-                    ? styles.savedBadgeTextMuted
-                    : styles.savedBadgeText
+                  : styles.savedBadgeTextMuted
               }>
-              {liveEstimateStatusLabel}
+              {previewVolumeMl !== null && linearModel?.status === 'valid'
+                ? 'Modelo de sesión listo'
+                : points.length < 2
+                  ? 'Captura al menos 2 puntos'
+                  : linearModel
+                    ? modelStatusLabel(linearModel.status)
+                    : 'Esperando puntos'}
             </Text>
           </View>
           <View style={styles.resultsGrid}>
-            <MetricCell
-              label="Espirómetro activo"
-              value={volumeEstimationContext.spirometerLabel ?? activeSpirometerDevice?.label ?? '—'}
-            />
+            <MetricCell label="Espirómetro" value={activeSpirometerDevice?.label ?? '—'} />
             <MetricCell
               label="Estado del sensor"
-              value={sensorConnectedForEstimate ? 'Conectado' : 'Desconectado'}
+              value={inLiveMode ? 'Conectado' : 'Desconectado'}
             />
             <MetricCell
-              label="Modelo activo"
-              value={
-                volumeEstimationContext.activeModelKind
-                  ? activeModelKindUiLabel(volumeEstimationContext.activeModelKind)
-                  : '—'
-              }
-            />
-            <MetricCell
-              label="Distancia actual"
-              value={formatScalar(liveVolumeEstimate.distanceMm)}
+              label="Distancia (promedio buffer)"
+              value={formatScalar(bufferStats?.avgDistanceMm)}
               unit="mm"
             />
             <MetricCell
-              label="Volumen estimado"
-              value={
-                liveVolumeEstimate.roundedVolumeMl !== null
-                  ? String(liveVolumeEstimate.roundedVolumeMl)
-                  : '—'
-              }
+              label="Volumen previsto"
+              value={previewVolumeMl !== null ? String(previewVolumeMl) : '—'}
               unit="mL"
             />
-            <MetricCell
-              label="U95"
-              value={
-                liveVolumeEstimate.u95Ml !== null
-                  ? `±${liveVolumeEstimate.u95Ml.toFixed(0)}`
-                  : '—'
-              }
-              unit="mL"
-            />
-            <MetricCell
-              label="Intervalo estimado"
-              value={
-                liveVolumeEstimate.lowerBoundMl !== null &&
-                liveVolumeEstimate.upperBoundMl !== null
-                  ? `${Math.round(liveVolumeEstimate.lowerBoundMl)} a ${Math.round(liveVolumeEstimate.upperBoundMl)}`
-                  : '—'
-              }
-              unit="mL"
-            />
+            {linearModel?.status === 'valid' && linearModel.metrics ? (
+              <>
+                <MetricCell label="R² (sesión)" value={formatScalar(linearModel.metrics.rSquared)} />
+                <MetricCell
+                  label="MAE (sesión)"
+                  value={formatScalar(linearModel.metrics.maeMl)}
+                  unit="mL"
+                />
+              </>
+            ) : null}
           </View>
-          {volumeEstimateStatus !== 'ready' && volumeEstimateMessage ? (
-            <Text style={styles.warnHint}>{volumeEstimateMessage}</Text>
-          ) : null}
           <Text style={styles.cardHint}>
-            Esta prueba no inicia una sesión terapéutica ni registra desempeño del paciente.
+            Esta vista no inicia sesión terapéutica ni modifica la calibración activa del paciente.
           </Text>
         </View>
 
@@ -3096,7 +3090,7 @@ export function SensorCalibrationTechnicalCaptureScreen({
           <View style={styles.saveSuccessBanner} accessibilityRole="alert">
             <Text style={styles.saveSuccessTitle}>Calibración guardada y activada correctamente.</Text>
             <Text style={styles.saveSuccessHint}>
-              El archivo técnico ya está listo para exportarse.
+              Puedes exportar el CSV técnico cuando quieras; no es necesario guardar antes.
             </Text>
             <Pressable
               onPress={() => setSaveSuccessVisible(false)}
@@ -3119,20 +3113,22 @@ export function SensorCalibrationTechnicalCaptureScreen({
             onPress={() => void handleExportCalibrationTechnical()}
             style={({ pressed }) => [
               styles.secondaryBtn,
-              savedStatus.kind !== 'saved' && styles.btnDisabled,
-              pressed && savedStatus.kind === 'saved' && styles.secondaryBtnPressed,
+              !canExportTechnicalCsv && styles.btnDisabled,
+              pressed && canExportTechnicalCsv && styles.secondaryBtnPressed,
             ]}
-            disabled={savedStatus.kind !== 'saved'}
+            disabled={!canExportTechnicalCsv}
             accessibilityRole="button"
-            accessibilityLabel="Exportar archivo técnico de calibración">
+            accessibilityLabel="Exportar CSV técnico de calibración">
             <Text
-              style={[
-                styles.secondaryBtnText,
-                savedStatus.kind !== 'saved' && styles.btnTextDisabled,
-              ]}>
-              Exportar archivo técnico de calibración
+              style={[styles.secondaryBtnText, !canExportTechnicalCsv && styles.btnTextDisabled]}>
+              Exportar CSV técnico
             </Text>
           </Pressable>
+          {!canExportTechnicalCsv ? (
+            <Text style={styles.cardHint}>
+              Captura al menos 2 volúmenes distintos con señal válida para habilitar la exportación.
+            </Text>
+          ) : null}
         </View>
 
         <Pressable
