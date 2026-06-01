@@ -7,7 +7,10 @@ import {
   resolveDiagnosticCalibration,
   type DiagnosticCalibrationBlockReason,
 } from '@/src/modules/device/calibration/diagnostic-calibration-readiness';
-import { technicalCalibrationFallbackRoute } from '@/src/modules/device/calibration/technical-calibration-flags';
+import {
+  isTechnicalCalibrationEnabled,
+  technicalCalibrationFallbackRoute,
+} from '@/src/modules/device/calibration/technical-calibration-flags';
 import type { ActiveVolumeEstimateResult } from '@/src/modules/device/calibration/active-volume-estimation-types';
 import {
   deriveVolumeEstimationReadiness,
@@ -105,7 +108,82 @@ type GateCopy = Pick<
   'canStartTherapy' | 'title' | 'message' | 'actionLabel' | 'actionRoute'
 >;
 
+function patientGateCopyForStatus(status: TherapyReadinessStatus): GateCopy {
+  const sensorRoute = '/sensor-connection' as const;
+
+  switch (status) {
+    case 'loading':
+      return {
+        canStartTherapy: false,
+        title: 'Preparando medición',
+        message: 'Verificando medición…',
+        actionLabel: null,
+        actionRoute: null,
+      };
+    case 'no_spirometer':
+    case 'no_active_model':
+    case 'model_stale':
+    case 'model_not_ready_for_therapy':
+    case 'missing_curve':
+      return {
+        canStartTherapy: false,
+        title: 'Preparando medición',
+        message:
+          'No fue posible cargar la medición RESPIRA+. Reinicia la app o revisa la conexión del sensor.',
+        actionLabel: 'Revisar sensor',
+        actionRoute: sensorRoute,
+      };
+    case 'sensor_disconnected':
+      return {
+        canStartTherapy: false,
+        title: 'Conecta el sensor',
+        message: 'Conecta el sensor para medir antes de comenzar.',
+        actionLabel: 'Conectar sensor',
+        actionRoute: sensorRoute,
+      };
+    case 'invalid_sensor_reading':
+      return {
+        canStartTherapy: false,
+        title: 'Verificando medición',
+        message: 'La lectura del sensor no es válida. Revisa la conexión antes de comenzar.',
+        actionLabel: 'Revisar sensor',
+        actionRoute: sensorRoute,
+      };
+    case 'out_of_range':
+      return {
+        canStartTherapy: false,
+        title: 'Lectura fuera de rango',
+        message:
+          'La lectura actual está fuera del rango esperado. Ajusta el espirómetro o revisa el montaje.',
+        actionLabel: 'Revisar sensor',
+        actionRoute: sensorRoute,
+      };
+    case 'ready':
+      return {
+        canStartTherapy: true,
+        title: 'Medición lista',
+        message: 'Puedes iniciar la actividad.',
+        actionLabel: null,
+        actionRoute: null,
+      };
+    case 'error':
+    default:
+      return {
+        canStartTherapy: false,
+        title: 'Preparando medición',
+        message:
+          'No fue posible cargar la medición RESPIRA+. Reinicia la app o revisa la conexión del sensor.',
+        actionLabel: 'Conectar sensor',
+        actionRoute: sensorRoute,
+      };
+  }
+}
+
 function copyForStatus(status: TherapyReadinessStatus): GateCopy {
+  if (!isTechnicalCalibrationEnabled()) {
+    return patientGateCopyForStatus(status);
+  }
+
   const calibrationRoute = technicalCalibrationFallbackRoute();
 
   switch (status) {
@@ -222,6 +300,25 @@ export function buildTherapyReadinessGate(
 }
 
 export function therapyReadinessCardStatusLabel(status: TherapyReadinessStatus): string {
+  if (!isTechnicalCalibrationEnabled()) {
+    switch (status) {
+      case 'ready':
+        return 'Medición lista';
+      case 'sensor_disconnected':
+        return 'Conectar sensor';
+      case 'loading':
+        return 'Preparando medición';
+      case 'invalid_sensor_reading':
+        return 'Verificando medición';
+      case 'out_of_range':
+        return 'Fuera de rango';
+      case 'error':
+        return 'Revisar medición';
+      default:
+        return 'Preparando medición';
+    }
+  }
+
   switch (status) {
     case 'ready':
       return 'Sistema listo';
@@ -320,7 +417,9 @@ function buildDiagnosticSensorReadinessGate(
     canStartDiagnostic: canStart,
     title: canStart ? 'Sensor conectado' : copy.title,
     message: canStart
-      ? `Calibración activa detectada${deviceSuffix}. Puedes iniciar la evaluación con medición real.`
+      ? isTechnicalCalibrationEnabled()
+        ? `Calibración activa detectada${deviceSuffix}. Puedes iniciar la evaluación con medición real.`
+        : `Medición lista${deviceSuffix}. Puedes iniciar la evaluación con medición real.`
       : (options?.notEligibleReason ?? copy.message),
     actionLabel: canStart ? null : copy.actionLabel,
     actionRoute: canStart ? null : copy.actionRoute,

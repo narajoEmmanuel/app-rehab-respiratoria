@@ -22,7 +22,14 @@ import {
   useTherapyReadinessGate,
 } from '@/src/modules/device/volume-estimation';
 import { isTechnicalCalibrationEnabled } from '@/src/modules/app-mode';
+import {
+  PATIENT_MEASUREMENT_CONNECT_SENSOR,
+  PATIENT_MEASUREMENT_LOAD_ERROR,
+  patientMeasurementStatusLabel,
+  resolvePatientMeasurementPhase,
+} from '@/src/modules/device/calibration/patient-measurement-copy';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
+import { isSensorStreamActivelyReceiving } from '@/src/modules/device/stream/sensor-stream-state';
 import { useCalibrationSnapshot } from '@/src/modules/device/state/use-calibration-snapshot';
 import { getCurrentActiveLevel, hasDiagnostic, getLatestDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
 import type { DiagnosticRecord } from '@/src/modules/diagnostics/types';
@@ -93,7 +100,8 @@ export function HomeScreen() {
     sensorConnected: therapyGateSensorConnected,
     sensorStatus: therapyGateSensorStatus,
   } = useTherapyReadinessGate();
-  const { lastDataReceivedAt, sensorStreamState } = useSensorConnection();
+  const { lastDataReceivedAt, sensorStreamState, status: sensorStatus, mode: sensorMode } =
+    useSensorConnection();
   const [hasCompletedDiagnostic, setHasCompletedDiagnostic] = useState(false);
   const [currentLevelLabel, setCurrentLevelLabel] = useState('Nivel 1');
   const [currentLevelHumanName, setCurrentLevelHumanName] = useState('');
@@ -288,9 +296,16 @@ export function HomeScreen() {
     router.push('/sensor-connection');
   }, [consentActive, consentUiReady, router]);
 
-  const { status: sensorStatus, mode: sensorMode } = useSensorConnection();
   const sensorConnected =
     sensorStatus === 'connected' || sensorStatus === 'receiving' || sensorMode === 'mock';
+  const sensorStreamReceiving =
+    sensorMode === 'mock' ? sensorConnected : isSensorStreamActivelyReceiving(sensorStreamState);
+  const sensorSignalLive =
+    sensorStreamReceiving &&
+    Boolean(lastReading) &&
+    lastReading?.distanceValid === true &&
+    typeof lastReading?.distanceMm === 'number' &&
+    Number.isFinite(lastReading.distanceMm);
 
   const diagnosticPatientId = patient?.paciente_id ?? null;
   const goDiagnostico = useCallback(() => {
@@ -508,6 +523,8 @@ export function HomeScreen() {
 
         <DeviceCard
           calibrationSnapshot={calibrationSnapshot}
+          sensorConnected={sensorConnected}
+          sensorSignalLive={sensorSignalLive}
           onPress={goSensorConnection}
         />
 
@@ -562,6 +579,8 @@ function formatShortDate(ts: number): string {
 function describeDeviceState(
   snapshot: CalibrationSnapshot,
   technicalCalibrationEnabled: boolean,
+  sensorConnected: boolean,
+  sensorSignalLive: boolean,
 ): {
   badge: string | null;
   showBadge: boolean;
@@ -570,58 +589,91 @@ function describeDeviceState(
   ctaLabel: string;
   variant: 'ready' | 'pending' | 'warn' | 'loading';
 } {
+  const therapyReady =
+    snapshot.kind !== 'loading' && snapshot.therapy.isReadyForTherapy;
+  const therapyStatus = snapshot.kind === 'loading' ? 'pending' : snapshot.therapy.status;
+
+  const phase = resolvePatientMeasurementPhase({
+    technicalMode: technicalCalibrationEnabled,
+    snapshotLoading: snapshot.kind === 'loading',
+    snapshotCorrupt: snapshot.kind === 'corrupt',
+    therapyReady,
+    therapyStatus,
+    sensorConnected,
+    signalLive: sensorSignalLive,
+  });
+
+  const badge = patientMeasurementStatusLabel(phase, technicalCalibrationEnabled);
+
   if (snapshot.kind === 'loading') {
     return {
-      badge: null,
-      showBadge: false,
+      badge: technicalCalibrationEnabled ? null : badge,
+      showBadge: !technicalCalibrationEnabled,
       title: 'Dispositivo RESPIRA+',
-      subtitle: 'Revisando el estado del sensor…',
+      subtitle: technicalCalibrationEnabled
+        ? 'Revisando el estado del sensor…'
+        : 'Verificando medición…',
       ctaLabel: 'Revisar sensor',
       variant: 'loading',
     };
   }
-  if (snapshot.kind === 'ready' && snapshot.therapy.isReadyForTherapy) {
+
+  if (snapshot.kind === 'ready' && therapyReady) {
     const { profile } = snapshot;
+    const readyBadge = technicalCalibrationEnabled
+      ? 'Calibración verificada'
+      : sensorSignalLive
+        ? 'Sensor listo para medir'
+        : 'Medición lista';
     return {
-      badge: 'Calibración verificada',
+      badge: readyBadge,
       showBadge: true,
       title: 'Dispositivo RESPIRA+',
-      subtitle: `${snapshot.therapy.spirometerLabel ?? profile.name} · ${formatShortDate(profile.updatedAt)}`,
+      subtitle: technicalCalibrationEnabled
+        ? `${snapshot.therapy.spirometerLabel ?? profile.name} · ${formatShortDate(profile.updatedAt)}`
+        : sensorSignalLive
+          ? `${snapshot.therapy.spirometerLabel ?? profile.name} · volumen en vivo`
+          : 'Conecta el sensor para ver tu volumen en vivo.',
       ctaLabel: 'Revisar sensor',
       variant: 'ready',
     };
   }
-  if (snapshot.kind === 'ready') {
+
+  if (snapshot.kind === 'corrupt') {
     return {
-      badge: technicalCalibrationEnabled ? snapshot.therapy.statusLabel : 'Calibración pendiente',
+      badge: technicalCalibrationEnabled ? 'Revisar calibración' : badge,
       showBadge: true,
       title: 'Dispositivo RESPIRA+',
       subtitle: technicalCalibrationEnabled
-        ? (snapshot.therapy.detailMessage ?? 'Completa la calibración verificada del espirómetro.')
-        : 'Conecta el sensor RESPIRA+ para usar la calibración validada.',
-      ctaLabel: technicalCalibrationEnabled ? 'Configurar espirómetro' : 'Conectar sensor',
-      variant: 'pending',
-    };
-  }
-  if (snapshot.kind === 'corrupt') {
-    return {
-      badge: technicalCalibrationEnabled ? 'Revisar calibración' : null,
-      showBadge: technicalCalibrationEnabled,
-      title: 'Dispositivo RESPIRA+',
-      subtitle: technicalCalibrationEnabled
         ? 'La calibración guardada no se pudo leer.'
-        : 'No fue posible cargar la calibración RESPIRA+.',
+        : PATIENT_MEASUREMENT_LOAD_ERROR,
       ctaLabel: 'Revisar sensor',
       variant: 'warn',
     };
   }
+
+  if (snapshot.kind === 'ready' || snapshot.kind === 'none') {
+    return {
+      badge,
+      showBadge: true,
+      title: 'Dispositivo RESPIRA+',
+      subtitle: technicalCalibrationEnabled
+        ? (snapshot.therapy.detailMessage ?? 'Completa la calibración verificada del espirómetro.')
+        : sensorConnected
+          ? 'Verificando medición…'
+          : PATIENT_MEASUREMENT_CONNECT_SENSOR,
+      ctaLabel: technicalCalibrationEnabled ? 'Configurar espirómetro' : 'Conectar sensor',
+      variant: 'pending',
+    };
+  }
+
   return {
     badge: null,
     showBadge: false,
     title: 'Dispositivo RESPIRA+',
     subtitle: technicalCalibrationEnabled
       ? 'Conecta el sensor y verifica la calibración del espirómetro.'
-      : 'Conecta el sensor RESPIRA+ para comenzar.',
+      : PATIENT_MEASUREMENT_CONNECT_SENSOR,
     ctaLabel: technicalCalibrationEnabled ? 'Configurar sensor' : 'Conectar sensor',
     variant: 'pending',
   };
@@ -629,12 +681,21 @@ function describeDeviceState(
 
 function DeviceCard({
   calibrationSnapshot,
+  sensorConnected,
+  sensorSignalLive,
   onPress,
 }: {
   calibrationSnapshot: CalibrationSnapshot;
+  sensorConnected: boolean;
+  sensorSignalLive: boolean;
   onPress: () => void;
 }) {
-  const state = describeDeviceState(calibrationSnapshot, isTechnicalCalibrationEnabled());
+  const state = describeDeviceState(
+    calibrationSnapshot,
+    isTechnicalCalibrationEnabled(),
+    sensorConnected,
+    sensorSignalLive,
+  );
   const isReady = state.variant === 'ready';
   const isWarn = state.variant === 'warn';
   return (

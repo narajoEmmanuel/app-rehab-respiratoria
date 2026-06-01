@@ -13,6 +13,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
 import { isSensorDebugEnabled, isTechnicalCalibrationEnabled } from '@/src/modules/app-mode';
+import {
+  PATIENT_MEASUREMENT_CONNECT_SENSOR,
+  patientMeasurementCardTitle,
+  patientMeasurementConnectionHint,
+  patientMeasurementConnectionPillLabel,
+  patientMeasurementHelper,
+  patientMeasurementMetricLabel,
+  patientMeasurementSectionSubtitle,
+  patientMeasurementSectionTitle,
+  resolvePatientMeasurementPhase,
+  therapyCalibrationStatusLabelForUi,
+} from '@/src/modules/device/calibration/patient-measurement-copy';
 import { VolumeThermometer } from '@/src/modules/device/components/VolumeThermometer';
 import { RESPIRA_3000_CLAMP_MAX_ML } from '@/src/modules/device/calibration/predefined-calibration-models';
 import { SensorLivePreview } from '@/src/modules/device/components/SensorLivePreview';
@@ -177,14 +189,103 @@ export function SensorConnectionScreen() {
     return 'neutral' as const;
   }, [isConnecting, isOnline, status]);
 
-  const connectionPillLabel = useMemo(() => {
-    if (status === 'error') return 'Error';
-    if (readyForTherapy) return 'Listo';
-    if (liveReady && !therapyReady) return 'Falta calibración';
-    if (isOnline) return 'Conectado';
-    if (isConnecting) return 'Conectando…';
-    return 'Sin conexión';
-  }, [isConnecting, isOnline, liveReady, readyForTherapy, status, therapyReady]);
+  const measurementPhase = useMemo(
+    () =>
+      resolvePatientMeasurementPhase({
+        technicalMode: technicalCalibrationEnabled,
+        snapshotLoading: calibrationSnapshot.kind === 'loading',
+        snapshotCorrupt: calibrationSnapshot.kind === 'corrupt',
+        therapyReady,
+        therapyStatus: therapyReadiness.status,
+        sensorConnected: isOnline,
+        signalLive: liveReady,
+      }),
+    [
+      calibrationSnapshot.kind,
+      isOnline,
+      liveReady,
+      technicalCalibrationEnabled,
+      therapyReady,
+      therapyReadiness.status,
+    ],
+  );
+
+  const measurementStatusLabel = useMemo(
+    () =>
+      therapyCalibrationStatusLabelForUi(therapyReadiness.status, {
+        technicalMode: technicalCalibrationEnabled,
+        therapyReady,
+        signalLive: liveReady,
+      }),
+    [liveReady, technicalCalibrationEnabled, therapyReady, therapyReadiness.status],
+  );
+
+  const connectionPillLabel = useMemo(
+    () =>
+      patientMeasurementConnectionPillLabel({
+        technicalMode: technicalCalibrationEnabled,
+        statusError: status === 'error',
+        readyForTherapy,
+        liveReady,
+        therapyReady,
+        isOnline,
+        isConnecting,
+      }),
+    [
+      isConnecting,
+      isOnline,
+      liveReady,
+      readyForTherapy,
+      status,
+      technicalCalibrationEnabled,
+      therapyReady,
+    ],
+  );
+
+  const connectionHint = useMemo(
+    () =>
+      patientMeasurementConnectionHint({
+        technicalMode: technicalCalibrationEnabled,
+        readyForTherapy,
+        isOnline,
+        therapyReady,
+        streamStateMessage,
+        therapyDetailMessage: therapyReadiness.detailMessage,
+      }),
+    [
+      isOnline,
+      readyForTherapy,
+      streamStateMessage,
+      technicalCalibrationEnabled,
+      therapyReady,
+      therapyReadiness.detailMessage,
+    ],
+  );
+
+  const calibrationCardTitle = useMemo(
+    () => patientMeasurementCardTitle(measurementPhase, technicalCalibrationEnabled),
+    [measurementPhase, technicalCalibrationEnabled],
+  );
+
+  const calibrationCardSubtitle = useMemo(() => {
+    if (therapyReady) {
+      return `${therapyReadiness.spirometerLabel ?? 'Espirómetro'} · ${formatShortDate(
+        calibrationSnapshot.kind === 'ready' ? calibrationSnapshot.profile.updatedAt : Date.now(),
+      )}`;
+    }
+    const helper = patientMeasurementHelper(measurementPhase, technicalCalibrationEnabled);
+    if (calibrationSnapshot.kind === 'corrupt' && technicalCalibrationEnabled) {
+      return 'El perfil guardado no se pudo leer. Configura de nuevo el espirómetro.';
+    }
+    return helper ?? therapyReadiness.detailMessage ?? PATIENT_MEASUREMENT_CONNECT_SENSOR;
+  }, [
+    calibrationSnapshot,
+    measurementPhase,
+    technicalCalibrationEnabled,
+    therapyReady,
+    therapyReadiness.detailMessage,
+    therapyReadiness.spirometerLabel,
+  ]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -196,8 +297,8 @@ export function SensorConnectionScreen() {
         showsVerticalScrollIndicator={false}>
 
         <SectionHeader
-          title="Sensor y calibración"
-          subtitle="Conecta el sensor por WiFi y revisa la calibración del espirómetro."
+          title={patientMeasurementSectionTitle(technicalCalibrationEnabled)}
+          subtitle={patientMeasurementSectionSubtitle(technicalCalibrationEnabled)}
         />
 
         {/* Connection Card */}
@@ -232,8 +333,8 @@ export function SensorConnectionScreen() {
               compact
             />
             <InfoTile
-              label="Calibración"
-              value={therapyReadiness.statusLabel}
+              label={patientMeasurementMetricLabel(technicalCalibrationEnabled)}
+              value={measurementStatusLabel}
               tone={
                 therapyReadiness.status === 'ready'
                   ? 'success'
@@ -245,17 +346,7 @@ export function SensorConnectionScreen() {
             />
           </View>
 
-          <Text style={styles.hint}>
-            {streamStateMessage ??
-              (readyForTherapy
-                ? 'Conexión activa y calibración verificada. Listo para terapia.'
-                : isOnline
-                  ? therapyReady
-                    ? 'Sensor conectado. Revisa la señal si el volumen no aparece en vivo.'
-                    : therapyReadiness.detailMessage ??
-                      'Sensor conectado. Completa la calibración verificada del espirómetro.'
-                  : 'Conecta el dispositivo por WiFi local al ESP32.')}
-          </Text>
+          <Text style={styles.hint}>{connectionHint}</Text>
 
           {status === 'error' && errorMessage ? (
             <View style={styles.errorBox}>
@@ -302,33 +393,8 @@ export function SensorConnectionScreen() {
               />
             </View>
             <View style={styles.cardHeaderText}>
-              <Text style={styles.cardTitle}>
-                {calibrationSnapshot.kind === 'loading'
-                  ? 'Revisando calibración…'
-                  : therapyReady
-                    ? 'Calibración verificada'
-                    : calibrationSnapshot.kind === 'corrupt'
-                      ? 'Calibración con errores'
-                      : 'Calibración pendiente'}
-              </Text>
-              <Text style={styles.cardSubtitle}>
-                {therapyReady
-                  ? `${therapyReadiness.spirometerLabel ?? 'Espirómetro'} · ${formatShortDate(
-                      calibrationSnapshot.kind === 'ready'
-                        ? calibrationSnapshot.profile.updatedAt
-                        : Date.now(),
-                    )}`
-                  : calibrationSnapshot.kind === 'corrupt'
-                    ? technicalCalibrationEnabled
-                      ? 'El perfil guardado no se pudo leer. Configura de nuevo el espirómetro.'
-                      : 'No fue posible cargar la calibración RESPIRA+.'
-                    : calibrationSnapshot.kind === 'loading'
-                      ? 'Comprobando configuración…'
-                      : technicalCalibrationEnabled
-                        ? (therapyReadiness.detailMessage ??
-                          'Configura tu espirómetro para estimar el volumen en terapia.')
-                        : 'Conecta el sensor RESPIRA+ para usar la calibración validada.'}
-              </Text>
+              <Text style={styles.cardTitle}>{calibrationCardTitle}</Text>
+              <Text style={styles.cardSubtitle}>{calibrationCardSubtitle}</Text>
             </View>
           </View>
 

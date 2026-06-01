@@ -11,6 +11,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
+import {
+  PATIENT_MEASUREMENT_LOAD_ERROR,
+  PATIENT_MEASUREMENT_LOAD_ERROR_HELPER,
+  patientMeasurementStatusLabel,
+  resolvePatientMeasurementPhase,
+} from '@/src/modules/device/calibration/patient-measurement-copy';
 import { ensureRespira3000PredefinedCalibrationInstalled } from '@/src/modules/device/calibration/predefined-calibration-service';
 import {
   resolveTherapyCalibrationReadiness,
@@ -33,7 +39,6 @@ export type SensorCalibrationPatientScreenProps = {
 };
 
 const SPIROMETER_DISPLAY_NAME = 'Espirómetro RESPIRA+ 3000 mL';
-const DEFAULT_LOAD_ERROR = 'No fue posible cargar la calibración RESPIRA+.';
 
 function hapticLight() {
   if (Platform.OS === 'ios') {
@@ -87,7 +92,7 @@ export function SensorCalibrationPatientScreen({
     setTherapy(readiness);
 
     if (!technicalCalibrationEnabled && !readiness.isReadyForTherapy) {
-      setLoadError(DEFAULT_LOAD_ERROR);
+      setLoadError(PATIENT_MEASUREMENT_LOAD_ERROR);
     }
 
     setLoading(false);
@@ -106,11 +111,32 @@ export function SensorCalibrationPatientScreen({
     return 'ready';
   }, [canStartTherapy, therapyReady]);
 
+  const measurementPhase = useMemo(
+    () =>
+      resolvePatientMeasurementPhase({
+        technicalMode: technicalCalibrationEnabled,
+        snapshotLoading: loading,
+        snapshotCorrupt: Boolean(loadError),
+        therapyReady,
+        therapyStatus: therapy?.status ?? 'pending',
+        sensorConnected: isOnline,
+        signalLive: signalValid,
+      }),
+    [
+      isOnline,
+      loadError,
+      loading,
+      signalValid,
+      technicalCalibrationEnabled,
+      therapy?.status,
+      therapyReady,
+    ],
+  );
+
   const statusLabel = useMemo(() => {
-    if (therapyReady) return 'Calibración verificada';
-    if (!technicalCalibrationEnabled && loadError) return 'Calibración no disponible';
-    return therapy?.statusLabel ?? 'Calibración pendiente';
-  }, [loadError, technicalCalibrationEnabled, therapy?.statusLabel, therapyReady]);
+    if (technicalCalibrationEnabled && therapyReady) return 'Calibración verificada';
+    return patientMeasurementStatusLabel(measurementPhase, technicalCalibrationEnabled);
+  }, [measurementPhase, technicalCalibrationEnabled, therapyReady]);
 
   const onStartTherapy = useCallback(() => {
     hapticLight();
@@ -159,9 +185,13 @@ export function SensorCalibrationPatientScreen({
   const showMeasuredVolume = therapyReady && sensorConnected && streamReceiving;
 
   const infoMessage = useMemo(() => {
-    if (loadError) return loadError;
+    if (loadError) {
+      return technicalCalibrationEnabled
+        ? loadError
+        : `${PATIENT_MEASUREMENT_LOAD_ERROR}\n${PATIENT_MEASUREMENT_LOAD_ERROR_HELPER}`;
+    }
     if (therapy?.status === 'needs_review' && therapy.detailMessage) {
-      return technicalCalibrationEnabled ? therapy.detailMessage : DEFAULT_LOAD_ERROR;
+      return technicalCalibrationEnabled ? therapy.detailMessage : PATIENT_MEASUREMENT_LOAD_ERROR;
     }
     return null;
   }, [loadError, technicalCalibrationEnabled, therapy?.detailMessage, therapy?.status]);
