@@ -48,15 +48,19 @@ import { AppCard } from '@/src/shared/ui/AppCard';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { SectionHeader } from '@/src/shared/ui/SectionHeader';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellness, wellnessColors, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import {
+  appScreenBackground,
+  wellness,
+  wellnessColors,
+  wellnessRadii,
+  wellnessShadows,
+} from '@/src/shared/theme/wellness-theme';
 import { dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { addDaysLocal, getLocalDateKey } from '@/src/shared/utils/local-date-key';
 import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 
 /** Meta visual de sostén (2 s del juego); solo etiqueta UI. */
 const SUSTAIN_META_SECONDS = 2;
-
-const SCREEN_BG = '#E8F4F1';
 
 const CAL_BG: Record<CalendarDayKind, string> = {
   none: '#CFD8DC',
@@ -713,7 +717,7 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: SCREEN_BG,
+    backgroundColor: appScreenBackground,
   },
   scrollContent: {
     flexGrow: 1,

@@ -1,6 +1,6 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
@@ -15,6 +15,9 @@ import { fontBold, fontRegular } from '@/src/shared/theme/typography';
 
 const PRIMARY = appBrand.primaryColor;
 const SLOT_WIDTH = 56;
+const HEADER_ROW_MIN_HEIGHT = Platform.OS === 'web' ? 40 : 42;
+const HEADER_PADDING_TOP = 6;
+const HEADER_PADDING_BOTTOM = Platform.OS === 'web' ? 8 : 10;
 
 type AppTopBarProps = {
   onPressProfile?: () => void;
@@ -134,17 +137,22 @@ export function AppTopBar({
 const styles = StyleSheet.create({
   wrap: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.md,
+    paddingTop: HEADER_PADDING_TOP,
+    paddingBottom: HEADER_PADDING_BOTTOM,
     backgroundColor: wellness.screenBg,
     zIndex: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(52, 171, 165, 0.12)',
+    ...(Platform.OS === 'web'
+      ? {
+          minHeight: 56,
+        }
+      : null),
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 46,
+    minHeight: HEADER_ROW_MIN_HEIGHT,
   },
   leftSlot: {
     width: SLOT_WIDTH,
@@ -221,8 +229,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   avatarBtn: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: wellnessRadii.full,
     overflow: 'hidden',
     alignItems: 'center',
@@ -231,8 +239,8 @@ const styles = StyleSheet.create({
     borderWidth: 0,
   },
   slotPlaceholder: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
   },
   actionBtnPressed: { opacity: 0.88 },
 });

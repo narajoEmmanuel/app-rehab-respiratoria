@@ -52,7 +52,8 @@
           "sounds": [],
           "mode": "production"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

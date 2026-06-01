@@ -7,7 +7,7 @@
  */
 
 export const wellness = {
-  /** Main app canvas */
+  /** Main app canvas — use for SafeAreaView / screen roots (`appScreenBackground`). */
   screenBg: '#F5F7F3',
   screenBgAlt: '#F4F7F2',
 
@@ -47,7 +47,8 @@ export const wellnessColors = {
   primarySoft: 'rgba(52, 171, 165, 0.10)',
   primarySubtle: '#F0FAF9',
 
-  background: '#F6F7F6',
+  /** Matches `wellness.screenBg` — prefer `appScreenBackground` for new screens. */
+  background: '#F5F7F3',
   card: '#FFFFFF',
   border: '#E8ECE9',
 
@@ -91,6 +92,9 @@ export const wellnessTypography = {
   /** @deprecated Use metricMedium instead */
   metric: { fontSize: 22, fontWeight: '800' as const, letterSpacing: -0.2 },
 } as const;
+
+/** Canonical root background for tab screens and dashboards. */
+export const appScreenBackground = wellness.screenBg;
 
 /** Unified theme object for reusable components. */
 export const wellnessTheme = {

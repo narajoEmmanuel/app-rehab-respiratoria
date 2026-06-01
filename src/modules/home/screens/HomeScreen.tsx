@@ -57,7 +57,7 @@ import { InfoTile } from '@/src/shared/ui/InfoTile';
 import { MetricTile } from '@/src/shared/ui/MetricTile';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellnessColors, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import { appScreenBackground, wellnessColors, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 import { dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { addDaysLocal, getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 
@@ -743,7 +743,7 @@ function DeviceCard({
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: wellnessColors.background },
+  safe: { flex: 1, backgroundColor: appScreenBackground },
   scroll: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,

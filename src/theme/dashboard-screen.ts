@@ -6,12 +6,13 @@
  */
 
 import { spacing } from '@/src/shared/theme/spacing';
+import { appScreenBackground } from '@/src/shared/theme/wellness-theme';
 
 /** Primary accent — RESPIRA+ */
 export const dashboardAccent = '#34aba5';
 
 export const dashboardScreen = {
-  screenBg: '#F6F7F6',
+  screenBg: appScreenBackground,
   cardBg: '#FFFFFF',
   cardRadius: 16,
   cardBorderColor: '#EBEBEB',
