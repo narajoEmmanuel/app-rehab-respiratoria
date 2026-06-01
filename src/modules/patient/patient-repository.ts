@@ -17,7 +17,7 @@ function normalizeClave(clave: string): string {
 }
 
 /** Solo usa Supabase cuando el build tiene auth en la nube explícitamente activada. */
-function useCloudPatientStore(): boolean {
+function isCloudPatientStoreEnabled(): boolean {
   return process.env.EXPO_PUBLIC_ENABLE_CLOUD_AUTH === 'true' && supabase != null;
 }
 
@@ -27,14 +27,14 @@ function throwRepositoryError(context: string, error: unknown): never {
 }
 
 function getCloudSupabaseClient() {
-  if (!useCloudPatientStore() || supabase == null) {
+  if (!isCloudPatientStoreEnabled() || supabase == null) {
     throw new Error('Supabase no está disponible en este modo.');
   }
   return supabase;
 }
 
 export async function readAllPatients(): Promise<PatientRecord[]> {
-  if (useCloudPatientStore()) {
+  if (isCloudPatientStoreEnabled()) {
     const client = getCloudSupabaseClient();
     const { data, error } = await client
       .from('patients')
@@ -69,7 +69,7 @@ export async function readAllPatients(): Promise<PatientRecord[]> {
 }
 
 export async function writeAllPatients(patients: PatientRecord[]): Promise<void> {
-  if (useCloudPatientStore()) {
+  if (isCloudPatientStoreEnabled()) {
     const payload = patients.map((item) => ({
       patient_id: item.paciente_id,
       unique_code: item.clave,
@@ -89,7 +89,7 @@ export async function writeAllPatients(patients: PatientRecord[]): Promise<void>
 }
 
 export async function readPatientById(patientId: number): Promise<PatientRecord | null> {
-  if (useCloudPatientStore()) {
+  if (isCloudPatientStoreEnabled()) {
     const { data, error } = await getCloudSupabaseClient()
       .from('patients')
       .select(
@@ -116,7 +116,7 @@ export async function readPatientById(patientId: number): Promise<PatientRecord 
 
 export async function findPatientByClave(clave: string): Promise<PatientRecord | undefined> {
   const key = normalizeClave(clave);
-  if (useCloudPatientStore()) {
+  if (isCloudPatientStoreEnabled()) {
     const { data, error } = await getCloudSupabaseClient()
       .from('patients')
       .select(
@@ -142,7 +142,7 @@ export async function findPatientByClave(clave: string): Promise<PatientRecord |
 }
 
 export async function appendPatient(patient: PatientRecord): Promise<void> {
-  if (useCloudPatientStore()) {
+  if (isCloudPatientStoreEnabled()) {
     const { error } = await getCloudSupabaseClient().from('patients').insert({
       patient_id: patient.paciente_id,
       unique_code: patient.clave,
@@ -163,7 +163,7 @@ export async function appendPatient(patient: PatientRecord): Promise<void> {
 }
 
 export async function updatePatient(patientId: number, updater: (prev: PatientRecord) => PatientRecord): Promise<PatientRecord | null> {
-  if (useCloudPatientStore()) {
+  if (isCloudPatientStoreEnabled()) {
     const { data, error } = await getCloudSupabaseClient()
       .from('patients')
       .select(

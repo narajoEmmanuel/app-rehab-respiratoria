@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { getCloudSupabaseClient, useCloudDataStore } from '@/src/lib/cloud-data-store';
+import { getCloudSupabaseClient, isCloudDataStoreEnabled } from '@/src/lib/cloud-data-store';
 import { PATIENT_STORAGE_KEYS } from '@/src/modules/patient/storage-keys';
 import type { AttemptRecord, SessionRecord } from '@/src/modules/session/types/session-progress';
 
@@ -27,7 +27,7 @@ async function readAttemptsFromLocalStorage(): Promise<AttemptRecord[]> {
 }
 
 export async function readAllSessions(): Promise<SessionRecord[]> {
-  if (!useCloudDataStore()) {
+  if (!isCloudDataStoreEnabled()) {
     return readSessionsFromLocalStorage();
   }
   try {
@@ -49,7 +49,7 @@ export async function readAllSessions(): Promise<SessionRecord[]> {
 }
 
 export async function writeAllSessions(rows: SessionRecord[]): Promise<void> {
-  if (!useCloudDataStore()) {
+  if (!isCloudDataStoreEnabled()) {
     await AsyncStorage.setItem(PATIENT_STORAGE_KEYS.sessionsJson, JSON.stringify(rows));
     return;
   }
@@ -67,7 +67,7 @@ export async function writeAllSessions(rows: SessionRecord[]): Promise<void> {
 }
 
 export async function readAllAttempts(): Promise<AttemptRecord[]> {
-  if (!useCloudDataStore()) {
+  if (!isCloudDataStoreEnabled()) {
     return readAttemptsFromLocalStorage();
   }
   try {
@@ -89,7 +89,7 @@ export async function readAllAttempts(): Promise<AttemptRecord[]> {
 }
 
 export async function writeAllAttempts(rows: AttemptRecord[]): Promise<void> {
-  if (!useCloudDataStore()) {
+  if (!isCloudDataStoreEnabled()) {
     await AsyncStorage.setItem(PATIENT_STORAGE_KEYS.attemptsJson, JSON.stringify(rows));
     return;
   }

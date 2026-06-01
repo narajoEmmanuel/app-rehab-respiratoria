@@ -2,7 +2,7 @@ import { getCurrentActiveLevel, getPatientLevels, savePatientLevels, ensurePatie
 import type { PatientLevelRecord } from '@/src/modules/diagnostics/types';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { updatePatientCurrentLevel } from '@/src/modules/patient/patient-service';
-import { useCloudDataStore, getCloudSupabaseClient } from '@/src/lib/cloud-data-store';
+import { isCloudDataStoreEnabled, getCloudSupabaseClient } from '@/src/lib/cloud-data-store';
 import {
   buildLevelUnlockDiagnosticSnapshot,
   logLevelUnlockDiagnostics,
@@ -166,7 +166,7 @@ export async function updateDailyProgress(patientId: number): Promise<{ complete
     levelId,
     today,
   );
-  if (useCloudDataStore()) {
+  if (isCloudDataStoreEnabled()) {
     try {
       const dailyGoalCompleted = completedToday >= TARGET_PERFECT_SESSIONS;
       const { error } = await getCloudSupabaseClient().from('daily_progress').upsert(

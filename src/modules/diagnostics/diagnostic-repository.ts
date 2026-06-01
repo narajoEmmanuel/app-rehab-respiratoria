@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { getCloudSupabaseClient, useCloudDataStore } from '@/src/lib/cloud-data-store';
+import { getCloudSupabaseClient, isCloudDataStoreEnabled } from '@/src/lib/cloud-data-store';
 import { PATIENT_STORAGE_KEYS } from '@/src/modules/patient/storage-keys';
 
 import type { DiagnosticRecord, PatientLevelRecord } from './types';
@@ -28,7 +28,7 @@ async function readPatientLevelsFromLocalStorage(): Promise<PatientLevelRecord[]
 }
 
 export async function readAllDiagnostics(): Promise<DiagnosticRecord[]> {
-  if (!useCloudDataStore()) {
+  if (!isCloudDataStoreEnabled()) {
     return readDiagnosticsFromLocalStorage();
   }
   try {
@@ -49,7 +49,7 @@ export async function readAllDiagnostics(): Promise<DiagnosticRecord[]> {
 
 export async function writeAllDiagnostics(rows: DiagnosticRecord[]): Promise<void> {
   await AsyncStorage.setItem(PATIENT_STORAGE_KEYS.diagnosticsJson, JSON.stringify(rows));
-  if (!useCloudDataStore()) return;
+  if (!isCloudDataStoreEnabled()) return;
   try {
     const { error } = await getCloudSupabaseClient()
       .from('diagnostics')
@@ -61,7 +61,7 @@ export async function writeAllDiagnostics(rows: DiagnosticRecord[]): Promise<voi
 }
 
 export async function readAllPatientLevels(): Promise<PatientLevelRecord[]> {
-  if (!useCloudDataStore()) {
+  if (!isCloudDataStoreEnabled()) {
     return readPatientLevelsFromLocalStorage();
   }
   try {
@@ -84,7 +84,7 @@ export async function readAllPatientLevels(): Promise<PatientLevelRecord[]> {
 
 export async function writeAllPatientLevels(rows: PatientLevelRecord[]): Promise<void> {
   await AsyncStorage.setItem(PATIENT_STORAGE_KEYS.patientLevelsJson, JSON.stringify(rows));
-  if (!useCloudDataStore()) return;
+  if (!isCloudDataStoreEnabled()) return;
   try {
     const patientIds = [...new Set(rows.map((item) => item.patient_id))];
     const client = getCloudSupabaseClient();

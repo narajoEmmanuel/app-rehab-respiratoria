@@ -4,12 +4,18 @@
 import { isCloudAuthEnabled } from '@/src/modules/app-mode/app-mode-config';
 import { isSupabaseConfigured, supabase } from '@/src/lib/supabase';
 
-export function useCloudDataStore(): boolean {
+/** Non-hook predicate for repositories and services. */
+export function isCloudDataStoreEnabled(): boolean {
   return isCloudAuthEnabled() && isSupabaseConfigured && supabase != null;
 }
 
+/** React components may use this hook; repositories should call isCloudDataStoreEnabled(). */
+export function useCloudDataStore(): boolean {
+  return isCloudDataStoreEnabled();
+}
+
 export function getCloudSupabaseClient() {
-  if (!useCloudDataStore() || supabase == null) {
+  if (!isCloudDataStoreEnabled() || supabase == null) {
     throw new Error('Supabase no está disponible en modo local.');
   }
   return supabase;
