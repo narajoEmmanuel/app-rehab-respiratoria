@@ -35,8 +35,12 @@ Con diagnóstico avanzado habilitado pueden mostrarse el laboratorio de hardware
 ### Flujo paciente
 
 - Perfil único: **RESPIRA+ 3000 mL**.
-- Modelo lineal predeterminado; clamp 0–3000 mL.
-- La app convierte `distanceMm` → mL; el ESP32 **no envía volumen clínico**.
+- Modelo lineal predeterminado (calibración de banco **30 de mayo de 2026**):
+
+  `Volumen = 26.11855011086812 × distanceMm − 1194.3556609431557`
+
+- Clamp **0–3000 mL** (< 0 → 0 mL; > 3000 → 3000 mL).
+- La app convierte `distanceMm` → `volumeMl`; el ESP32 **no envía volumen clínico** (solo distancia en JSON).
 
 ### Flujo técnico (`EXPO_PUBLIC_ENABLE_TECHNICAL_CALIBRATION=true`)
 

@@ -1,7 +1,13 @@
 /**
  * Calibración predeterminada RESPIRA+ 3000 mL (validada por el equipo, banco 2026-05-30).
  *
- * Modelo activo: ecuación lineal (ver `RESPIRA_3000_PREDEFINED_DEFAULT_ACTIVE_MODEL_KIND`).
+ * Modelo activo: ecuación lineal (ver `RESPIRA_3000_PREDEFINED_DEFAULT_ACTIVE_MODEL_KIND`):
+ *   Volumen = 26.11855011086812 × distanceMm − 1194.3556609431557
+ * Clamp de salida: 0–3000 mL.
+ *
+ * Una ecuación anterior de banco (32.566738… × distanceMm − 1270.5786…) queda como referencia
+ * histórica; no es la ecuación activa de la app.
+ *
  * Los puntos por tramos se conservan para exportación CSV y referencia técnica (piecewise).
  */
 import type { CalibrationModelKind } from '@/src/modules/device/calibration/calibration-model-types';

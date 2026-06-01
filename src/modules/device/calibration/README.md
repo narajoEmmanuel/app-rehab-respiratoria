@@ -9,9 +9,10 @@ Documentación técnica del **módulo de calibración local** (ESP32 + VL53L0X �
 | Aspecto | Valor activo |
 |---------|--------------|
 | Espirómetro | **RESPIRA+ 3000 mL** (único perfil en UI paciente) |
-| Modelo predeterminado | Lineal: `Volumen = 32.566738232013954 × distanceMm − 1270.5786467848384` |
-| Clamp | 0–3000 mL |
-| Cálculo de volumen | **En la app**; el ESP32 envía solo `distanceMm` |
+| Calibración de banco | **30 de mayo de 2026** (`cal-predefined-respira-3000-v20260530`) |
+| Modelo predeterminado | Lineal: `Volumen = 26.11855011086812 × distanceMm − 1194.3556609431557` |
+| Clamp | 0–3000 mL (< 0 → 0 mL; > 3000 → 3000 mL) |
+| Cálculo de volumen | **En la app** a partir de `distanceMm`; el ESP32 no envía volumen clínico |
 | Calibración técnica UI | Oculta (`EXPO_PUBLIC_ENABLE_TECHNICAL_CALIBRATION=false`) |
 | Export técnico (U95, R², CSV) | Solo modo técnico/debug |
 | UI conexión | Termómetro visual 0–3000 mL (`VolumeThermometer`) |
@@ -22,6 +23,7 @@ Documentación técnica del **módulo de calibración local** (ESP32 + VL53L0X �
 
 - Perfil **5000 mL** (Besmed CIYO/TB-93500): calibración multi-volumen, validación geométrica y constantes en `calibration-constants.ts`.
 - Opción **«Otro»** espirómetro: eliminada del flujo paciente.
+- Ecuación lineal anterior de banco (`32.566738… × distanceMm − 1270.5786…`): referencia histórica; **no** es la ecuación activa de la app.
 - Firmware `envio_datos_prueba2.ino`: variante histórica con JSON enriquecido; ver sección 4 para detalle legacy.
 
 Las secciones siguientes documentan el **sistema completo** incluyendo calibración técnica y perfiles legacy. Donvergencia con el flujo paciente actual, prevalece la sección 0.
