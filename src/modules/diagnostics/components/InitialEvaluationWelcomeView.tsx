@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
 import { appBrand } from '@/src/shared/branding/app-brand';
 import { spacing } from '@/src/shared/theme/spacing';
+import { fontBold, fontRegular } from '@/src/shared/theme/typography';
 import { wellness, wellnessColors, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 type InitialEvaluationWelcomeViewProps = {
@@ -22,28 +23,33 @@ export function InitialEvaluationWelcomeView({
   onStart,
   onGoToSensor,
 }: InitialEvaluationWelcomeViewProps) {
+  const [logoFailed, setLogoFailed] = useState(false);
   const showSensorHint = !canStart && !loading;
+  const buttonDisabled = !canStart || loading;
 
   return (
     <View style={styles.screen}>
       <View style={styles.heroWash} pointerEvents="none" />
 
-      <Animated.View entering={FadeInUp.duration(520).delay(80)} style={styles.logoWrap}>
-        <View style={styles.logoBadge}>
-          <Image
-            source={appBrand.logo}
-            style={styles.logo}
-            resizeMode="contain"
-            accessibilityIgnoresInvertColors
-          />
-        </View>
+      <View style={styles.logoWrap}>
+        {!logoFailed ? (
+          <View style={styles.logoBadge}>
+            <Image
+              source={appBrand.logo}
+              style={styles.logo}
+              resizeMode="contain"
+              accessibilityIgnoresInvertColors
+              onError={() => setLogoFailed(true)}
+            />
+          </View>
+        ) : null}
         <Text style={styles.brandMark} accessibilityRole="header">
           <Text style={styles.brandWord}>Respira</Text>
           <Text style={styles.brandPlus}>+</Text>
         </Text>
-      </Animated.View>
+      </View>
 
-      <Animated.View entering={FadeInDown.duration(560).delay(160)} style={styles.card}>
+      <View style={styles.card}>
         <Text style={styles.title}>Evaluación inicial</Text>
         <Text style={styles.lead}>
           Vamos a conocer tu volumen de referencia para personalizar tus niveles.
@@ -72,14 +78,14 @@ export function InitialEvaluationWelcomeView({
         <Pressable
           style={({ pressed }) => [
             styles.primaryBtn,
-            (!canStart || loading) && styles.primaryBtnDisabled,
-            pressed && canStart && !loading && styles.primaryBtnPressed,
+            buttonDisabled && styles.primaryBtnDisabled,
+            pressed && !buttonDisabled && styles.primaryBtnPressed,
           ]}
           onPress={onStart}
-          disabled={!canStart || loading}
+          disabled={buttonDisabled}
           accessibilityRole="button"
           accessibilityLabel="Comenzar evaluación"
-          accessibilityState={{ disabled: !canStart || loading }}>
+          accessibilityState={{ disabled: buttonDisabled }}>
           <Text style={styles.primaryBtnText}>
             {loading ? 'Verificando sensor…' : 'Comenzar evaluación'}
           </Text>
@@ -94,7 +100,7 @@ export function InitialEvaluationWelcomeView({
             <Text style={styles.secondaryBtnText}>Ir a Sensor y medición</Text>
           </Pressable>
         ) : null}
-      </Animated.View>
+      </View>
     </View>
   );
 }
@@ -117,31 +123,40 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   logoBadge: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    width: 112,
+    height: 76,
+    borderRadius: 22,
+    backgroundColor: wellness.softGreen,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(52, 171, 165, 0.22)',
+    borderColor: 'rgba(52, 171, 165, 0.28)',
     marginBottom: spacing.sm,
+    shadowColor: '#1F7E7A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
   },
   logo: {
-    width: 48,
-    height: 48,
+    width: 96,
+    height: 60,
   },
   brandMark: {
-    fontSize: 22,
+    fontSize: 28,
     fontWeight: '800',
     color: wellness.primaryDark,
     letterSpacing: 0.2,
   },
   brandWord: {
+    fontFamily: fontBold,
     color: wellness.text,
+    letterSpacing: -0.4,
   },
   brandPlus: {
-    color: wellness.primary,
+    fontFamily: fontRegular,
+    color: appBrand.primaryColor,
+    letterSpacing: 0.5,
   },
   card: {
     backgroundColor: wellness.card,

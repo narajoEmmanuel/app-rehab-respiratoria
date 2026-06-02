@@ -122,9 +122,11 @@ export function DiagnosticExamScreen() {
   const phaseDeadlineRef = useRef(0);
   const timerRafRef = useRef<number | null>(null);
   const phaseTransitionLockRef = useRef(false);
+  const countdownStartedRef = useRef(false);
 
   const readiness = useInitialEvaluationReadiness(!isTouchPractice);
-  const canStartEvaluation = isTouchPractice || readiness.canStart;
+  const canStartEvaluation = isTouchPractice || readiness.canStartNow;
+  const canShowStartButton = isTouchPractice || readiness.canStart;
 
   const inAttempt = isDiagnosticAttemptPhase(phase);
 
@@ -238,10 +240,17 @@ export function DiagnosticExamScreen() {
   }, [confirmCancelEvaluation, phase, router]);
 
   const handleStartEvaluation = useCallback(() => {
-    if (!canStartEvaluation) return;
+    if (!canStartEvaluation || countdownStartedRef.current) return;
+    countdownStartedRef.current = true;
     setCountdownValue(COUNTDOWN_START);
     setPhase('countdown');
   }, [canStartEvaluation]);
+
+  useEffect(() => {
+    if (phase === 'welcome') {
+      countdownStartedRef.current = false;
+    }
+  }, [phase]);
 
   useEffect(() => {
     if (phase !== 'countdown') return;
@@ -458,7 +467,7 @@ export function DiagnosticExamScreen() {
           onPressProfile={() => router.push('/profile')}
         />
         <InitialEvaluationWelcomeView
-          canStart={canStartEvaluation}
+          canStart={canShowStartButton}
           loading={!isTouchPractice && readiness.loading}
           statusMessage={readiness.statusMessage}
           spirometerLabel={liveLabel}
