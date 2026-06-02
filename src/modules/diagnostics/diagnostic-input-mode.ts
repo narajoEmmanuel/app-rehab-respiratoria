@@ -3,6 +3,7 @@
  */
 import {
   DEFAULT_SESSION_INPUT_MODE,
+  isTouchPracticeModeEnabled,
   isTouchPracticeSession,
   parseSessionInputMode,
   type SessionInputMode,
@@ -16,6 +17,25 @@ export function parseDiagnosticInputMode(
   value: string | string[] | undefined,
 ): DiagnosticInputMode {
   return parseSessionInputMode(value);
+}
+
+/** Touch practice solo vía ruta manual cuando la flag o dev lo permiten — nunca en flujo paciente. */
+export function isTouchPracticeDiagnosticUiAllowed(): boolean {
+  return isTouchPracticeModeEnabled() || __DEV__;
+}
+
+/**
+ * Resuelve el modo efectivo: touch_practice solo si viene explícito en la URL y está permitido;
+ * en cualquier otro caso, sensor.
+ */
+export function resolveDiagnosticInputMode(
+  value: string | string[] | undefined,
+): DiagnosticInputMode {
+  const parsed = parseDiagnosticInputMode(value);
+  if (parsed === 'touch_practice' && isTouchPracticeDiagnosticUiAllowed()) {
+    return 'touch_practice';
+  }
+  return DEFAULT_DIAGNOSTIC_INPUT_MODE;
 }
 
 export function isTouchPracticeDiagnostic(mode: DiagnosticInputMode): boolean {

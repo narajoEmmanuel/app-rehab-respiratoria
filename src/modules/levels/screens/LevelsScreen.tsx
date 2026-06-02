@@ -19,6 +19,7 @@ import {
 import { logLevelSensorModeSelected } from '@/src/modules/session/sensor/level-sensor-debug';
 import { evaluateLevelSensorReadiness } from '@/src/modules/session/sensor/level-sensor-readiness';
 import { getLatestDiagnostic, getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
+import { navigateToInitialEvaluation } from '@/src/modules/diagnostics/navigate-to-initial-evaluation';
 import type { DiagnosticRecord, PatientLevelRecord } from '@/src/modules/diagnostics/types';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
@@ -310,8 +311,8 @@ export function LevelsScreen({
               Necesitamos tu volumen de referencia para personalizar tus metas de terapia.
             </Text>
             <AppButton
-              title="Iniciar evaluación"
-              onPress={() => router.push('/diagnostico')}
+              title="Comenzar evaluación"
+              onPress={() => navigateToInitialEvaluation(router)}
               style={styles.evaluationButton}
             />
           </AppCard>
