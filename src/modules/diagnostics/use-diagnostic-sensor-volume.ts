@@ -1,5 +1,5 @@
 /**
- * Volumen en vivo para diagnóstico con sensor: modelo cargado una vez, estimación por lectura.
+ * Volumen en vivo para diagnóstico con sensor: misma lectura viva que terapia.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -9,18 +9,26 @@ import {
   loadActiveVolumeEstimationContext,
   type LoadActiveVolumeEstimationContextResult,
 } from '@/src/modules/device/volume-estimation/volume-estimation-service';
+import { checkSensorReadingLive } from '@/src/modules/session/sensor/sensor-live-reading';
 
 const UI_THROTTLE_MS = 48;
+/** Re-evalúa lectura obsoleta aunque lastReading no cambie. */
+const LIVE_STALE_POLL_MS = 400;
+
+export type DiagnosticVolumeSampleMeta = {
+  live: boolean;
+};
 
 export type UseDiagnosticSensorVolumeOptions = {
   enabled: boolean;
   sampling: boolean;
-  onVolumeSample: (volumeMl: number) => void;
+  onVolumeSample: (volumeMl: number, meta: DiagnosticVolumeSampleMeta) => void;
 };
 
 export type UseDiagnosticSensorVolumeResult = {
   modelReady: boolean;
   sensorConnected: boolean;
+  hasLiveReading: boolean;
   spirometerLabel: string | null;
 };
 
@@ -28,13 +36,22 @@ export function useDiagnosticSensorVolume(
   options: UseDiagnosticSensorVolumeOptions,
 ): UseDiagnosticSensorVolumeResult {
   const { enabled, sampling, onVolumeSample } = options;
-  const { lastReading, status: sensorStatus, mode } = useSensorConnection();
+  const {
+    lastReading,
+    status: sensorStatus,
+    mode,
+    lastDataReceivedAt,
+    sensorStreamState,
+  } = useSensorConnection();
 
   const bundleRef = useRef<LoadActiveVolumeEstimationContextResult | null>(null);
   const lastUiPushRef = useRef(0);
   const pendingMlRef = useRef(0);
+  const pendingLiveRef = useRef(false);
+  const lastReceivedAtRef = useRef<number | null>(null);
   const onVolumeSampleRef = useRef(onVolumeSample);
   const [modelReady, setModelReady] = useState(false);
+  const [hasLiveReading, setHasLiveReading] = useState(false);
   const [spirometerLabel, setSpirometerLabel] = useState<string | null>(null);
 
   onVolumeSampleRef.current = onVolumeSample;
@@ -46,6 +63,7 @@ export function useDiagnosticSensorVolume(
     if (!enabled) {
       bundleRef.current = null;
       setModelReady(false);
+      setHasLiveReading(false);
       setSpirometerLabel(null);
       return;
     }
@@ -63,33 +81,79 @@ export function useDiagnosticSensorVolume(
 
   const flushVolume = useCallback((force: boolean) => {
     const ml = pendingMlRef.current;
+    const live = pendingLiveRef.current;
     const now = Date.now();
     if (!force && now - lastUiPushRef.current < UI_THROTTLE_MS) return;
     lastUiPushRef.current = now;
-    onVolumeSampleRef.current(ml);
+    onVolumeSampleRef.current(ml, { live });
   }, []);
 
-  useEffect(() => {
-    if (!enabled || !sampling) return;
-
+  const applyReading = useCallback(() => {
     const bundle = bundleRef.current;
     if (!bundle?.activeModel) return;
 
-    const distanceMm = lastReading?.distanceMm;
-    const distanceIsFinite = typeof distanceMm === 'number' && Number.isFinite(distanceMm);
+    if (lastDataReceivedAt !== null) {
+      lastReceivedAtRef.current = lastDataReceivedAt;
+    } else if (lastReading) {
+      lastReceivedAtRef.current = Date.now();
+    }
 
-    const estimate = estimateVolumeForCurrentSensorReading({
-      context: bundle.context,
-      activeModel: bundle.activeModel,
-      calibrationProfile: bundle.calibrationProfile,
-      distanceMm: sensorConnected && distanceIsFinite ? distanceMm : null,
+    const liveCheck = checkSensorReadingLive({
+      lastReading,
       sensorConnected,
-      hasUnsavedChanges: false,
+      receivedAtMs: lastReceivedAtRef.current,
+      sensorStreamState: mode === 'mock' ? 'receiving_data' : sensorStreamState,
     });
 
-    pendingMlRef.current = Math.max(0, estimate.roundedVolumeMl ?? 0);
+    const readingIsLive = liveCheck.live;
+    pendingLiveRef.current = readingIsLive;
+    setHasLiveReading(readingIsLive);
+
+    let ml = 0;
+    if (readingIsLive && sensorConnected) {
+      const distanceMm =
+        typeof lastReading?.distanceMm === 'number' && Number.isFinite(lastReading.distanceMm)
+          ? lastReading.distanceMm
+          : null;
+
+      if (distanceMm !== null) {
+        const estimate = estimateVolumeForCurrentSensorReading({
+          context: bundle.context,
+          activeModel: bundle.activeModel,
+          calibrationProfile: bundle.calibrationProfile,
+          distanceMm,
+          sensorConnected,
+          hasUnsavedChanges: false,
+        });
+        ml = Math.max(0, estimate.therapyVolumeMl ?? estimate.roundedVolumeMl ?? 0);
+      }
+    }
+
+    pendingMlRef.current = ml;
     flushVolume(false);
-  }, [enabled, flushVolume, lastReading, sampling, sensorConnected]);
+  }, [
+    flushVolume,
+    lastDataReceivedAt,
+    lastReading,
+    mode,
+    sensorConnected,
+    sensorStreamState,
+  ]);
+
+  useEffect(() => {
+    if (!enabled || !sampling) {
+      setHasLiveReading(false);
+      return;
+    }
+    if (!modelReady) return;
+    applyReading();
+  }, [applyReading, enabled, modelReady, sampling]);
+
+  useEffect(() => {
+    if (!enabled || !sampling || !modelReady) return;
+    const id = setInterval(applyReading, LIVE_STALE_POLL_MS);
+    return () => clearInterval(id);
+  }, [applyReading, enabled, modelReady, sampling]);
 
   useEffect(() => {
     if (!enabled || !sampling) return;
@@ -100,6 +164,7 @@ export function useDiagnosticSensorVolume(
   return {
     modelReady,
     sensorConnected,
+    hasLiveReading,
     spirometerLabel,
   };
 }

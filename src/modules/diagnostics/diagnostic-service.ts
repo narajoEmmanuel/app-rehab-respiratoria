@@ -20,6 +20,22 @@ const LEVEL_FACTORS: { levelId: LevelId; factor: number }[] = [
   { levelId: 'level-5', factor: 1.0 },
 ];
 
+export type DiagnosticLevelTargetPreview = {
+  levelNumber: number;
+  factor: number;
+  targetVolumeMl: number;
+};
+
+/** Metas por nivel derivadas del volumen de referencia (misma lógica que persistencia). */
+export function previewDiagnosticLevelTargets(vim: number): DiagnosticLevelTargetPreview[] {
+  const roundedVim = Math.round(Math.max(0, vim));
+  return LEVEL_FACTORS.map(({ factor }, index) => ({
+    levelNumber: index + 1,
+    factor,
+    targetVolumeMl: Math.round(roundedVim * factor),
+  }));
+}
+
 export async function hasDiagnostic(patientId: number): Promise<boolean> {
   const diagnostics = await readAllDiagnostics();
   return diagnostics.some((item) => item.patient_id === patientId);
@@ -165,6 +181,9 @@ export async function persistOfficialDiagnosticResult(
   patientId: number,
   vim: number,
 ): Promise<{ diagnostic: DiagnosticRecord; levels: PatientLevelRecord[] }> {
+  if (!Number.isFinite(vim) || vim <= 0) {
+    throw new Error('INVALID_DIAGNOSTIC_VIM');
+  }
   const diagnostic = await createDiagnostic(patientId, vim);
   const allLevels = await readAllPatientLevels();
   const hasExistingLevels = allLevels.some((row) => row.patient_id === patientId);
