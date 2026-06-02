@@ -1,27 +1,20 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import {
-  evaluateDiagnosticSensorReadinessOnDemand,
-  showTherapyReadinessAlert,
-} from '@/src/modules/device/volume-estimation';
+import { InitialEvaluationCountdownView } from '@/src/modules/diagnostics/components/InitialEvaluationCountdownView';
+import { InitialEvaluationWelcomeView } from '@/src/modules/diagnostics/components/InitialEvaluationWelcomeView';
 import {
   decayDiagnosticVolume,
   simulatedDiagnosticVolumeForHold,
 } from '@/src/modules/diagnostics/diagnostic-volume-input';
 import {
   isTouchPracticeDiagnostic,
-  parseDiagnosticInputMode,
+  resolveDiagnosticInputMode,
 } from '@/src/modules/diagnostics/diagnostic-input-mode';
 import { useDiagnosticSensorVolume } from '@/src/modules/diagnostics/use-diagnostic-sensor-volume';
+import { useInitialEvaluationReadiness } from '@/src/modules/diagnostics/use-initial-evaluation-readiness';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
@@ -29,17 +22,25 @@ import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 const TEST_SECONDS = 5;
 const ATTEMPT_MS = TEST_SECONDS * 1000;
 const REST_MS = 7000;
+const COUNTDOWN_MS = 1000;
+const COUNTDOWN_START = 3;
 const TOUCH_VOLUME_TICK_MS = 50;
 const BALLOON_ANIM_MS = 85;
 const MAX_SIMULATED_VOLUME = 4200;
-/** Volumen al que el globo alcanza su tamaño visual máximo en pantalla. */
 const BALLOON_VISUAL_MAX_ML = 3200;
 const BALLOON_MIN_SCALE = 0.38;
 const BALLOON_MAX_SCALE = 1.95;
 const BALLOON_BASE_WIDTH = 88;
 const BALLOON_BASE_HEIGHT = 108;
 
-type DiagnosticPhase = 'idle' | 'attempt-1' | 'rest' | 'attempt-2' | 'rest-2' | 'attempt-3';
+type DiagnosticPhase =
+  | 'welcome'
+  | 'countdown'
+  | 'attempt-1'
+  | 'rest'
+  | 'attempt-2'
+  | 'rest-2'
+  | 'attempt-3';
 
 const DIAGNOSTIC_ATTEMPT_COUNT = 3;
 
@@ -51,7 +52,10 @@ function isDiagnosticRestPhase(phase: DiagnosticPhase): boolean {
   return phase === 'rest' || phase === 'rest-2';
 }
 
-/** Progreso 0–1 con curva perceptual: más contraste entre 0, 1000, 2000 y 3000+ mL. */
+function isTimedPhase(phase: DiagnosticPhase): boolean {
+  return isDiagnosticAttemptPhase(phase) || isDiagnosticRestPhase(phase);
+}
+
 function volumeMlToBalloonProgress(volumeMl: number): number {
   const linear = Math.max(0, Math.min(volumeMl / BALLOON_VISUAL_MAX_ML, 1));
   return Math.pow(linear, 0.68);
@@ -67,14 +71,37 @@ function updateBalloonScale(balloonProgress: Animated.Value, volumeMl: number): 
   }).start();
 }
 
+function resetAttemptTracking(params: {
+  maxVolumeRef: { current: number };
+  setAttemptOneMax: (v: number) => void;
+  setAttemptTwoMax: (v: number) => void;
+  setAttemptThreeMax: (v: number) => void;
+  setCurrentVolume: (v: number) => void;
+  setMaxVolume: (v: number) => void;
+  setIsPressing: (v: boolean) => void;
+  pressStartedAtRef: { current: number | null };
+  balloonProgress: Animated.Value;
+}): void {
+  params.maxVolumeRef.current = 0;
+  params.setAttemptOneMax(0);
+  params.setAttemptTwoMax(0);
+  params.setAttemptThreeMax(0);
+  params.setCurrentVolume(0);
+  params.setMaxVolume(0);
+  params.setIsPressing(false);
+  params.pressStartedAtRef.current = null;
+  updateBalloonScale(params.balloonProgress, 0);
+}
+
 export function DiagnosticExamScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { inputMode: inputModeParam } = useLocalSearchParams<{ inputMode?: string }>();
-  const inputMode = useMemo(() => parseDiagnosticInputMode(inputModeParam), [inputModeParam]);
+  const inputMode = useMemo(() => resolveDiagnosticInputMode(inputModeParam), [inputModeParam]);
   const isTouchPractice = isTouchPracticeDiagnostic(inputMode);
 
-  const [phase, setPhase] = useState<DiagnosticPhase>('idle');
+  const [phase, setPhase] = useState<DiagnosticPhase>('welcome');
+  const [countdownValue, setCountdownValue] = useState(COUNTDOWN_START);
   const [secondsLeft, setSecondsLeft] = useState(TEST_SECONDS);
   const [timeLeftMs, setTimeLeftMs] = useState(ATTEMPT_MS);
   const [currentVolume, setCurrentVolume] = useState(0);
@@ -83,7 +110,7 @@ export function DiagnosticExamScreen() {
   const [attemptTwoMax, setAttemptTwoMax] = useState(0);
   const [attemptThreeMax, setAttemptThreeMax] = useState(0);
   const [isPressing, setIsPressing] = useState(false);
-  const [sensorEntryReady, setSensorEntryReady] = useState(isTouchPractice);
+
   const pressStartedAtRef = useRef<number | null>(null);
   const balloonProgress = useRef(new Animated.Value(0)).current;
   const maxVolumeRef = useRef(0);
@@ -91,6 +118,9 @@ export function DiagnosticExamScreen() {
   const phaseDeadlineRef = useRef(0);
   const timerRafRef = useRef<number | null>(null);
   const phaseTransitionLockRef = useRef(false);
+
+  const readiness = useInitialEvaluationReadiness(!isTouchPractice);
+  const canStartEvaluation = isTouchPractice || readiness.canStart;
 
   const inAttempt = isDiagnosticAttemptPhase(phase);
 
@@ -107,11 +137,7 @@ export function DiagnosticExamScreen() {
     [balloonProgress],
   );
 
-  const {
-    modelReady: sensorModelReady,
-    sensorConnected,
-    spirometerLabel,
-  } = useDiagnosticSensorVolume({
+  const { spirometerLabel } = useDiagnosticSensorVolume({
     enabled: !isTouchPractice,
     sampling: inAttempt,
     onVolumeSample: ingestVolumeMl,
@@ -121,40 +147,83 @@ export function DiagnosticExamScreen() {
     isPressingRef.current = isPressing;
   }, [isPressing]);
 
-  useEffect(() => {
-    if (isTouchPractice) {
-      setSensorEntryReady(true);
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      const gate = await evaluateDiagnosticSensorReadinessOnDemand({ sensorConnected });
-      if (cancelled) return;
-      if (!gate.canStartDiagnostic) {
-        showTherapyReadinessAlert(gate, (route) => router.replace(route));
-        if (router.canGoBack()) {
-          router.back();
-        } else {
-          router.replace('/(tabs)');
-        }
-        return;
-      }
-      setSensorEntryReady(true);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isTouchPractice, router, sensorConnected]);
-
   const armPhaseDeadline = useCallback((durationMs: number) => {
     phaseDeadlineRef.current = Date.now() + durationMs;
     setTimeLeftMs(durationMs);
     setSecondsLeft(Math.ceil(durationMs / 1000));
   }, []);
 
-  /** Reloj de fase desacoplado del sensor: tiempo real por deadline. */
+  const beginFirstAttempt = useCallback(() => {
+    resetAttemptTracking({
+      maxVolumeRef,
+      setAttemptOneMax,
+      setAttemptTwoMax,
+      setAttemptThreeMax,
+      setCurrentVolume,
+      setMaxVolume,
+      setIsPressing,
+      pressStartedAtRef,
+      balloonProgress,
+    });
+    setPhase('attempt-1');
+    armPhaseDeadline(ATTEMPT_MS);
+  }, [armPhaseDeadline, balloonProgress]);
+
+  const confirmCancelEvaluation = useCallback(() => {
+    Alert.alert(
+      '¿Cancelar evaluación?',
+      'No se guardará ningún resultado.',
+      [
+        { text: 'Continuar', style: 'cancel' },
+        {
+          text: 'Cancelar evaluación',
+          style: 'destructive',
+          onPress: () => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(tabs)');
+            }
+          },
+        },
+      ],
+    );
+  }, [router]);
+
+  const handleBack = useCallback(() => {
+    if (phase === 'welcome') {
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)');
+      }
+      return;
+    }
+    confirmCancelEvaluation();
+  }, [confirmCancelEvaluation, phase, router]);
+
+  const handleStartEvaluation = useCallback(() => {
+    if (!canStartEvaluation) return;
+    setCountdownValue(COUNTDOWN_START);
+    setPhase('countdown');
+  }, [canStartEvaluation]);
+
   useEffect(() => {
-    if (phase === 'idle') return;
+    if (phase !== 'countdown') return;
+
+    const timer = setTimeout(() => {
+      if (countdownValue <= 1) {
+        beginFirstAttempt();
+      } else {
+        setCountdownValue((prev) => prev - 1);
+      }
+    }, COUNTDOWN_MS);
+
+    return () => clearTimeout(timer);
+  }, [beginFirstAttempt, countdownValue, phase]);
+
+  useEffect(() => {
+    if (!isTimedPhase(phase)) return;
 
     const tick = () => {
       const remaining = Math.max(0, phaseDeadlineRef.current - Date.now());
@@ -174,7 +243,6 @@ export function DiagnosticExamScreen() {
     };
   }, [phase]);
 
-  /** Modo práctica: volumen táctil en tick fijo, independiente del reloj. */
   useEffect(() => {
     if (!isTouchPractice || !inAttempt) return;
 
@@ -190,7 +258,6 @@ export function DiagnosticExamScreen() {
     return () => clearInterval(id);
   }, [inAttempt, ingestVolumeMl, isTouchPractice]);
 
-  /** Descanso: decaimiento visual del globo sin afectar el reloj. */
   useEffect(() => {
     if (!isDiagnosticRestPhase(phase)) return;
 
@@ -210,7 +277,7 @@ export function DiagnosticExamScreen() {
   }, [phase]);
 
   useEffect(() => {
-    if (phase === 'idle' || timeLeftMs > 0) return;
+    if (!isTimedPhase(phase) || timeLeftMs > 0) return;
     if (phaseTransitionLockRef.current) return;
     phaseTransitionLockRef.current = true;
 
@@ -299,11 +366,9 @@ export function DiagnosticExamScreen() {
   );
 
   const phaseActionLabel = useMemo(() => {
-    if (isDiagnosticAttemptPhase(phase)) {
-      return 'Inhala al máximo';
-    }
+    if (isDiagnosticAttemptPhase(phase)) return 'Inhala al máximo';
     if (isDiagnosticRestPhase(phase)) return 'Descansa';
-    return 'Evaluación respiratoria inicial';
+    return 'Evaluación inicial';
   }, [phase]);
 
   const phaseHint = useMemo(() => {
@@ -312,10 +377,8 @@ export function DiagnosticExamScreen() {
     if (phase === 'attempt-3') return `Intento 3 de ${DIAGNOSTIC_ATTEMPT_COUNT} · 5 segundos`;
     if (phase === 'rest') return 'Prepárate para la segunda inspiración';
     if (phase === 'rest-2') return 'Prepárate para la tercera inspiración';
-    return isTouchPractice
-      ? `Modo práctica · ${DIAGNOSTIC_ATTEMPT_COUNT} intentos de 5 s`
-      : `${DIAGNOSTIC_ATTEMPT_COUNT} intentos de inspiración máxima · 5 s cada uno`;
-  }, [isTouchPractice, phase]);
+    return `${DIAGNOSTIC_ATTEMPT_COUNT} intentos de inspiración máxima · 5 s cada uno`;
+  }, [phase]);
 
   const phaseCommandVariant = useMemo((): 'inhale' | 'rest' | 'idle' => {
     if (isDiagnosticRestPhase(phase)) return 'rest';
@@ -324,10 +387,7 @@ export function DiagnosticExamScreen() {
   }, [phase]);
 
   const currentPhaseDuration = isDiagnosticRestPhase(phase) ? REST_MS : ATTEMPT_MS;
-  const progressRatio = Math.max(
-    0,
-    Math.min(1, 1 - timeLeftMs / currentPhaseDuration),
-  );
+  const progressRatio = Math.max(0, Math.min(1, 1 - timeLeftMs / currentPhaseDuration));
 
   const onPressIn = () => {
     if (!isTouchPractice || !inAttempt) return;
@@ -341,35 +401,43 @@ export function DiagnosticExamScreen() {
     pressStartedAtRef.current = null;
   };
 
-  if (!isTouchPractice && (!sensorEntryReady || !sensorModelReady)) {
+  const screenBottomInset = insets.bottom + spacing.md;
+  const liveLabel = spirometerLabel ?? readiness.spirometerLabel;
+
+  if (phase === 'welcome') {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <SafeAreaView style={styles.welcomeSafe} edges={['top']}>
         <AppTopBar
           showBackButton
           backFallbackHref="/(tabs)/index"
+          onPressBack={handleBack}
           onPressProfile={() => router.push('/profile')}
         />
-        <View style={styles.centeredLoading}>
-          <ActivityIndicator size="large" color={wellness.primary} />
-          <Text style={styles.loadingText}>Verificando sensor y calibración…</Text>
-        </View>
+        <InitialEvaluationWelcomeView
+          canStart={canStartEvaluation}
+          loading={!isTouchPractice && readiness.loading}
+          statusMessage={readiness.statusMessage}
+          spirometerLabel={liveLabel}
+          onStart={handleStartEvaluation}
+          onGoToSensor={() => router.push('/sensor-connection')}
+        />
       </SafeAreaView>
     );
   }
 
-  const startAttempt = () => {
-    maxVolumeRef.current = 0;
-    setAttemptOneMax(0);
-    setAttemptTwoMax(0);
-    setAttemptThreeMax(0);
-    setCurrentVolume(0);
-    setMaxVolume(0);
-    setIsPressing(false);
-    pressStartedAtRef.current = null;
-    setPhase('attempt-1');
-    armPhaseDeadline(ATTEMPT_MS);
-    updateBalloonScale(balloonProgress, 0);
-  };
+  if (phase === 'countdown') {
+    return (
+      <SafeAreaView style={styles.welcomeSafe} edges={['top']}>
+        <AppTopBar
+          showBackButton
+          backFallbackHref="/(tabs)/index"
+          onPressBack={handleBack}
+          onPressProfile={() => router.push('/profile')}
+        />
+        <InitialEvaluationCountdownView count={countdownValue} />
+      </SafeAreaView>
+    );
+  }
 
   const gameCardInner = (
     <View style={styles.gameCardInner}>
@@ -401,15 +469,13 @@ export function DiagnosticExamScreen() {
           </View>
         </View>
 
-        {phase !== 'idle' ? (
-          <Text style={styles.activeCardMeta}>
-            {isTouchPractice
-              ? 'Mantén presionado en el globo'
-              : spirometerLabel
-                ? `Medición en vivo · ${spirometerLabel}`
-                : 'Medición en vivo'}
-          </Text>
-        ) : null}
+        <Text style={styles.activeCardMeta}>
+          {isTouchPractice
+            ? 'Mantén presionado en el globo'
+            : liveLabel
+              ? `Medición en vivo · ${liveLabel}`
+              : 'Medición en vivo'}
+        </Text>
       </View>
 
       <View style={styles.balloonZone}>
@@ -451,8 +517,6 @@ export function DiagnosticExamScreen() {
     </View>
   );
 
-  const screenBottomInset = insets.bottom + spacing.md;
-
   const gameCard = isTouchPractice ? (
     <Pressable
       style={styles.gameCardFlexFill}
@@ -470,42 +534,23 @@ export function DiagnosticExamScreen() {
       <AppTopBar
         showBackButton
         backFallbackHref="/(tabs)/index"
+        onPressBack={handleBack}
         onPressProfile={() => router.push('/profile')}
       />
 
       <View style={styles.contentArea}>
-        {phase === 'idle' ? (
-          <View style={styles.headerZone}>
-            <Text style={styles.titleCompact}>Evaluación respiratoria inicial</Text>
-            <View style={styles.modeBadgeRow}>
-              <View style={[styles.modeBadge, isTouchPractice && styles.modeBadgePractice]}>
-                <Text
-                  style={[
-                    styles.modeBadgeText,
-                    isTouchPractice && styles.modeBadgeTextPractice,
-                  ]}>
-                  {isTouchPractice ? 'Modo práctica' : 'Con sensor'}
-                </Text>
-              </View>
-            </View>
-            <Text style={styles.idleIntro}>{phaseHint}</Text>
-            {!isTouchPractice && spirometerLabel ? (
-              <Text style={styles.sensorReadyInline}>Sensor listo · {spirometerLabel}</Text>
-            ) : null}
-            <Pressable
-              style={({ pressed }) => [
-                styles.primaryBtnTop,
-                pressed && styles.primaryBtnTopPressed,
-              ]}
-              onPress={startAttempt}
-              accessibilityRole="button"
-              accessibilityLabel="Iniciar intento">
-              <Text style={styles.primaryBtnTopText}>Empezar evaluación</Text>
-            </Pressable>
-          </View>
-        ) : null}
-
         <View style={styles.gameCardShell}>{gameCard}</View>
+
+        <Text style={styles.safetyHint}>
+          Respira con calma. Puedes cancelar si te sientes mal.
+        </Text>
+        <Pressable
+          style={({ pressed }) => [styles.cancelLink, pressed && styles.cancelLinkPressed]}
+          onPress={confirmCancelEvaluation}
+          accessibilityRole="button"
+          accessibilityLabel="Cancelar evaluación">
+          <Text style={styles.cancelLinkText}>Cancelar evaluación</Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );
@@ -516,15 +561,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: wellness.screenBg,
   },
+  welcomeSafe: {
+    flex: 1,
+    backgroundColor: wellness.screenBg,
+  },
   contentArea: {
     flex: 1,
     minHeight: 0,
     paddingHorizontal: spacing.md,
-  },
-  headerZone: {
-    flexShrink: 0,
-    gap: spacing.xs,
-    marginBottom: spacing.sm,
   },
   activeCardMeta: {
     fontSize: 12,
@@ -532,75 +576,25 @@ const styles = StyleSheet.create({
     color: wellness.textSecondary,
     textAlign: 'center',
   },
-  titleCompact: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: wellness.text,
-  },
-  idleIntro: {
-    fontSize: 15,
-    lineHeight: 21,
-    color: wellness.textSecondary,
-  },
-  sensorReadyInline: {
+  safetyHint: {
+    marginTop: spacing.sm,
     fontSize: 13,
-    fontWeight: '600',
-    color: wellness.primaryDark,
-  },
-  modeBadgeRow: {
-    flexDirection: 'row',
-  },
-  modeBadge: {
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(52, 171, 165, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(52, 171, 165, 0.28)',
-  },
-  modeBadgePractice: {
-    backgroundColor: 'rgba(61, 90, 74, 0.08)',
-    borderColor: wellness.border,
-  },
-  modeBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: wellness.primaryDark,
-    letterSpacing: 0.2,
-  },
-  modeBadgeTextPractice: {
-    color: wellness.textSecondary,
-  },
-  centeredLoading: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-  },
-  loadingText: {
-    fontSize: 16,
+    lineHeight: 18,
     color: wellness.textSecondary,
     textAlign: 'center',
   },
-  primaryBtnTop: {
-    backgroundColor: wellness.primary,
-    borderRadius: wellnessRadii.pill,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
+  cancelLink: {
+    marginTop: spacing.xs,
+    paddingVertical: spacing.sm,
     alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 50,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
   },
-  primaryBtnTopPressed: {
-    opacity: 0.9,
+  cancelLinkPressed: {
+    opacity: 0.65,
   },
-  primaryBtnTopText: {
-    color: '#ffffff',
-    fontSize: 19,
-    fontWeight: '800',
+  cancelLinkText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: wellness.primaryDark,
   },
   gameCardShell: {
     flex: 1,

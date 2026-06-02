@@ -14,13 +14,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
 import {
-  evaluateDiagnosticSensorReadinessOnDemand,
-  showDiagnosticPlayModePicker,
-  showDiagnosticSensorReadyConfirmation,
   showLevelPlayModePicker,
   showTherapyReadinessAlert,
   useTherapyReadinessGate,
 } from '@/src/modules/device/volume-estimation';
+import { navigateToInitialEvaluation } from '@/src/modules/diagnostics/navigate-to-initial-evaluation';
 import { isTechnicalCalibrationEnabled } from '@/src/modules/app-mode';
 import {
   PATIENT_MEASUREMENT_CONNECT_SENSOR,
@@ -308,39 +306,10 @@ export function HomeScreen() {
     typeof lastReading?.distanceMm === 'number' &&
     Number.isFinite(lastReading.distanceMm);
 
-  const diagnosticPatientId = patient?.paciente_id ?? null;
-  const goDiagnostico = useCallback(() => {
+  const goInitialEvaluation = useCallback(() => {
     onLightImpact();
-    showDiagnosticPlayModePicker({
-      onWithSensor: () => {
-        void (async () => {
-          const gate = await evaluateDiagnosticSensorReadinessOnDemand({
-            sensorConnected,
-            patientId: diagnosticPatientId,
-          });
-          if (!gate.canStartDiagnostic) {
-            showTherapyReadinessAlert(gate, (route) => router.push(route), {
-              onPracticeWithoutSensor: () => {
-                router.push({ pathname: '/diagnostico', params: { inputMode: 'touch_practice' } });
-              },
-              practiceButtonLabel: 'Modo práctica',
-            });
-            return;
-          }
-          showDiagnosticSensorReadyConfirmation({
-            gate,
-            isRepeat: hasCompletedDiagnostic,
-            onConfirm: () => {
-              router.push({ pathname: '/diagnostico', params: { inputMode: 'sensor' } });
-            },
-          });
-        })();
-      },
-      onPracticeMode: () => {
-        router.push({ pathname: '/diagnostico', params: { inputMode: 'touch_practice' } });
-      },
-    });
-  }, [diagnosticPatientId, hasCompletedDiagnostic, router, sensorConnected]);
+    navigateToInitialEvaluation(router);
+  }, [router]);
 
   if (!hydrated || !patient) {
     return (
@@ -393,11 +362,11 @@ export function HomeScreen() {
         {!hasCompletedDiagnostic ? (
           <AppCard variant="highlight" style={styles.diagnosticHeroCard}>
             <Text style={styles.diagnosticHeroKicker}>Evaluación inicial</Text>
-            <Text style={styles.diagnosticHeroTitle}>Realiza tu prueba diagnóstico</Text>
+            <Text style={styles.diagnosticHeroTitle}>Conoce tu volumen de referencia</Text>
             <Text style={styles.diagnosticHeroBody}>
-              Mide tu volumen de referencia para personalizar tus metas de terapia.
+              Realiza tu evaluación inicial para personalizar tus niveles de terapia.
             </Text>
-            <AppButton title="Iniciar diagnóstico" onPress={goDiagnostico} />
+            <AppButton title="Comenzar evaluación" onPress={goInitialEvaluation} />
           </AppCard>
         ) : dailyGoalMet ? (
           <AppCard style={styles.heroCardSpacing}>
@@ -518,7 +487,7 @@ export function HomeScreen() {
                 </View>
               </View>
             ) : null}
-            <AppButton title="Repetir evaluación" onPress={goDiagnostico} variant="secondary" />
+            <AppButton title="Repetir evaluación" onPress={goInitialEvaluation} variant="secondary" />
           </AppCard>
         ) : null}
 
