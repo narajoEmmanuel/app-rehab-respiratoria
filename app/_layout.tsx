@@ -134,6 +134,10 @@ export default function RootLayout() {
                 <Stack.Screen name="notification-settings" options={{ headerShown: false, title: 'Recordatorios' }} />
                 <Stack.Screen name="sensor-connection" options={{ headerShown: false }} />
                 <Stack.Screen name="sensor-calibration" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="calibration-technical-summary"
+                  options={{ headerShown: false, title: 'Resumen técnico' }}
+                />
                 <Stack.Screen name="hardware-lab" options={{ headerShown: false, title: 'Laboratorio de hardware' }} />
                 <Stack.Screen name="diagnostico" options={{ headerShown: false }} />
                 <Stack.Screen name="diagnostico-resumen" options={{ headerShown: false }} />

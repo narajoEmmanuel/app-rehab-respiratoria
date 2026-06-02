@@ -90,7 +90,7 @@ export function patientMeasurementStatusLabel(
     case 'load_error':
       return PATIENT_MEASUREMENT_LOAD_ERROR;
     case 'measurement_ready':
-      return 'Medición lista';
+      return 'Calibración activa';
     case 'sensor_ready':
       return 'Sensor listo para medir';
     default:
@@ -229,7 +229,7 @@ export function patientMeasurementCardTitle(
       return PATIENT_MEASUREMENT_LOAD_ERROR;
     case 'measurement_ready':
     case 'sensor_ready':
-      return 'Medición lista';
+      return 'Calibración activa';
     default:
       return 'Preparando medición';
   }

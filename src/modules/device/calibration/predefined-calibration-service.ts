@@ -2,48 +2,51 @@
  * Instalación y migración de la calibración predeterminada RESPIRA+ 3000 mL (lineal).
  */
 import {
-  loadActiveCalibrationModelForSpirometer,
-  saveActiveCalibrationModelForSpirometer,
+    loadActiveCalibrationModelForSpirometer,
+    saveActiveCalibrationModelForSpirometer,
 } from '@/src/modules/device/calibration/active-calibration-storage';
 import type {
-  ActiveCalibrationCurve,
-  ActiveCalibrationCurvePoint,
-  ActiveCalibrationModel,
-  PredefinedCalibrationMetadata,
+    ActiveCalibrationCurve,
+    ActiveCalibrationCurvePoint,
+    ActiveCalibrationModel,
+    PredefinedCalibrationMetadata,
 } from '@/src/modules/device/calibration/active-calibration-types';
 import {
-  CALIBRATION_MODEL_VERSION,
-  type CalibrationModel,
+    CALIBRATION_MODEL_VERSION,
+    type CalibrationModel,
 } from '@/src/modules/device/calibration/calibration-model-types';
 import {
-  loadCalibrationProfileForSpirometer,
-  saveCalibrationProfileForSpirometer,
+    loadCalibrationProfileForSpirometer,
+    saveCalibrationProfileForSpirometer,
 } from '@/src/modules/device/calibration/calibration-storage';
 import {
-  CALIBRATION_PROFILE_VERSION,
-  type CalibrationProfile,
-  type VolumeCalibrationSummary,
+    CALIBRATION_PROFILE_VERSION,
+    type CalibrationProfile,
+    type VolumeCalibrationSummary,
 } from '@/src/modules/device/calibration/calibration-types';
 import type { ImportedCalibrationBundle } from '@/src/modules/device/calibration/imported-calibration-service';
 import {
-  RESPIRA_3000_CALIBRATED_DISTANCE_RANGE_MM,
-  RESPIRA_3000_CALIBRATED_POINTS,
-  RESPIRA_3000_CLAMP_MAX_ML,
-  RESPIRA_3000_CLAMP_MIN_ML,
-  RESPIRA_3000_DISPLAY_RANGE_ML,
-  RESPIRA_3000_LINEAR_MODEL,
-  RESPIRA_3000_PIECEWISE_REFERENCE_POINTS,
-  RESPIRA_3000_PREDEFINED_CALIBRATION_ID,
-  RESPIRA_3000_PREDEFINED_DEFAULT_ACTIVE_MODEL_KIND,
-  RESPIRA_3000_PREDEFINED_ORIGIN_LABEL,
-  RESPIRA_3000_PREDEFINED_SOURCE,
-  isRespira3000PredefinedProfileId,
-  type PredefinedCalibrationPoint,
+    RESPIRA_3000_CALIBRATED_POINTS,
+    RESPIRA_3000_CLAMP_MAX_ML,
+    RESPIRA_3000_CLAMP_MIN_ML,
+    RESPIRA_3000_DISPLAY_RANGE_ML,
+    RESPIRA_3000_LINEAR_ESTIMATION_DISTANCE_RANGE_MM,
+    RESPIRA_3000_LINEAR_MODEL,
+    RESPIRA_3000_PIECEWISE_REFERENCE_POINTS,
+    RESPIRA_3000_PREDEFINED_CALIBRATION_DATE_ISO,
+    RESPIRA_3000_PREDEFINED_CALIBRATION_DATE_MS,
+    RESPIRA_3000_PREDEFINED_CALIBRATION_ID,
+    RESPIRA_3000_PREDEFINED_DEFAULT_ACTIVE_MODEL_KIND,
+    RESPIRA_3000_PREDEFINED_ORIGIN_LABEL,
+    RESPIRA_3000_PREDEFINED_SOURCE,
+    isRespira3000PredefinedProfileId,
+    isLegacyBankLinearCoefficients,
+    type PredefinedCalibrationPoint,
 } from '@/src/modules/device/calibration/predefined-calibration-models';
 import {
-  SPIROMETER_DEVICE_3000ML_ID,
-  SPIROMETER_PROFILE_3000ML_ID,
-  getSpirometerProfileById,
+    SPIROMETER_DEVICE_3000ML_ID,
+    SPIROMETER_PROFILE_3000ML_ID,
+    getSpirometerProfileById,
 } from '@/src/modules/device/spirometer';
 
 function newId(prefix: string): string {
@@ -89,6 +92,7 @@ function buildPredefinedMetadata(): PredefinedCalibrationMetadata {
     source: RESPIRA_3000_PREDEFINED_SOURCE,
     predefinedId: RESPIRA_3000_PREDEFINED_CALIBRATION_ID,
     originLabel: RESPIRA_3000_PREDEFINED_ORIGIN_LABEL,
+    calibrationDateIso: RESPIRA_3000_PREDEFINED_CALIBRATION_DATE_ISO,
     displayRangeMl: { ...RESPIRA_3000_DISPLAY_RANGE_ML },
     capacityMl: RESPIRA_3000_CLAMP_MAX_ML,
     clampMinMl: RESPIRA_3000_CLAMP_MIN_ML,
@@ -98,15 +102,15 @@ function buildPredefinedMetadata(): PredefinedCalibrationMetadata {
   };
 }
 
-function buildPrimaryLinearModel(profileId: string, now: number): CalibrationModel {
+function buildPrimaryLinearModel(profileId: string, calibrationTs: number): CalibrationModel {
   const { slope, intercept, rSquared, maeMl, rmseMl, maxAbsErrorMl } = RESPIRA_3000_LINEAR_MODEL;
-  const { min: dMin, max: dMax } = RESPIRA_3000_CALIBRATED_DISTANCE_RANGE_MM;
+  const { min: dMin, max: dMax } = RESPIRA_3000_LINEAR_ESTIMATION_DISTANCE_RANGE_MM;
   return {
     id: newId('cmd-predefined-linear'),
     calibrationProfileId: profileId,
     kind: 'linear_regression',
-    createdAt: now,
-    updatedAt: now,
+    createdAt: calibrationTs,
+    updatedAt: calibrationTs,
     relation: 'direct',
     coefficients: { slope, intercept },
     pointsUsed: RESPIRA_3000_CALIBRATED_POINTS.length,
@@ -159,9 +163,10 @@ export function buildRespira3000PredefinedCalibrationBundle(
   }
 
   const now = Date.now();
+  const calibrationTs = RESPIRA_3000_PREDEFINED_CALIBRATION_DATE_MS;
   const profileId = RESPIRA_3000_PREDEFINED_CALIBRATION_ID;
-  const linearModel = buildPrimaryLinearModel(profileId, now);
-  const piecewiseModel = buildPiecewiseReferenceModel(profileId, now);
+  const linearModel = buildPrimaryLinearModel(profileId, calibrationTs);
+  const piecewiseModel = buildPiecewiseReferenceModel(profileId, calibrationTs);
   const activeKind = RESPIRA_3000_PREDEFINED_DEFAULT_ACTIVE_MODEL_KIND;
 
   const referenceCurve: ActiveCalibrationCurve = {
@@ -176,8 +181,8 @@ export function buildRespira3000PredefinedCalibrationBundle(
   const profile: CalibrationProfile = {
     id: profileId,
     name: 'Calibración RESPIRA+ 3000 mL (validada)',
-    createdAt: now,
-    updatedAt: now,
+    createdAt: calibrationTs,
+    updatedAt: calibrationTs,
     points: [],
     summaries: buildSummariesFromPoints(RESPIRA_3000_CALIBRATED_POINTS),
     globalRange: {
@@ -316,6 +321,28 @@ function needsProfilePredefinedUpgrade(profile: CalibrationProfile): boolean {
   );
 }
 
+function needsProfilePredefinedRefresh(profile: CalibrationProfile): boolean {
+  return needsProfilePredefinedUpgrade(profile) || needsProfilePredefinedDateRefresh(profile);
+}
+
+function needsPredefinedMetadataRefresh(model: ActiveCalibrationModel): boolean {
+  if (!isCurrentPredefinedBundle(model)) return false;
+  const predefined = model.predefinedCalibration;
+  if (!predefined?.calibrationDateIso) return true;
+  if (predefined.calibrationDateIso !== RESPIRA_3000_PREDEFINED_CALIBRATION_DATE_ISO) {
+    return true;
+  }
+  const estimationMin = RESPIRA_3000_LINEAR_ESTIMATION_DISTANCE_RANGE_MM.min;
+  if (Math.abs(model.distanceRangeMm.min - estimationMin) > 1e-6) return true;
+  return false;
+}
+
+function needsProfilePredefinedDateRefresh(profile: CalibrationProfile): boolean {
+  if (!isStoredTeamValidatedProfile(profile)) return false;
+  if (profile.id !== RESPIRA_3000_PREDEFINED_CALIBRATION_ID) return false;
+  return profile.updatedAt !== RESPIRA_3000_PREDEFINED_CALIBRATION_DATE_MS;
+}
+
 export type EnsurePredefinedCalibrationResult = {
   installed: boolean;
   reason:
@@ -324,32 +351,120 @@ export type EnsurePredefinedCalibrationResult = {
     | 'no_device'
     | 'installed'
     | 'migrated_predefined_version'
+    | 'replaced_stale_local_calibration'
     | 'already_linear_predefined';
 };
+
+function readLinearCoefficients(model: ActiveCalibrationModel): {
+  slope: number | null;
+  intercept: number | null;
+} {
+  const slope =
+    model.linearModel?.coefficients.slope ?? model.recommendedModel?.coefficients.slope ?? null;
+  const intercept =
+    model.linearModel?.coefficients.intercept ??
+    model.recommendedModel?.coefficients.intercept ??
+    null;
+  return {
+    slope: typeof slope === 'number' && Number.isFinite(slope) ? slope : null,
+    intercept: typeof intercept === 'number' && Number.isFinite(intercept) ? intercept : null,
+  };
+}
+
+function isGeneratedLocalCalibrationProfileId(profileId: string): boolean {
+  return profileId.startsWith('cal-') && !isRespira3000PredefinedProfileId(profileId);
+}
+
+/**
+ * Calibración local/ephemeral o ecuación legacy de banco que debe ceder a la oficial del 30-may.
+ * No reemplaza calibraciones locales nuevas con ecuación distinta elegida explícitamente por el usuario.
+ */
+function shouldReplaceWithOfficialPredefined(
+  model: ActiveCalibrationModel,
+  profile: CalibrationProfile | null,
+): boolean {
+  if (isCurrentPredefinedBundle(model)) return false;
+  if (needsPredefinedUpgrade(model)) return true;
+
+  const profileId = profile?.id ?? model.calibrationProfileId;
+  if (profileId && isGeneratedLocalCalibrationProfileId(profileId)) {
+    const { slope, intercept } = readLinearCoefficients(model);
+    if (slope !== null && intercept !== null) {
+      if (isLegacyBankLinearCoefficients(slope, intercept)) return true;
+      if (matchesOfficialLinearCoefficients(slope, intercept)) return true;
+    }
+    return true;
+  }
+
+  if (profile?.source === 'local_calibration' && profile.points.length > 0) {
+    const { slope, intercept } = readLinearCoefficients(model);
+    if (slope !== null && intercept !== null && isLegacyBankLinearCoefficients(slope, intercept)) {
+      return true;
+    }
+  }
+
+  if (!model.predefinedCalibration && !isTeamValidatedPredefined(model)) {
+    const { slope, intercept } = readLinearCoefficients(model);
+    if (slope !== null && intercept !== null && isLegacyBankLinearCoefficients(slope, intercept)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function matchesOfficialLinearCoefficients(slope: number, intercept: number): boolean {
+  return (
+    Math.abs(slope - RESPIRA_3000_LINEAR_MODEL.slope) < 1e-6 &&
+    Math.abs(intercept - RESPIRA_3000_LINEAR_MODEL.intercept) < 1e-3
+  );
+}
 
 export async function ensureRespira3000PredefinedCalibrationInstalled(
   spirometerDeviceId: string = SPIROMETER_DEVICE_3000ML_ID,
 ): Promise<EnsurePredefinedCalibrationResult> {
+  const profile = await loadCalibrationProfileForSpirometer(spirometerDeviceId);
   const existingActive = await loadActiveCalibrationModelForSpirometer(spirometerDeviceId);
 
   if (existingActive) {
+    if (shouldReplaceWithOfficialPredefined(existingActive, profile)) {
+      const bundle = buildRespira3000PredefinedCalibrationBundle(existingActive.activatedAt);
+      await persistRespira3000PredefinedCalibrationBundle(bundle);
+      return {
+        installed: true,
+        reason: isGeneratedLocalCalibrationProfileId(
+          profile?.id ?? existingActive.calibrationProfileId,
+        )
+          ? 'replaced_stale_local_calibration'
+          : 'migrated_predefined_version',
+      };
+    }
     if (needsPredefinedUpgrade(existingActive)) {
       const bundle = buildRespira3000PredefinedCalibrationBundle(existingActive.activatedAt);
       await persistRespira3000PredefinedCalibrationBundle(bundle);
       return { installed: true, reason: 'migrated_predefined_version' };
     }
     if (isCurrentPredefinedBundle(existingActive)) {
+      if (needsPredefinedMetadataRefresh(existingActive)) {
+        const bundle = buildRespira3000PredefinedCalibrationBundle(existingActive.activatedAt);
+        await persistRespira3000PredefinedCalibrationBundle(bundle);
+        return { installed: true, reason: 'migrated_predefined_version' };
+      }
       return { installed: false, reason: 'already_linear_predefined' };
     }
     return { installed: false, reason: 'active_model_exists' };
   }
 
-  const profile = await loadCalibrationProfileForSpirometer(spirometerDeviceId);
   if (profile?.source === 'local_calibration' && profile.points.length > 0) {
+    if (isGeneratedLocalCalibrationProfileId(profile.id)) {
+      const bundle = buildRespira3000PredefinedCalibrationBundle();
+      await persistRespira3000PredefinedCalibrationBundle(bundle);
+      return { installed: true, reason: 'replaced_stale_local_calibration' };
+    }
     return { installed: false, reason: 'user_local_profile' };
   }
 
-  if (profile && needsProfilePredefinedUpgrade(profile)) {
+  if (profile && needsProfilePredefinedRefresh(profile)) {
     const bundle = buildRespira3000PredefinedCalibrationBundle();
     await persistRespira3000PredefinedCalibrationBundle(bundle);
     return { installed: true, reason: 'migrated_predefined_version' };

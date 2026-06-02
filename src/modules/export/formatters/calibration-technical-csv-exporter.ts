@@ -8,17 +8,17 @@ import Constants from 'expo-constants';
 
 import type { ActiveCalibrationModel } from '@/src/modules/device/calibration/active-calibration-types';
 import {
-  createDefaultCalibratedDeviceIdentification,
-  mergeCalibratedDeviceIdentification,
+    createDefaultCalibratedDeviceIdentification,
+    mergeCalibratedDeviceIdentification,
 } from '@/src/modules/device/calibration/calibrated-device-identification';
-import { respiraSystemComponentsCsvFields } from '@/src/modules/device/calibration/respira-system-components';
 import type { CalibrationModel } from '@/src/modules/device/calibration/calibration-model-types';
 import type { CalibrationProfile } from '@/src/modules/device/calibration/calibration-types';
 import { volumeFromLinear } from '@/src/modules/device/calibration/imported-calibration-service';
+import { respiraSystemComponentsCsvFields } from '@/src/modules/device/calibration/respira-system-components';
 import {
-  buildTechnicalMetricsCsvFields,
-  CALIBRATION_TECHNICAL_METRICS_COLUMNS,
-  type CalibrationTechnicalExportContext,
+    buildTechnicalMetricsCsvFields,
+    CALIBRATION_TECHNICAL_METRICS_COLUMNS,
+    type CalibrationTechnicalExportContext,
 } from '@/src/modules/export/formatters/calibration-technical-export-context';
 
 export const CALIBRATION_EXPORT_SCHEMA_VERSION = '2.4.0';
@@ -270,7 +270,7 @@ export function buildCalibrationTechnicalCsv(params: CalibrationTechnicalCsvPara
     device_serial_number: deviceIdMeta.serialNumber ?? '',
     ...respiraSystemComponentsCsvFields(),
     calibration_operator: deviceIdMeta.calibrationOperator ?? '',
-    calibration_date: deviceIdMeta.calibrationDateIso,
+    calibration_date: predefined?.calibrationDateIso ?? deviceIdMeta.calibrationDateIso,
     technical_notes: deviceIdMeta.technicalNotes ?? profile.notes ?? '',
     spirometer_model: spirometerModel,
     spirometer_capacity_ml: String(capacityMl),

@@ -27,6 +27,9 @@ const LIVE_STALE_POLL_MS = 400;
 const EMPTY_ESTIMATE: ActiveVolumeEstimateResult = {
   estimatedVolumeMl: null,
   roundedVolumeMl: null,
+  displayVolumeMl: null,
+  therapyVolumeMl: null,
+  overRange: false,
   u95Ml: null,
   lowerBoundMl: null,
   upperBoundMl: null,
@@ -164,7 +167,9 @@ export function useLevelSensorVolume(
       estimateStatus: readingIsLive ? estimate.status : undefined,
     });
 
-    const ml = readingIsLive ? Math.max(0, estimate.roundedVolumeMl ?? 0) : 0;
+    const ml = readingIsLive
+      ? Math.max(0, estimate.therapyVolumeMl ?? estimate.roundedVolumeMl ?? 0)
+      : 0;
 
     snapshotRef.current = {
       estimatedVolumeMl: ml,

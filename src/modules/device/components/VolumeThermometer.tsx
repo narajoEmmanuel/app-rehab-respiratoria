@@ -1,5 +1,6 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
+import { VOLUME_OVER_RANGE_HELPER } from '@/src/modules/device/calibration/calibration-display-utils';
 import { RESPIRA_3000_CLAMP_MAX_ML } from '@/src/modules/device/calibration/predefined-calibration-models';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellnessColors, wellnessRadius, wellnessShadows } from '@/src/shared/theme/wellness-theme';
@@ -14,20 +15,23 @@ export type VolumeThermometerProps = {
   loading?: boolean;
   helperText?: string;
   status?: VolumeThermometerStatus;
+  overRange?: boolean;
 };
 
-const THERMOMETER_HEIGHT = 220;
-const THERMOMETER_WIDTH = 48;
-const BULB_SIZE = 56;
-
-function clampVolume(value: number, maxMl: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.min(Math.max(value, 0), maxMl);
-}
+const TUBE_HEIGHT = 240;
+const TUBE_WIDTH = 56;
+const CHAMBER_SIZE = 72;
+const TICK_COUNT = 5;
 
 function formatVolumeMl(valueMl: number | null, isLive: boolean): string {
   if (!isLive || valueMl === null || !Number.isFinite(valueMl)) return '—';
   return `${Math.round(valueMl)}`;
+}
+
+function buildTickLabels(maxMl: number): number[] {
+  return Array.from({ length: TICK_COUNT }, (_, index) =>
+    Math.round((maxMl * (TICK_COUNT - 1 - index)) / (TICK_COUNT - 1)),
+  );
 }
 
 export function VolumeThermometer({
@@ -38,53 +42,29 @@ export function VolumeThermometer({
   loading = false,
   helperText,
   status = 'neutral',
+  overRange = false,
 }: VolumeThermometerProps) {
-  const clampedMl = valueMl !== null ? clampVolume(valueMl, maxMl) : 0;
-  const fillRatio = isLive && maxMl > 0 ? clampedMl / maxMl : 0;
-  const fillHeight = Math.round(fillRatio * (THERMOMETER_HEIGHT - 8));
-  const displayValue = formatVolumeMl(isLive ? clampedMl : null, isLive);
+  const safeMl = valueMl !== null && Number.isFinite(valueMl) ? Math.max(0, valueMl) : 0;
+  const fillMl = Math.min(safeMl, maxMl);
+  const fillRatio = isLive && maxMl > 0 ? fillMl / maxMl : 0;
+  const fillHeight = Math.round(fillRatio * (TUBE_HEIGHT - 12));
+  const displayValue = formatVolumeMl(isLive ? safeMl : null, isLive);
+  const tickLabels = buildTickLabels(maxMl);
 
   const resolvedHelper =
     helperText ??
-    (status === 'waiting' || !isLive
-      ? 'Esperando señal del sensor'
-      : 'Lectura estimada a partir del sensor RESPIRA+');
+    (overRange && isLive
+      ? VOLUME_OVER_RANGE_HELPER
+      : status === 'waiting' || !isLive
+        ? 'Esperando señal del sensor'
+        : 'Lectura estimada a partir del sensor RESPIRA+');
 
   return (
     <View style={styles.card}>
       <Text style={styles.label}>{label}</Text>
 
-      <View style={styles.contentRow}>
-        <View style={styles.thermometerColumn}>
-          <View style={styles.scaleLabels}>
-            <Text style={styles.scaleMax}>{maxMl}</Text>
-            <Text style={styles.scaleMin}>0</Text>
-          </View>
-
-          <View style={styles.thermometerWrap}>
-            <View style={styles.tube}>
-              <View
-                style={[
-                  styles.fill,
-                  {
-                    height: fillHeight,
-                    opacity: isLive ? 1 : 0,
-                  },
-                ]}
-              />
-            </View>
-            <View
-              style={[
-                styles.bulb,
-                isLive && fillRatio > 0.02 ? styles.bulbActive : styles.bulbIdle,
-              ]}
-            />
-          </View>
-
-          <Text style={styles.scaleUnit}>mL</Text>
-        </View>
-
-        <View style={styles.valueColumn}>
+      <View style={styles.centerBlock}>
+        <View style={styles.valueBlock}>
           {loading ? (
             <ActivityIndicator color={wellnessColors.primary} style={styles.loader} />
           ) : (
@@ -93,6 +73,51 @@ export function VolumeThermometer({
               <Text style={styles.unit}>mL</Text>
             </>
           )}
+        </View>
+
+        <View style={styles.instrumentWrap}>
+          <View style={styles.scaleColumn}>
+            {tickLabels.map((tick) => (
+              <View key={tick} style={styles.tickRow}>
+                <Text style={styles.tickLabel}>{tick}</Text>
+                <View style={styles.tickMark} />
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.spirometerColumn}>
+            <View style={styles.mouthpiece} />
+            <View style={styles.tubeOuter}>
+              <View style={styles.tubeInner}>
+                <View
+                  style={[
+                    styles.fill,
+                    {
+                      height: fillHeight,
+                      opacity: isLive ? 1 : 0.12,
+                    },
+                  ]}
+                />
+                {isLive && fillRatio > 0 ? (
+                  <View style={[styles.levelIndicator, { bottom: Math.max(0, fillHeight - 2) }]} />
+                ) : null}
+              </View>
+            </View>
+            <View
+              style={[
+                styles.chamber,
+                isLive && fillRatio > 0.04 ? styles.chamberActive : styles.chamberIdle,
+              ]}>
+              <View
+                style={[
+                  styles.chamberGlow,
+                  { opacity: isLive ? Math.min(1, 0.25 + fillRatio * 0.55) : 0.08 },
+                ]}
+              />
+            </View>
+          </View>
+
+          <Text style={styles.scaleUnit}>mL</Text>
         </View>
       </View>
 
@@ -106,61 +131,103 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.xl,
     paddingHorizontal: spacing.lg,
-    gap: spacing.md,
+    gap: spacing.lg,
     backgroundColor: wellnessColors.card,
     borderRadius: wellnessRadius.xl,
     ...wellnessShadows.card,
   },
   label: {
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: '600',
     color: wellnessColors.textSecondary,
     letterSpacing: 0.2,
   },
-  contentRow: {
+  centerBlock: {
+    width: '100%',
+    alignItems: 'center',
+    gap: spacing.lg,
+  },
+  valueBlock: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 72,
+  },
+  value: {
+    fontSize: 58,
+    fontWeight: '700',
+    color: wellnessColors.primaryDark,
+    letterSpacing: -2,
+    fontVariant: ['tabular-nums'],
+  },
+  valueMuted: {
+    color: wellnessColors.textMuted,
+  },
+  unit: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: wellnessColors.textSecondary,
+    marginTop: -2,
+  },
+  instrumentWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.xl,
-    width: '100%',
+    gap: spacing.md,
   },
-  thermometerColumn: {
+  scaleColumn: {
+    height: TUBE_HEIGHT + CHAMBER_SIZE * 0.45,
+    justifyContent: 'space-between',
+    paddingBottom: CHAMBER_SIZE * 0.35,
+    minWidth: 42,
+  },
+  tickRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    justifyContent: 'flex-end',
+    gap: 6,
   },
-  scaleLabels: {
-    height: THERMOMETER_HEIGHT + BULB_SIZE / 2,
-    justifyContent: 'space-between',
-    paddingBottom: BULB_SIZE / 2,
-    alignItems: 'flex-end',
-  },
-  scaleMax: {
+  tickLabel: {
     fontSize: 11,
     fontWeight: '600',
     color: wellnessColors.textMuted,
     fontVariant: ['tabular-nums'],
   },
-  scaleMin: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: wellnessColors.textMuted,
-    fontVariant: ['tabular-nums'],
+  tickMark: {
+    width: 10,
+    height: 1,
+    backgroundColor: 'rgba(52, 171, 165, 0.28)',
   },
   scaleUnit: {
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: '600',
     color: wellnessColors.textMuted,
     alignSelf: 'flex-end',
-    marginBottom: BULB_SIZE / 2,
+    marginBottom: CHAMBER_SIZE * 0.35,
   },
-  thermometerWrap: {
+  spirometerColumn: {
     alignItems: 'center',
   },
-  tube: {
-    width: THERMOMETER_WIDTH,
-    height: THERMOMETER_HEIGHT,
-    borderRadius: THERMOMETER_WIDTH / 2,
+  mouthpiece: {
+    width: 28,
+    height: 10,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    backgroundColor: 'rgba(52, 171, 165, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.24)',
+    marginBottom: 2,
+  },
+  tubeOuter: {
+    padding: 3,
+    borderRadius: TUBE_WIDTH / 2 + 3,
+    backgroundColor: 'rgba(52, 171, 165, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.16)',
+  },
+  tubeInner: {
+    width: TUBE_WIDTH,
+    height: TUBE_HEIGHT,
+    borderRadius: TUBE_WIDTH / 2,
     backgroundColor: wellnessColors.neutralSoft,
     borderWidth: 1,
     borderColor: wellnessColors.border,
@@ -170,51 +237,48 @@ const styles = StyleSheet.create({
   fill: {
     width: '100%',
     backgroundColor: wellnessColors.primary,
-    borderRadius: THERMOMETER_WIDTH / 2,
-    minHeight: 0,
+    borderTopLeftRadius: 4,
+    borderTopRightRadius: 4,
   },
-  bulb: {
-    width: BULB_SIZE,
-    height: BULB_SIZE,
-    borderRadius: BULB_SIZE / 2,
-    marginTop: -8,
+  levelIndicator: {
+    position: 'absolute',
+    left: 4,
+    right: 4,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: '#FFFFFF',
+    opacity: 0.85,
+  },
+  chamber: {
+    width: CHAMBER_SIZE,
+    height: CHAMBER_SIZE,
+    borderRadius: CHAMBER_SIZE / 2,
+    marginTop: -10,
     borderWidth: 1,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chamberIdle: {
+    backgroundColor: wellnessColors.neutralSoft,
     borderColor: wellnessColors.border,
   },
-  bulbIdle: {
-    backgroundColor: wellnessColors.neutralSoft,
-  },
-  bulbActive: {
+  chamberActive: {
     backgroundColor: wellnessColors.primarySoft,
     borderColor: 'rgba(52, 171, 165, 0.35)',
   },
-  valueColumn: {
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-    minWidth: 120,
-  },
-  value: {
-    fontSize: 56,
-    fontWeight: '600',
-    color: wellnessColors.textPrimary,
-    letterSpacing: -1.5,
-    fontVariant: ['tabular-nums'],
-  },
-  valueMuted: {
-    color: wellnessColors.textMuted,
-  },
-  unit: {
-    fontSize: 22,
-    fontWeight: '500',
-    color: wellnessColors.textSecondary,
-    marginTop: -4,
+  chamberGlow: {
+    width: CHAMBER_SIZE * 0.72,
+    height: CHAMBER_SIZE * 0.72,
+    borderRadius: CHAMBER_SIZE,
+    backgroundColor: wellnessColors.primary,
   },
   helper: {
     fontSize: 14,
     lineHeight: 20,
     color: wellnessColors.textMuted,
     textAlign: 'center',
-    maxWidth: 280,
+    maxWidth: 300,
   },
   helperMuted: {
     color: wellnessColors.textSecondary,

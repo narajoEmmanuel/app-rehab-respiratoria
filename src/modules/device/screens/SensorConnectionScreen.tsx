@@ -1,57 +1,61 @@
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
 
 import { isSensorDebugEnabled, isTechnicalCalibrationEnabled } from '@/src/modules/app-mode';
 import {
-  PATIENT_MEASUREMENT_CONNECT_SENSOR,
-  patientMeasurementCardTitle,
-  patientMeasurementConnectionHint,
-  patientMeasurementConnectionPillLabel,
-  patientMeasurementHelper,
-  patientMeasurementMetricLabel,
-  patientMeasurementSectionSubtitle,
-  patientMeasurementSectionTitle,
-  resolvePatientMeasurementPhase,
-  therapyCalibrationStatusLabelForUi,
+    patientMeasurementConnectionHint,
+    patientMeasurementConnectionPillLabel,
+    patientMeasurementHelper,
+    patientMeasurementMetricLabel,
+    patientMeasurementSectionSubtitle,
+    patientMeasurementSectionTitle,
+    resolvePatientMeasurementPhase,
+    therapyCalibrationStatusLabelForUi,
 } from '@/src/modules/device/calibration/patient-measurement-copy';
-import { VolumeThermometer } from '@/src/modules/device/components/VolumeThermometer';
-import { RESPIRA_3000_CLAMP_MAX_ML } from '@/src/modules/device/calibration/predefined-calibration-models';
-import { SensorLivePreview } from '@/src/modules/device/components/SensorLivePreview';
-import { useActiveVolumeEstimate } from '@/src/modules/device/volume-estimation';
 import {
-  getTherapyFromSnapshot,
-  isTherapyReadyForActiveSpirometer,
-  useCalibrationSnapshot,
-} from '@/src/modules/device/state/use-calibration-snapshot';
+  resolveCalibrationDisplayMetadata,
+  resolveDisplayVolumeFromEstimate,
+} from '@/src/modules/device/calibration/calibration-display-utils';
+import { RESPIRA_3000_CLAMP_MAX_ML } from '@/src/modules/device/calibration/predefined-calibration-models';
+import { CalibrationQuickActions } from '@/src/modules/device/components/CalibrationQuickActions';
+import { CalibrationStatusHeroCard } from '@/src/modules/device/components/CalibrationStatusHeroCard';
+import { SensorLivePreview } from '@/src/modules/device/components/SensorLivePreview';
+import { VolumeThermometer } from '@/src/modules/device/components/VolumeThermometer';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import {
-  isSensorStreamActivelyReceiving,
-  SENSOR_STREAM_STATE_LABELS,
+    getTherapyFromSnapshot,
+    isTherapyReadyForActiveSpirometer,
+    useCalibrationSnapshot,
+} from '@/src/modules/device/state/use-calibration-snapshot';
+import {
+    isSensorStreamActivelyReceiving,
+    SENSOR_STREAM_STATE_LABELS,
 } from '@/src/modules/device/stream/sensor-stream-state';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
-import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { useActiveVolumeEstimate } from '@/src/modules/device/volume-estimation';
+import { spacing } from '@/src/shared/theme/spacing';
+import {
+    wellnessColors,
+    wellnessRadius,
+} from '@/src/shared/theme/wellness-theme';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { AppCard } from '@/src/shared/ui/AppCard';
+import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { InfoTile } from '@/src/shared/ui/InfoTile';
 import { SectionHeader } from '@/src/shared/ui/SectionHeader';
 import { StatusPill } from '@/src/shared/ui/StatusPill';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
-import { spacing } from '@/src/shared/theme/spacing';
-import {
-  wellnessColors,
-  wellnessRadius,
-} from '@/src/shared/theme/wellness-theme';
 
 function hapticLight() {
   if (Platform.OS === 'ios') {
@@ -90,18 +94,6 @@ function truncateJson(raw: string | null, maxLength = 280): string {
   return `${raw.slice(0, maxLength)}…`;
 }
 
-function formatShortDate(ts: number): string {
-  try {
-    return new Date(ts).toLocaleDateString(undefined, {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  } catch {
-    return new Date(ts).toISOString().slice(0, 10);
-  }
-}
-
 export function SensorConnectionScreen() {
   const router = useRouter();
   const debug = isSensorDebugEnabled();
@@ -129,8 +121,12 @@ export function SensorConnectionScreen() {
   } = useSensorConnection();
 
   const { snapshot: calibrationSnapshot } = useCalibrationSnapshot();
-  const { estimate, loading: volumeLoading, sensorConnected: volumeSensorConnected } =
-    useActiveVolumeEstimate({ enabled: true });
+  const {
+    estimate,
+    loading: volumeLoading,
+    sensorConnected: volumeSensorConnected,
+    activeModel,
+  } = useActiveVolumeEstimate({ enabled: true });
   const [techExpanded, setTechExpanded] = useState(false);
 
   const isConnecting = status === 'connecting';
@@ -158,9 +154,10 @@ export function SensorConnectionScreen() {
     streamReceiving &&
     signalValid &&
     estimate.status === 'ok' &&
-    estimate.roundedVolumeMl !== null;
+    resolveDisplayVolumeFromEstimate(estimate) !== null;
 
-  const displayVolumeMl = volumeIsLive ? estimate.roundedVolumeMl : null;
+  const displayVolumeMl = volumeIsLive ? resolveDisplayVolumeFromEstimate(estimate) : null;
+  const volumeOverRange = volumeIsLive && estimate.overRange;
 
   const onConnect = useCallback(() => {
     hapticLight();
@@ -262,29 +259,40 @@ export function SensorConnectionScreen() {
     ],
   );
 
-  const calibrationCardTitle = useMemo(
-    () => patientMeasurementCardTitle(measurementPhase, technicalCalibrationEnabled),
-    [measurementPhase, technicalCalibrationEnabled],
-  );
+  const calibrationCardMeta = useMemo(() => {
+    if (!therapyReady || calibrationSnapshot.kind !== 'ready') return null;
+    return resolveCalibrationDisplayMetadata(calibrationSnapshot.profile, activeModel);
+  }, [activeModel, calibrationSnapshot, therapyReady]);
 
-  const calibrationCardSubtitle = useMemo(() => {
-    if (therapyReady) {
-      return `${therapyReadiness.spirometerLabel ?? 'Espirómetro'} · ${formatShortDate(
-        calibrationSnapshot.kind === 'ready' ? calibrationSnapshot.profile.updatedAt : Date.now(),
-      )}`;
+  const calibrationHeroTitle = useMemo(() => {
+    if (therapyReady) return 'Calibración activa';
+    if (
+      measurementPhase === 'technical_needs_review' ||
+      measurementPhase === 'load_error' ||
+      calibrationSnapshot.kind === 'corrupt'
+    ) {
+      return 'Calibración no disponible';
     }
+    return 'Calibración pendiente';
+  }, [calibrationSnapshot.kind, measurementPhase, therapyReady]);
+
+  const calibrationHeroSubtitle = useMemo(() => {
+    if (therapyReady) return null;
     const helper = patientMeasurementHelper(measurementPhase, technicalCalibrationEnabled);
     if (calibrationSnapshot.kind === 'corrupt' && technicalCalibrationEnabled) {
       return 'El perfil guardado no se pudo leer. Configura de nuevo el espirómetro.';
     }
-    return helper ?? therapyReadiness.detailMessage ?? PATIENT_MEASUREMENT_CONNECT_SENSOR;
+    return (
+      helper ??
+      therapyReadiness.detailMessage ??
+      'Aún no hay una calibración activa disponible para este espirómetro.'
+    );
   }, [
-    calibrationSnapshot,
+    calibrationSnapshot.kind,
     measurementPhase,
     technicalCalibrationEnabled,
     therapyReady,
     therapyReadiness.detailMessage,
-    therapyReadiness.spirometerLabel,
   ]);
 
   return (
@@ -380,25 +388,22 @@ export function SensorConnectionScreen() {
           />
         ) : null}
 
-        {/* Calibration Card */}
+        {/* Calibration */}
         <View style={styles.divider} />
 
-        <AppCard>
-          <View style={styles.cardHeader}>
-            <View style={[styles.cardIconWrap, therapyReady && styles.cardIconWrapActive]}>
-              <IconSymbol
-                name="gearshape.fill"
-                size={22}
-                color={therapyReady ? wellnessColors.primaryDark : wellnessColors.textMuted}
-              />
-            </View>
-            <View style={styles.cardHeaderText}>
-              <Text style={styles.cardTitle}>{calibrationCardTitle}</Text>
-              <Text style={styles.cardSubtitle}>{calibrationCardSubtitle}</Text>
-            </View>
-          </View>
+        <View style={styles.calibrationCluster}>
+          <CalibrationStatusHeroCard
+            active={therapyReady}
+            title={calibrationHeroTitle}
+            subtitle={calibrationHeroSubtitle}
+            spirometerModel={calibrationCardMeta?.spirometerModel}
+            calibrationDateShort={calibrationCardMeta?.calibrationDateShort}
+          />
+          <CalibrationQuickActions showTechnicalSummary={therapyReady} />
+        </View>
 
-          {technicalCalibrationEnabled ? (
+        {technicalCalibrationEnabled ? (
+          <AppCard style={styles.calibTechCard}>
             <View style={styles.calibActions}>
               <AppButton
                 title={therapyReady ? 'Ver espirómetro' : 'Configurar espirómetro'}
@@ -417,8 +422,8 @@ export function SensorConnectionScreen() {
                 variant="ghost"
               />
             </View>
-          ) : null}
-        </AppCard>
+          </AppCard>
+        ) : null}
 
         {therapyReady ? (
           <VolumeThermometer
@@ -427,6 +432,7 @@ export function SensorConnectionScreen() {
             maxMl={RESPIRA_3000_CLAMP_MAX_ML}
             isLive={volumeIsLive}
             loading={volumeLoading}
+            overRange={volumeOverRange}
             status={volumeIsLive ? 'live' : isOnline ? 'waiting' : 'neutral'}
             helperText={
               volumeIsLive
@@ -597,9 +603,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardIconWrapActive: {
-    backgroundColor: wellnessColors.successSoft,
-  },
   cardHeaderText: {
     flex: 1,
     gap: spacing.xs,
@@ -608,11 +611,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: wellnessColors.textPrimary,
-  },
-  cardSubtitle: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: wellnessColors.textSecondary,
   },
   metricsRow: {
     flexDirection: 'row',
@@ -642,9 +640,14 @@ const styles = StyleSheet.create({
     backgroundColor: wellnessColors.border,
     marginVertical: spacing.sm,
   },
+  calibrationCluster: {
+    gap: 10,
+  },
+  calibTechCard: {
+    gap: spacing.sm,
+  },
   calibActions: {
     gap: spacing.sm,
-    marginTop: spacing.sm,
   },
   accordionHeader: {
     flexDirection: 'row',

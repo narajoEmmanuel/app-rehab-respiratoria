@@ -28,6 +28,7 @@ import {
   patientMeasurementStatusLabel,
   resolvePatientMeasurementPhase,
 } from '@/src/modules/device/calibration/patient-measurement-copy';
+import { formatCalibrationCardSubtitle } from '@/src/modules/device/calibration/calibration-display-utils';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import { isSensorStreamActivelyReceiving } from '@/src/modules/device/stream/sensor-stream-state';
 import { useCalibrationSnapshot } from '@/src/modules/device/state/use-calibration-snapshot';
@@ -564,18 +565,6 @@ export function HomeScreen() {
 
 type CalibrationSnapshot = ReturnType<typeof useCalibrationSnapshot>['snapshot'];
 
-function formatShortDate(ts: number): string {
-  try {
-    return new Date(ts).toLocaleDateString(undefined, {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  } catch {
-    return new Date(ts).toISOString().slice(0, 10);
-  }
-}
-
 function describeDeviceState(
   snapshot: CalibrationSnapshot,
   technicalCalibrationEnabled: boolean,
@@ -624,13 +613,13 @@ function describeDeviceState(
       ? 'Calibración verificada'
       : sensorSignalLive
         ? 'Sensor listo para medir'
-        : 'Medición lista';
+        : 'Calibración activa';
     return {
       badge: readyBadge,
       showBadge: true,
       title: 'Dispositivo RESPIRA+',
       subtitle: technicalCalibrationEnabled
-        ? `${snapshot.therapy.spirometerLabel ?? profile.name} · ${formatShortDate(profile.updatedAt)}`
+        ? formatCalibrationCardSubtitle(profile, snapshot.therapy.activeModel)
         : sensorSignalLive
           ? `${snapshot.therapy.spirometerLabel ?? profile.name} · volumen en vivo`
           : 'Conecta el sensor para ver tu volumen en vivo.',

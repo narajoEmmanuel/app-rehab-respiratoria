@@ -1,13 +1,13 @@
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { Platform, ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
 
-import { AppTopBar } from '@/src/shared/ui/AppTopBar';
-import { AppButton } from '@/src/shared/ui/AppButton';
-import { AppCard } from '@/src/shared/ui/AppCard';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessColors, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import { AppButton } from '@/src/shared/ui/AppButton';
+import { AppCard } from '@/src/shared/ui/AppCard';
+import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 
 export type TechnicalCalibrationUnavailableScreenProps = {
   onClose?: () => void;

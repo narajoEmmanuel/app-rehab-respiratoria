@@ -4,15 +4,19 @@
  */
 import { hasActiveCalibrationCurveSnapshot } from '@/src/modules/device/calibration/active-calibration-model';
 import type {
-  ActiveCalibrationCurvePoint,
-  ActiveCalibrationModel,
+    ActiveCalibrationCurvePoint,
+    ActiveCalibrationModel,
 } from '@/src/modules/device/calibration/active-calibration-types';
 import type {
-  ActiveVolumeEstimateResult,
-  ActiveVolumeEstimateStatus,
-  ActiveVolumeEstimateUsedSegment,
-  ActiveVolumeEstimateZone,
+    ActiveVolumeEstimateResult,
+    ActiveVolumeEstimateStatus,
+    ActiveVolumeEstimateUsedSegment,
+    ActiveVolumeEstimateZone,
 } from '@/src/modules/device/calibration/active-volume-estimation-types';
+import {
+  RESPIRA_3000_CALIBRATED_DISTANCE_RANGE_MM,
+  RESPIRA_3000_CALIBRATED_RANGE_ML,
+} from '@/src/modules/device/calibration/predefined-calibration-models';
 
 const OUT_OF_RANGE_WARNING =
   'La lectura está fuera del rango calibrado. El volumen se limitó al rango disponible.';
@@ -34,6 +38,9 @@ function emptyResult(
   return {
     estimatedVolumeMl: null,
     roundedVolumeMl: null,
+    displayVolumeMl: null,
+    therapyVolumeMl: null,
+    overRange: false,
     u95Ml: null,
     lowerBoundMl: null,
     upperBoundMl: null,
@@ -247,6 +254,8 @@ function finalizeEstimate(params: {
   curvePoints: ActiveCalibrationCurvePoint[];
   estimationZone?: ActiveVolumeEstimateZone | null;
   preClamped?: boolean;
+  /** Política de visualización: suelo 0, sin tope superior. */
+  displayPolicy?: 'standard' | 'predefined_linear';
 }): ActiveVolumeEstimateResult {
   const {
     activeModel,
@@ -258,15 +267,36 @@ function finalizeEstimate(params: {
     curvePoints,
     estimationZone = null,
     preClamped = false,
+    displayPolicy = 'standard',
   } = params;
 
-  const { min: volMin, max: volMax } = resolveVolumeClampBounds(activeModel);
-  const { value: estimatedVolumeMl, clamped: volumeClamped } = clampVolume(
-    rawVolumeMl,
-    volMin,
-    volMax,
-  );
-  const clamped = volumeClamped || preClamped || !inDistanceRange;
+  const predefined = activeModel.predefinedCalibration;
+  const capacityMl = predefined?.capacityMl ?? resolveVolumeClampBounds(activeModel).max;
+
+  let estimatedVolumeMl: number;
+  let displayVolumeMl: number;
+  let therapyVolumeMl: number;
+  let overRange = false;
+  let volumeClamped = preClamped;
+
+  if (displayPolicy === 'predefined_linear') {
+    const floored = rawVolumeMl < 0 ? 0 : rawVolumeMl;
+    volumeClamped = volumeClamped || rawVolumeMl < 0;
+    estimatedVolumeMl = floored;
+    displayVolumeMl = Math.round(floored);
+    overRange = floored > capacityMl;
+    therapyVolumeMl = overRange ? capacityMl : Math.round(floored);
+  } else {
+    const { min: volMin, max: volMax } = resolveVolumeClampBounds(activeModel);
+    const clamped = clampVolume(rawVolumeMl, volMin, volMax);
+    estimatedVolumeMl = clamped.value;
+    displayVolumeMl = Math.round(clamped.value);
+    therapyVolumeMl = Math.round(clamped.value);
+    volumeClamped = volumeClamped || clamped.clamped;
+    overRange = false;
+  }
+
+  const clamped = volumeClamped || !inDistanceRange;
 
   const fallbackU95 = activeModel.uncertainty.maxU95Ml;
   const u95Ml = resolveU95ForDistance(distanceMm, curvePoints, fallbackU95);
@@ -276,7 +306,7 @@ function finalizeEstimate(params: {
   let status: ActiveVolumeEstimateStatus = 'ok';
   let warning: string | null = null;
 
-  if (!inDistanceRange) {
+  if (!inDistanceRange && displayPolicy !== 'predefined_linear') {
     status = distanceOutOfRangeStatus(
       distanceMm,
       activeModel.distanceRangeMm.min,
@@ -288,6 +318,9 @@ function finalizeEstimate(params: {
   return {
     estimatedVolumeMl,
     roundedVolumeMl: Math.round(estimatedVolumeMl),
+    displayVolumeMl,
+    therapyVolumeMl,
+    overRange,
     u95Ml,
     lowerBoundMl,
     upperBoundMl,
@@ -295,12 +328,12 @@ function finalizeEstimate(params: {
     modelKind: activeModel.modelKind,
     spirometerDeviceId: activeModel.spirometerDeviceId,
     spirometerProfileId: activeModel.spirometerProfileId,
-    inCalibratedRange: inCalibratedRange && !volumeClamped && !preClamped,
+    inCalibratedRange: inCalibratedRange && !volumeClamped && !preClamped && !overRange,
     clamped,
     status,
     warning,
     usedSegment,
-    estimationZone,
+    estimationZone: overRange ? 'clamped_capacity' : estimationZone,
   };
 }
 
@@ -375,8 +408,33 @@ export function estimateVolumeFromActiveModel(
     }
 
     const predefined = activeModel.predefinedCalibration;
-    const volMin = predefined?.clampMinMl ?? resolveVolumeClampBounds(activeModel).min;
-    const volMax = predefined?.clampMaxMl ?? predefined?.capacityMl ?? resolveVolumeClampBounds(activeModel).max;
+    if (predefined) {
+      const estimationMin = activeModel.distanceRangeMm.min;
+      const estimationMax = activeModel.distanceRangeMm.max;
+      const inEstimationDistanceRange =
+        distanceMm >= estimationMin && distanceMm <= estimationMax;
+      const inBankDistanceRange =
+        distanceMm >= RESPIRA_3000_CALIBRATED_DISTANCE_RANGE_MM.min &&
+        distanceMm <= RESPIRA_3000_CALIBRATED_DISTANCE_RANGE_MM.max;
+      const flooredRaw = raw < 0 ? 0 : raw;
+      const inBankVolumeRange =
+        flooredRaw >= RESPIRA_3000_CALIBRATED_RANGE_ML.min &&
+        flooredRaw <= RESPIRA_3000_CALIBRATED_RANGE_ML.max;
+
+      return finalizeEstimate({
+        activeModel,
+        distanceMm,
+        rawVolumeMl: raw,
+        inDistanceRange: inEstimationDistanceRange,
+        inCalibratedRange: inBankDistanceRange && inBankVolumeRange,
+        usedSegment: null,
+        curvePoints,
+        estimationZone: inBankVolumeRange && inBankDistanceRange ? 'calibrated' : null,
+        displayPolicy: 'predefined_linear',
+      });
+    }
+
+    const { min: volMin, max: volMax } = resolveVolumeClampBounds(activeModel);
     const { value: adjustedRaw, clamped: preClamped } = clampVolume(raw, volMin, volMax);
 
     return finalizeEstimate({

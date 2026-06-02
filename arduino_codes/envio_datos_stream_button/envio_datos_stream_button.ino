@@ -6,9 +6,9 @@
 
 // =========================
 // RESPIRA+ ESP32
-// AP + HTTP diagnóstico + WebSocket + VL53L0X
-// Streaming controlado por botón rojo GPIO26
-// LED azul GPIO27
+// AP + HTTP diagnostico + WebSocket + VL53L0X
+// Streaming controlado por boton rojo GPIO25
+// LED azul GPIO26
 // =========================
 
 // -------------------------
@@ -27,8 +27,8 @@ IPAddress subnet(255, 255, 255, 0);
 const int SDA_PIN = 21;
 const int SCL_PIN = 22;
 
-const int CONNECT_BUTTON_PIN = 26;  // Botón rojo
-const int BLUE_LED_PIN = 27;        // LED azul
+const int CONNECT_BUTTON_PIN = 25;  // Boton rojo
+const int BLUE_LED_PIN = 26;        // LED azul
 
 // -------------------------
 // Tiempos
@@ -39,6 +39,9 @@ const unsigned long STATUS_INTERVAL_MS = 5000;
 
 const unsigned long DEBOUNCE_MS = 50;
 const unsigned long BLINK_INTERVAL_MS = 500;
+const unsigned long BUTTON_STARTUP_LOCKOUT_MS = 1000;
+
+const unsigned long SEND_LOG_INTERVAL_MS = 1000;
 
 // -------------------------
 // Servidores
@@ -70,10 +73,8 @@ unsigned long lastWsSend = 0;
 unsigned long lastStatusPrint = 0;
 unsigned long lastSendLogPrint = 0;
 
-const unsigned long SEND_LOG_INTERVAL_MS = 1000;
-
 // -------------------------
-// Streaming + botón + LED
+// Streaming + boton + LED
 // -------------------------
 bool streamingEnabled = false;
 int connectedClients = 0;
@@ -82,12 +83,13 @@ bool lastButtonReading = HIGH;
 bool stableButtonState = HIGH;
 unsigned long lastDebounceTime = 0;
 bool buttonPressHandled = false;
+unsigned long buttonInputReadyAt = 0;
 
 bool blueLedBlinkState = LOW;
 unsigned long lastBlinkTime = 0;
 
 // -------------------------
-// Campos compatibles con Respira+
+// Campos compatibles con RESPIRA+
 // -------------------------
 const char* source = "raw_sensor";
 int volumeMl = 0;
@@ -97,7 +99,7 @@ const char* flowState = "idle";
 bool isValidAttempt = false;
 
 // -------------------------
-// Página diagnóstico
+// Pagina diagnostico
 // -------------------------
 const char DIAGNOSTIC_PAGE[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
@@ -105,7 +107,7 @@ const char DIAGNOSTIC_PAGE[] PROGMEM = R"rawliteral(
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RESPIRA+ Diagnóstico ESP32</title>
+  <title>RESPIRA+ Diagnostico ESP32</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -222,9 +224,9 @@ const char DIAGNOSTIC_PAGE[] PROGMEM = R"rawliteral(
 </head>
 <body>
   <div class="container">
-    <h1>RESPIRA+ Diagnóstico ESP32</h1>
+    <h1>RESPIRA+ Diagnostico ESP32</h1>
     <p class="subtitle">
-      Datos reales del VL53L0X. El ESP32 solo transmite cuando se activa el botón físico.
+      Datos reales del VL53L0X. El ESP32 solo transmite cuando se activa el boton fisico.
     </p>
 
     <button onclick="connectWs()">Conectar WebSocket</button>
@@ -296,7 +298,7 @@ const char DIAGNOSTIC_PAGE[] PROGMEM = R"rawliteral(
       </div>
     </div>
 
-    <h2>Último JSON recibido</h2>
+    <h2>Ultimo JSON recibido</h2>
     <pre id="jsonBox" class="json-box">Sin datos</pre>
   </div>
 
@@ -319,7 +321,7 @@ const char DIAGNOSTIC_PAGE[] PROGMEM = R"rawliteral(
       ws = new WebSocket("ws://192.168.4.1:81");
 
       ws.onopen = () => {
-        setStatus("Conectado a ws://192.168.4.1:81. Presiona el botón físico para transmitir.", true);
+        setStatus("Conectado a ws://192.168.4.1:81. Presiona el boton fisico para transmitir.", true);
       };
 
       ws.onmessage = (event) => {
@@ -387,7 +389,7 @@ void handleNotFound() {
 }
 
 // -------------------------
-// Botón físico: toggle streaming (un toggle por pulsación)
+// Streaming
 // -------------------------
 void setStreamingEnabled(bool enabled) {
   if (streamingEnabled == enabled) {
@@ -402,7 +404,7 @@ void setStreamingEnabled(bool enabled) {
     lastBlinkTime = millis();
     blueLedBlinkState = LOW;
   } else {
-    Serial.println("Streaming OFF - envio bloqueado");
+    Serial.println("Streaming OFF, envio bloqueado");
     digitalWrite(BLUE_LED_PIN, LOW);
     blueLedBlinkState = LOW;
     lastBlinkTime = millis();
@@ -413,13 +415,25 @@ const char* ledModeToText() {
   if (!streamingEnabled) {
     return "OFF";
   }
+
   if (connectedClients <= 0) {
     return "BLINK_WAITING_WS";
   }
+
   return "SOLID_TRANSMITTING";
 }
 
+// -------------------------
+// Boton fisico: toggle streaming
+// INPUT_PULLUP:
+// HIGH = no presionado
+// LOW = presionado
+// -------------------------
 void handleStreamButton() {
+  if (millis() < buttonInputReadyAt) {
+    return;
+  }
+
   bool currentReading = digitalRead(CONNECT_BUTTON_PIN);
 
   if (currentReading != lastButtonReading) {
@@ -430,9 +444,6 @@ void handleStreamButton() {
     if (currentReading != stableButtonState) {
       stableButtonState = currentReading;
 
-      // INPUT_PULLUP:
-      // HIGH = no presionado
-      // LOW = presionado
       if (stableButtonState == LOW) {
         if (!buttonPressHandled) {
           buttonPressHandled = true;
@@ -449,7 +460,10 @@ void handleStreamButton() {
 }
 
 // -------------------------
-// LED azul (solo streamingEnabled + connectedClients WebSocket)
+// LED azul
+// OFF: streaming apagado
+// Parpadeo: streaming encendido, sin WebSocket
+// Fijo: streaming encendido, con WebSocket conectado
 // -------------------------
 void updateBlueLed() {
   if (!streamingEnabled) {
@@ -519,6 +533,13 @@ void webSocketEvent(uint8_t clientNumber, WStype_t type, uint8_t* payload, size_
 // Lectura del sensor
 // -------------------------
 void readVl53l0xSensor() {
+  if (!sensorOk) {
+    rawDistanceMm = -1;
+    distanceMm = -1;
+    distanceValid = false;
+    return;
+  }
+
   VL53L0X_RangingMeasurementData_t measure;
   lox.rangingTest(&measure, false);
 
@@ -536,20 +557,20 @@ void readVl53l0xSensor() {
     distanceMm = (int)(filteredDistance + 0.5);
   } else {
     rawDistanceMm = -1;
+    distanceMm = -1;
     distanceValid = false;
   }
 }
 
 // -------------------------
 // JSON compatible con app
-// Único punto de salida WebSocket del sensor (protegido por streaming)
 // -------------------------
 void sendRawSensorJson() {
   if (!streamingEnabled || connectedClients <= 0) {
     return;
   }
 
-  char jsonBuffer[380];
+  char jsonBuffer[420];
 
   snprintf(
     jsonBuffer,
@@ -581,24 +602,43 @@ void sendRawSensorJson() {
 // -------------------------
 void setup() {
   Serial.begin(115200);
-  delay(1000);
+
+  // Importante: configurar LED y boton inmediatamente al arrancar
+  // Esto evita que el LED azul quede flotando o prendido al activar el switch.
+  pinMode(BLUE_LED_PIN, OUTPUT);
+  digitalWrite(BLUE_LED_PIN, LOW);
+
+  pinMode(CONNECT_BUTTON_PIN, INPUT_PULLUP);
+
+  streamingEnabled = false;
+  blueLedBlinkState = LOW;
+  digitalWrite(BLUE_LED_PIN, LOW);
+
+  delay(100);
+
+  lastButtonReading = digitalRead(CONNECT_BUTTON_PIN);
+  stableButtonState = lastButtonReading;
+  buttonPressHandled = (stableButtonState == LOW);
+  lastDebounceTime = millis();
+  buttonInputReadyAt = millis() + BUTTON_STARTUP_LOCKOUT_MS;
+
+  delay(900);
 
   Serial.println();
   Serial.println("================================");
   Serial.println("RESPIRA+ ESP32");
   Serial.println("VL53L0X real + WebSocket");
   Serial.println("Streaming controlado por boton fisico");
-  Serial.println("Boton rojo: GPIO26");
-  Serial.println("LED azul: GPIO27");
+  Serial.println("Boton rojo: GPIO25");
+  Serial.println("LED azul: GPIO26");
+  Serial.println("SDA: GPIO21");
+  Serial.println("SCL: GPIO22");
   Serial.println("================================");
-
-  pinMode(CONNECT_BUTTON_PIN, INPUT_PULLUP);
-  pinMode(BLUE_LED_PIN, OUTPUT);
-  digitalWrite(BLUE_LED_PIN, LOW);
 
   Serial.println("Boton rojo configurado con INPUT_PULLUP.");
   Serial.println("LED azul configurado.");
   Serial.println("Streaming inicia apagado.");
+  Serial.println("El boton se ignora durante el primer segundo para evitar falsos pulsos.");
 
   Wire.begin(SDA_PIN, SCL_PIN);
   Wire.setClock(100000);
@@ -609,14 +649,11 @@ void setup() {
     sensorOk = false;
     Serial.println("ERROR: No se detecto el VL53L0X.");
     Serial.println("Revisa VCC, GND, SDA GPIO21 y SCL GPIO22.");
-
-    while (true) {
-      delay(1000);
-    }
+    Serial.println("El ESP32 continuara encendido en modo degradado, sin bloquearse.");
+  } else {
+    sensorOk = true;
+    Serial.println("VL53L0X detectado correctamente.");
   }
-
-  sensorOk = true;
-  Serial.println("VL53L0X detectado correctamente.");
 
   WiFi.mode(WIFI_AP);
 
@@ -724,7 +761,7 @@ void loop() {
     Serial.print("Dispositivos WiFi conectados: ");
     Serial.println(WiFi.softAPgetStationNum());
 
-    Serial.print("connectedClients (WebSocket): ");
+    Serial.print("connectedClients WebSocket: ");
     Serial.println(connectedClients);
 
     Serial.print("streamingEnabled: ");
@@ -733,7 +770,10 @@ void loop() {
     Serial.print("LED mode: ");
     Serial.println(ledModeToText());
 
-    Serial.print("lastWsSend (ms desde boot): ");
+    Serial.print("Boton GPIO25 lectura actual: ");
+    Serial.println(digitalRead(CONNECT_BUTTON_PIN) == LOW ? "PRESIONADO" : "LIBRE");
+
+    Serial.print("lastWsSend ms desde boot: ");
     Serial.println(lastWsSend);
 
     Serial.print("Pagina diagnostico: ");

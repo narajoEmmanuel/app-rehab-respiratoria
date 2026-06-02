@@ -14,9 +14,17 @@ import type { CalibrationModelKind } from '@/src/modules/device/calibration/cali
 
 export const RESPIRA_3000_PREDEFINED_CALIBRATION_ID = 'cal-predefined-respira-3000-v20260530';
 
+/** Fecha de calibración de banco validada (metadatos y UI). */
+export const RESPIRA_3000_PREDEFINED_CALIBRATION_DATE_ISO = '2026-05-30';
+
+export const RESPIRA_3000_PREDEFINED_CALIBRATION_DATE_MS = Date.parse(
+  `${RESPIRA_3000_PREDEFINED_CALIBRATION_DATE_ISO}T12:00:00.000Z`,
+);
+
 /** IDs de versiones anteriores de la predeterminada (migración automática en dispositivo). */
 export const RESPIRA_3000_LEGACY_PREDEFINED_CALIBRATION_IDS = [
   'cal-predefined-respira-3000-v1',
+  'cal-predefined-respira-3000-v20260528',
 ] as const;
 
 export const RESPIRA_3000_CAPACITY_ML = 3000;
@@ -30,7 +38,7 @@ export const RESPIRA_3000_DISPLAY_RANGE_ML = {
   max: RESPIRA_3000_CLAMP_MAX_ML,
 } as const;
 
-/** Rango calibrado en banco (referencia exportable; el modelo activo usa clamp 0–3000). */
+/** Rango calibrado en banco (referencia exportable; extrapolación lineal permite 0–250 mL). */
 export const RESPIRA_3000_CALIBRATED_RANGE_ML = { min: 250, max: 3000 } as const;
 
 export const RESPIRA_3000_CALIBRATED_DISTANCE_RANGE_MM = {
@@ -50,6 +58,12 @@ export const RESPIRA_3000_ESTIMATED_ZERO_POINT: PredefinedCalibrationPoint = {
   distanceMm: 45.72758365021489,
   estimated: true,
 };
+
+/** Rango de distancia para estimación lineal (incluye punto 0 mL extrapolado). */
+export const RESPIRA_3000_LINEAR_ESTIMATION_DISTANCE_RANGE_MM = {
+  min: RESPIRA_3000_ESTIMATED_ZERO_POINT.distanceMm,
+  max: RESPIRA_3000_CALIBRATED_DISTANCE_RANGE_MM.max,
+} as const;
 
 /** Promedios por volumen de referencia (60 repeticiones en banco, 12 volúmenes). */
 export const RESPIRA_3000_CALIBRATED_POINTS: readonly PredefinedCalibrationPoint[] = [
@@ -73,6 +87,19 @@ export const RESPIRA_3000_PIECEWISE_REFERENCE_POINTS: readonly PredefinedCalibra
   ...RESPIRA_3000_CALIBRATED_POINTS,
 ];
 
+/** Ecuación lineal anterior de banco (referencia histórica; migrar si persiste como activa). */
+export const RESPIRA_3000_LEGACY_BANK_LINEAR_MODEL = {
+  slope: 32.566738,
+  intercept: -1270.5786,
+} as const;
+
+export function isLegacyBankLinearCoefficients(slope: number, intercept: number): boolean {
+  return (
+    Math.abs(slope - RESPIRA_3000_LEGACY_BANK_LINEAR_MODEL.slope) < 1e-4 &&
+    Math.abs(intercept - RESPIRA_3000_LEGACY_BANK_LINEAR_MODEL.intercept) < 1e-2
+  );
+}
+
 /** Modelo lineal activo predeterminado. */
 export const RESPIRA_3000_LINEAR_MODEL = {
   slope: 26.11855011086812,
@@ -94,6 +121,30 @@ export const RESPIRA_3000_PREDEFINED_SOURCE = 'team_validated' as const;
 export const RESPIRA_3000_PREDEFINED_ORIGIN_LABEL =
   'Calibración RESPIRA+ 3000 mL validada (2026-05-30)';
 
+/** ID trazable visible en UI (no usar IDs locales cal-*). */
+export const RESPIRA_3000_DISPLAY_CALIBRATION_ID = 'R3K-20260530-LIN-v1';
+
+export const RESPIRA_3000_SPIROMETER_MODEL_LABEL = 'MediMetrics MV1811-3';
+
+export const RESPIRA_3000_SPIROMETER_BRAND = 'MediMetrics Medical Technologies';
+
+export const RESPIRA_3000_SPIROMETER_MODEL = 'MV1811-3';
+
+export const RESPIRA_3000_CALIBRATION_STATUS_LABEL = 'Validada';
+
+export const RESPIRA_3000_MODEL_KIND_LABEL = 'Regresión lineal';
+
+export const RESPIRA_3000_SENSOR_LABEL = 'VL53L0X / GY-530 ToF';
+
+export const RESPIRA_3000_MICROCONTROLLER_LABEL = 'ESP32 WROOM 32 DevKit V1';
+
+export const RESPIRA_3000_FIRMWARE_LABEL = 'envio_datos_stream_button.ino';
+
+export const RESPIRA_3000_COMMUNICATION_LABEL = 'WiFi local + WebSocket';
+
+export const RESPIRA_3000_OVER_RANGE_FOOTNOTE =
+  'Los valores superiores a la capacidad nominal se registran como estimación fuera de rango.';
+
 export function isRespira3000LegacyPredefinedProfileId(profileId: string): boolean {
   return (RESPIRA_3000_LEGACY_PREDEFINED_CALIBRATION_IDS as readonly string[]).includes(
     profileId,
@@ -112,6 +163,11 @@ export function volumeMlFromPredefinedLinear(distanceMm: number): number {
     RESPIRA_3000_LINEAR_MODEL.slope * distanceMm + RESPIRA_3000_LINEAR_MODEL.intercept;
   if (!Number.isFinite(raw)) return 0;
   if (raw < RESPIRA_3000_CLAMP_MIN_ML) return RESPIRA_3000_CLAMP_MIN_ML;
-  if (raw > RESPIRA_3000_CLAMP_MAX_ML) return RESPIRA_3000_CLAMP_MAX_ML;
   return raw;
+}
+
+/** Volumen para terapia: limitado a la capacidad nominal del espirómetro. */
+export function therapyVolumeMlFromPredefinedLinear(distanceMm: number): number {
+  const display = volumeMlFromPredefinedLinear(distanceMm);
+  return Math.min(display, RESPIRA_3000_CLAMP_MAX_ML);
 }

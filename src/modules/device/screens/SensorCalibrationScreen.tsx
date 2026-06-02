@@ -9,18 +9,24 @@ import { TechnicalCalibrationUnavailableScreen } from '@/src/modules/device/scre
 
 /**
  * Calibración: vista paciente → modo técnico simplificado → captura multipunto (bajo demanda).
- * El modo técnico solo está disponible con EXPO_PUBLIC_ENABLE_TECHNICAL_CALIBRATION=true.
+ * El modo técnico solo está disponible con EXPO_PUBLIC_ENABLE_TECHNICAL_CALIBRATION=true,
+ * salvo acceso explícito desde CalibrationTechnicalSummaryScreen (fromTechnicalSummary=1).
  */
 export function SensorCalibrationScreen() {
-  const { openTechnical, openCapture } = useLocalSearchParams<{
+  const { openTechnical, openCapture, fromTechnicalSummary } = useLocalSearchParams<{
     openTechnical?: string;
     openCapture?: string;
+    fromTechnicalSummary?: string;
   }>();
   const technicalEnabled = isTechnicalCalibrationEnabled();
+  const fromSummary =
+    fromTechnicalSummary === '1' || fromTechnicalSummary === 'true';
+  const allowTechnicalFlow = technicalEnabled || fromSummary;
+
   const [technicalOpen, setTechnicalOpen] = useState(openTechnical === '1' || openTechnical === 'true');
   const [captureOpen, setCaptureOpen] = useState(openCapture === '1' || openCapture === 'true');
 
-  if (!technicalEnabled) {
+  if (!allowTechnicalFlow) {
     if (technicalOpen || captureOpen) {
       return (
         <TechnicalCalibrationUnavailableScreen
@@ -56,7 +62,7 @@ export function SensorCalibrationScreen() {
 
   return (
     <SensorCalibrationPatientScreen
-      technicalCalibrationEnabled
+      technicalCalibrationEnabled={technicalEnabled}
       onOpenTechnical={() => setTechnicalOpen(true)}
     />
   );

@@ -31,6 +31,12 @@ export type ActiveVolumeEstimateZone =
 export type ActiveVolumeEstimateResult = {
   estimatedVolumeMl: number | null;
   roundedVolumeMl: number | null;
+  /** Volumen visible en conexión/calibración (sin tope superior; suelo 0 mL). */
+  displayVolumeMl: number | null;
+  /** Volumen acotado a capacidad nominal para terapia y metas. */
+  therapyVolumeMl: number | null;
+  /** true cuando el volumen estimado supera la capacidad nominal (3000 mL). */
+  overRange: boolean;
   u95Ml: number | null;
   lowerBoundMl: number | null;
   upperBoundMl: number | null;

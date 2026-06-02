@@ -3,10 +3,10 @@
  * Separado del CalibrationProfile: el perfil guarda puntos; el activo es la aprobación para uso futuro.
  */
 import type {
-  CalibrationLinealQuality,
-  CalibrationModel,
-  CalibrationModelKind,
-  CalibrationQuality,
+    CalibrationLinealQuality,
+    CalibrationModel,
+    CalibrationModelKind,
+    CalibrationQuality,
 } from '@/src/modules/device/calibration/calibration-model-types';
 import type { VolumeDistanceRelation } from '@/src/modules/device/calibration/calibration-types';
 import type { SpirometerProfile } from '@/src/modules/device/spirometer/spirometer-types';
@@ -86,6 +86,8 @@ export type PredefinedCalibrationMetadata = {
   source: 'team_validated';
   predefinedId: string;
   originLabel: string;
+  /** Fecha de calibración de banco (ISO YYYY-MM-DD). */
+  calibrationDateIso: string;
   displayRangeMl: ActiveCalibrationRangeMl;
   capacityMl: number;
   clampMinMl: number;

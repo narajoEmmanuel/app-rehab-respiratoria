@@ -37,10 +37,13 @@ const MAPPING = {
   'target': 'track-changes',
   'timer': 'timer',
   'checkmark.seal.fill': 'verified',
+  'plus.circle.fill': 'add-circle',
   'lock.fill': 'lock',
   'star.fill': 'star',
   'shield.fill': 'shield',
   'repeat': 'repeat',
+  'xmark.circle.fill': 'cancel',
+  'arrow.right.circle.fill': 'arrow-forward',
 } as const;
 
 export type IconSymbolName = keyof typeof MAPPING;

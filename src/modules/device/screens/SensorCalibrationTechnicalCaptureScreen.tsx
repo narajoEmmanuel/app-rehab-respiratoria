@@ -1,117 +1,117 @@
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
 
 import { isSensorDebugEnabled } from '@/src/modules/app-mode';
-import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
+import {
+    activeModelCardStatusLabel,
+    buildActiveCalibrationModel,
+    buildActiveCalibrationTechnicalSummary,
+    buildCalibrationProfile,
+    buildLinearCalibrationModel,
+    buildPiecewiseLinearCalibrationModel,
+    CALIBRATION_PROFILE_VERSION,
+    clearActiveCalibrationModelForSpirometer,
+    clearCalibrationProfileForSpirometer,
+    computeCalibrationUncertaintySummary,
+    computeGeometricScaleReport,
+    computeGlobalDistanceRange,
+    computeRepeatabilityReport,
+    computeRequiredCalibrationCoverage,
+    computeSegmentReport,
+    computeVolumeCoverage,
+    computeVolumeSummaries,
+    createDefaultCalibratedDeviceIdentification,
+    determineVolumeDistanceRelation,
+    hasSubOperativeVolumes,
+    isActiveCalibrationModelStale,
+    loadCalibrationProfileDetailed,
+    mergeCalibratedDeviceIdentification,
+    MIN_RELIABLE_SENSOR_DISTANCE_MM,
+    MIN_REPETITIONS_PER_REQUIRED_VOLUME,
+    MIN_REPETITIONS_PER_VOLUME,
+    MIN_VALID_CALIBRATION_POINTS_FOR_THERAPY,
+    recommendCalibrationModel,
+    resolveActiveModelCardStatus,
+    RESPIRA_SYSTEM_COMPONENTS,
+    saveActiveCalibrationModelForSpirometer,
+    saveCalibrationProfileForSpirometer,
+    UNCERTAINTY_COVERAGE_FACTOR_K,
+    type ActiveCalibrationModel,
+    type ActiveCalibrationTechnicalSummary,
+    type CalibratedDeviceIdentification,
+    type CalibrationCapturePoint,
+    type CalibrationLinealQuality,
+    type CalibrationModel,
+    type CalibrationModelRecommendation,
+    type CalibrationModelRecommendationKind,
+    type CalibrationModelStatus,
+    type CalibrationProfile,
+    type CalibrationQuality,
+    type CalibrationRecommendationStatus,
+    type CalibrationRepeatabilityReport,
+    type CalibrationSegmentReport,
+    type CalibrationUncertaintySummary,
+    type GeometricScaleReport,
+    type GeometricScaleSegmentStatus,
+    type GlobalDistanceRange,
+    type LoadCalibrationResult,
+    type VolumeCalibrationSummary,
+    type VolumeCoverage,
+    type VolumeDistanceRelation,
+    type VolumeRepeatability,
+    type VolumeUncertaintyReport,
+    type VolumeUncertaintyStatus,
+} from '@/src/modules/device/calibration';
 import { volumeFromLinear } from '@/src/modules/device/calibration/imported-calibration-service';
 import {
-  activeModelCardStatusLabel,
-  buildActiveCalibrationModel,
-  buildActiveCalibrationTechnicalSummary,
-  clearActiveCalibrationModelForSpirometer,
-  isActiveCalibrationModelStale,
-  resolveActiveModelCardStatus,
-  saveActiveCalibrationModelForSpirometer,
-  buildCalibrationProfile,
-  createDefaultCalibratedDeviceIdentification,
-  mergeCalibratedDeviceIdentification,
-  RESPIRA_SYSTEM_COMPONENTS,
-  buildLinearCalibrationModel,
-  type CalibratedDeviceIdentification,
-  buildPiecewiseLinearCalibrationModel,
-  CALIBRATION_PROFILE_VERSION,
-  clearCalibrationProfileForSpirometer,
-  computeCalibrationUncertaintySummary,
-  computeGeometricScaleReport,
-  computeGlobalDistanceRange,
-  computeRepeatabilityReport,
-  computeSegmentReport,
-  computeRequiredCalibrationCoverage,
-  computeVolumeCoverage,
-  computeVolumeSummaries,
-  determineVolumeDistanceRelation,
-  hasSubOperativeVolumes,
-  loadCalibrationProfileDetailed,
-  MIN_RELIABLE_SENSOR_DISTANCE_MM,
-  MIN_REPETITIONS_PER_REQUIRED_VOLUME,
-  MIN_REPETITIONS_PER_VOLUME,
-  MIN_VALID_CALIBRATION_POINTS_FOR_THERAPY,
-  recommendCalibrationModel,
-  saveCalibrationProfileForSpirometer,
-  UNCERTAINTY_COVERAGE_FACTOR_K,
-  type CalibrationCapturePoint,
-  type CalibrationLinealQuality,
-  type CalibrationModel,
-  type CalibrationModelRecommendation,
-  type CalibrationModelRecommendationKind,
-  type CalibrationModelStatus,
-  type CalibrationProfile,
-  type CalibrationQuality,
-  type CalibrationRecommendationStatus,
-  type CalibrationRepeatabilityReport,
-  type CalibrationSegmentReport,
-  type GlobalDistanceRange,
-  type LoadCalibrationResult,
-  type VolumeCalibrationSummary,
-  type VolumeCoverage,
-  type VolumeDistanceRelation,
-  type VolumeRepeatability,
-  type GeometricScaleReport,
-  type GeometricScaleSegmentStatus,
-  type CalibrationUncertaintySummary,
-  type VolumeUncertaintyReport,
-  type VolumeUncertaintyStatus,
-  type ActiveCalibrationModel,
-  type ActiveCalibrationTechnicalSummary,
-} from '@/src/modules/device/calibration';
-import {
-  buildGeometricSegmentsMl,
-  getExtendedRangeMinVolumeMl,
-  getExtendedVolumeChipsMl,
-  getRecommendedVolumeChipsMl,
-  listTechnicalCalibrationSpirometerOptions,
-  type SpirometerDevice,
-  type SpirometerProfile,
-  type TechnicalSpirometerOption,
-} from '@/src/modules/device/spirometer';
-import { getErrorMessage } from '@/src/shared/utils/get-error-message';
-import {
-  BUFFER_MAX_SAMPLES,
-  BUFFER_WINDOW_MS,
-  useTechnicalCaptureSensorBuffer,
-  type BufferStats,
-  type SignalStability,
+    BUFFER_MAX_SAMPLES,
+    BUFFER_WINDOW_MS,
+    useTechnicalCaptureSensorBuffer,
+    type BufferStats,
+    type SignalStability,
 } from '@/src/modules/device/screens/use-technical-capture-sensor-buffer';
-import { exportCalibrationTechnicalCsv } from '@/src/modules/export/services/calibration-technical-export-service';
-import type { CalibrationTechnicalExportContext } from '@/src/modules/export/formatters/calibration-technical-export-context';
+import {
+    buildGeometricSegmentsMl,
+    getExtendedRangeMinVolumeMl,
+    getExtendedVolumeChipsMl,
+    getRecommendedVolumeChipsMl,
+    listTechnicalCalibrationSpirometerOptions,
+    type SpirometerDevice,
+    type SpirometerProfile,
+    type TechnicalSpirometerOption,
+} from '@/src/modules/device/spirometer';
+import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
-import { AppTopBar } from '@/src/shared/ui/AppTopBar';
-import { AppCard } from '@/src/shared/ui/AppCard';
-import { InfoTile } from '@/src/shared/ui/InfoTile';
-import { MetricTile } from '@/src/shared/ui/MetricTile';
-import { StatusPill } from '@/src/shared/ui/StatusPill';
-import { SectionHeader } from '@/src/shared/ui/SectionHeader';
-import { IconSymbol } from '@/src/shared/ui/icon-symbol';
+import type { CalibrationTechnicalExportContext } from '@/src/modules/export/formatters/calibration-technical-export-context';
+import { exportCalibrationTechnicalCsv } from '@/src/modules/export/services/calibration-technical-export-service';
 import { spacing } from '@/src/shared/theme/spacing';
 import {
-  wellness,
-  wellnessColors,
-  wellnessRadii,
-  wellnessShadows,
+    wellness,
+    wellnessColors,
+    wellnessRadii,
+    wellnessShadows,
 } from '@/src/shared/theme/wellness-theme';
+import { AppCard } from '@/src/shared/ui/AppCard';
+import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { InfoTile } from '@/src/shared/ui/InfoTile';
+import { MetricTile } from '@/src/shared/ui/MetricTile';
+import { SectionHeader } from '@/src/shared/ui/SectionHeader';
+import { StatusPill } from '@/src/shared/ui/StatusPill';
+import { IconSymbol } from '@/src/shared/ui/icon-symbol';
+import { getErrorMessage } from '@/src/shared/utils/get-error-message';
 
 const MIN_SAMPLES_TO_REGISTER = 5;
 /** A partir de esta desviación estándar marcamos la señal como variable y avisamos. */
@@ -1665,7 +1665,7 @@ export function SensorCalibrationTechnicalCaptureScreen({
                 setDeviceIdentification((prev) => ({ ...prev, calibrationDateIso: text }));
                 markDirty();
               }}
-              placeholder="2026-05-28"
+              placeholder="2026-05-30"
             />
             <Text style={styles.identFieldLabel}>Notas técnicas</Text>
             <TextInput

@@ -1,5 +1,6 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
+import { VOLUME_OVER_RANGE_HELPER } from '@/src/modules/device/calibration/calibration-display-utils';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellnessColors, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 
@@ -8,6 +9,7 @@ export type MeasuredVolumeHeroProps = {
   loading?: boolean;
   subtitle?: string;
   label?: string;
+  overRange?: boolean;
 };
 
 function formatVolumeMl(volumeMl: number | null): string {
@@ -18,9 +20,16 @@ function formatVolumeMl(volumeMl: number | null): string {
 export function MeasuredVolumeHero({
   volumeMl,
   loading = false,
-  subtitle = 'Lectura estimada a partir del sensor RESPIRA+',
+  subtitle,
   label = 'Volumen medido',
+  overRange = false,
 }: MeasuredVolumeHeroProps) {
+  const resolvedSubtitle =
+    subtitle ??
+    (overRange
+      ? VOLUME_OVER_RANGE_HELPER
+      : 'Lectura estimada a partir del sensor RESPIRA+');
+
   return (
     <View style={styles.card}>
       <Text style={styles.label}>{label}</Text>
@@ -32,7 +41,7 @@ export function MeasuredVolumeHero({
           <Text style={styles.unit}>mL</Text>
         </View>
       )}
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      {resolvedSubtitle ? <Text style={styles.subtitle}>{resolvedSubtitle}</Text> : null}
     </View>
   );
 }
