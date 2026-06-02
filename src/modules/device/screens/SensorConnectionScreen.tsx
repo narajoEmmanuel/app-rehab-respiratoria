@@ -31,7 +31,7 @@ import { RESPIRA_3000_CLAMP_MAX_ML } from '@/src/modules/device/calibration/pred
 import { CalibrationQuickActions } from '@/src/modules/device/components/CalibrationQuickActions';
 import { CalibrationStatusHeroCard } from '@/src/modules/device/components/CalibrationStatusHeroCard';
 import { SensorLivePreview } from '@/src/modules/device/components/SensorLivePreview';
-import { VolumeThermometer } from '@/src/modules/device/components/VolumeThermometer';
+import { LiveVolumeCard } from '@/src/modules/device/components/LiveVolumeCard';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import {
     getTherapyFromSnapshot,
@@ -123,7 +123,6 @@ export function SensorConnectionScreen() {
   const { snapshot: calibrationSnapshot } = useCalibrationSnapshot();
   const {
     estimate,
-    loading: volumeLoading,
     sensorConnected: volumeSensorConnected,
     activeModel,
   } = useActiveVolumeEstimate({ enabled: true });
@@ -157,7 +156,6 @@ export function SensorConnectionScreen() {
     resolveDisplayVolumeFromEstimate(estimate) !== null;
 
   const displayVolumeMl = volumeIsLive ? resolveDisplayVolumeFromEstimate(estimate) : null;
-  const volumeOverRange = volumeIsLive && estimate.overRange;
 
   const onConnect = useCallback(() => {
     hapticLight();
@@ -426,21 +424,10 @@ export function SensorConnectionScreen() {
         ) : null}
 
         {therapyReady ? (
-          <VolumeThermometer
-            label="Volumen estimado"
-            valueMl={displayVolumeMl}
-            maxMl={RESPIRA_3000_CLAMP_MAX_ML}
+          <LiveVolumeCard
+            volumeMl={displayVolumeMl}
+            maxVolumeMl={RESPIRA_3000_CLAMP_MAX_ML}
             isLive={volumeIsLive}
-            loading={volumeLoading}
-            overRange={volumeOverRange}
-            status={volumeIsLive ? 'live' : isOnline ? 'waiting' : 'neutral'}
-            helperText={
-              volumeIsLive
-                ? undefined
-                : isOnline
-                  ? streamStateMessage ?? 'Esperando señal del sensor'
-                  : 'Conecta el sensor para ver el volumen en vivo'
-            }
           />
         ) : null}
 
