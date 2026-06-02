@@ -13,6 +13,10 @@ import {
   isTouchPracticeDiagnostic,
   resolveDiagnosticInputMode,
 } from '@/src/modules/diagnostics/diagnostic-input-mode';
+import {
+  INVALID_DIAGNOSTIC_VIM_MESSAGE,
+  isValidOfficialDiagnosticVim,
+} from '@/src/modules/diagnostics/diagnostic-vim-validation';
 import { useDiagnosticSensorVolume } from '@/src/modules/diagnostics/use-diagnostic-sensor-volume';
 import { useInitialEvaluationReadiness } from '@/src/modules/diagnostics/use-initial-evaluation-readiness';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
@@ -118,26 +122,59 @@ export function DiagnosticExamScreen() {
   const phaseDeadlineRef = useRef(0);
   const timerRafRef = useRef<number | null>(null);
   const phaseTransitionLockRef = useRef(false);
+  const countdownStartedRef = useRef(false);
 
   const readiness = useInitialEvaluationReadiness(!isTouchPractice);
-  const canStartEvaluation = isTouchPractice || readiness.canStart;
+  const canStartEvaluation = isTouchPractice || readiness.canStartNow;
+  const canShowStartButton = isTouchPractice || readiness.canStart;
 
   const inAttempt = isDiagnosticAttemptPhase(phase);
 
   const ingestVolumeMl = useCallback(
-    (ml: number) => {
+    (ml: number, meta?: { live?: boolean }) => {
+      const live = meta?.live ?? true;
       const clamped = Math.max(0, Math.min(MAX_SIMULATED_VOLUME, ml));
-      if (clamped > maxVolumeRef.current) {
+      const displayMl = live ? clamped : 0;
+
+      if (live && clamped > maxVolumeRef.current) {
         maxVolumeRef.current = clamped;
         setMaxVolume(clamped);
       }
-      setCurrentVolume(clamped);
-      updateBalloonScale(balloonProgress, clamped);
+
+      setCurrentVolume(displayMl);
+      updateBalloonScale(balloonProgress, displayMl);
     },
     [balloonProgress],
   );
 
-  const { spirometerLabel } = useDiagnosticSensorVolume({
+  const navigateToRepeatEvaluation = useCallback(() => {
+    router.replace({
+      pathname: '/diagnostico',
+      params: { inputMode: isTouchPractice ? 'touch_practice' : 'sensor' },
+    });
+  }, [isTouchPractice, router]);
+
+  const showInvalidVimAlert = useCallback(() => {
+    Alert.alert('Lectura no válida', INVALID_DIAGNOSTIC_VIM_MESSAGE, [
+      {
+        text: 'Cancelar',
+        style: 'cancel',
+        onPress: () => {
+          phaseTransitionLockRef.current = false;
+          router.replace('/(tabs)');
+        },
+      },
+      {
+        text: 'Repetir evaluación',
+        onPress: () => {
+          phaseTransitionLockRef.current = false;
+          navigateToRepeatEvaluation();
+        },
+      },
+    ]);
+  }, [navigateToRepeatEvaluation, router]);
+
+  const { spirometerLabel, hasLiveReading } = useDiagnosticSensorVolume({
     enabled: !isTouchPractice,
     sampling: inAttempt,
     onVolumeSample: ingestVolumeMl,
@@ -203,10 +240,17 @@ export function DiagnosticExamScreen() {
   }, [confirmCancelEvaluation, phase, router]);
 
   const handleStartEvaluation = useCallback(() => {
-    if (!canStartEvaluation) return;
+    if (!canStartEvaluation || countdownStartedRef.current) return;
+    countdownStartedRef.current = true;
     setCountdownValue(COUNTDOWN_START);
     setPhase('countdown');
   }, [canStartEvaluation]);
+
+  useEffect(() => {
+    if (phase === 'welcome') {
+      countdownStartedRef.current = false;
+    }
+  }, [phase]);
 
   useEffect(() => {
     if (phase !== 'countdown') return;
@@ -333,16 +377,23 @@ export function DiagnosticExamScreen() {
       const third = maxVolumeRef.current;
       const finalVim = Math.max(attemptOneMax, attemptTwoMax, third);
       setAttemptThreeMax(third);
-      router.replace({
-        pathname: '/diagnostico-resumen',
-        params: {
-          attempt1: String(attemptOneMax),
-          attempt2: String(attemptTwoMax),
-          attempt3: String(third),
-          vim: String(finalVim),
-          inputMode,
-        },
-      });
+
+      const attemptMaxes = [attemptOneMax, attemptTwoMax, third];
+      if (isTouchPractice || isValidOfficialDiagnosticVim(finalVim, attemptMaxes)) {
+        router.replace({
+          pathname: '/diagnostico-resumen',
+          params: {
+            attempt1: String(attemptOneMax),
+            attempt2: String(attemptTwoMax),
+            attempt3: String(third),
+            vim: String(finalVim),
+            inputMode,
+          },
+        });
+        return;
+      }
+
+      showInvalidVimAlert();
     }
   }, [
     armPhaseDeadline,
@@ -351,7 +402,9 @@ export function DiagnosticExamScreen() {
     balloonProgress,
     inputMode,
     phase,
+    isTouchPractice,
     router,
+    showInvalidVimAlert,
     timeLeftMs,
   ]);
 
@@ -414,7 +467,7 @@ export function DiagnosticExamScreen() {
           onPressProfile={() => router.push('/profile')}
         />
         <InitialEvaluationWelcomeView
-          canStart={canStartEvaluation}
+          canStart={canShowStartButton}
           loading={!isTouchPractice && readiness.loading}
           statusMessage={readiness.statusMessage}
           spirometerLabel={liveLabel}
@@ -472,9 +525,11 @@ export function DiagnosticExamScreen() {
         <Text style={styles.activeCardMeta}>
           {isTouchPractice
             ? 'Mantén presionado en el globo'
-            : liveLabel
-              ? `Medición en vivo · ${liveLabel}`
-              : 'Medición en vivo'}
+            : inAttempt && !hasLiveReading
+              ? 'Esperando señal del sensor'
+              : liveLabel
+                ? `Medición en vivo · ${liveLabel}`
+                : 'Medición en vivo'}
         </Text>
       </View>
 
