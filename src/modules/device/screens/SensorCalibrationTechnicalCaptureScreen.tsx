@@ -1,5 +1,4 @@
 import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
@@ -18,7 +17,6 @@ import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 import {
     activeModelCardStatusLabel,
     buildActiveCalibrationModel,
-    buildActiveCalibrationTechnicalSummary,
     buildCalibrationProfile,
     buildLinearCalibrationModel,
     buildPiecewiseLinearCalibrationModel,
@@ -50,7 +48,6 @@ import {
     saveCalibrationProfileForSpirometer,
     UNCERTAINTY_COVERAGE_FACTOR_K,
     type ActiveCalibrationModel,
-    type ActiveCalibrationTechnicalSummary,
     type CalibratedDeviceIdentification,
     type CalibrationCapturePoint,
     type CalibrationLinealQuality,
@@ -94,7 +91,10 @@ import {
     type TechnicalSpirometerOption,
 } from '@/src/modules/device/spirometer';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
-import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
+import type {
+  SensorConnectionStatus,
+  SensorSourceMode,
+} from '@/src/modules/device/types/sensor-reading';
 import type { CalibrationTechnicalExportContext } from '@/src/modules/export/formatters/calibration-technical-export-context';
 import { exportCalibrationTechnicalCsv } from '@/src/modules/export/services/calibration-technical-export-service';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -106,7 +106,6 @@ import {
 } from '@/src/shared/theme/wellness-theme';
 import { AppCard } from '@/src/shared/ui/AppCard';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
-import { InfoTile } from '@/src/shared/ui/InfoTile';
 import { MetricTile } from '@/src/shared/ui/MetricTile';
 import { SectionHeader } from '@/src/shared/ui/SectionHeader';
 import { StatusPill } from '@/src/shared/ui/StatusPill';
@@ -129,20 +128,27 @@ function newCaptureId(): string {
 function statusLabel(state: SensorConnectionStatus): string {
   switch (state) {
     case 'idle':
-      return 'idle';
+      return 'En espera';
     case 'connecting':
-      return 'connecting';
+      return 'Conectando';
     case 'connected':
     case 'receiving':
-      return 'connected';
+      return 'Conectado';
     case 'error':
-      return 'error';
+      return 'Error';
     case 'disconnected':
-      return 'disconnected';
+      return 'Desconectado';
     default:
       return state;
   }
 }
+
+function sensorModeLabel(mode: SensorSourceMode): string {
+  return mode === 'mock' ? 'Prueba interna' : 'Sensor WiFi';
+}
+
+const RESPIRA_SPIROMETER_DISPLAY = 'MediMetrics MV1811-3';
+const RESPIRA_SPIROMETER_CAPACITY_ML = 3000;
 
 function formatScalar(value: string | number | boolean | null | undefined): string {
   if (value === null || value === undefined) return '—';
@@ -235,40 +241,6 @@ function recommendationStatusLabel(status: CalibrationRecommendationStatus): str
     default:
       return status;
   }
-}
-
-type PatientCalibrationQuality = 'Alta' | 'Media' | 'Requiere revisión' | 'Pendiente';
-
-/**
- * Patient-facing quality label derived from model metrics.
- * Does not alter calibration logic — purely interpretive.
- */
-function derivePatientCalibrationQuality(
-  recommendation: CalibrationModelRecommendation | null,
-  linearModel: CalibrationModel | null,
-  piecewiseModel: CalibrationModel | null,
-): PatientCalibrationQuality {
-  if (!recommendation) return 'Pendiente';
-
-  const model =
-    recommendation.recommendedKind === 'linear_regression'
-      ? linearModel
-      : (piecewiseModel ?? linearModel);
-  if (!model || model.status !== 'valid') return 'Pendiente';
-
-  const { rSquared, maeMl, maxAbsErrorMl } = model.metrics;
-  if (rSquared == null || maeMl == null || maxAbsErrorMl == null) return 'Pendiente';
-
-  if (rSquared >= 0.98 && maeMl <= 100 && maxAbsErrorMl <= 250) return 'Alta';
-  if (rSquared >= 0.95 && maeMl <= 200 && maxAbsErrorMl <= 500) return 'Media';
-  return 'Requiere revisión';
-}
-
-function patientQualityTone(q: PatientCalibrationQuality): 'success' | 'neutral' | 'danger' {
-  if (q === 'Alta') return 'success';
-  if (q === 'Media') return 'neutral';
-  if (q === 'Requiere revisión') return 'danger';
-  return 'neutral';
 }
 
 function recommendationStatusTone(
@@ -496,10 +468,9 @@ export type SensorCalibrationTechnicalCaptureScreenProps = {
   onClose?: () => void;
 };
 
-export function SensorCalibrationTechnicalCaptureScreen({
-  onClose,
-}: SensorCalibrationTechnicalCaptureScreenProps = {}) {
-  const router = useRouter();
+export function SensorCalibrationTechnicalCaptureScreen(
+  _props: SensorCalibrationTechnicalCaptureScreenProps = {},
+) {
   const [volumeInput, setVolumeInput] = useState('');
   const [points, setPoints] = useState<CalibrationCapturePoint[]>([]);
   const [savedProfile, setSavedProfile] = useState<CalibrationProfile | null>(null);
@@ -527,13 +498,11 @@ export function SensorCalibrationTechnicalCaptureScreen({
   );
   const [activeCalibrationModel, setActiveCalibrationModel] =
     useState<ActiveCalibrationModel | null>(null);
-  const [showActiveModelSummary, setShowActiveModelSummary] = useState(false);
   const [activeModelBusy, setActiveModelBusy] = useState<'idle' | 'activating' | 'clearing'>(
     'idle',
   );
   const debug = isSensorDebugEnabled();
-  const [advancedMetricsExpanded, setAdvancedMetricsExpanded] = useState(false);
-  const [advancedStorageExpanded, setAdvancedStorageExpanded] = useState(false);
+  const [advancedDetailsExpanded, setAdvancedDetailsExpanded] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [saveSuccessVisible, setSaveSuccessVisible] = useState(false);
 
@@ -858,7 +827,6 @@ export function SensorCalibrationTechnicalCaptureScreen({
     setSavedStatus({ kind: 'none' });
     setHasUnsavedChanges(false);
     setActiveCalibrationModel(null);
-    setShowActiveModelSummary(false);
     setStorageMessage(null);
   }, []);
 
@@ -1287,14 +1255,6 @@ export function SensorCalibrationTechnicalCaptureScreen({
     [activeModelCardStatus],
   );
 
-  const activeTechnicalSummary = useMemo<ActiveCalibrationTechnicalSummary | null>(() => {
-    if (!activeCalibrationModel || !activeSpirometerDevice) return null;
-    return buildActiveCalibrationTechnicalSummary(
-      activeCalibrationModel,
-      activeSpirometerDevice.label,
-    );
-  }, [activeCalibrationModel, activeSpirometerDevice]);
-
   const previewVolumeMl = useMemo(() => {
     if (!linearModel || !bufferStats) return null;
     const slope = linearModel.coefficients.slope;
@@ -1327,7 +1287,6 @@ export function SensorCalibrationTechnicalCaptureScreen({
         });
         await saveActiveCalibrationModelForSpirometer(model);
         setActiveCalibrationModel(model);
-        setShowActiveModelSummary(true);
         setSaveSuccessVisible(true);
         setStorageMessage(`Modelo activo guardado para ${activeSpirometerDevice.label}.`);
       } catch (error) {
@@ -1416,7 +1375,6 @@ export function SensorCalibrationTechnicalCaptureScreen({
     try {
       await clearActiveCalibrationModelForSpirometer(activeSpirometerDevice.id);
       setActiveCalibrationModel(null);
-      setShowActiveModelSummary(false);
       setStorageMessage(`Modelo activo eliminado para ${activeSpirometerDevice.label}.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error al borrar el modelo activo.';
@@ -1431,7 +1389,27 @@ export function SensorCalibrationTechnicalCaptureScreen({
 
   const isConnecting = status === 'connecting';
   const isOnline = status === 'connected' || status === 'receiving';
-  const modeLabel = mode === 'mock' ? 'local' : 'sensor';
+  const modeLabel = sensorModeLabel(mode);
+
+  const legacySpirometerOptions = useMemo(
+    () => technicalSpirometerOptions.filter((o) => o.profile.maxVolumeMl >= 5000),
+    [technicalSpirometerOptions],
+  );
+
+  const showPreliminaryResult = points.length >= 2 && linearModel !== null;
+  const preliminaryReadyLabel = useMemo(() => {
+    if (!recommendation) return 'Calculando…';
+    if (recommendation.isReadyForTherapy) return 'Listo para activar';
+    if (recommendation.requiredProtocol.meetsRequiredProtocol) return 'Revisar criterios';
+    return 'Faltan puntos';
+  }, [recommendation]);
+
+  const preliminaryReadyTone = useMemo((): 'success' | 'warning' | 'neutral' => {
+    if (!recommendation) return 'neutral';
+    if (recommendation.isReadyForTherapy) return 'success';
+    if (recommendation.requiredProtocol.meetsRequiredProtocol) return 'warning';
+    return 'warning';
+  }, [recommendation]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -1441,208 +1419,86 @@ export function SensorCalibrationTechnicalCaptureScreen({
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        <View style={styles.techHeaderRow}>
-          <SectionHeader
-            title="Configuración técnica"
-            subtitle="Identificación, captura de puntos y activación del modelo."
-          />
-          {onClose ? (
-            <Pressable
-              onPress={onClose}
-              style={({ pressed }) => [styles.backLink, pressed && styles.backLinkPressed]}
-              accessibilityRole="button"
-              accessibilityLabel="Volver">
-              <Text style={styles.backLinkText}>Volver</Text>
-            </Pressable>
-          ) : null}
-        </View>
+        <SectionHeader
+          title="Nueva calibración del espirómetro"
+          subtitle="Registra las marcas de volumen y la distancia del sensor para ajustar el modelo de medición."
+        />
 
-        <AppCard>
+        <AppCard style={styles.sessionCard}>
           <View style={styles.calibSummaryHeader}>
-            <Text style={styles.calibSummaryTitle}>Calibración actual</Text>
+            <Text style={styles.calibSummaryTitle}>Sesión en curso</Text>
             <StatusPill
               label={
                 savedStatus.kind === 'loading'
                   ? 'Cargando…'
-                  : savedStatus.kind === 'saved'
-                    ? 'Guardada'
-                    : savedStatus.kind === 'corrupt'
-                      ? 'Revisar'
-                      : 'Pendiente'
+                  : hasUnsavedChanges
+                    ? 'Cambios sin guardar'
+                    : savedStatus.kind === 'saved'
+                      ? 'Guardada'
+                      : savedStatus.kind === 'corrupt'
+                        ? 'Revisar'
+                        : 'En captura'
               }
               tone={
-                savedStatus.kind === 'saved'
+                savedStatus.kind === 'saved' && !hasUnsavedChanges
                   ? 'success'
                   : savedStatus.kind === 'corrupt'
                     ? 'danger'
-                    : 'neutral'
+                    : hasUnsavedChanges
+                      ? 'warning'
+                      : 'neutral'
               }
               size="sm"
             />
           </View>
           <View style={styles.calibMetricsRow}>
             <MetricTile
-              label="Puntos"
-              value={savedStatus.kind === 'saved' ? String(savedStatus.pointsCount) : '—'}
-              tone={savedStatus.kind === 'saved' ? 'success' : 'default'}
+              label="Puntos en sesión"
+              value={String(points.length)}
+              tone={points.length > 0 ? 'success' : 'default'}
               size="compact"
             />
             <MetricTile
-              label="Rango"
-              value={
-                activeSpirometerProfile
-                  ? `${activeSpirometerProfile.operativeMinVolumeMl}–${activeSpirometerProfile.maxVolumeMl}`
-                  : '—'
-              }
-              helper={activeSpirometerProfile ? 'mL' : undefined}
+              label="Volúmenes"
+              value={captureProgressSummary.volumesLabel}
+              helper={requiredVolumesMl.length > 0 ? 'requeridos' : undefined}
               tone="default"
               size="compact"
             />
-            <InfoTile
-              label="Calidad"
-              value={derivePatientCalibrationQuality(recommendation, linearModel, piecewiseModel)}
-              tone={patientQualityTone(derivePatientCalibrationQuality(recommendation, linearModel, piecewiseModel))}
-              compact
-            />
           </View>
-          {savedStatus.kind === 'saved' && savedStatus.updatedAt ? (
+          {savedStatus.kind === 'saved' && savedStatus.updatedAt && !hasUnsavedChanges ? (
             <Text style={styles.calibLastUpdated}>
-              Última actualización: {new Date(savedStatus.updatedAt).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
+              Última guardada:{' '}
+              {new Date(savedStatus.updatedAt).toLocaleDateString(undefined, {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+              })}
             </Text>
           ) : null}
         </AppCard>
 
-        <Text style={styles.sectionEyebrow}>Tipo de espirómetro</Text>
+        <Text style={styles.sectionEyebrow}>Identificación</Text>
 
-        {spirometerReady && technicalSpirometerOptions.length > 0 ? (
+        {spirometerReady && activeSpirometerProfile ? (
           <View style={styles.card}>
-            <Text style={styles.cardHint}>
-              Solo modo técnico. No modifica la calibración predeterminada del paciente.
+            <Text style={styles.cardTitleStrong}>Espirómetro</Text>
+            <Text style={styles.spirometerDisplayLine}>
+              {RESPIRA_SPIROMETER_DISPLAY} · {RESPIRA_SPIROMETER_CAPACITY_ML} mL
             </Text>
-            <View style={styles.spirometerSelectorRow}>
-              {technicalSpirometerOptions.map((option) => {
-                const selected = activeSpirometerDevice?.id === option.device.id;
-                return (
-                  <Pressable
-                    key={option.device.id}
-                    onPress={() => void onSelectTechnicalSpirometer(option)}
-                    style={({ pressed }) => [
-                      styles.spirometerOption,
-                      selected && styles.spirometerOptionSelected,
-                      pressed && styles.spirometerOptionPressed,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Seleccionar ${option.spirometerTypeLabel}`}>
-                    <Text
-                      style={[
-                        styles.spirometerOptionLabel,
-                        selected && styles.spirometerOptionLabelSelected,
-                      ]}>
-                      {option.spirometerTypeLabel}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        ) : null}
-
-        <Text style={styles.sectionEyebrow}>Identificación del dispositivo</Text>
-
-        {spirometerReady && activeSpirometerDevice && activeSpirometerProfile ? (
-          <>
-          <View style={styles.card}>
-            <Text style={styles.cardTitleStrong}>{activeSpirometerDevice.label}</Text>
             <Text style={styles.cardHint}>
               Marcas de {activeSpirometerProfile.operativeMinVolumeMl} mL a{' '}
               {activeSpirometerProfile.maxVolumeMl} mL.
             </Text>
-            <View style={styles.resultsGrid}>
-              <MetricCell
-                label="Capacidad nominal"
-                value={`${activeSpirometerProfile.maxVolumeMl} mL`}
-              />
-              <MetricCell
-                label="Rango"
-                value={`${activeSpirometerProfile.operativeMinVolumeMl}–${activeSpirometerProfile.maxVolumeMl} mL`}
-              />
-            </View>
-          </View>
-
-          <View style={styles.card}>
-            <Text style={styles.cardTitleStrong}>Componentes del sistema</Text>
-            <Text style={styles.systemInfoLine}>
-              {RESPIRA_SYSTEM_COMPONENTS.microcontrollerDisplay}
-            </Text>
-            <Text style={styles.systemInfoLine}>{RESPIRA_SYSTEM_COMPONENTS.sensorDisplay}</Text>
-            <Text style={styles.systemInfoLine}>
-              Firmware: {RESPIRA_SYSTEM_COMPONENTS.firmwareReference}
-            </Text>
-            <Text style={styles.systemInfoMuted}>
-              Comunicación: {RESPIRA_SYSTEM_COMPONENTS.communication}
-            </Text>
-          </View>
-
-          <View style={styles.card}>
-            <Text style={styles.cardTitleStrong}>Identificación del dispositivo</Text>
-            <Text style={styles.cardHint}>
-              Datos del espirómetro y de la sesión de calibración. Los componentes ESP32 y sensor son
-              fijos del sistema RESPIRA+.
-            </Text>
-            <Text style={styles.identFieldLabel}>Nombre interno</Text>
+            <Text style={styles.identFieldLabel}>Fecha de calibración (AAAA-MM-DD)</Text>
             <TextInput
               style={styles.identInput}
-              value={deviceIdentification.internalLabel}
+              value={deviceIdentification.calibrationDateIso}
               onChangeText={(text) => {
-                setDeviceIdentification((prev) => ({ ...prev, internalLabel: text }));
+                setDeviceIdentification((prev) => ({ ...prev, calibrationDateIso: text }));
                 markDirty();
               }}
-              placeholder="RESPIRA+ 3000 mL"
-            />
-            <Text style={styles.identFieldLabel}>Marca del espirómetro</Text>
-            <TextInput
-              style={styles.identInput}
-              value={deviceIdentification.brand}
-              onChangeText={(text) => {
-                setDeviceIdentification((prev) => ({ ...prev, brand: text }));
-                markDirty();
-              }}
-              placeholder="MediMetrics Medical Technologies"
-            />
-            <Text style={styles.identFieldLabel}>Modelo del espirómetro</Text>
-            <TextInput
-              style={styles.identInput}
-              value={deviceIdentification.model}
-              onChangeText={(text) => {
-                setDeviceIdentification((prev) => ({ ...prev, model: text }));
-                markDirty();
-              }}
-              placeholder="MV1811-3"
-            />
-            <Text style={styles.identFieldLabel}>Capacidad nominal (mL)</Text>
-            <TextInput
-              style={styles.identInput}
-              value={String(deviceIdentification.nominalCapacityMl)}
-              onChangeText={(text) => {
-                const parsed = Number(text.replace(',', '.'));
-                if (!Number.isFinite(parsed)) return;
-                setDeviceIdentification((prev) => ({ ...prev, nominalCapacityMl: parsed }));
-                markDirty();
-              }}
-              keyboardType="number-pad"
-              placeholder="3000"
-            />
-            <Text style={styles.identFieldLabel}>
-              Identificador físico del espirómetro (opcional)
-            </Text>
-            <TextInput
-              style={styles.identInput}
-              value={deviceIdentification.serialNumber ?? ''}
-              onChangeText={(text) => {
-                setDeviceIdentification((prev) => ({ ...prev, serialNumber: text || undefined }));
-                markDirty();
-              }}
-              placeholder="N.º de serie o etiqueta"
+              placeholder="2026-06-02"
             />
             <Text style={styles.identFieldLabel}>Operador</Text>
             <TextInput
@@ -1657,17 +1513,7 @@ export function SensorCalibrationTechnicalCaptureScreen({
               }}
               placeholder="Nombre del operador"
             />
-            <Text style={styles.identFieldLabel}>Fecha de calibración (AAAA-MM-DD)</Text>
-            <TextInput
-              style={styles.identInput}
-              value={deviceIdentification.calibrationDateIso}
-              onChangeText={(text) => {
-                setDeviceIdentification((prev) => ({ ...prev, calibrationDateIso: text }));
-                markDirty();
-              }}
-              placeholder="2026-06-02"
-            />
-            <Text style={styles.identFieldLabel}>Notas técnicas</Text>
+            <Text style={styles.identFieldLabel}>Notas</Text>
             <TextInput
               style={[styles.identInput, styles.identInputMultiline]}
               value={deviceIdentification.technicalNotes ?? ''}
@@ -1680,20 +1526,26 @@ export function SensorCalibrationTechnicalCaptureScreen({
               placeholder="Observaciones del procedimiento, montaje, etc."
             />
           </View>
-          </>
         ) : (
           <View style={styles.card}>
             <ActivityIndicator size="small" color={wellness.primaryDark} />
-            <Text style={styles.cardHint}>Cargando espirómetro…</Text>
+            <Text style={styles.cardHint}>Preparando sesión…</Text>
           </View>
         )}
 
-        <Text style={styles.sectionEyebrow}>Captura de puntos</Text>
+        <Text style={styles.sectionEyebrow}>Captura</Text>
 
         <View style={styles.heroCard}>
-          <View style={styles.heroTop}>
-            <View style={styles.heroStatusCol}>
-              <Text style={styles.heroEyebrow}>Estado</Text>
+          <View style={styles.captureLiveRow}>
+            <View style={styles.captureLiveCol}>
+              <Text style={styles.heroEyebrow}>Distancia filtrada</Text>
+              <Text style={styles.captureDistanceValue}>
+                {distanceIsFinite ? `${(distanceMm as number).toFixed(1)}` : '—'}
+              </Text>
+              <Text style={styles.captureDistanceUnit}>mm</Text>
+            </View>
+            <View style={styles.captureLiveCol}>
+              <Text style={styles.heroEyebrow}>Sensor</Text>
               <View style={styles.heroStatusRow}>
                 {isConnecting ? (
                   <ActivityIndicator size="small" color={wellness.primaryDark} />
@@ -1705,21 +1557,11 @@ export function SensorCalibrationTechnicalCaptureScreen({
                     ]}
                   />
                 )}
-                <Text style={styles.heroStatusText}>{statusLabel(status)}</Text>
+                <Text style={styles.captureSensorStatus}>{statusLabel(status)}</Text>
               </View>
-            </View>
-            <View style={styles.heroMetricsCol}>
-              <Text style={styles.heroEyebrow}>Puntos</Text>
-              <Text style={styles.heroBigNumber}>{points.length}</Text>
             </View>
           </View>
           <View style={styles.pillRow}>
-            <View style={[styles.pill, liveSignalOk ? styles.pillOk : styles.pillWarn]}>
-              <Text style={styles.pillText}>{liveSignalOk ? 'Señal válida' : 'Señal no válida'}</Text>
-            </View>
-            <View style={styles.pill}>
-              <Text style={styles.pillTextMuted}>Modo {modeLabel}</Text>
-            </View>
             <View
               style={[
                 styles.pill,
@@ -1727,18 +1569,41 @@ export function SensorCalibrationTechnicalCaptureScreen({
                   ? styles.pillOk
                   : stability === 'variable'
                     ? styles.pillWarn
-                    : null,
+                    : stability === 'insufficient'
+                      ? null
+                      : styles.pillOk,
               ]}>
               <Text
                 style={
-                  stability === 'stable' || stability === 'variable'
+                  stability === 'stable' || stability === 'variable' || stability === 'acceptable'
                     ? styles.pillText
                     : styles.pillTextMuted
                 }>
-                {stabilityLabel(stability)}
+                {stability === 'insufficient' && !inLiveMode
+                  ? 'Sin señal'
+                  : stabilityLabel(stability)}
               </Text>
             </View>
+            <View style={[styles.pill, liveSignalOk ? styles.pillOk : styles.pillWarn]}>
+              <Text style={styles.pillText}>{liveSignalOk ? 'Señal válida' : 'Señal no válida'}</Text>
+            </View>
           </View>
+          {!isOnline && !isConnecting ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.secondaryBtn,
+                styles.captureConnectBtn,
+                pressed && styles.secondaryBtnPressed,
+              ]}
+              onPress={() => {
+                hapticLight();
+                connect();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Conectar sensor">
+              <Text style={styles.secondaryBtnText}>Conectar sensor</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {isRetakeMode && retakeVolumeMl !== null ? (
@@ -1774,189 +1639,7 @@ export function SensorCalibrationTechnicalCaptureScreen({
         ) : null}
 
         <View style={styles.card}>
-          <View style={styles.telemetryHeader}>
-            <View style={styles.telemetryHeaderIcon}>
-              <IconSymbol name="dot.radiowaves.left.and.right" size={16} color={wellness.primaryDark} />
-            </View>
-            <Text style={styles.cardTitleStrong}>Lectura en vivo</Text>
-          </View>
-          <Text style={styles.cardHint}>
-            Esta matriz muestra solo métricas útiles para registrar puntos confiables.
-          </Text>
-          <View style={styles.telemetryGrid}>
-            <MetricCell label="Estado" value={statusLabel(status)} />
-            <MetricCell label="Distance" value={formatScalar(distanceMm)} unit="mm" />
-            <MetricCell label="Raw" value={formatScalar(lastReading?.rawDistanceMm)} unit="mm" />
-            <MetricCell label="Señal" value={lastReading?.distanceValid ? 'Válida' : 'Sin validar'} />
-            <MetricCell label="Muestras buffer" value={bufferStats ? String(bufferStats.sampleCount) : '0'} />
-            <MetricCell label="Variación (std)" value={bufferStats ? bufferStats.stdDistanceMm.toFixed(2) : '—'} unit="mm" />
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <View style={styles.telemetryHeader}>
-            <View style={styles.telemetryHeaderIcon}>
-              <IconSymbol name="gearshape.fill" size={16} color={wellness.primaryDark} />
-            </View>
-            <Text style={styles.cardTitleStrong}>Conexión del sensor</Text>
-          </View>
-          <Text style={styles.cardHint}>
-            La conexión del sensor se comparte con toda la app. La URL y la conexión principal se gestionan en
-            Preparar dispositivo; aquí puedes reconectar o limpiar si hace falta.
-          </Text>
-          <Text style={styles.sharedUrlReadonly} numberOfLines={1}>
-            {url.trim() || '—'}
-          </Text>
-
-          {isConnecting ? (
-            <View style={styles.connectingRow}>
-              <ActivityIndicator size="small" color={wellness.primaryDark} />
-              <Text style={styles.connectingHint}>Conectando al ESP32…</Text>
-            </View>
-          ) : null}
-
-          {!isOnline && !isConnecting ? (
-            <Pressable
-              style={({ pressed }) => [styles.primaryBtn, pressed && styles.primaryBtnPressed]}
-              onPress={() => {
-                hapticLight();
-                connect();
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Conectar sensor">
-              <Text style={styles.primaryBtnText}>Conectar sensor</Text>
-            </Pressable>
-          ) : null}
-
-          {isOnline ? (
-            <View style={styles.rowGap}>
-              <View style={styles.connectedPill}>
-                <Text style={styles.connectedPillText}>Conectado</Text>
-              </View>
-              <Pressable
-                style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
-                onPress={onResetConnection}
-                accessibilityRole="button"
-                accessibilityLabel="Limpiar conexión">
-                <Text style={styles.secondaryBtnText}>Limpiar conexión</Text>
-              </Pressable>
-              <Text style={styles.limpiarExplain}>
-                Cierra la conexión actual si la señal se queda detenida, cambia la red o el estado queda atascado.
-              </Text>
-              <Pressable
-                style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
-                onPress={() => {
-                  hapticLight();
-                  disconnect();
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Desconectar sensor">
-                <Text style={styles.ghostBtnText}>Desconectar</Text>
-              </Pressable>
-            </View>
-          ) : null}
-
-          {!isOnline && !isConnecting && status === 'error' ? (
-            <Pressable
-              style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
-              onPress={onResetConnection}
-              accessibilityRole="button"
-              accessibilityLabel="Limpiar conexión">
-              <Text style={styles.secondaryBtnText}>Limpiar conexión</Text>
-            </Pressable>
-          ) : null}
-          {!isOnline && !isConnecting && status === 'error' ? (
-            <Text style={styles.limpiarExplain}>
-              Cierra el socket atascado o con error para volver a intentar con un estado limpio.
-            </Text>
-          ) : null}
-
-          {status === 'error' && errorMessage ? <Text style={styles.errorHint}>{errorMessage}</Text> : null}
-
-          {debug ? (
-            <>
-              <Pressable
-                style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
-                onPress={() => {
-                  hapticLight();
-                  startMock();
-                }}>
-                <Text style={styles.ghostBtnText}>Iniciar lectura de prueba</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
-                onPress={() => {
-                  hapticLight();
-                  stopMock();
-                }}>
-                <Text style={styles.ghostBtnText}>Detener lectura de prueba</Text>
-              </Pressable>
-            </>
-          ) : null}
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Estabilidad de medición</Text>
-          <Text style={styles.cardHint}>
-            Se analizan varias lecturas recientes para registrar un punto más confiable.
-          </Text>
-          {bufferStats ? (
-            <>
-              <View style={styles.stabilityRow}>
-                <View style={styles.stabilityCol}>
-                  <Text style={styles.stabilityEyebrow}>Promedio distance</Text>
-                  <Text style={styles.stabilityBigNumber}>{bufferStats.avgDistanceMm.toFixed(1)}</Text>
-                  <Text style={styles.stabilityUnit}>mm</Text>
-                </View>
-                <View style={styles.stabilityCol}>
-                  <Text style={styles.stabilityEyebrow}>±std</Text>
-                  <Text
-                    style={[
-                      styles.stabilityBigNumber,
-                      isVariableSignal ? styles.stabilityBigNumberWarn : null,
-                    ]}>
-                    {bufferStats.stdDistanceMm.toFixed(2)}
-                  </Text>
-                  <Text style={styles.stabilityUnit}>mm</Text>
-                </View>
-              </View>
-              <Text style={styles.summaryLine}>
-                Promedio raw: {bufferStats.avgRawDistanceMm.toFixed(1)} mm
-              </Text>
-              <Text style={styles.summaryLine}>
-                Min / max: {bufferStats.minDistanceMm.toFixed(1)} · {bufferStats.maxDistanceMm.toFixed(1)} mm
-              </Text>
-              <Text style={styles.summaryLine}>
-                Estado: {stabilityLabel(stability)} · Lecturas: {bufferStats.sampleCount} (máx {BUFFER_MAX_SAMPLES}
-                {' · ventana '}
-                {(BUFFER_WINDOW_MS / 1000).toFixed(1)} s)
-              </Text>
-              <View
-                style={[
-                  styles.stabilityBadge,
-                  stability === 'stable'
-                    ? styles.stabilityBadgeOk
-                    : stability === 'variable'
-                      ? styles.stabilityBadgeWarn
-                      : styles.stabilityBadgeMuted,
-                ]}>
-                <Text
-                  style={
-                    stability === 'insufficient' || stability === 'acceptable'
-                      ? styles.stabilityBadgeTextMuted
-                      : styles.stabilityBadgeText
-                  }>
-                  {stabilityLabel(stability)}
-                </Text>
-              </View>
-            </>
-          ) : (
-            <Text style={styles.emptyText}>Sin lecturas disponibles. Conecta el dispositivo para comenzar.</Text>
-          )}
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Volumen del espirómetro</Text>
+          <Text style={styles.cardTitleStrong}>Volumen objetivo</Text>
           <Text style={styles.cardSubTitleStrong}>Valor objetivo para registrar el siguiente punto (mL)</Text>
           <TextInput
             value={volumeInput}
@@ -2057,8 +1740,10 @@ export function SensorCalibrationTechnicalCaptureScreen({
           </Pressable>
         </View>
 
+        <Text style={styles.sectionEyebrow}>Progreso</Text>
+
         <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Progreso de calibración</Text>
+          <Text style={styles.cardTitleStrong}>Progreso de la sesión</Text>
           {captureProgressSummary.hasPoints ? (
             <>
               <Text style={styles.captureProgressLine}>
@@ -2095,25 +1780,405 @@ export function SensorCalibrationTechnicalCaptureScreen({
           ) : null}
         </View>
 
+        {showPreliminaryResult && linearModel ? (
+          <>
+            <Text style={styles.sectionEyebrow}>Resultado preliminar</Text>
+            <View style={styles.card}>
+              <View style={styles.preliminaryHeader}>
+                <Text style={styles.cardTitleStrong}>Modelo lineal</Text>
+                <StatusPill
+                  label={preliminaryReadyLabel}
+                  tone={preliminaryReadyTone}
+                  size="sm"
+                />
+              </View>
+              {linearModel.status === 'valid' &&
+              linearModel.coefficients.slope !== undefined &&
+              linearModel.coefficients.intercept !== undefined ? (
+                <Text style={styles.preliminaryEquation}>
+                  V = {formatSlope(linearModel.coefficients.slope)} × distancia −{' '}
+                  {formatIntercept(Math.abs(linearModel.coefficients.intercept))} mL
+                </Text>
+              ) : (
+                <Text style={styles.cardHint}>{modelStatusLabel(linearModel.status)}</Text>
+              )}
+              <View style={styles.preliminaryStatsRow}>
+                <MetricTile
+                  label="R²"
+                  value={formatR2(linearModel.metrics.rSquared)}
+                  tone="default"
+                  size="compact"
+                />
+                <MetricTile
+                  label="MAE"
+                  value={formatMetricMl(linearModel.metrics.maeMl)}
+                  helper="mL"
+                  tone="default"
+                  size="compact"
+                />
+                <MetricTile
+                  label="RMSE"
+                  value={formatMetricMl(linearModel.metrics.rmseMl)}
+                  helper="mL"
+                  tone="default"
+                  size="compact"
+                />
+              </View>
+              <View style={styles.preliminaryStatsRow}>
+                <MetricTile
+                  label="Pendiente"
+                  value={formatSlope(linearModel.coefficients.slope)}
+                  helper="mL/mm"
+                  tone="default"
+                  size="compact"
+                />
+                <MetricTile
+                  label="Intercepto"
+                  value={formatIntercept(linearModel.coefficients.intercept)}
+                  helper="mL"
+                  tone="default"
+                  size="compact"
+                />
+              </View>
+              {!canActivateRecommendedModel && activationBlockReason ? (
+                <Text style={styles.cardHint}>{activationBlockReason}</Text>
+              ) : null}
+            </View>
+          </>
+        ) : null}
+
+        <Text style={styles.sectionEyebrow}>Finalizar</Text>
+
+        <View style={styles.card}>
+          <View style={styles.rowGap}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                !canSaveAndActivate && styles.btnDisabled,
+                pressed && canSaveAndActivate && styles.primaryBtnPressed,
+              ]}
+              onPress={() => {
+                void onSaveAndActivateCalibration();
+              }}
+              disabled={!canSaveAndActivate}
+              accessibilityRole="button"
+              accessibilityLabel="Guardar y activar calibración">
+              <Text
+                style={[styles.primaryBtnText, !canSaveAndActivate && styles.btnTextDisabled]}>
+                Guardar y activar calibración
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void handleExportCalibrationTechnical()}
+              style={({ pressed }) => [
+                styles.secondaryBtn,
+                !canExportTechnicalCsv && styles.btnDisabled,
+                pressed && canExportTechnicalCsv && styles.secondaryBtnPressed,
+              ]}
+              disabled={!canExportTechnicalCsv}
+              accessibilityRole="button"
+              accessibilityLabel="Descargar CSV técnico de calibración">
+              <Text
+                style={[styles.secondaryBtnText, !canExportTechnicalCsv && styles.btnTextDisabled]}>
+                Descargar CSV técnico
+              </Text>
+            </Pressable>
+            {!canExportTechnicalCsv ? (
+              <Text style={styles.cardHint}>
+                Captura al menos 2 volúmenes distintos con señal válida para habilitar la exportación.
+              </Text>
+            ) : null}
+            {storageMessage ? <Text style={styles.cardHint}>{storageMessage}</Text> : null}
+            {points.length > 0 || retakeVolumeMl !== null ? (
+              <Pressable
+                onPress={() => void onCancelCalibrationInProgress()}
+                style={({ pressed }) => [
+                  styles.destructiveTextBtn,
+                  pressed && styles.destructiveTextBtnPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Cancelar calibración">
+                <Text style={styles.destructiveTextBtnLabel}>Cancelar calibración</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+
+        {saveSuccessVisible ? (
+          <View style={styles.saveSuccessBanner} accessibilityRole="alert">
+            <Text style={styles.saveSuccessTitle}>Calibración guardada y activada correctamente.</Text>
+            <Text style={styles.saveSuccessHint}>
+              Puedes descargar el CSV técnico cuando quieras; no es necesario guardar antes.
+            </Text>
+            <Pressable
+              onPress={() => setSaveSuccessVisible(false)}
+              style={({ pressed }) => [styles.saveSuccessDismiss, pressed && styles.saveSuccessDismissPressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Cerrar mensaje de éxito">
+              <Text style={styles.saveSuccessDismissText}>Entendido</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         <Pressable
-          onPress={() => setAdvancedMetricsExpanded((prev) => !prev)}
+          onPress={() => setAdvancedDetailsExpanded((prev) => !prev)}
           style={({ pressed }) => [styles.techDetailsToggle, pressed && styles.techDetailsTogglePressed]}
           accessibilityRole="button"
           accessibilityLabel={
-            advancedMetricsExpanded
-              ? 'Ocultar resumen de calibración por volumen'
-              : 'Resumen de calibración por volumen'
+            advancedDetailsExpanded
+              ? 'Ocultar detalles avanzados de calibración'
+              : 'Detalles avanzados de calibración'
           }>
           <Text style={styles.techDetailsToggleText}>
-            {advancedMetricsExpanded
-              ? 'Ocultar resumen de calibración por volumen'
-              : 'Resumen de calibración por volumen'}
+            {advancedDetailsExpanded
+              ? 'Ocultar detalles avanzados de calibración'
+              : 'Detalles avanzados de calibración'}
           </Text>
-          <Text style={styles.techDetailsToggleChevron}>{advancedMetricsExpanded ? '▾' : '▸'}</Text>
+          <Text style={styles.techDetailsToggleChevron}>{advancedDetailsExpanded ? '▾' : '▸'}</Text>
         </Pressable>
 
-        {advancedMetricsExpanded ? (
+        {advancedDetailsExpanded ? (
           <>
+        {legacySpirometerOptions.length > 0 ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitleStrong}>Perfil de espirómetro (laboratorio)</Text>
+            <Text style={styles.cardHint}>
+              Solo para pruebas internas. El flujo estándar RESPIRA+ usa MV1811-3 · 3000 mL.
+            </Text>
+            <View style={styles.spirometerSelectorRow}>
+              {legacySpirometerOptions.map((option) => {
+                const selected = activeSpirometerDevice?.id === option.device.id;
+                return (
+                  <Pressable
+                    key={option.device.id}
+                    onPress={() => void onSelectTechnicalSpirometer(option)}
+                    style={({ pressed }) => [
+                      styles.spirometerOption,
+                      selected && styles.spirometerOptionSelected,
+                      pressed && styles.spirometerOptionPressed,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Seleccionar ${option.spirometerTypeLabel}`}>
+                    <Text
+                      style={[
+                        styles.spirometerOptionLabel,
+                        selected && styles.spirometerOptionLabelSelected,
+                      ]}>
+                      {option.spirometerTypeLabel}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
+        {spirometerReady && activeSpirometerDevice && activeSpirometerProfile ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitleStrong}>Identificación extendida</Text>
+            <Text style={styles.cardHint}>
+              Metadatos adicionales para el archivo técnico. Los componentes ESP32 y sensor son fijos.
+            </Text>
+            <Text style={styles.identFieldLabel}>Nombre interno</Text>
+            <TextInput
+              style={styles.identInput}
+              value={deviceIdentification.internalLabel}
+              onChangeText={(text) => {
+                setDeviceIdentification((prev) => ({ ...prev, internalLabel: text }));
+                markDirty();
+              }}
+              placeholder="RESPIRA+ 3000 mL"
+            />
+            <Text style={styles.identFieldLabel}>Marca del espirómetro</Text>
+            <TextInput
+              style={styles.identInput}
+              value={deviceIdentification.brand}
+              onChangeText={(text) => {
+                setDeviceIdentification((prev) => ({ ...prev, brand: text }));
+                markDirty();
+              }}
+              placeholder="MediMetrics Medical Technologies"
+            />
+            <Text style={styles.identFieldLabel}>Modelo del espirómetro</Text>
+            <TextInput
+              style={styles.identInput}
+              value={deviceIdentification.model}
+              onChangeText={(text) => {
+                setDeviceIdentification((prev) => ({ ...prev, model: text }));
+                markDirty();
+              }}
+              placeholder="MV1811-3"
+            />
+            <Text style={styles.identFieldLabel}>Capacidad nominal (mL)</Text>
+            <TextInput
+              style={styles.identInput}
+              value={String(deviceIdentification.nominalCapacityMl)}
+              onChangeText={(text) => {
+                const parsed = Number(text.replace(',', '.'));
+                if (!Number.isFinite(parsed)) return;
+                setDeviceIdentification((prev) => ({ ...prev, nominalCapacityMl: parsed }));
+                markDirty();
+              }}
+              keyboardType="number-pad"
+              placeholder="3000"
+            />
+            <Text style={styles.identFieldLabel}>Identificador físico (opcional)</Text>
+            <TextInput
+              style={styles.identInput}
+              value={deviceIdentification.serialNumber ?? ''}
+              onChangeText={(text) => {
+                setDeviceIdentification((prev) => ({ ...prev, serialNumber: text || undefined }));
+                markDirty();
+              }}
+              placeholder="N.º de serie o etiqueta"
+            />
+          </View>
+        ) : null}
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitleStrong}>Componentes del sistema</Text>
+          <Text style={styles.systemInfoLine}>
+            {RESPIRA_SYSTEM_COMPONENTS.microcontrollerDisplay}
+          </Text>
+          <Text style={styles.systemInfoLine}>{RESPIRA_SYSTEM_COMPONENTS.sensorDisplay}</Text>
+          <Text style={styles.systemInfoLine}>
+            Firmware: {RESPIRA_SYSTEM_COMPONENTS.firmwareReference}
+          </Text>
+          <Text style={styles.systemInfoMuted}>
+            Comunicación: {RESPIRA_SYSTEM_COMPONENTS.communication}
+          </Text>
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.telemetryHeader}>
+            <View style={styles.telemetryHeaderIcon}>
+              <IconSymbol name="dot.radiowaves.left.and.right" size={16} color={wellness.primaryDark} />
+            </View>
+            <Text style={styles.cardTitleStrong}>Lectura en vivo</Text>
+          </View>
+          <View style={styles.telemetryGrid}>
+            <MetricCell label="Estado" value={statusLabel(status)} />
+            <MetricCell label="Distancia" value={formatScalar(distanceMm)} unit="mm" />
+            <MetricCell label="Bruto" value={formatScalar(lastReading?.rawDistanceMm)} unit="mm" />
+            <MetricCell label="Señal" value={lastReading?.distanceValid ? 'Válida' : 'Sin validar'} />
+            <MetricCell label="Muestras buffer" value={bufferStats ? String(bufferStats.sampleCount) : '0'} />
+            <MetricCell
+              label="Variación (std)"
+              value={bufferStats ? bufferStats.stdDistanceMm.toFixed(2) : '—'}
+              unit="mm"
+            />
+            <MetricCell label="Modo" value={modeLabel} />
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitleStrong}>Conexión del sensor</Text>
+          <Text style={styles.cardHint}>
+            La URL principal se gestiona en Preparar dispositivo. Aquí puedes reconectar o limpiar.
+          </Text>
+          <Text style={styles.sharedUrlReadonly} numberOfLines={1}>
+            {url.trim() || '—'}
+          </Text>
+          {isConnecting ? (
+            <View style={styles.connectingRow}>
+              <ActivityIndicator size="small" color={wellness.primaryDark} />
+              <Text style={styles.connectingHint}>Conectando al ESP32…</Text>
+            </View>
+          ) : null}
+          {!isOnline && !isConnecting ? (
+            <Pressable
+              style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
+              onPress={() => {
+                hapticLight();
+                connect();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Conectar sensor">
+              <Text style={styles.secondaryBtnText}>Conectar sensor</Text>
+            </Pressable>
+          ) : null}
+          {isOnline ? (
+            <View style={styles.rowGap}>
+              <Pressable
+                style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
+                onPress={onResetConnection}
+                accessibilityRole="button"
+                accessibilityLabel="Limpiar conexión">
+                <Text style={styles.secondaryBtnText}>Limpiar conexión</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
+                onPress={() => {
+                  hapticLight();
+                  disconnect();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Desconectar sensor">
+                <Text style={styles.ghostBtnText}>Desconectar</Text>
+              </Pressable>
+            </View>
+          ) : null}
+          {status === 'error' && errorMessage ? <Text style={styles.errorHint}>{errorMessage}</Text> : null}
+          {debug ? (
+            <>
+              <Pressable
+                style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
+                onPress={() => {
+                  hapticLight();
+                  startMock();
+                }}>
+                <Text style={styles.ghostBtnText}>Iniciar lectura de prueba</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
+                onPress={() => {
+                  hapticLight();
+                  stopMock();
+                }}>
+                <Text style={styles.ghostBtnText}>Detener lectura de prueba</Text>
+              </Pressable>
+            </>
+          ) : null}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitleStrong}>Estabilidad de medición</Text>
+          {bufferStats ? (
+            <>
+              <View style={styles.stabilityRow}>
+                <View style={styles.stabilityCol}>
+                  <Text style={styles.stabilityEyebrow}>Promedio distancia</Text>
+                  <Text style={styles.stabilityBigNumber}>{bufferStats.avgDistanceMm.toFixed(1)}</Text>
+                  <Text style={styles.stabilityUnit}>mm</Text>
+                </View>
+                <View style={styles.stabilityCol}>
+                  <Text style={styles.stabilityEyebrow}>±std</Text>
+                  <Text
+                    style={[
+                      styles.stabilityBigNumber,
+                      isVariableSignal ? styles.stabilityBigNumberWarn : null,
+                    ]}>
+                    {bufferStats.stdDistanceMm.toFixed(2)}
+                  </Text>
+                  <Text style={styles.stabilityUnit}>mm</Text>
+                </View>
+              </View>
+              <Text style={styles.summaryLine}>
+                Promedio bruto: {bufferStats.avgRawDistanceMm.toFixed(1)} mm
+              </Text>
+              <Text style={styles.summaryLine}>
+                Min / max: {bufferStats.minDistanceMm.toFixed(1)} · {bufferStats.maxDistanceMm.toFixed(1)} mm
+              </Text>
+              <Text style={styles.summaryLine}>
+                Lecturas: {bufferStats.sampleCount} (máx {BUFFER_MAX_SAMPLES} · ventana{' '}
+                {(BUFFER_WINDOW_MS / 1000).toFixed(1)} s)
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.emptyText}>Sin lecturas disponibles.</Text>
+          )}
+        </View>
+
         {volumeSummaries.length > 0 ? (
           <View style={styles.card}>
             <Text style={styles.cardTitleStrong}>Resumen por volumen</Text>
@@ -2295,12 +2360,6 @@ export function SensorCalibrationTechnicalCaptureScreen({
         </View>
         ) : null}
 
-          </>
-        ) : null}
-
-        <Text style={styles.sectionEyebrow}>Modelo y activación</Text>
-
-        {/* B. Modelo recomendado */}
         {recommendation && uncertaintySummary && coverage && linearModel ? (
         <>
         <View style={styles.card}>
@@ -2921,110 +2980,26 @@ export function SensorCalibrationTechnicalCaptureScreen({
             </Text>
           ) : null}
 
-          {!canActivateRecommendedModel && activationBlockReason ? (
-            <Text style={styles.cardHint}>{activationBlockReason}</Text>
-          ) : null}
-
           <View style={styles.rowGap}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.primaryBtn,
-                !canSaveAndActivate && styles.btnDisabled,
-                pressed && canSaveAndActivate && styles.primaryBtnPressed,
-              ]}
-              onPress={() => {
-                void onSaveAndActivateCalibration();
-              }}
-              disabled={!canSaveAndActivate}
-              accessibilityRole="button"
-              accessibilityLabel="Guardar y activar calibración">
-              <Text
-                style={[
-                  styles.primaryBtnText,
-                  !canSaveAndActivate && styles.btnTextDisabled,
-                ]}>
-                Guardar y activar calibración
-              </Text>
-            </Pressable>
             {activeCalibrationModel ? (
-              <>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.secondaryBtn,
-                    pressed && styles.secondaryBtnPressed,
-                  ]}
-                  onPress={() => {
-                    hapticLight();
-                    setShowActiveModelSummary((v) => !v);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Ver resumen técnico">
-                  <Text style={styles.secondaryBtnText}>
-                    {showActiveModelSummary ? 'Ocultar resumen técnico' : 'Ver resumen técnico'}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.dangerBtn,
-                    !canClearActiveModel && styles.btnDisabled,
-                    pressed && canClearActiveModel && styles.dangerBtnPressed,
-                  ]}
-                  onPress={() => {
-                    void onClearActiveModel();
-                  }}
-                  disabled={!canClearActiveModel}
-                  accessibilityRole="button"
-                  accessibilityLabel="Borrar modelo activo">
-                  <Text style={[styles.dangerBtnText, !canClearActiveModel && styles.btnTextDisabled]}>
-                    Borrar modelo activo
-                  </Text>
-                </Pressable>
-              </>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.dangerBtn,
+                  !canClearActiveModel && styles.btnDisabled,
+                  pressed && canClearActiveModel && styles.dangerBtnPressed,
+                ]}
+                onPress={() => {
+                  void onClearActiveModel();
+                }}
+                disabled={!canClearActiveModel}
+                accessibilityRole="button"
+                accessibilityLabel="Borrar modelo activo">
+                <Text style={[styles.dangerBtnText, !canClearActiveModel && styles.btnTextDisabled]}>
+                  Borrar modelo activo
+                </Text>
+              </Pressable>
             ) : null}
           </View>
-
-          {showActiveModelSummary && activeTechnicalSummary ? (
-            <View style={styles.activeSummaryBox}>
-              <Text style={styles.cardSubTitleStrong}>Resumen técnico</Text>
-              <Text style={styles.summaryLine}>
-                Espirómetro: {activeTechnicalSummary.spirometerLabel} ·{' '}
-                {activeTechnicalSummary.spirometerProfileName}
-              </Text>
-              <Text style={styles.summaryLine}>Modelo: {activeTechnicalSummary.modelKind}</Text>
-              <Text style={styles.summaryLine}>
-                Activado: {formatTimestamp(activeTechnicalSummary.activatedAt)}
-              </Text>
-              <Text style={styles.summaryLine}>
-                Rango calibrado: {activeTechnicalSummary.calibratedRangeMl}
-              </Text>
-              <Text style={styles.summaryLine}>
-                Protocolo: {activeTechnicalSummary.requiredProtocolSummary}
-              </Text>
-              <Text style={styles.summaryLine}>
-                Repetibilidad: {activeTechnicalSummary.repeatabilitySummary}
-              </Text>
-              <Text style={styles.summaryLine}>
-                Geometría: {activeTechnicalSummary.geometricSummary}
-              </Text>
-              <Text style={styles.summaryLine}>
-                Incertidumbre: {activeTechnicalSummary.uncertaintySummary}
-              </Text>
-              <Text style={styles.summaryLine}>
-                Estado: {activeTechnicalSummary.isReadyForTherapy ? 'Apto para activación' : 'No apto'} ·{' '}
-                {activeTechnicalSummary.therapyReadinessReason}
-              </Text>
-              {activeTechnicalSummary.warnings.length > 0 ? (
-                <View style={styles.modelWarningsBox}>
-                  <Text style={styles.modelSubLabel}>Advertencias</Text>
-                  {activeTechnicalSummary.warnings.map((warning, idx) => (
-                    <Text key={`acm-w-${idx}`} style={styles.modelWarningText}>
-                      • {warning}
-                    </Text>
-                  ))}
-                </View>
-              ) : null}
-            </View>
-          ) : null}
         </View>
 
         <View style={styles.card}>
@@ -3086,61 +3061,6 @@ export function SensorCalibrationTechnicalCaptureScreen({
           </Text>
         </View>
 
-        {saveSuccessVisible ? (
-          <View style={styles.saveSuccessBanner} accessibilityRole="alert">
-            <Text style={styles.saveSuccessTitle}>Calibración guardada y activada correctamente.</Text>
-            <Text style={styles.saveSuccessHint}>
-              Puedes exportar el CSV técnico cuando quieras; no es necesario guardar antes.
-            </Text>
-            <Pressable
-              onPress={() => setSaveSuccessVisible(false)}
-              style={({ pressed }) => [styles.saveSuccessDismiss, pressed && styles.saveSuccessDismissPressed]}
-              accessibilityRole="button"
-              accessibilityLabel="Cerrar mensaje de éxito">
-              <Text style={styles.saveSuccessDismissText}>Entendido</Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        <Text style={styles.sectionEyebrow}>Exportación técnica</Text>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Archivo técnico de calibración</Text>
-          <Text style={styles.cardHint}>
-            Exporta puntos, modelo y metadatos para revisión del equipo RESPIRA+.
-          </Text>
-          <Pressable
-            onPress={() => void handleExportCalibrationTechnical()}
-            style={({ pressed }) => [
-              styles.secondaryBtn,
-              !canExportTechnicalCsv && styles.btnDisabled,
-              pressed && canExportTechnicalCsv && styles.secondaryBtnPressed,
-            ]}
-            disabled={!canExportTechnicalCsv}
-            accessibilityRole="button"
-            accessibilityLabel="Exportar CSV técnico de calibración">
-            <Text
-              style={[styles.secondaryBtnText, !canExportTechnicalCsv && styles.btnTextDisabled]}>
-              Exportar CSV técnico
-            </Text>
-          </Pressable>
-          {!canExportTechnicalCsv ? (
-            <Text style={styles.cardHint}>
-              Captura al menos 2 volúmenes distintos con señal válida para habilitar la exportación.
-            </Text>
-          ) : null}
-        </View>
-
-        <Pressable
-          onPress={() => setAdvancedStorageExpanded((prev) => !prev)}
-          style={({ pressed }) => [styles.techDetailsToggle, pressed && styles.techDetailsTogglePressed]}
-          accessibilityRole="button"
-          accessibilityLabel="Opciones avanzadas de almacenamiento">
-          <Text style={styles.techDetailsToggleText}>Opciones avanzadas</Text>
-          <Text style={styles.techDetailsToggleChevron}>{advancedStorageExpanded ? '▾' : '▸'}</Text>
-        </Pressable>
-
-        {advancedStorageExpanded ? (
         <View style={styles.card}>
           <Text style={styles.cardTitleStrong}>Almacenamiento local</Text>
           <View
@@ -3185,7 +3105,8 @@ export function SensorCalibrationTechnicalCaptureScreen({
           ) : null}
           {effectiveSavedStatus.kind === 'corrupt' ? (
             <Text style={styles.errorHint}>
-              El JSON persistido no se pudo leer. Borra la calibración guardada para limpiarlo.
+              No se pudo leer la calibración guardada en el dispositivo. Borra la calibración guardada
+              para limpiar el almacenamiento local.
             </Text>
           ) : null}
           {storageMessage ? <Text style={styles.cardHint}>{storageMessage}</Text> : null}
@@ -3234,16 +3155,8 @@ export function SensorCalibrationTechnicalCaptureScreen({
             </Pressable>
           </View>
         </View>
-        ) : null}
 
-        {!onClose ? (
-          <Pressable
-            style={({ pressed }) => [styles.linkBack, pressed && styles.linkBackPressed]}
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel="Volver a conexión del sensor">
-            <Text style={styles.linkBackText}>Volver a conexión del sensor</Text>
-          </Pressable>
+        </>
         ) : null}
       </ScrollView>
     </SafeAreaView>
@@ -3301,6 +3214,66 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl * 2,
+    gap: spacing.sm,
+  },
+  sessionCard: {
+    gap: spacing.sm,
+  },
+  spirometerDisplayLine: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: wellness.text,
+    letterSpacing: -0.2,
+    marginBottom: spacing.xs,
+  },
+  captureLiveRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: spacing.lg,
+  },
+  captureLiveCol: {
+    flex: 1,
+  },
+  captureDistanceValue: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+    letterSpacing: -1,
+    lineHeight: 40,
+  },
+  captureDistanceUnit: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+    marginTop: 2,
+  },
+  captureSensorStatus: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: wellness.primaryDark,
+  },
+  captureConnectBtn: {
+    marginTop: spacing.md,
+  },
+  preliminaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  preliminaryEquation: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+    marginBottom: spacing.md,
+    lineHeight: 20,
+  },
+  preliminaryStatsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
   },
   heroCard: {
     backgroundColor: wellness.card,
