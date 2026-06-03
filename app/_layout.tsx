@@ -141,6 +141,10 @@ export default function RootLayout() {
                 <Stack.Screen name="hardware-lab" options={{ headerShown: false, title: 'Laboratorio de hardware' }} />
                 <Stack.Screen name="diagnostico" options={{ headerShown: false }} />
                 <Stack.Screen name="diagnostico-resumen" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="evaluacion-resumen"
+                  options={{ headerShown: false, title: 'Resumen de evaluación' }}
+                />
                 <Stack.Screen name="esp32-raw-test" options={{ headerShown: false, title: 'Prueba WebSocket ESP32' }} />
               </Stack>
             </LevelsProgressProvider>

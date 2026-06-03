@@ -302,6 +302,11 @@ export function HomeScreen() {
     navigateToInitialEvaluation(router);
   }, [router]);
 
+  const goEvaluationSummary = useCallback(() => {
+    onLightImpact();
+    router.push('/evaluacion-resumen');
+  }, [router]);
+
   if (!hydrated || !patient) {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -478,7 +483,28 @@ export function HomeScreen() {
                 </View>
               </View>
             ) : null}
-            <AppButton title="Repetir evaluación" onPress={goInitialEvaluation} variant="secondary" />
+            <View style={styles.evalActionsRow}>
+              <Pressable
+                style={({ pressed }) => [styles.evalActionPill, pressed && styles.evalActionPillPressed]}
+                onPress={goEvaluationSummary}
+                accessibilityRole="button"
+                accessibilityLabel="Ver resumen de evaluación inicial">
+                <Text style={styles.evalActionPillText}>Ver resumen</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.evalActionPill,
+                  styles.evalActionPillSecondary,
+                  pressed && styles.evalActionPillPressed,
+                ]}
+                onPress={goInitialEvaluation}
+                accessibilityRole="button"
+                accessibilityLabel="Repetir evaluación inicial">
+                <Text style={[styles.evalActionPillText, styles.evalActionPillTextSecondary]}>
+                  Repetir evaluación
+                </Text>
+              </Pressable>
+            </View>
           </AppCard>
         ) : null}
 
@@ -920,6 +946,36 @@ const styles = StyleSheet.create({
   evalCardMetricRow: {
     flexDirection: 'row',
     gap: spacing.sm,
+  },
+  evalActionsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  evalActionPill: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 999,
+    backgroundColor: ACCENT,
+  },
+  evalActionPillSecondary: {
+    backgroundColor: wellnessColors.card,
+    borderWidth: 1,
+    borderColor: wellnessColors.border,
+  },
+  evalActionPillPressed: {
+    opacity: 0.88,
+  },
+  evalActionPillText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  evalActionPillTextSecondary: {
+    color: wellnessColors.primaryDark,
   },
   exportCardSpacing: {
     marginBottom: spacing.lg,

@@ -59,11 +59,31 @@ function compareDiagnosticsNewestFirst(a: DiagnosticRecord, b: DiagnosticRecord)
 }
 
 export async function getLatestDiagnostic(patientId: number): Promise<DiagnosticRecord | null> {
+  const ordered = await getPatientDiagnosticsOrdered(patientId);
+  return ordered[0] ?? null;
+}
+
+/** Evaluaciones del paciente, de la más reciente a la más antigua. */
+export async function getPatientDiagnosticsOrdered(patientId: number): Promise<DiagnosticRecord[]> {
   const diagnostics = await readAllDiagnostics();
-  const patientDiagnostics = diagnostics
+  return diagnostics
     .filter((item) => item.patient_id === patientId)
     .sort(compareDiagnosticsNewestFirst);
-  return patientDiagnostics[0] ?? null;
+}
+
+export type DiagnosticLatestPair = {
+  current: DiagnosticRecord;
+  previous: DiagnosticRecord | null;
+};
+
+/** Última y penúltima evaluación oficial guardada (para comparación en resumen). */
+export async function getLatestDiagnosticPair(patientId: number): Promise<DiagnosticLatestPair | null> {
+  const ordered = await getPatientDiagnosticsOrdered(patientId);
+  if (ordered.length === 0) return null;
+  return {
+    current: ordered[0],
+    previous: ordered[1] ?? null,
+  };
 }
 
 export type PersistOfficialDiagnosticPayload = {
