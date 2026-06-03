@@ -13,15 +13,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 import {
-    activeModelCardStatusLabel,
     buildActiveCalibrationModel,
     buildCalibrationProfile,
     buildLinearCalibrationModel,
     buildPiecewiseLinearCalibrationModel,
     CALIBRATION_PROFILE_VERSION,
-    clearActiveCalibrationModelForSpirometer,
     clearCalibrationProfileForSpirometer,
     computeCalibrationUncertaintySummary,
     computeGeometricScaleReport,
@@ -33,55 +30,34 @@ import {
     computeVolumeSummaries,
     createDefaultCalibratedDeviceIdentification,
     determineVolumeDistanceRelation,
-    hasSubOperativeVolumes,
     isActiveCalibrationModelStale,
-    loadCalibrationProfileDetailed,
     mergeCalibratedDeviceIdentification,
     MIN_RELIABLE_SENSOR_DISTANCE_MM,
     MIN_REPETITIONS_PER_REQUIRED_VOLUME,
-    MIN_REPETITIONS_PER_VOLUME,
-    MIN_VALID_CALIBRATION_POINTS_FOR_THERAPY,
     recommendCalibrationModel,
-    resolveActiveModelCardStatus,
-    RESPIRA_SYSTEM_COMPONENTS,
     saveActiveCalibrationModelForSpirometer,
     saveCalibrationProfileForSpirometer,
-    UNCERTAINTY_COVERAGE_FACTOR_K,
     type ActiveCalibrationModel,
     type CalibratedDeviceIdentification,
     type CalibrationCapturePoint,
-    type CalibrationLinealQuality,
     type CalibrationModel,
     type CalibrationModelRecommendation,
-    type CalibrationModelRecommendationKind,
     type CalibrationModelStatus,
     type CalibrationProfile,
-    type CalibrationQuality,
-    type CalibrationRecommendationStatus,
     type CalibrationRepeatabilityReport,
     type CalibrationSegmentReport,
     type CalibrationUncertaintySummary,
-    type GeometricScaleReport,
-    type GeometricScaleSegmentStatus,
     type GlobalDistanceRange,
-    type LoadCalibrationResult,
     type VolumeCalibrationSummary,
     type VolumeCoverage,
     type VolumeDistanceRelation,
-    type VolumeRepeatability,
-    type VolumeUncertaintyReport,
-    type VolumeUncertaintyStatus,
 } from '@/src/modules/device/calibration';
-import { volumeFromLinear } from '@/src/modules/device/calibration/imported-calibration-service';
 import {
-    BUFFER_MAX_SAMPLES,
-    BUFFER_WINDOW_MS,
     useTechnicalCaptureSensorBuffer,
     type BufferStats,
     type SignalStability,
 } from '@/src/modules/device/screens/use-technical-capture-sensor-buffer';
 import {
-    buildGeometricSegmentsMl,
     getExtendedRangeMinVolumeMl,
     getExtendedVolumeChipsMl,
     getRecommendedVolumeChipsMl,
@@ -91,10 +67,7 @@ import {
     type TechnicalSpirometerOption,
 } from '@/src/modules/device/spirometer';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
-import type {
-  SensorConnectionStatus,
-  SensorSourceMode,
-} from '@/src/modules/device/types/sensor-reading';
+import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
 import type { CalibrationTechnicalExportContext } from '@/src/modules/export/formatters/calibration-technical-export-context';
 import { exportCalibrationTechnicalCsv } from '@/src/modules/export/services/calibration-technical-export-service';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -109,7 +82,6 @@ import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { MetricTile } from '@/src/shared/ui/MetricTile';
 import { SectionHeader } from '@/src/shared/ui/SectionHeader';
 import { StatusPill } from '@/src/shared/ui/StatusPill';
-import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { getErrorMessage } from '@/src/shared/utils/get-error-message';
 
 const MIN_SAMPLES_TO_REGISTER = 5;
@@ -143,19 +115,8 @@ function statusLabel(state: SensorConnectionStatus): string {
   }
 }
 
-function sensorModeLabel(mode: SensorSourceMode): string {
-  return mode === 'mock' ? 'Prueba interna' : 'Sensor WiFi';
-}
-
 const RESPIRA_SPIROMETER_DISPLAY = 'MediMetrics MV1811-3';
 const RESPIRA_SPIROMETER_CAPACITY_ML = 3000;
-
-function formatScalar(value: string | number | boolean | null | undefined): string {
-  if (value === null || value === undefined) return '—';
-  if (typeof value === 'boolean') return value ? 'sí' : 'no';
-  if (typeof value === 'number' && !Number.isFinite(value)) return '—';
-  return String(value);
-}
 
 function parseVolumeMlInput(text: string): number | null {
   const t = text.trim().replace(',', '.');
@@ -185,17 +146,6 @@ function stabilityLabel(s: SignalStability): string {
   }
 }
 
-function relationLabel(r: VolumeDistanceRelation): string {
-  switch (r) {
-    case 'direct':
-      return 'Directa';
-    case 'inverse':
-      return 'Inversa';
-    default:
-      return 'Indeterminada';
-  }
-}
-
 function modelStatusLabel(status: CalibrationModelStatus): string {
   switch (status) {
     case 'valid':
@@ -213,89 +163,6 @@ function modelStatusLabel(status: CalibrationModelStatus): string {
   }
 }
 
-function recommendedKindLabel(kind: CalibrationModelRecommendationKind): string {
-  switch (kind) {
-    case 'piecewise_linear':
-      return 'Por tramos';
-    case 'linear_regression':
-      return 'Lineal';
-    case 'none':
-      return 'No disponible';
-    default:
-      return kind;
-  }
-}
-
-function recommendationStatusLabel(status: CalibrationRecommendationStatus): string {
-  switch (status) {
-    case 'ready':
-      return 'Listo';
-    case 'limited_range':
-      return 'Rango limitado';
-    case 'needs_more_points':
-      return 'Faltan puntos';
-    case 'needs_recalibration':
-      return 'Repetir calibración';
-    case 'invalid':
-      return 'Inválido';
-    default:
-      return status;
-  }
-}
-
-function recommendationStatusTone(
-  status: CalibrationRecommendationStatus,
-): 'ok' | 'warn' | 'muted' {
-  if (status === 'ready') return 'ok';
-  if (status === 'needs_more_points') return 'muted';
-  return 'warn';
-}
-
-function linealQualityLabel(q: CalibrationLinealQuality): string {
-  switch (q) {
-    case 'acceptable':
-      return 'Aceptable';
-    case 'not_recommended':
-      return 'No recomendado';
-    case 'unavailable':
-      return 'No disponible';
-    default:
-      return q;
-  }
-}
-
-function linealQualityTone(q: CalibrationLinealQuality): 'ok' | 'warn' | 'muted' {
-  if (q === 'acceptable') return 'ok';
-  if (q === 'unavailable') return 'muted';
-  return 'warn';
-}
-
-function calibrationQualityLabel(q: CalibrationQuality): string {
-  switch (q) {
-    case 'good':
-      return 'Buena';
-    case 'limited':
-      return 'Limitada';
-    case 'poor':
-      return 'Insuficiente';
-    case 'invalid':
-      return 'Inválida';
-    default:
-      return q;
-  }
-}
-
-function volumeRepeatabilityBadgeLabel(row: VolumeRepeatability): string {
-  switch (row.warningLevel) {
-    case 'high':
-      return 'Repetir';
-    case 'moderate':
-      return 'Revisar';
-    default:
-      return 'Estable';
-  }
-}
-
 function formatUncertaintyMl(value: number | null): string {
   if (value === null || !Number.isFinite(value)) return '—';
   return `±${value.toFixed(0)}`;
@@ -309,53 +176,6 @@ function uncertaintyOverallLabel(
     return 'Incompleto';
   }
   return hasAcceptable ? 'Aceptable' : 'Revisar';
-}
-
-function volumeUncertaintyStatusLabel(status: VolumeUncertaintyStatus): string {
-  switch (status) {
-    case 'ok':
-      return 'OK';
-    case 'limited':
-      return 'Limitado';
-    case 'insufficient_data':
-      return 'Incompleto';
-    default:
-      return status;
-  }
-}
-
-function geometricSegmentStatusLabel(status: GeometricScaleSegmentStatus): string {
-  switch (status) {
-    case 'ok':
-      return 'Correcto';
-    case 'review':
-      return 'Revisar';
-    case 'critical':
-      return 'Crítico';
-    case 'missing':
-      return 'Faltante';
-    default:
-      return status;
-  }
-}
-
-function formatExpectedDeltaMm(value: number): string {
-  if (value > 0) return `+${value.toFixed(0)} mm`;
-  if (value < 0) return `${value.toFixed(0)} mm`;
-  return `${value.toFixed(0)} mm`;
-}
-
-function geometricValidationOverallLabel(
-  report: GeometricScaleReport,
-): string {
-  if (!report.geometricValidationConfigured) return 'No configurada';
-  if (report.missingSegments > 0) return 'Incompleto';
-  if (report.passesGeometricValidation) return 'Correcto';
-  return 'Revisar montaje';
-}
-
-function activeModelKindUiLabel(kind: 'linear_regression' | 'piecewise_linear'): string {
-  return kind === 'piecewise_linear' ? 'Por tramos' : 'Lineal';
 }
 
 async function confirmActivationDouble(
@@ -389,17 +209,6 @@ function formatSlope(value: number | undefined): string {
 function formatIntercept(value: number | undefined): string {
   if (value === undefined || !Number.isFinite(value)) return '—';
   return value.toFixed(2);
-}
-
-function relationHint(r: VolumeDistanceRelation): string {
-  switch (r) {
-    case 'direct':
-      return 'A mayor volumen marcado, la distancia media sube de forma consistente entre niveles.';
-    case 'inverse':
-      return 'A mayor volumen marcado, la distancia media baja de forma consistente entre niveles.';
-    default:
-      return 'Hace falta al menos dos niveles de volumen distintos, o los promedios no siguen una tendencia clara.';
-  }
 }
 
 function hapticLight() {
@@ -449,14 +258,6 @@ function confirmProceed(
   });
 }
 
-function formatTimestamp(ts: number): string {
-  try {
-    return new Date(ts).toLocaleString();
-  } catch {
-    return String(ts);
-  }
-}
-
 type SavedStatus =
   | { kind: 'loading' }
   | { kind: 'none' }
@@ -501,7 +302,6 @@ export function SensorCalibrationTechnicalCaptureScreen(
   const [activeModelBusy, setActiveModelBusy] = useState<'idle' | 'activating' | 'clearing'>(
     'idle',
   );
-  const debug = isSensorDebugEnabled();
   const [advancedDetailsExpanded, setAdvancedDetailsExpanded] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [saveSuccessVisible, setSaveSuccessVisible] = useState(false);
@@ -512,13 +312,7 @@ export function SensorCalibrationTechnicalCaptureScreen(
     status,
     mode,
     lastReading,
-    errorMessage,
-    url,
     connect,
-    disconnect,
-    resetConnection,
-    startMock,
-    stopMock,
   } = useSensorConnection();
 
   const volumeMl = useMemo(() => parseVolumeMlInput(volumeInput), [volumeInput]);
@@ -606,14 +400,6 @@ export function SensorCalibrationTechnicalCaptureScreen(
     () => activeSpirometerProfile?.requiredVolumesMl ?? [],
     [activeSpirometerProfile],
   );
-  const geometricSegmentCount = useMemo(
-    () =>
-      activeSpirometerProfile
-        ? buildGeometricSegmentsMl(activeSpirometerProfile).length
-        : 0,
-    [activeSpirometerProfile],
-  );
-
   const isSubOperativeInput = volumeMl !== null && volumeMl < operativeMinVolumeMl;
 
   const volumeSummaries = useMemo<VolumeCalibrationSummary[]>(
@@ -713,11 +499,6 @@ export function SensorCalibrationTechnicalCaptureScreen(
     () => (liveProfile ? computeCalibrationUncertaintySummary(liveProfile) : null),
     [liveProfile],
   );
-  const hasLegacySubOperative = useMemo<boolean>(
-    () => hasSubOperativeVolumes(volumeSummaries, operativeMinVolumeMl),
-    [operativeMinVolumeMl, volumeSummaries],
-  );
-
   const technicalExportContext = useMemo<CalibrationTechnicalExportContext>(
     () => ({
       relation,
@@ -769,36 +550,6 @@ export function SensorCalibrationTechnicalCaptureScreen(
     };
   }, [points, requiredVolumesMl]);
 
-  const applyLoadCalibrationResult = useCallback((result: LoadCalibrationResult) => {
-    if (result.kind === 'ok') {
-      setSavedProfile(result.profile);
-      setPoints(result.profile.points);
-      setDeviceIdentification(
-        mergeCalibratedDeviceIdentification(result.profile.deviceIdentification),
-      );
-      setRetakeVolumeMl(null);
-      setRetakeDraftPoints([]);
-      setHasUnsavedChanges(false);
-      setSavedStatus({
-        kind: 'saved',
-        updatedAt: result.profile.updatedAt,
-        pointsCount: result.profile.points.length,
-      });
-    } else if (result.kind === 'empty') {
-      setSavedProfile(null);
-      setPoints([]);
-      setDeviceIdentification(createDefaultCalibratedDeviceIdentification());
-      setRetakeVolumeMl(null);
-      setRetakeDraftPoints([]);
-      setHasUnsavedChanges(false);
-      setSavedStatus({ kind: 'none' });
-    } else {
-      setSavedProfile(null);
-      setPoints([]);
-      setSavedStatus({ kind: 'corrupt', errorMessage: result.errorMessage });
-    }
-  }, []);
-
   const applyTechnicalSpirometerOption = useCallback((option: TechnicalSpirometerOption) => {
     setActiveSpirometerDevice((prev) =>
       prev?.id === option.device.id ? prev : option.device,
@@ -829,23 +580,6 @@ export function SensorCalibrationTechnicalCaptureScreen(
     setActiveCalibrationModel(null);
     setStorageMessage(null);
   }, []);
-
-  const onSelectTechnicalSpirometer = useCallback(
-    async (option: TechnicalSpirometerOption) => {
-      if (activeSpirometerDevice?.id === option.device.id) return;
-      if (points.length > 0) {
-        const ok = await confirmProceed(
-          'Cambiar espirómetro',
-          'Cambiar el tipo borrará los puntos capturados en esta sesión. ¿Continuar?',
-          { confirmLabel: 'Cambiar' },
-        );
-        if (!ok) return;
-      }
-      hapticLight();
-      applyTechnicalSpirometerOption(option);
-    },
-    [activeSpirometerDevice?.id, applyTechnicalSpirometerOption, points.length],
-  );
 
   const didInitTechnicalRef = useRef(false);
   useEffect(() => {
@@ -1061,70 +795,6 @@ export function SensorCalibrationTechnicalCaptureScreen(
     markDirty();
   }, [clearBuffer, markDirty, points.length, retakeVolumeMl]);
 
-  const onResetConnection = useCallback(() => {
-    hapticLight();
-    clearBuffer();
-    resetConnection();
-  }, [clearBuffer, resetConnection]);
-
-  const onSaveCalibration = useCallback(async () => {
-    if (storageBusy !== 'idle' || !activeSpirometerDevice || !activeSpirometerProfile) return;
-    hapticLight();
-    setStorageBusy('saving');
-    setStorageMessage(null);
-    try {
-      const profile = buildCalibrationProfile(points, {
-        previous: savedProfile,
-        spirometerDeviceId: activeSpirometerDevice.id,
-        spirometerProfileId: activeSpirometerProfile.id,
-        spirometerProfileSnapshot: activeSpirometerProfile,
-        deviceIdentification,
-      });
-      await saveCalibrationProfileForSpirometer(activeSpirometerDevice.id, profile);
-      setSavedProfile(profile);
-      setHasUnsavedChanges(false);
-      setSavedStatus({
-        kind: 'saved',
-        updatedAt: profile.updatedAt,
-        pointsCount: profile.points.length,
-      });
-      setStorageMessage(
-        `Calibración guardada para ${activeSpirometerDevice.label} (calibración específica del espirómetro).`,
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Error al guardar.';
-      setStorageMessage(message);
-    } finally {
-      setStorageBusy('idle');
-    }
-  }, [
-    activeSpirometerDevice,
-    activeSpirometerProfile,
-    deviceIdentification,
-    points,
-    savedProfile,
-    storageBusy,
-  ]);
-
-  const onLoadCalibration = useCallback(async () => {
-    if (storageBusy !== 'idle' || !activeSpirometerDevice) return;
-    hapticLight();
-    setStorageBusy('loading');
-    setStorageMessage(null);
-    const result = await loadCalibrationProfileDetailed(activeSpirometerDevice.id);
-    applyLoadCalibrationResult(result);
-    if (result.kind === 'ok') {
-      setStorageMessage(
-        `Calibración cargada para ${activeSpirometerDevice.label}.`,
-      );
-    } else if (result.kind === 'empty') {
-      setStorageMessage('No hay calibración guardada para este espirómetro.');
-    } else {
-      setStorageMessage(`Calibración guardada corrupta: ${result.errorMessage}`);
-    }
-    setStorageBusy('idle');
-  }, [activeSpirometerDevice, applyLoadCalibrationResult, storageBusy]);
-
   const onClearStorage = useCallback(async () => {
     if (storageBusy !== 'idle' || !activeSpirometerDevice) return;
     const ok = await confirmActionDouble(
@@ -1150,30 +820,6 @@ export function SensorCalibrationTechnicalCaptureScreen(
     }
   }, [activeSpirometerDevice, points.length, storageBusy]);
 
-  const effectiveSavedStatus: SavedStatus = useMemo(() => {
-    if (savedStatus.kind === 'loading' || savedStatus.kind === 'corrupt') return savedStatus;
-    if (hasUnsavedChanges) return { kind: 'unsaved' };
-    return savedStatus;
-  }, [hasUnsavedChanges, savedStatus]);
-
-  const savedStatusLabel = useMemo(() => {
-    switch (effectiveSavedStatus.kind) {
-      case 'loading':
-        return 'Cargando calibración guardada…';
-      case 'none':
-        return 'Calibración no guardada';
-      case 'saved':
-        return 'Calibración guardada localmente';
-      case 'unsaved':
-        return 'Cambios pendientes por guardar';
-      case 'corrupt':
-        return 'Calibración guardada corrupta';
-    }
-  }, [effectiveSavedStatus]);
-
-  const canSave = points.length > 0 && hasUnsavedChanges && storageBusy === 'idle';
-  const canLoad =
-    savedStatus.kind === 'saved' && savedProfile !== null && storageBusy === 'idle';
   const canClearStorage =
     (savedStatus.kind === 'saved' || savedStatus.kind === 'corrupt') && storageBusy === 'idle';
 
@@ -1233,36 +879,6 @@ export function SensorCalibrationTechnicalCaptureScreen(
       isActiveCalibrationModelStale(activeCalibrationModel, savedProfile, hasUnsavedChanges),
     [activeCalibrationModel, hasUnsavedChanges, savedProfile],
   );
-
-  const activeModelCardStatus = useMemo(
-    () =>
-      resolveActiveModelCardStatus(
-        activeCalibrationModel,
-        savedProfile,
-        hasUnsavedChanges,
-        canActivateRecommendedModel,
-      ),
-    [
-      activeCalibrationModel,
-      canActivateRecommendedModel,
-      hasUnsavedChanges,
-      savedProfile,
-    ],
-  );
-
-  const activeModelStatusLabel = useMemo(
-    () => activeModelCardStatusLabel(activeModelCardStatus),
-    [activeModelCardStatus],
-  );
-
-  const previewVolumeMl = useMemo(() => {
-    if (!linearModel || !bufferStats) return null;
-    const slope = linearModel.coefficients.slope;
-    const intercept = linearModel.coefficients.intercept;
-    if (typeof slope !== 'number' || typeof intercept !== 'number') return null;
-    const raw = volumeFromLinear(bufferStats.avgDistanceMm, slope, intercept);
-    return Number.isFinite(raw) ? Math.round(raw) : null;
-  }, [bufferStats, linearModel]);
 
   const runActivateWithProfile = useCallback(
     async (profile: CalibrationProfile) => {
@@ -1361,40 +977,8 @@ export function SensorCalibrationTechnicalCaptureScreen(
     storageBusy,
   ]);
 
-  const onClearActiveModel = useCallback(async () => {
-    if (!activeSpirometerDevice || !activeCalibrationModel) return;
-    const ok = await confirmActionDouble(
-      'Borrar modelo activo',
-      `Se eliminará el modelo activo de ${activeSpirometerDevice.label}. La calibración guardada y los puntos no se borran.`,
-      'Confirma nuevamente para borrar solo el modelo activo.',
-    );
-    if (!ok) return;
-    hapticLight();
-    setActiveModelBusy('clearing');
-    setStorageMessage(null);
-    try {
-      await clearActiveCalibrationModelForSpirometer(activeSpirometerDevice.id);
-      setActiveCalibrationModel(null);
-      setStorageMessage(`Modelo activo eliminado para ${activeSpirometerDevice.label}.`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Error al borrar el modelo activo.';
-      setStorageMessage(message);
-    } finally {
-      setActiveModelBusy('idle');
-    }
-  }, [activeCalibrationModel, activeSpirometerDevice]);
-
-  const canClearActiveModel =
-    activeCalibrationModel !== null && activeModelBusy === 'idle' && storageBusy === 'idle';
-
   const isConnecting = status === 'connecting';
   const isOnline = status === 'connected' || status === 'receiving';
-  const modeLabel = sensorModeLabel(mode);
-
-  const legacySpirometerOptions = useMemo(
-    () => technicalSpirometerOptions.filter((o) => o.profile.maxVolumeMl >= 5000),
-    [technicalSpirometerOptions],
-  );
 
   const showPreliminaryResult = points.length >= 2 && linearModel !== null;
   const preliminaryReadyLabel = useMemo(() => {
@@ -1410,6 +994,27 @@ export function SensorCalibrationTechnicalCaptureScreen(
     if (recommendation.requiredProtocol.meetsRequiredProtocol) return 'warning';
     return 'warning';
   }, [recommendation]);
+
+  const protocolVolumesCoveredLabel = useMemo(() => {
+    const total = requiredVolumesMl.length;
+    if (total === 0) return '—';
+    return `${requiredCoverage.presentRequiredVolumes.length} / ${total}`;
+  }, [requiredCoverage.presentRequiredVolumes.length, requiredVolumesMl.length]);
+
+  const protocolComplete = recommendation?.requiredProtocol.meetsRequiredProtocol ?? false;
+
+  const repeatabilityConcernVolumes = useMemo(
+    () =>
+      repeatability.perVolume.filter(
+        (row) => row.warningLevel === 'high' || row.warningLevel === 'moderate',
+      ),
+    [repeatability.perVolume],
+  );
+
+  const uncertaintyHasData =
+    uncertaintySummary !== null &&
+    uncertaintySummary.reports.length > 0 &&
+    !uncertaintySummary.reports.every((r) => r.status === 'insufficient_data');
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -1766,18 +1371,6 @@ export function SensorCalibrationTechnicalCaptureScreen(
           <Text style={styles.captureProgressFootnote}>
             Los datos completos se incluirán en el archivo técnico de calibración.
           </Text>
-          {points.length > 0 || retakeVolumeMl !== null ? (
-            <Pressable
-              onPress={() => void onCancelCalibrationInProgress()}
-              style={({ pressed }) => [
-                styles.destructiveTextBtn,
-                pressed && styles.destructiveTextBtnPressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Borrar calibración en curso">
-              <Text style={styles.destructiveTextBtnLabel}>Borrar calibración en curso</Text>
-            </Pressable>
-          ) : null}
         </View>
 
         {showPreliminaryResult && linearModel ? (
@@ -1839,9 +1432,22 @@ export function SensorCalibrationTechnicalCaptureScreen(
                   tone="default"
                   size="compact"
                 />
+                <MetricTile
+                  label="Err. máx."
+                  value={formatMetricMl(linearModel.metrics.maxAbsErrorMl)}
+                  helper="mL"
+                  tone="default"
+                  size="compact"
+                />
               </View>
               {!canActivateRecommendedModel && activationBlockReason ? (
                 <Text style={styles.cardHint}>{activationBlockReason}</Text>
+              ) : null}
+              {activeModelIsStale && activeCalibrationModel ? (
+                <Text style={styles.cardHint}>
+                  El modelo activo no coincide con la calibración guardada. Usa «Guardar y activar» para
+                  actualizarlo.
+                </Text>
               ) : null}
             </View>
           </>
@@ -1868,6 +1474,9 @@ export function SensorCalibrationTechnicalCaptureScreen(
                 Guardar y activar calibración
               </Text>
             </Pressable>
+            {!canSaveAndActivate && activationBlockReason && !showPreliminaryResult ? (
+              <Text style={styles.cardHint}>{activationBlockReason}</Text>
+            ) : null}
             <Pressable
               onPress={() => void handleExportCalibrationTechnical()}
               style={({ pressed }) => [
@@ -1888,18 +1497,46 @@ export function SensorCalibrationTechnicalCaptureScreen(
                 Captura al menos 2 volúmenes distintos con señal válida para habilitar la exportación.
               </Text>
             ) : null}
+            <Pressable
+              style={({ pressed }) => [
+                styles.dangerBtn,
+                !canClearStorage && styles.btnDisabled,
+                pressed && canClearStorage && styles.dangerBtnPressed,
+              ]}
+              onPress={() => {
+                void onClearStorage();
+              }}
+              disabled={!canClearStorage}
+              accessibilityRole="button"
+              accessibilityLabel="Borrar calibración guardada">
+              <Text style={[styles.dangerBtnText, !canClearStorage && styles.btnTextDisabled]}>
+                Borrar calibración
+              </Text>
+            </Pressable>
             {storageMessage ? <Text style={styles.cardHint}>{storageMessage}</Text> : null}
             {points.length > 0 || retakeVolumeMl !== null ? (
-              <Pressable
-                onPress={() => void onCancelCalibrationInProgress()}
-                style={({ pressed }) => [
-                  styles.destructiveTextBtn,
-                  pressed && styles.destructiveTextBtnPressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Cancelar calibración">
-                <Text style={styles.destructiveTextBtnLabel}>Cancelar calibración</Text>
-              </Pressable>
+              <>
+                <Pressable
+                  onPress={() => void onCancelCalibrationInProgress()}
+                  style={({ pressed }) => [
+                    styles.destructiveTextBtn,
+                    pressed && styles.destructiveTextBtnPressed,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Borrar calibración en curso">
+                  <Text style={styles.destructiveTextBtnLabel}>Borrar calibración en curso</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void onCancelCalibrationInProgress()}
+                  style={({ pressed }) => [
+                    styles.destructiveTextBtn,
+                    pressed && styles.destructiveTextBtnPressed,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancelar calibración">
+                  <Text style={styles.destructiveTextBtnLabel}>Cancelar calibración</Text>
+                </Pressable>
+              </>
             ) : null}
           </View>
         </View>
@@ -1939,1247 +1576,151 @@ export function SensorCalibrationTechnicalCaptureScreen(
 
         {advancedDetailsExpanded ? (
           <>
-        {legacySpirometerOptions.length > 0 ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitleStrong}>Perfil de espirómetro (laboratorio)</Text>
-            <Text style={styles.cardHint}>
-              Solo para pruebas internas. El flujo estándar RESPIRA+ usa MV1811-3 · 3000 mL.
-            </Text>
-            <View style={styles.spirometerSelectorRow}>
-              {legacySpirometerOptions.map((option) => {
-                const selected = activeSpirometerDevice?.id === option.device.id;
-                return (
-                  <Pressable
-                    key={option.device.id}
-                    onPress={() => void onSelectTechnicalSpirometer(option)}
-                    style={({ pressed }) => [
-                      styles.spirometerOption,
-                      selected && styles.spirometerOptionSelected,
-                      pressed && styles.spirometerOptionPressed,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Seleccionar ${option.spirometerTypeLabel}`}>
-                    <Text
-                      style={[
-                        styles.spirometerOptionLabel,
-                        selected && styles.spirometerOptionLabelSelected,
-                      ]}>
-                      {option.spirometerTypeLabel}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        ) : null}
-
-        {spirometerReady && activeSpirometerDevice && activeSpirometerProfile ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitleStrong}>Identificación extendida</Text>
-            <Text style={styles.cardHint}>
-              Metadatos adicionales para el archivo técnico. Los componentes ESP32 y sensor son fijos.
-            </Text>
-            <Text style={styles.identFieldLabel}>Nombre interno</Text>
-            <TextInput
-              style={styles.identInput}
-              value={deviceIdentification.internalLabel}
-              onChangeText={(text) => {
-                setDeviceIdentification((prev) => ({ ...prev, internalLabel: text }));
-                markDirty();
-              }}
-              placeholder="RESPIRA+ 3000 mL"
-            />
-            <Text style={styles.identFieldLabel}>Marca del espirómetro</Text>
-            <TextInput
-              style={styles.identInput}
-              value={deviceIdentification.brand}
-              onChangeText={(text) => {
-                setDeviceIdentification((prev) => ({ ...prev, brand: text }));
-                markDirty();
-              }}
-              placeholder="MediMetrics Medical Technologies"
-            />
-            <Text style={styles.identFieldLabel}>Modelo del espirómetro</Text>
-            <TextInput
-              style={styles.identInput}
-              value={deviceIdentification.model}
-              onChangeText={(text) => {
-                setDeviceIdentification((prev) => ({ ...prev, model: text }));
-                markDirty();
-              }}
-              placeholder="MV1811-3"
-            />
-            <Text style={styles.identFieldLabel}>Capacidad nominal (mL)</Text>
-            <TextInput
-              style={styles.identInput}
-              value={String(deviceIdentification.nominalCapacityMl)}
-              onChangeText={(text) => {
-                const parsed = Number(text.replace(',', '.'));
-                if (!Number.isFinite(parsed)) return;
-                setDeviceIdentification((prev) => ({ ...prev, nominalCapacityMl: parsed }));
-                markDirty();
-              }}
-              keyboardType="number-pad"
-              placeholder="3000"
-            />
-            <Text style={styles.identFieldLabel}>Identificador físico (opcional)</Text>
-            <TextInput
-              style={styles.identInput}
-              value={deviceIdentification.serialNumber ?? ''}
-              onChangeText={(text) => {
-                setDeviceIdentification((prev) => ({ ...prev, serialNumber: text || undefined }));
-                markDirty();
-              }}
-              placeholder="N.º de serie o etiqueta"
-            />
-          </View>
-        ) : null}
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Componentes del sistema</Text>
-          <Text style={styles.systemInfoLine}>
-            {RESPIRA_SYSTEM_COMPONENTS.microcontrollerDisplay}
-          </Text>
-          <Text style={styles.systemInfoLine}>{RESPIRA_SYSTEM_COMPONENTS.sensorDisplay}</Text>
-          <Text style={styles.systemInfoLine}>
-            Firmware: {RESPIRA_SYSTEM_COMPONENTS.firmwareReference}
-          </Text>
-          <Text style={styles.systemInfoMuted}>
-            Comunicación: {RESPIRA_SYSTEM_COMPONENTS.communication}
-          </Text>
-        </View>
-
-        <View style={styles.card}>
-          <View style={styles.telemetryHeader}>
-            <View style={styles.telemetryHeaderIcon}>
-              <IconSymbol name="dot.radiowaves.left.and.right" size={16} color={wellness.primaryDark} />
-            </View>
-            <Text style={styles.cardTitleStrong}>Lectura en vivo</Text>
-          </View>
-          <View style={styles.telemetryGrid}>
-            <MetricCell label="Estado" value={statusLabel(status)} />
-            <MetricCell label="Distancia" value={formatScalar(distanceMm)} unit="mm" />
-            <MetricCell label="Bruto" value={formatScalar(lastReading?.rawDistanceMm)} unit="mm" />
-            <MetricCell label="Señal" value={lastReading?.distanceValid ? 'Válida' : 'Sin validar'} />
-            <MetricCell label="Muestras buffer" value={bufferStats ? String(bufferStats.sampleCount) : '0'} />
-            <MetricCell
-              label="Variación (std)"
-              value={bufferStats ? bufferStats.stdDistanceMm.toFixed(2) : '—'}
-              unit="mm"
-            />
-            <MetricCell label="Modo" value={modeLabel} />
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Conexión del sensor</Text>
-          <Text style={styles.cardHint}>
-            La URL principal se gestiona en Preparar dispositivo. Aquí puedes reconectar o limpiar.
-          </Text>
-          <Text style={styles.sharedUrlReadonly} numberOfLines={1}>
-            {url.trim() || '—'}
-          </Text>
-          {isConnecting ? (
-            <View style={styles.connectingRow}>
-              <ActivityIndicator size="small" color={wellness.primaryDark} />
-              <Text style={styles.connectingHint}>Conectando al ESP32…</Text>
-            </View>
-          ) : null}
-          {!isOnline && !isConnecting ? (
-            <Pressable
-              style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
-              onPress={() => {
-                hapticLight();
-                connect();
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Conectar sensor">
-              <Text style={styles.secondaryBtnText}>Conectar sensor</Text>
-            </Pressable>
-          ) : null}
-          {isOnline ? (
-            <View style={styles.rowGap}>
-              <Pressable
-                style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
-                onPress={onResetConnection}
-                accessibilityRole="button"
-                accessibilityLabel="Limpiar conexión">
-                <Text style={styles.secondaryBtnText}>Limpiar conexión</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
-                onPress={() => {
-                  hapticLight();
-                  disconnect();
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Desconectar sensor">
-                <Text style={styles.ghostBtnText}>Desconectar</Text>
-              </Pressable>
-            </View>
-          ) : null}
-          {status === 'error' && errorMessage ? <Text style={styles.errorHint}>{errorMessage}</Text> : null}
-          {debug ? (
-            <>
-              <Pressable
-                style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
-                onPress={() => {
-                  hapticLight();
-                  startMock();
-                }}>
-                <Text style={styles.ghostBtnText}>Iniciar lectura de prueba</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}
-                onPress={() => {
-                  hapticLight();
-                  stopMock();
-                }}>
-                <Text style={styles.ghostBtnText}>Detener lectura de prueba</Text>
-              </Pressable>
-            </>
-          ) : null}
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Estabilidad de medición</Text>
-          {bufferStats ? (
-            <>
-              <View style={styles.stabilityRow}>
-                <View style={styles.stabilityCol}>
-                  <Text style={styles.stabilityEyebrow}>Promedio distancia</Text>
-                  <Text style={styles.stabilityBigNumber}>{bufferStats.avgDistanceMm.toFixed(1)}</Text>
-                  <Text style={styles.stabilityUnit}>mm</Text>
-                </View>
-                <View style={styles.stabilityCol}>
-                  <Text style={styles.stabilityEyebrow}>±std</Text>
-                  <Text
-                    style={[
-                      styles.stabilityBigNumber,
-                      isVariableSignal ? styles.stabilityBigNumberWarn : null,
-                    ]}>
-                    {bufferStats.stdDistanceMm.toFixed(2)}
-                  </Text>
-                  <Text style={styles.stabilityUnit}>mm</Text>
-                </View>
-              </View>
-              <Text style={styles.summaryLine}>
-                Promedio bruto: {bufferStats.avgRawDistanceMm.toFixed(1)} mm
-              </Text>
-              <Text style={styles.summaryLine}>
-                Min / max: {bufferStats.minDistanceMm.toFixed(1)} · {bufferStats.maxDistanceMm.toFixed(1)} mm
-              </Text>
-              <Text style={styles.summaryLine}>
-                Lecturas: {bufferStats.sampleCount} (máx {BUFFER_MAX_SAMPLES} · ventana{' '}
-                {(BUFFER_WINDOW_MS / 1000).toFixed(1)} s)
-              </Text>
-            </>
-          ) : (
-            <Text style={styles.emptyText}>Sin lecturas disponibles.</Text>
-          )}
-        </View>
-
-        {volumeSummaries.length > 0 ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitleStrong}>Resumen por volumen</Text>
-            <Text style={styles.cardHint}>
-              Promedios calculados como media aritmética de distanceMm y rawDistanceMm por cada volumen marcado.
-            </Text>
-            <View style={styles.summaryTableHead}>
-              <Text style={styles.summaryHeadCell}>Vol</Text>
-              <Text style={styles.summaryHeadCell}>Rep</Text>
-              <Text style={styles.summaryHeadCell}>Prom</Text>
-              <Text style={styles.summaryHeadCell}>Min-Max</Text>
-            </View>
-            {volumeSummaries.map((row) => (
-              <View key={row.volumeMl} style={styles.summaryTableRow}>
-                <Text style={styles.summaryCell}>{row.volumeMl}</Text>
-                <Text style={styles.summaryCell}>{row.repetitions}</Text>
-                <Text style={styles.summaryCell}>{row.avgDistanceMm.toFixed(1)} mm</Text>
-                <Text style={styles.summaryCell}>
-                  {row.minDistanceMm.toFixed(1)}-{row.maxDistanceMm.toFixed(1)}
-                </Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
-
-        <View style={styles.modelSectionHeader}>
-          <Text style={styles.modelSectionTitle}>Modelo de calibración</Text>
-          <Text style={styles.modelSectionSubtitle}>
-            Convierte la distancia del sensor en volumen estimado para{' '}
-            {activeSpirometerProfile?.name ?? 'el espirómetro activo'}. Rango recomendado{' '}
-            {activeSpirometerProfile?.recommendedMinVolumeMl ?? 500}–
-            {activeSpirometerProfile?.recommendedMaxVolumeMl ?? 3000} mL
-            {activeSpirometerProfile &&
-            activeSpirometerProfile.extendedMaxVolumeMl >
-              activeSpirometerProfile.recommendedMaxVolumeMl
-              ? `; rango extendido opcional hasta ${activeSpirometerProfile.extendedMaxVolumeMl} mL`
-              : ''}
-            .
-          </Text>
-        </View>
-
-        {/* A. Protocolo mínimo */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Protocolo mínimo de calibración</Text>
-          <Text style={styles.cardHint}>
-            Para considerar la calibración apta para terapia: {requiredVolumesMl.length}{' '}
-            volúmenes obligatorios ({requiredVolumesMl.join(', ')} mL), al menos{' '}
-            {MIN_REPETITIONS_PER_REQUIRED_VOLUME} mediciones válidas en cada uno y un total de al menos{' '}
-            {MIN_VALID_CALIBRATION_POINTS_FOR_THERAPY} puntos válidos en esos volúmenes.
-          </Text>
-          <View style={styles.resultsGrid}>
-            <MetricCell
-              label="Progreso (puntos válidos)"
-              value={
-                recommendation
-                  ? `${recommendation.requiredProtocol.totalValidRequiredPoints} / ${recommendation.requiredProtocol.minimumRequiredPoints}`
-                  : '—'
-              }
-            />
-            <MetricCell
-              label="Protocolo mínimo cumplido"
-              value={
-                recommendation?.requiredProtocol.meetsRequiredProtocol ? 'Sí' : 'No'
-              }
-            />
-          </View>
-          {requiredCoverage.missingRequiredVolumes.length > 0 ? (
-            <Text style={styles.warnHint}>
-              Volúmenes obligatorios faltantes:{' '}
-              {requiredCoverage.missingRequiredVolumes.map((v) => `${v} mL`).join(', ')}.
-            </Text>
-          ) : (
-            <Text style={styles.summaryLine}>
-              Volúmenes obligatorios presentes:{' '}
-              {requiredCoverage.presentRequiredVolumes.length === 0
-                ? '—'
-                : requiredCoverage.presentRequiredVolumes.map((v) => `${v} mL`).join(', ')}
-            </Text>
-          )}
-          {requiredCoverage.requiredVolumesWithLowRepetitions.length > 0 ? (
-            <Text style={styles.warnHint}>
-              Volúmenes obligatorios con pocas repeticiones (menos de {MIN_REPETITIONS_PER_REQUIRED_VOLUME}):{' '}
-              {requiredCoverage.requiredVolumesWithLowRepetitions.map((v) => `${v} mL`).join(', ')}.
-            </Text>
-          ) : null}
-          <Text style={styles.cardSubTitleStrong}>Mediciones por volumen obligatorio</Text>
-          <View style={styles.summaryTableHead}>
-            <Text style={[styles.summaryHeadCell, styles.protocolVolCol]}>Volumen</Text>
-            <Text style={[styles.summaryHeadCell, styles.protocolRepCol]}>Mediciones</Text>
-          </View>
-          {requiredVolumesMl.map((v) => (
-            <View key={`req-${v}`} style={styles.summaryTableRow}>
-              <Text style={[styles.summaryCell, styles.protocolVolCol]}>{v} mL</Text>
-              <Text style={[styles.summaryCell, styles.protocolRepCol]}>
-                {requiredCoverage.repetitionsByRequiredVolume[v] ?? 0}
-              </Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Validación geométrica (escala física del espirómetro) */}
-        {geometricReport ? (
-        <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Validación geométrica</Text>
-          <Text style={styles.cardHint}>
-            Verificación geométrica del montaje: compara saltos de distancia entre marcas del
-            espirómetro con el desplazamiento físico esperado del perfil activo. No define el volumen
-            de referencia.
-          </Text>
-          {!geometricReport.geometricValidationConfigured ? (
-            <Text style={styles.warnHint}>
-              La validación geométrica requiere medir la distancia física entre marcas del
-              espirómetro.
-            </Text>
-          ) : null}
-          <View style={styles.resultsGrid}>
-            <MetricCell
-              label="Escala esperada (perfil)"
-              value={
-                geometricReport.expectedDistanceStepPer500MlMm !== null &&
-                activeSpirometerProfile
-                  ? `${geometricReport.expectedDistanceStepPer500MlMm} mm / ${activeSpirometerProfile.calibrationStepMl} mL`
-                  : 'No configurada'
-              }
-            />
-            <MetricCell
-              label="Segmentos correctos"
-              value={
-                geometricReport.geometricValidationConfigured
-                  ? `${geometricReport.okSegments} / ${geometricSegmentCount}`
-                  : '—'
-              }
-            />
-            <MetricCell
-              label="Estado"
-              value={geometricValidationOverallLabel(geometricReport)}
-            />
-          </View>
-          {geometricReport.geometricValidationConfigured ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.geomTable}>
-              <View style={[styles.geomTableRow, styles.geomTableHeadRow]}>
-                <Text style={[styles.geomCell, styles.geomColRange]}>Tramo</Text>
-                <Text style={[styles.geomCell, styles.geomColDelta]}>Δ medido</Text>
-                <Text style={[styles.geomCell, styles.geomColExpected]}>Δ esperado</Text>
-                <Text style={[styles.geomCell, styles.geomColPct]}>Error %</Text>
-                <Text style={[styles.geomCell, styles.geomColState]}>Estado</Text>
-              </View>
-              {geometricReport.requiredSegments.map((seg) => (
-                <View key={`geom-${seg.volumeFromMl}-${seg.volumeToMl}`} style={styles.geomTableRow}>
-                  <Text style={[styles.geomCell, styles.geomColRange]}>
-                    {seg.volumeFromMl}→{seg.volumeToMl} mL
-                  </Text>
-                  <Text style={[styles.geomCell, styles.geomColDelta]}>
-                    {seg.actualDeltaDistanceMm === null
-                      ? '—'
-                      : `${seg.actualDeltaDistanceMm >= 0 ? '+' : ''}${seg.actualDeltaDistanceMm.toFixed(1)} mm`}
-                  </Text>
-                  <Text style={[styles.geomCell, styles.geomColExpected]}>
-                    {formatExpectedDeltaMm(seg.expectedDeltaDistanceMm)}
-                  </Text>
-                  <Text style={[styles.geomCell, styles.geomColPct]}>
-                    {seg.percentError === null ? '—' : `${seg.percentError.toFixed(0)} %`}
-                  </Text>
-                  <Text style={[styles.geomCell, styles.geomColState]}>
-                    {geometricSegmentStatusLabel(seg.status)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </ScrollView>
-          ) : null}
-          {geometricReport.geometricValidationConfigured &&
-          geometricReport.criticalSegments > 0 ? (
-            <Text style={styles.warnHint}>
-              Revisa el montaje del sensor o repite las mediciones del tramo afectado.
-            </Text>
-          ) : null}
-        </View>
-        ) : null}
-
-        {recommendation && uncertaintySummary && coverage && linearModel ? (
-        <>
-        <View style={styles.card}>
-          <View style={styles.modelHeaderRow}>
-            <Text style={styles.cardTitleStrong}>Modelo recomendado</Text>
-            <View
-              style={[
-                styles.modelStatusPill,
-                recommendationStatusTone(recommendation.status) === 'ok'
-                  ? styles.modelStatusPillOk
-                  : recommendationStatusTone(recommendation.status) === 'warn'
-                    ? styles.modelStatusPillWarn
-                    : styles.modelStatusPillMuted,
-              ]}>
-              <Text
-                style={[
-                  styles.modelStatusPillText,
-                  recommendationStatusTone(recommendation.status) === 'ok'
-                    ? styles.modelStatusPillTextOk
-                    : recommendationStatusTone(recommendation.status) === 'warn'
-                      ? styles.modelStatusPillTextWarn
-                      : styles.modelStatusPillTextMuted,
-                ]}>
-                {recommendationStatusLabel(recommendation.status)}
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.cardSubTitleStrong}>Estimación y terapia</Text>
-          <View style={styles.resultsGrid}>
-            <MetricCell
-              label="Estimación en rango calibrado"
-              value={recommendation.canEstimateWithinCalibratedRange ? 'Disponible' : 'No disponible'}
-            />
-            <MetricCell
-              label="Listo para terapia"
-              value={recommendation.isReadyForTherapy ? 'Sí' : 'No'}
-            />
-            <MetricCell
-              label="Modelo seleccionado"
-              value={recommendedKindLabel(recommendation.recommendedKind)}
-            />
-            <MetricCell
-              label="Calidad de calibración"
-              value={calibrationQualityLabel(recommendation.calibrationQuality)}
-            />
-            <MetricCell label="Puntos capturados (total)" value={String(points.length)} />
-          </View>
-          <Text style={styles.modelSubLabel}>Razón</Text>
-          <Text style={styles.modelReason}>{recommendation.therapyReadinessReason}</Text>
-          <Text style={styles.modelSubLabel}>Criterio de selección del modelo</Text>
-          <Text style={styles.modelSecondaryReason}>{recommendation.reason}</Text>
-          {recommendation.warnings.length > 0 ? (
-            <View style={styles.modelWarningsBox}>
-              {recommendation.warnings.map((warning, idx) => (
-                <Text key={`rec-${idx}`} style={styles.modelWarningText}>
-                  • {warning}
-                </Text>
-              ))}
-            </View>
-          ) : null}
-          {uncertaintySummary.reports.some((r) => r.expandedUncertaintyU95Ml !== null) ? (
-            <>
-              <Text style={styles.modelSubLabel}>Resultado esperado del modelo</Text>
-              <Text style={styles.modelReason}>
-                Volumen estimado ± U95 (mL), con bandas según volumen calibrado (k ={' '}
-                {UNCERTAINTY_COVERAGE_FACTOR_K}).
-              </Text>
+            <View style={styles.card}>
+              <Text style={styles.cardTitleStrong}>Protocolo de calibración</Text>
               <Text style={styles.cardHint}>
-                Cuando se active en terapia, el modelo reportará el volumen estimado acompañado de
-                una incertidumbre expandida U95.
+                Revisión rápida de los puntos necesarios para activar.
               </Text>
-            </>
-          ) : null}
-        </View>
+              <View style={styles.preliminaryStatsRow}>
+                <MetricTile
+                  label="Puntos válidos"
+                  value={
+                    recommendation
+                      ? `${recommendation.requiredProtocol.totalValidRequiredPoints} / ${recommendation.requiredProtocol.minimumRequiredPoints}`
+                      : '—'
+                  }
+                  tone="default"
+                  size="compact"
+                />
+                <MetricTile
+                  label="Volúmenes cubiertos"
+                  value={protocolVolumesCoveredLabel}
+                  tone="default"
+                  size="compact"
+                />
+                <MetricTile
+                  label="Estado"
+                  value={protocolComplete ? 'Completo' : 'Incompleto'}
+                  tone={protocolComplete ? 'success' : 'warning'}
+                  size="compact"
+                />
+              </View>
+              {coverage?.coveredMinMl != null && coverage.coveredMaxMl != null ? (
+                <Text style={styles.summaryLine}>
+                  Rango calibrado: {coverage.coveredMinMl}–{coverage.coveredMaxMl} mL · Recomendado
+                  cubierto: {coverage.coversRecommended ? 'Sí' : 'No'}
+                </Text>
+              ) : null}
+              {requiredCoverage.missingRequiredVolumes.length > 0 ? (
+                <Text style={styles.warnHint}>
+                  Faltan mediciones en:{' '}
+                  {requiredCoverage.missingRequiredVolumes.map((v) => `${v}`).join(', ')} mL.
+                </Text>
+              ) : null}
+              {requiredCoverage.requiredVolumesWithLowRepetitions.length > 0 ? (
+                <Text style={styles.warnHint}>
+                  Repeticiones insuficientes en:{' '}
+                  {requiredCoverage.requiredVolumesWithLowRepetitions.map((v) => `${v}`).join(', ')}{' '}
+                  mL.
+                </Text>
+              ) : null}
+            </View>
 
-        {/* Incertidumbre metrológica */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Incertidumbre metrológica</Text>
-          <Text style={styles.cardHint}>
-            Referencia primaria de volumen: escala del espirómetro. La regla se usa solo en
-            verificación geométrica del montaje y no entra en uc por defecto.
-          </Text>
-          <View style={styles.resultsGrid}>
-            <MetricCell
-              label="U95 promedio"
-              value={formatUncertaintyMl(uncertaintySummary.averageU95Ml)}
-              unit="mL"
-            />
-            <MetricCell
-              label="U95 máximo"
-              value={formatUncertaintyMl(uncertaintySummary.maxU95Ml)}
-              unit="mL"
-            />
-            <MetricCell
-              label="Volumen con mayor U95"
-              value={
-                uncertaintySummary.volumeWithMaxU95Ml === null
-                  ? '—'
-                  : `${uncertaintySummary.volumeWithMaxU95Ml} mL`
-              }
-            />
-            <MetricCell
-              label="Factor k"
-              value={String(UNCERTAINTY_COVERAGE_FACTOR_K)}
-            />
-            <MetricCell
-              label="Estado"
-              value={uncertaintyOverallLabel(
-                uncertaintySummary.reports,
-                recommendation.uncertainty.hasAcceptableUncertainty,
+            <View style={styles.card}>
+              <Text style={styles.cardTitleStrong}>Incertidumbre resumida</Text>
+              {uncertaintyHasData && uncertaintySummary && recommendation ? (
+                <>
+                  <View style={styles.preliminaryStatsRow}>
+                    <MetricTile
+                      label="U95 promedio"
+                      value={formatUncertaintyMl(uncertaintySummary.averageU95Ml)}
+                      helper="mL"
+                      tone="default"
+                      size="compact"
+                    />
+                    <MetricTile
+                      label="U95 máximo"
+                      value={formatUncertaintyMl(uncertaintySummary.maxU95Ml)}
+                      helper="mL"
+                      tone="default"
+                      size="compact"
+                    />
+                    <MetricTile
+                      label="Estado"
+                      value={uncertaintyOverallLabel(
+                        uncertaintySummary.reports,
+                        recommendation.uncertainty.hasAcceptableUncertainty,
+                      )}
+                      tone={
+                        uncertaintyOverallLabel(
+                          uncertaintySummary.reports,
+                          recommendation.uncertainty.hasAcceptableUncertainty,
+                        ) === 'Aceptable'
+                          ? 'success'
+                          : 'warning'
+                      }
+                      size="compact"
+                    />
+                  </View>
+                  <Text style={styles.cardHint}>
+                    El detalle por volumen se conserva en el CSV técnico.
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.cardHint}>
+                  La incertidumbre se calcula cuando hay suficientes puntos.
+                </Text>
               )}
-            />
-          </View>
-          {uncertaintySummary.reports.length > 0 ? (
-            <>
-              <Text style={styles.cardSubTitleStrong}>Por volumen</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.uncertTable}>
-                  <View style={[styles.uncertTableRow, styles.uncertTableHeadRow]}>
-                    <Text style={[styles.uncertCell, styles.uncertColVol]}>Vol.</Text>
-                    <Text style={[styles.uncertCell, styles.uncertColN]}>n</Text>
-                    <Text style={[styles.uncertCell, styles.uncertColSd]}>SD rep.</Text>
-                    <Text style={[styles.uncertCell, styles.uncertColUa]}>uA</Text>
-                    <Text style={[styles.uncertCell, styles.uncertColSens]}>Sens.</Text>
-                    <Text style={[styles.uncertCell, styles.uncertColUc]}>uc</Text>
-                    <Text style={[styles.uncertCell, styles.uncertColU95]}>U95</Text>
-                    <Text style={[styles.uncertCell, styles.uncertColState]}>Estado</Text>
-                  </View>
-                  {uncertaintySummary.reports.map((row: VolumeUncertaintyReport) => (
-                    <View key={`unc-${row.volumeMl}`} style={styles.uncertTableRow}>
-                      <Text style={[styles.uncertCell, styles.uncertColVol]}>{row.volumeMl}</Text>
-                      <Text style={[styles.uncertCell, styles.uncertColN]}>{row.repetitions}</Text>
-                      <Text style={[styles.uncertCell, styles.uncertColSd]}>
-                        {row.sdBetweenRepetitionsMm === null
-                          ? '—'
-                          : `${row.sdBetweenRepetitionsMm.toFixed(2)}`}
-                      </Text>
-                      <Text style={[styles.uncertCell, styles.uncertColUa]}>
-                        {row.uARepeatabilityDistanceMm === null
-                          ? '—'
-                          : row.uARepeatabilityDistanceMm.toFixed(2)}
-                      </Text>
-                      <Text style={[styles.uncertCell, styles.uncertColSens]}>
-                        {row.localSensitivityMlPerMm === null
-                          ? '—'
-                          : `${row.localSensitivityMlPerMm.toFixed(0)}`}
-                      </Text>
-                      <Text style={[styles.uncertCell, styles.uncertColUc]}>
-                        {row.uCombinedVolumeMl === null
-                          ? '—'
-                          : row.uCombinedVolumeMl.toFixed(0)}
-                      </Text>
-                      <Text style={[styles.uncertCell, styles.uncertColU95]}>
-                        {formatUncertaintyMl(row.expandedUncertaintyU95Ml)}
-                      </Text>
-                      <Text style={[styles.uncertCell, styles.uncertColState]}>
-                        {volumeUncertaintyStatusLabel(row.status)}
-                      </Text>
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.cardTitleStrong}>Repetibilidad</Text>
+              {!repeatability.hasPoints ? (
+                <Text style={styles.cardHint}>
+                  La repetibilidad se evaluará conforme captures más puntos.
+                </Text>
+              ) : repeatabilityConcernVolumes.length === 0 ? (
+                <Text style={styles.cardHint}>
+                  Las mediciones capturadas son consistentes.
+                </Text>
+              ) : (
+                <View style={styles.rowGap}>
+                  {repeatabilityConcernVolumes.map((row) => (
+                    <View key={`rep-concern-${row.volumeMl}`} style={styles.repeatabilityActionRow}>
+                      <View style={styles.repeatabilityActionInfo}>
+                        <Text style={styles.repeatabilityActionVolume}>{row.volumeMl} mL</Text>
+                        <Text style={styles.repeatabilityActionLabel}>
+                          {row.warningLevel === 'high' ? 'Variación alta' : 'Variación moderada'}
+                        </Text>
+                      </View>
+                      {row.warningLevel === 'high' && !isRetakeMode ? (
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.repetRepeatBtn,
+                            pressed && styles.repetRepeatBtnPressed,
+                          ]}
+                          onPress={() => {
+                            void onStartVolumeRetake(row.volumeMl);
+                          }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Repetir volumen ${row.volumeMl} mililitros`}>
+                          <Text style={styles.repetRepeatBtnText}>Repetir {row.volumeMl} mL</Text>
+                        </Pressable>
+                      ) : row.warningLevel === 'high' &&
+                        isRetakeMode &&
+                        retakeVolumeMl === row.volumeMl ? (
+                        <Text style={styles.repetActionMuted}>En curso</Text>
+                      ) : null}
                     </View>
                   ))}
                 </View>
-              </ScrollView>
-            </>
-          ) : (
-            <Text style={styles.emptyText}>Registra puntos de calibración para calcular incertidumbre.</Text>
-          )}
-          <Text style={styles.cardSubTitleStrong}>Componentes considerados</Text>
-          {uncertaintySummary.components.map((comp) => (
-            <View key={comp.label} style={styles.uncertComponentRow}>
-              <View style={styles.uncertComponentHeader}>
-                <Text style={styles.uncertComponentLabel}>{comp.label}</Text>
-                {comp.includedInCombinedUncertainty === false ? (
-                  <Text style={styles.uncertComponentBadge}>Solo verificación geométrica</Text>
-                ) : comp.includedInCombinedUncertainty === true &&
-                  comp.label === 'Lectura marca espirómetro' ? (
-                  <Text style={styles.uncertComponentBadgePrimary}>Referencia primaria</Text>
-                ) : null}
-              </View>
-              <Text style={styles.uncertComponentValue}>
-                {comp.value === null
-                  ? '—'
-                  : comp.label === 'Incertidumbre relativa sensor'
-                    ? `${comp.value.toFixed(0)} %`
-                    : comp.label === 'Factor de cobertura k'
-                      ? String(comp.value)
-                      : comp.label.startsWith('Regla física')
-                        ? `u ≈ ${comp.value.toFixed(1)} mL`
-                        : `${comp.value} ${comp.unit}`}
-              </Text>
-              <Text style={styles.uncertComponentDesc}>{comp.description}</Text>
+              )}
             </View>
-          ))}
-          {!uncertaintySummary.includeRuleInCombinedUncertainty ? (
-            <Text style={styles.cardHint}>
-              La regla no se suma en la incertidumbre combinada del volumen estimado; define solo la
-              verificación geométrica del desplazamiento del pistón.
-            </Text>
-          ) : null}
-          {uncertaintySummary.warnings.length > 0 ? (
-            <View style={styles.modelWarningsBox}>
-              {uncertaintySummary.warnings.map((warning, idx) => (
-                <Text key={`unc-w-${idx}`} style={styles.modelWarningText}>
-                  • {warning}
-                </Text>
-              ))}
-            </View>
-          ) : null}
-        </View>
-
-        {/* C. Calidad del modelo lineal */}
-        <View style={styles.card}>
-          <View style={styles.modelHeaderRow}>
-            <Text style={styles.cardTitleStrong}>Calidad del modelo lineal</Text>
-            <View
-              style={[
-                styles.modelStatusPill,
-                linealQualityTone(recommendation.linealQuality) === 'ok'
-                  ? styles.modelStatusPillOk
-                  : linealQualityTone(recommendation.linealQuality) === 'warn'
-                    ? styles.modelStatusPillWarn
-                    : styles.modelStatusPillMuted,
-              ]}>
-              <Text
-                style={[
-                  styles.modelStatusPillText,
-                  linealQualityTone(recommendation.linealQuality) === 'ok'
-                    ? styles.modelStatusPillTextOk
-                    : linealQualityTone(recommendation.linealQuality) === 'warn'
-                      ? styles.modelStatusPillTextWarn
-                      : styles.modelStatusPillTextMuted,
-                ]}>
-                {linealQualityLabel(recommendation.linealQuality)}
-              </Text>
-            </View>
-          </View>
-          {linearModel.status === 'valid' &&
-          linearModel.coefficients.slope !== undefined &&
-          linearModel.coefficients.intercept !== undefined ? (
-            <View style={styles.modelEquationBox}>
-              <Text style={styles.modelEquationLabel}>Ecuación</Text>
-              <Text style={styles.modelEquationText}>
-                estimatedVolumeMl = {formatSlope(linearModel.coefficients.slope)} · distanceMm
-                {' '}
-                {linearModel.coefficients.intercept >= 0 ? '+' : '−'}{' '}
-                {formatIntercept(Math.abs(linearModel.coefficients.intercept))}
-              </Text>
-            </View>
-          ) : (
-            <Text style={styles.cardHint}>
-              No hay ecuación disponible: {modelStatusLabel(linearModel.status).toLowerCase()}.
-            </Text>
-          )}
-          <View style={styles.resultsGrid}>
-            <MetricCell label="R²" value={formatR2(linearModel.metrics.rSquared)} />
-            <MetricCell label="RMSE" value={formatMetricMl(linearModel.metrics.rmseMl)} />
-            <MetricCell label="MAE" value={formatMetricMl(linearModel.metrics.maeMl)} />
-            <MetricCell
-              label="Error máximo"
-              value={formatMetricMl(linearModel.metrics.maxAbsErrorMl)}
-            />
-            <MetricCell label="Puntos usados" value={String(linearModel.pointsUsed)} />
-            <MetricCell
-              label="Rango distancia"
-              value={
-                linearModel.distanceRangeMm.max - linearModel.distanceRangeMm.min === 0
-                  ? '—'
-                  : `${linearModel.distanceRangeMm.min.toFixed(1)}–${linearModel.distanceRangeMm.max.toFixed(1)} mm`
-              }
-            />
-          </View>
-          {linearModel.warnings.length > 0 ? (
-            <View style={styles.modelWarningsBox}>
-              {linearModel.warnings.map((warning, idx) => (
-                <Text key={`lin-${idx}`} style={styles.modelWarningText}>
-                  • {warning}
-                </Text>
-              ))}
-            </View>
-          ) : null}
-        </View>
-
-        {/* D. Cobertura */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Cobertura</Text>
-          <View style={styles.resultsGrid}>
-            <MetricCell
-              label="Rango calibrado"
-              value={
-                coverage.coveredMinMl === null || coverage.coveredMaxMl === null
-                  ? '—'
-                  : `${coverage.coveredMinMl}–${coverage.coveredMaxMl} mL`
-              }
-            />
-            <MetricCell
-              label="Rango útil (mm)"
-              value={globalRange.rangeMm === null ? '—' : `${globalRange.rangeMm.toFixed(1)} mm`}
-            />
-            <MetricCell
-              label={`Cobertura ${activeSpirometerProfile?.recommendedMinVolumeMl ?? 500}–${activeSpirometerProfile?.recommendedMaxVolumeMl ?? 3000}`}
-              value={
-                coverage.coveredMinMl === null
-                  ? '—'
-                  : `${coverage.recommendedCoveragePct.toFixed(0)} %`
-              }
-            />
-            <MetricCell
-              label={`Cobertura ${activeSpirometerProfile?.operativeMinVolumeMl ?? 250}–${activeSpirometerProfile?.maxVolumeMl ?? 3000}`}
-              value={
-                coverage.coveredMinMl === null
-                  ? '—'
-                  : `${coverage.totalCoveragePct.toFixed(0)} %`
-              }
-            />
-          </View>
-          {globalRange.rangeMm !== null ? (
-            <Text style={styles.summaryLine}>
-              Distancia mín: {(globalRange.minDistanceMm ?? 0).toFixed(1)} mm · máx:{' '}
-              {(globalRange.maxDistanceMm ?? 0).toFixed(1)} mm
-            </Text>
-          ) : null}
-          {volumeSummaries.length > 0 ? (
-            <Text style={styles.modelCoverageHint}>
-              {coverage.coversTotal && activeSpirometerProfile
-                ? `Cubre el rango total del dispositivo (${activeSpirometerProfile.operativeMinVolumeMl}–${activeSpirometerProfile.maxVolumeMl} mL).`
-                : coverage.coversRecommended && activeSpirometerProfile
-                  ? `Cubre el rango recomendado (${activeSpirometerProfile.recommendedMinVolumeMl}–${activeSpirometerProfile.recommendedMaxVolumeMl} mL).`
-                  : activeSpirometerProfile
-                    ? `Aún no cubre el rango recomendado (${activeSpirometerProfile.recommendedMinVolumeMl}–${activeSpirometerProfile.recommendedMaxVolumeMl} mL).`
-                    : 'Aún no cubre el rango recomendado.'}
-            </Text>
-          ) : null}
-          {volumeSummaries.length > 0 && !coverage.coversRecommended ? (
-            <Text style={styles.warnHint}>
-              Completa el rango recomendado antes de usar el modelo en terapia.
-            </Text>
-          ) : null}
-          {coverage.coversRecommended &&
-          !coverage.coversTotal &&
-          activeSpirometerProfile &&
-          activeSpirometerProfile.extendedMaxVolumeMl >
-            activeSpirometerProfile.recommendedMaxVolumeMl ? (
-            <Text style={styles.cardHint}>
-              El rango extendido (
-              {getExtendedRangeMinVolumeMl(activeSpirometerProfile)}–
-              {activeSpirometerProfile.extendedMaxVolumeMl} mL) es opcional para pacientes con mayor
-              capacidad.
-            </Text>
-          ) : null}
-          {hasLegacySubOperative ? (
-            <Text style={styles.cardHint}>
-              Este perfil contiene puntos por debajo del rango operativo recomendado
-              (&lt;{operativeMinVolumeMl} mL). Se mantienen visibles, pero las nuevas capturas
-              deberían iniciar en {operativeMinVolumeMl} mL.
-            </Text>
-          ) : null}
-        </View>
-        </>
-        ) : null}
-
-        {/* E. Repetibilidad */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Repetibilidad</Text>
-          <Text style={styles.cardHint}>
-            Incluye la variación de cada medición (std por captura) y la dispersión entre mediciones del mismo
-            volumen (SD entre repeticiones). Mínimo requerido: {MIN_REPETITIONS_PER_REQUIRED_VOLUME} mediciones
-            válidas por volumen obligatorio. Por debajo de {MIN_REPETITIONS_PER_VOLUME} mediciones en cualquier
-            volumen se muestra una advertencia técnica adicional.
-          </Text>
-          {repeatability.hasPoints ? (
-            <>
-              <View style={styles.resultsGrid}>
-                <MetricCell
-                  label="Mín. repeticiones / volumen"
-                  value={String(repeatability.minRepetitionsPerVolume)}
-                />
-                <MetricCell
-                  label="Variación promedio (std captura)"
-                  value={`±${repeatability.averageStdDistanceMm.toFixed(2)} mm`}
-                />
-                <MetricCell
-                  label="Mayor variación (std captura)"
-                  value={`±${repeatability.maxStdDistanceMm.toFixed(2)} mm`}
-                />
-                <MetricCell
-                  label="Volumen con mayor variación (std)"
-                  value={
-                    repeatability.volumeWithMaxStdDistanceMm === null
-                      ? '—'
-                      : `${repeatability.volumeWithMaxStdDistanceMm} mL`
-                  }
-                />
-              </View>
-              <Text style={styles.cardSubTitleStrong}>Por volumen</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.repetTable}>
-                  <View style={[styles.repetTableRow, styles.repetTableHeadRow]}>
-                    <Text style={[styles.repetCell, styles.repetColVol]}>Volumen</Text>
-                    <Text style={[styles.repetCell, styles.repetColN]}>n</Text>
-                    <Text style={[styles.repetCell, styles.repetColMean]}>Promedio</Text>
-                    <Text style={[styles.repetCell, styles.repetColSd]}>SD rep.</Text>
-                    <Text style={[styles.repetCell, styles.repetColRange]}>Rango</Text>
-                    <Text style={[styles.repetCell, styles.repetColState]}>Estado</Text>
-                    <Text style={[styles.repetCell, styles.repetColAction]}>Acción</Text>
-                  </View>
-                  {repeatability.perVolume.map((row) => (
-                    <View key={`rep-v-${row.volumeMl}`} style={styles.repetTableRow}>
-                      <Text style={[styles.repetCell, styles.repetColVol]}>{row.volumeMl} mL</Text>
-                      <Text style={[styles.repetCell, styles.repetColN]}>{row.repetitions}</Text>
-                      <Text style={[styles.repetCell, styles.repetColMean]}>
-                        {row.meanDistanceMm.toFixed(1)} mm
-                      </Text>
-                      <Text style={[styles.repetCell, styles.repetColSd]}>
-                        {row.sdBetweenRepetitionsMm.toFixed(2)} mm
-                      </Text>
-                      <Text style={[styles.repetCell, styles.repetColRange]}>
-                        {row.rangeDistanceMm.toFixed(1)} mm
-                      </Text>
-                      <View style={styles.repetColState}>
-                        <View
-                          style={[
-                            styles.repetBadge,
-                            row.warningLevel === 'ok' && styles.repetBadgeOk,
-                            row.warningLevel === 'moderate' && styles.repetBadgeModerate,
-                            row.warningLevel === 'high' && styles.repetBadgeHigh,
-                          ]}>
-                          <Text
-                            style={[
-                              styles.repetBadgeText,
-                              row.warningLevel === 'high' && styles.repetBadgeTextHigh,
-                            ]}>
-                            {volumeRepeatabilityBadgeLabel(row)}
-                          </Text>
-                        </View>
-                      </View>
-                      <View style={styles.repetColAction}>
-                        {row.warningLevel === 'high' && !isRetakeMode ? (
-                          <Pressable
-                            style={({ pressed }) => [
-                              styles.repetRepeatBtn,
-                              pressed && styles.repetRepeatBtnPressed,
-                            ]}
-                            onPress={() => {
-                              void onStartVolumeRetake(row.volumeMl);
-                            }}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Repetir volumen ${row.volumeMl} mililitros`}>
-                            <Text style={styles.repetRepeatBtnText}>Repetir {row.volumeMl} mL</Text>
-                          </Pressable>
-                        ) : row.warningLevel === 'high' &&
-                          isRetakeMode &&
-                          retakeVolumeMl === row.volumeMl ? (
-                          <Text style={styles.repetActionMuted}>En curso</Text>
-                        ) : (
-                          <Text style={styles.repetActionMuted}>—</Text>
-                        )}
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              </ScrollView>
-            </>
-          ) : (
-            <Text style={styles.emptyText}>Aún no hay puntos para evaluar repetibilidad.</Text>
-          )}
-          {repeatability.warnings.length > 0 ? (
-            <View style={styles.modelWarningsBox}>
-              {repeatability.warnings.map((warning, idx) => (
-                <Text key={`rep-${idx}`} style={styles.modelWarningText}>
-                  • {warning}
-                </Text>
-              ))}
-            </View>
-          ) : null}
-        </View>
-
-        {/* F. Segmentos */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Segmentos</Text>
-          <Text style={styles.cardHint}>
-            Pendiente entre volúmenes consecutivos (mL por mm). Variaciones grandes indican
-            saltos bruscos o problemas de montaje. Relación actual:{' '}
-            {relationLabel(relation).toLowerCase()}.
-          </Text>
-          {segmentReport.segments.length === 0 ? (
-            <Text style={styles.emptyText}>Se necesitan al menos dos volúmenes.</Text>
-          ) : (
-            <>
-              <View style={styles.resultsGrid}>
-                <MetricCell
-                  label="Pendiente mín."
-                  value={
-                    segmentReport.minSlopeMlPerMm === null
-                      ? '—'
-                      : `${segmentReport.minSlopeMlPerMm.toFixed(0)} mL/mm`
-                  }
-                />
-                <MetricCell
-                  label="Pendiente máx."
-                  value={
-                    segmentReport.maxSlopeMlPerMm === null
-                      ? '—'
-                      : `${segmentReport.maxSlopeMlPerMm.toFixed(0)} mL/mm`
-                  }
-                />
-                <MetricCell
-                  label="Variación de pendiente"
-                  value={
-                    segmentReport.slopeVariationRatio === null
-                      ? '—'
-                      : `×${segmentReport.slopeVariationRatio.toFixed(1)}`
-                  }
-                />
-                <MetricCell label="Segmentos" value={String(segmentReport.segments.length)} />
-              </View>
-              <View style={styles.summaryTableHead}>
-                <Text style={[styles.summaryHeadCell, styles.segmentColRange]}>Tramo (mL)</Text>
-                <Text style={[styles.summaryHeadCell, styles.segmentColDist]}>Δ dist.</Text>
-                <Text style={[styles.summaryHeadCell, styles.segmentColSlope]}>Pendiente</Text>
-              </View>
-              {segmentReport.segments.map((seg, idx) => (
-                <View key={`seg-${idx}`} style={styles.summaryTableRow}>
-                  <Text style={[styles.summaryCell, styles.segmentColRange]}>
-                    {seg.volumeFromMl}→{seg.volumeToMl}
-                  </Text>
-                  <Text style={[styles.summaryCell, styles.segmentColDist]}>
-                    {seg.deltaDistanceMm >= 0 ? '+' : ''}
-                    {seg.deltaDistanceMm.toFixed(2)} mm
-                  </Text>
-                  <Text style={[styles.summaryCell, styles.segmentColSlope]}>
-                    {seg.slopeMlPerMm === null
-                      ? '—'
-                      : `${seg.slopeMlPerMm.toFixed(0)} mL/mm`}
-                  </Text>
-                </View>
-              ))}
-            </>
-          )}
-          {segmentReport.warnings.length > 0 ? (
-            <View style={styles.modelWarningsBox}>
-              {segmentReport.warnings.map((warning, idx) => (
-                <Text key={`seg-w-${idx}`} style={styles.modelWarningText}>
-                  • {warning}
-                </Text>
-              ))}
-            </View>
-          ) : null}
-          <Text style={styles.relationHint}>{relationHint(relation)}</Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Activación para terapia</Text>
-          <Text style={styles.cardHint}>
-            Guarda los puntos y activa el modelo recomendado cuando el protocolo esté completo.
-          </Text>
-          <View
-            style={[
-              styles.savedBadge,
-              activeModelCardStatus === 'current'
-                ? styles.savedBadgeOk
-                : activeModelCardStatus === 'stale'
-                  ? styles.savedBadgeWarn
-                  : activeModelCardStatus === 'not_eligible'
-                    ? styles.savedBadgeWarn
-                    : styles.savedBadgeMuted,
-            ]}>
-            {activeModelBusy !== 'idle' ? (
-              <ActivityIndicator size="small" color={wellness.primaryDark} />
-            ) : null}
-            <Text
-              style={
-                activeModelCardStatus === 'current'
-                  ? styles.savedBadgeText
-                  : activeModelCardStatus === 'stale' || activeModelCardStatus === 'not_eligible'
-                    ? styles.savedBadgeText
-                    : styles.savedBadgeTextMuted
-              }>
-              {activeModelStatusLabel}
-            </Text>
-          </View>
-
-          {activeCalibrationModel ? (
-            <View style={styles.resultsGrid}>
-              <MetricCell
-                label="Tipo de modelo activo"
-                value={activeModelKindUiLabel(activeCalibrationModel.modelKind)}
-              />
-              <MetricCell
-                label="Espirómetro asociado"
-                value={activeSpirometerDevice?.label ?? '—'}
-              />
-              <MetricCell
-                label="Activado"
-                value={formatTimestamp(activeCalibrationModel.activatedAt)}
-              />
-              <MetricCell
-                label="U95 máximo"
-                value={
-                  activeCalibrationModel.uncertainty.maxU95Ml !== null
-                    ? `${activeCalibrationModel.uncertainty.maxU95Ml.toFixed(0)} mL`
-                    : '—'
-                }
-              />
-              <MetricCell
-                label="Rango calibrado"
-                value={`${activeCalibrationModel.calibratedRangeMl.min}–${activeCalibrationModel.calibratedRangeMl.max} mL`}
-              />
-            </View>
-          ) : (
-            <Text style={styles.summaryLine}>
-              Aún no hay modelo activo guardado para este espirómetro.
-            </Text>
-          )}
-
-          {activeModelIsStale && activeCalibrationModel ? (
-            <Text style={styles.warnHint}>
-              El modelo activo no coincide con la calibración guardada actual. Actívalo de nuevo
-              después de guardar si la calibración cumple los criterios.
-            </Text>
-          ) : null}
-
-          <View style={styles.rowGap}>
-            {activeCalibrationModel ? (
-              <Pressable
-                style={({ pressed }) => [
-                  styles.dangerBtn,
-                  !canClearActiveModel && styles.btnDisabled,
-                  pressed && canClearActiveModel && styles.dangerBtnPressed,
-                ]}
-                onPress={() => {
-                  void onClearActiveModel();
-                }}
-                disabled={!canClearActiveModel}
-                accessibilityRole="button"
-                accessibilityLabel="Borrar modelo activo">
-                <Text style={[styles.dangerBtnText, !canClearActiveModel && styles.btnTextDisabled]}>
-                  Borrar modelo activo
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Vista previa de volumen (sesión)</Text>
-          <Text style={styles.cardHint}>
-            Estimación con el modelo lineal de los puntos capturados aquí. No usa el modelo activo del paciente.
-          </Text>
-          <View
-            style={[
-              styles.savedBadge,
-              previewVolumeMl !== null && linearModel?.status === 'valid'
-                ? styles.savedBadgeOk
-                : styles.savedBadgeMuted,
-            ]}>
-            <Text
-              style={
-                previewVolumeMl !== null && linearModel?.status === 'valid'
-                  ? styles.savedBadgeText
-                  : styles.savedBadgeTextMuted
-              }>
-              {previewVolumeMl !== null && linearModel?.status === 'valid'
-                ? 'Modelo de sesión listo'
-                : points.length < 2
-                  ? 'Captura al menos 2 puntos'
-                  : linearModel
-                    ? modelStatusLabel(linearModel.status)
-                    : 'Esperando puntos'}
-            </Text>
-          </View>
-          <View style={styles.resultsGrid}>
-            <MetricCell label="Espirómetro" value={activeSpirometerDevice?.label ?? '—'} />
-            <MetricCell
-              label="Estado del sensor"
-              value={inLiveMode ? 'Conectado' : 'Desconectado'}
-            />
-            <MetricCell
-              label="Distancia (promedio buffer)"
-              value={formatScalar(bufferStats?.avgDistanceMm)}
-              unit="mm"
-            />
-            <MetricCell
-              label="Volumen previsto"
-              value={previewVolumeMl !== null ? String(previewVolumeMl) : '—'}
-              unit="mL"
-            />
-            {linearModel?.status === 'valid' && linearModel.metrics ? (
-              <>
-                <MetricCell label="R² (sesión)" value={formatScalar(linearModel.metrics.rSquared)} />
-                <MetricCell
-                  label="MAE (sesión)"
-                  value={formatScalar(linearModel.metrics.maeMl)}
-                  unit="mL"
-                />
-              </>
-            ) : null}
-          </View>
-          <Text style={styles.cardHint}>
-            Esta vista no inicia sesión terapéutica ni modifica la calibración activa del paciente.
-          </Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Almacenamiento local</Text>
-          <View
-            style={[
-              styles.savedBadge,
-              effectiveSavedStatus.kind === 'saved'
-                ? styles.savedBadgeOk
-                : effectiveSavedStatus.kind === 'unsaved'
-                  ? styles.savedBadgeWarn
-                  : effectiveSavedStatus.kind === 'corrupt'
-                    ? styles.savedBadgeError
-                    : styles.savedBadgeMuted,
-            ]}>
-            {storageBusy !== 'idle' ? (
-              <ActivityIndicator size="small" color={wellness.primaryDark} />
-            ) : null}
-            <Text
-              style={
-                effectiveSavedStatus.kind === 'saved' || effectiveSavedStatus.kind === 'unsaved'
-                  ? styles.savedBadgeText
-                  : effectiveSavedStatus.kind === 'corrupt'
-                    ? styles.savedBadgeTextError
-                    : styles.savedBadgeTextMuted
-              }>
-              {savedStatusLabel}
-            </Text>
-          </View>
-
-          {effectiveSavedStatus.kind === 'saved' ? (
-            <>
-              <Text style={styles.summaryLine}>Puntos guardados: {effectiveSavedStatus.pointsCount}</Text>
-              <Text style={styles.summaryLine}>
-                Última actualización: {formatTimestamp(effectiveSavedStatus.updatedAt)}
-              </Text>
-            </>
-          ) : null}
-          {effectiveSavedStatus.kind === 'unsaved' && savedProfile ? (
-            <Text style={styles.summaryLine}>
-              Último guardado: {formatTimestamp(savedProfile.updatedAt)} ·{' '}
-              {savedProfile.points.length} pts
-            </Text>
-          ) : null}
-          {effectiveSavedStatus.kind === 'corrupt' ? (
-            <Text style={styles.errorHint}>
-              No se pudo leer la calibración guardada en el dispositivo. Borra la calibración guardada
-              para limpiar el almacenamiento local.
-            </Text>
-          ) : null}
-          {storageMessage ? <Text style={styles.cardHint}>{storageMessage}</Text> : null}
-
-          <View style={styles.rowGap}>
-            {canSave ? (
-              <Pressable
-                onPress={() => void onSaveCalibration()}
-                style={({ pressed }) => [styles.textBtn, pressed && styles.textBtnPressed]}
-                accessibilityRole="button"
-                accessibilityLabel="Guardar sin activar">
-                <Text style={styles.textBtnLabel}>Solo guardar puntos</Text>
-              </Pressable>
-            ) : null}
-            <Pressable
-              style={({ pressed }) => [
-                styles.secondaryBtn,
-                !canLoad && styles.btnDisabled,
-                pressed && canLoad && styles.secondaryBtnPressed,
-              ]}
-              onPress={() => {
-                void onLoadCalibration();
-              }}
-              disabled={!canLoad}
-              accessibilityRole="button"
-              accessibilityLabel="Cargar calibración guardada">
-              <Text style={[styles.secondaryBtnText, !canLoad && styles.btnTextDisabled]}>
-                Cargar calibración guardada
-              </Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [
-                styles.dangerBtn,
-                !canClearStorage && styles.btnDisabled,
-                pressed && canClearStorage && styles.dangerBtnPressed,
-              ]}
-              onPress={() => {
-                void onClearStorage();
-              }}
-              disabled={!canClearStorage}
-              accessibilityRole="button"
-              accessibilityLabel="Borrar calibración guardada">
-              <Text style={[styles.dangerBtnText, !canClearStorage && styles.btnTextDisabled]}>
-                Borrar calibración guardada
-              </Text>
-            </Pressable>
-          </View>
-        </View>
 
         </>
         ) : null}
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function MetricCell({
-  label,
-  value,
-  unit,
-}: {
-  label: string;
-  value: string;
-  unit?: string;
-}) {
-  return (
-    <View style={styles.metricCell}>
-      <Text style={styles.metricCellLabel}>{label}</Text>
-      <Text style={styles.metricCellValue} numberOfLines={2}>
-        {value}
-        {unit ? ` ${unit}` : ''}
-      </Text>
-    </View>
   );
 }
 
@@ -4047,6 +2588,18 @@ const styles = StyleSheet.create({
   repetRepeatBtnPressed: { opacity: 0.9 },
   repetRepeatBtnText: { fontSize: 11, fontWeight: '800', color: wellness.primaryDark },
   repetActionMuted: { fontSize: 12, fontWeight: '600', color: wellness.textSecondary },
+  repeatabilityActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: wellness.border,
+  },
+  repeatabilityActionInfo: { flex: 1, gap: 2 },
+  repeatabilityActionVolume: { fontSize: 15, fontWeight: '800', color: wellness.text },
+  repeatabilityActionLabel: { fontSize: 13, fontWeight: '600', color: wellness.textSecondary },
   uncertTable: { minWidth: 520, paddingBottom: spacing.xs, marginTop: spacing.xs },
   uncertTableRow: {
     flexDirection: 'row',
