@@ -7,7 +7,10 @@
 
 import type { RunnerGameLevelId } from '@/src/modules/levels/types/runner-levels';
 import { isRunnerGameLevel } from '@/src/modules/levels/types/runner-levels';
-import { LEVEL_ONE_OFFICIAL_EVAL_MS } from '@/src/modules/session/engine/level-one/level-one-repetition-rules';
+import {
+  LEVEL_ONE_OFFICIAL_EVAL_MS,
+  RUNNER_REST_MS,
+} from '@/src/modules/session/engine/level-one/level-one-repetition-rules';
 
 export type LevelDifficultyConfig = {
   /** Multiplier applied to the patient's diagnostic target volume. */
@@ -65,7 +68,7 @@ const LEVEL_DIFFICULTY: Record<RunnerGameLevelId, LevelDifficultyConfig> = {
   'level-1': {
     targetVolumeMultiplier: 1.0,
     requiredHoldMs: LEVEL_ONE_OFFICIAL_EVAL_MS,
-    restMs: 5000,
+    restMs: RUNNER_REST_MS,
     repetitionsPerSession: 10,
     sessionsToCompleteLevel: 6,
     description: 'Respiración guiada inicial',
@@ -73,7 +76,7 @@ const LEVEL_DIFFICULTY: Record<RunnerGameLevelId, LevelDifficultyConfig> = {
   'level-2': {
     targetVolumeMultiplier: 1.05,
     requiredHoldMs: LEVEL_ONE_OFFICIAL_EVAL_MS,
-    restMs: 5000,
+    restMs: RUNNER_REST_MS,
     repetitionsPerSession: 10,
     sessionsToCompleteLevel: 6,
     description: 'Control del volumen',
@@ -81,7 +84,7 @@ const LEVEL_DIFFICULTY: Record<RunnerGameLevelId, LevelDifficultyConfig> = {
   'level-3': {
     targetVolumeMultiplier: 1.1,
     requiredHoldMs: LEVEL_ONE_OFFICIAL_EVAL_MS,
-    restMs: 5000,
+    restMs: RUNNER_REST_MS,
     repetitionsPerSession: 10,
     sessionsToCompleteLevel: 6,
     description: 'Sostén respiratorio',
@@ -89,7 +92,7 @@ const LEVEL_DIFFICULTY: Record<RunnerGameLevelId, LevelDifficultyConfig> = {
   'level-4': {
     targetVolumeMultiplier: 1.15,
     requiredHoldMs: LEVEL_ONE_OFFICIAL_EVAL_MS,
-    restMs: 5000,
+    restMs: RUNNER_REST_MS,
     repetitionsPerSession: 10,
     sessionsToCompleteLevel: 6,
     description: 'Precisión y constancia',
@@ -97,7 +100,7 @@ const LEVEL_DIFFICULTY: Record<RunnerGameLevelId, LevelDifficultyConfig> = {
   'level-5': {
     targetVolumeMultiplier: 1.2,
     requiredHoldMs: LEVEL_ONE_OFFICIAL_EVAL_MS,
-    restMs: 5000,
+    restMs: RUNNER_REST_MS,
     repetitionsPerSession: 10,
     sessionsToCompleteLevel: 6,
     description: 'Dominio avanzado',

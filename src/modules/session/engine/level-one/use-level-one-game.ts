@@ -10,6 +10,7 @@ import {
   evaluateLevelOneAttemptRelease,
   LEVEL_ONE_OFFICIAL_EVAL_MS,
   PRE_ATTEMPT_COUNTDOWN_MS,
+  RUNNER_REST_MS,
   type LevelOneAttemptRuntime,
   type LevelOneFailReason,
   tickLevelOneRepetition,
@@ -20,7 +21,6 @@ import type {
   LevelOneSessionProgress,
 } from '@/src/modules/levels/types/level-progress';
 
-const DEFAULT_REST_MS = 5000;
 const FAILED_EXHALE_MS = 2100;
 const VALID_EXHALE_MS = 700;
 const MAX_REPS = 10;
@@ -79,7 +79,7 @@ export function useLevelOneGame({
   resolveOfficialAttemptOnRelease,
   engineScopeKey,
   officialEvalMs = LEVEL_ONE_OFFICIAL_EVAL_MS,
-  restMs = DEFAULT_REST_MS,
+  restMs = RUNNER_REST_MS,
 }: UseLevelOneGameParams) {
   const [phase, setPhase] = useState<LevelOnePhase>('not-started');
   const [countdownMs, setCountdownMs] = useState(PRE_ATTEMPT_COUNTDOWN_MS);
