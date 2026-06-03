@@ -1665,7 +1665,7 @@ export function SensorCalibrationTechnicalCaptureScreen({
                 setDeviceIdentification((prev) => ({ ...prev, calibrationDateIso: text }));
                 markDirty();
               }}
-              placeholder="2026-05-30"
+              placeholder="2026-06-02"
             />
             <Text style={styles.identFieldLabel}>Notas técnicas</Text>
             <TextInput

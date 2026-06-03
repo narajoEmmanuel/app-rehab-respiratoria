@@ -23,8 +23,7 @@ Documentación técnica del **módulo de calibración local** (ESP32 + VL53L0X �
 
 - Perfil **5000 mL** (Besmed CIYO/TB-93500): calibración multi-volumen, validación geométrica y constantes en `calibration-constants.ts`.
 - Opción **«Otro»** espirómetro: eliminada del flujo paciente.
-- Ecuación lineal anterior de banco (`32.566738… × distanceMm − 1270.5786…`): referencia histórica; **no** es la ecuación activa de la app.
-- Calibración oficial anterior del **30 de mayo de 2026** (`cal-predefined-respira-3000-v20260530`, `R3K-20260530-LIN-v1`, ecuación `26.118550… × distanceMm − 1194.3556…`): **no activa**; migrada automáticamente a v20260602.
+- Perfiles predeterminados obsoletos en dispositivo: migración automática a `cal-predefined-respira-3000-v20260602` (`STALE_PREDEFINED_CALIBRATION_IDS` en código).
 - Firmware `envio_datos_prueba2.ino`: variante histórica con JSON enriquecido; ver sección 4 para detalle legacy.
 
 Las secciones siguientes documentan el **sistema completo** incluyendo calibración técnica y perfiles legacy. Donvergencia con el flujo paciente actual, prevalece la sección 0.

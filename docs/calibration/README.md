@@ -20,8 +20,6 @@ En producción con `EXPO_PUBLIC_ENABLE_TECHNICAL_CALIBRATION=false`:
 
 Constantes: `src/modules/device/calibration/predefined-calibration-models.ts`.
 
-> **Referencia histórica (no activa):** calibración del 30 de mayo de 2026 (`cal-predefined-respira-3000-v20260530`, ecuación `26.118550… × distanceMm − 1194.3556…`). Ecuación legacy anterior: `32.566738… × distanceMm − 1270.5786…`.
-
 ---
 
 ## Calibración técnica (modo técnico)

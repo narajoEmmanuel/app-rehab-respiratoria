@@ -41,7 +41,8 @@ import {
     RESPIRA_3000_PREDEFINED_ORIGIN_LABEL,
     RESPIRA_3000_PREDEFINED_SOURCE,
     isLegacyBankLinearCoefficients,
-    isPreviousOfficialLinearCoefficients,
+    isStalePredefinedCalibrationId,
+    isStalePredefinedLinearCoefficients,
     isRespira3000PredefinedProfileId,
     type PredefinedCalibrationPoint,
 } from '@/src/modules/device/calibration/predefined-calibration-models';
@@ -354,7 +355,7 @@ export type EnsurePredefinedCalibrationResult = {
     | 'installed_predefined_20260602'
     | 'migrated_predefined_version'
     | 'replaced_stale_local_calibration'
-    | 'replaced_predefined_20260530_with_20260602'
+    | 'replaced_stale_predefined'
     | 'already_linear_predefined';
 };
 
@@ -378,8 +379,6 @@ function isGeneratedLocalCalibrationProfileId(profileId: string): boolean {
   return profileId.startsWith('cal-') && !isRespira3000PredefinedProfileId(profileId);
 }
 
-const PREVIOUS_OFFICIAL_PREDEFINED_ID = 'cal-predefined-respira-3000-v20260530';
-
 function isExplicitPostOfficialUserCalibration(
   profile: CalibrationProfile | null,
   model: ActiveCalibrationModel,
@@ -393,24 +392,24 @@ function isExplicitPostOfficialUserCalibration(
   const { slope, intercept } = readLinearCoefficients(model);
   if (slope === null || intercept === null) return false;
   if (matchesOfficialLinearCoefficients(slope, intercept)) return false;
-  if (isPreviousOfficialLinearCoefficients(slope, intercept)) return false;
+  if (isStalePredefinedLinearCoefficients(slope, intercept)) return false;
   if (isLegacyBankLinearCoefficients(slope, intercept)) return false;
 
   return true;
 }
 
-function isPreviousOfficialPredefinedContext(
+function isStalePredefinedCalibrationContext(
   profile: CalibrationProfile | null,
   model: ActiveCalibrationModel,
 ): boolean {
   const profileId = profile?.id ?? model.calibrationProfileId;
-  if (profileId === PREVIOUS_OFFICIAL_PREDEFINED_ID) return true;
+  if (profileId && isStalePredefinedCalibrationId(profileId)) return true;
 
   const predefinedId = model.predefinedCalibration?.predefinedId;
-  if (predefinedId === PREVIOUS_OFFICIAL_PREDEFINED_ID) return true;
+  if (predefinedId && isStalePredefinedCalibrationId(predefinedId)) return true;
 
   const { slope, intercept } = readLinearCoefficients(model);
-  if (slope !== null && intercept !== null && isPreviousOfficialLinearCoefficients(slope, intercept)) {
+  if (slope !== null && intercept !== null && isStalePredefinedLinearCoefficients(slope, intercept)) {
     return true;
   }
 
@@ -425,8 +424,8 @@ function resolvePredefinedInstallReason(
     | 'replaced_stale_local_calibration'
     | 'installed_predefined_20260602',
 ): EnsurePredefinedCalibrationResult['reason'] {
-  if (model && isPreviousOfficialPredefinedContext(profile, model)) {
-    return 'replaced_predefined_20260530_with_20260602';
+  if (model && isStalePredefinedCalibrationContext(profile, model)) {
+    return 'replaced_stale_predefined';
   }
   return fallback;
 }
@@ -448,7 +447,7 @@ function shouldReplaceWithOfficialPredefined(
     const { slope, intercept } = readLinearCoefficients(model);
     if (slope !== null && intercept !== null) {
       if (isLegacyBankLinearCoefficients(slope, intercept)) return true;
-      if (isPreviousOfficialLinearCoefficients(slope, intercept)) return true;
+      if (isStalePredefinedLinearCoefficients(slope, intercept)) return true;
       if (matchesOfficialLinearCoefficients(slope, intercept)) return true;
     }
     return true;
@@ -458,7 +457,7 @@ function shouldReplaceWithOfficialPredefined(
     const { slope, intercept } = readLinearCoefficients(model);
     if (slope !== null && intercept !== null) {
       if (isLegacyBankLinearCoefficients(slope, intercept)) return true;
-      if (isPreviousOfficialLinearCoefficients(slope, intercept)) return true;
+      if (isStalePredefinedLinearCoefficients(slope, intercept)) return true;
     }
   }
 
@@ -466,7 +465,7 @@ function shouldReplaceWithOfficialPredefined(
     const { slope, intercept } = readLinearCoefficients(model);
     if (slope !== null && intercept !== null) {
       if (isLegacyBankLinearCoefficients(slope, intercept)) return true;
-      if (isPreviousOfficialLinearCoefficients(slope, intercept)) return true;
+      if (isStalePredefinedLinearCoefficients(slope, intercept)) return true;
     }
   }
 

@@ -5,10 +5,8 @@
  *   Volumen = 28.66324925966009 × distanceMm − 523.8262554875091
  * Clamp de salida: 0–3000 mL.
  *
- * Calibración anterior (2026-05-30, no activa): ver `RESPIRA_3000_PREVIOUS_OFFICIAL_LINEAR_MODEL`.
- * Ecuación legacy de banco (32.566738… × distanceMm − 1270.5786…): referencia histórica.
- *
  * Los puntos por tramos se conservan para exportación CSV y referencia técnica (piecewise).
+ * IDs/coeficientes obsoletos: `STALE_PREDEFINED_CALIBRATION_IDS` (solo migración en dispositivo).
  */
 import type { CalibrationModelKind } from '@/src/modules/device/calibration/calibration-model-types';
 
@@ -27,12 +25,15 @@ export const RESPIRA_3000_PREDEFINED_EXPORTED_AT_UTC = '2026-06-03T01:07:42.184Z
 /** Capturas brutas usadas en el ajuste lineal de banco (8 volúmenes × 5 repeticiones). */
 export const RESPIRA_3000_PREDEFINED_CAPTURE_POINTS_COUNT = 40;
 
-/** IDs de versiones anteriores de la predeterminada (migración automática en dispositivo). */
-export const RESPIRA_3000_LEGACY_PREDEFINED_CALIBRATION_IDS = [
+/** IDs obsoletos de perfil predeterminado (solo migración automática en dispositivo). */
+export const STALE_PREDEFINED_CALIBRATION_IDS = [
   'cal-predefined-respira-3000-v1',
   'cal-predefined-respira-3000-v20260528',
   'cal-predefined-respira-3000-v20260530',
 ] as const;
+
+/** @deprecated Usar STALE_PREDEFINED_CALIBRATION_IDS */
+export const RESPIRA_3000_LEGACY_PREDEFINED_CALIBRATION_IDS = STALE_PREDEFINED_CALIBRATION_IDS;
 
 export const RESPIRA_3000_CAPACITY_ML = 3000;
 
@@ -90,20 +91,16 @@ export const RESPIRA_3000_PIECEWISE_REFERENCE_POINTS: readonly PredefinedCalibra
   ...RESPIRA_3000_CALIBRATED_POINTS,
 ];
 
-/** Ecuación lineal legacy de banco (referencia histórica; migrar si persiste como activa). */
+/** Ecuación lineal obsoleta de banco (solo detección para migración). */
 export const RESPIRA_3000_LEGACY_BANK_LINEAR_MODEL = {
   slope: 32.566738,
   intercept: -1270.5786,
 } as const;
 
-/** Calibración oficial anterior (2026-05-30, no activa). */
-export const RESPIRA_3000_PREVIOUS_OFFICIAL_LINEAR_MODEL = {
-  slope: 26.11855011086812,
-  intercept: -1194.3556609431557,
-} as const;
-
-/** ID visible de la calibración anterior (solo legacy / migración). */
-export const RESPIRA_3000_PREVIOUS_DISPLAY_CALIBRATION_ID = 'R3K-20260530-LIN-v1';
+/** Coeficientes lineales obsoletos (solo migración en dispositivo). */
+export const STALE_PREDEFINED_LINEAR_MODELS = [
+  { slope: 26.11855011086812, intercept: -1194.3556609431557 },
+] as const;
 
 export function isLegacyBankLinearCoefficients(slope: number, intercept: number): boolean {
   return (
@@ -112,11 +109,15 @@ export function isLegacyBankLinearCoefficients(slope: number, intercept: number)
   );
 }
 
-export function isPreviousOfficialLinearCoefficients(slope: number, intercept: number): boolean {
-  return (
-    Math.abs(slope - RESPIRA_3000_PREVIOUS_OFFICIAL_LINEAR_MODEL.slope) < 1e-6 &&
-    Math.abs(intercept - RESPIRA_3000_PREVIOUS_OFFICIAL_LINEAR_MODEL.intercept) < 1e-3
+export function isStalePredefinedLinearCoefficients(slope: number, intercept: number): boolean {
+  return STALE_PREDEFINED_LINEAR_MODELS.some(
+    (model) =>
+      Math.abs(slope - model.slope) < 1e-6 && Math.abs(intercept - model.intercept) < 1e-3,
   );
+}
+
+export function isStalePredefinedCalibrationId(profileId: string): boolean {
+  return (STALE_PREDEFINED_CALIBRATION_IDS as readonly string[]).includes(profileId);
 }
 
 /** Modelo lineal activo predeterminado. */
@@ -166,9 +167,7 @@ export const RESPIRA_3000_OVER_RANGE_FOOTNOTE =
   'Los valores superiores a la capacidad nominal se registran como estimación fuera de rango.';
 
 export function isRespira3000LegacyPredefinedProfileId(profileId: string): boolean {
-  return (RESPIRA_3000_LEGACY_PREDEFINED_CALIBRATION_IDS as readonly string[]).includes(
-    profileId,
-  );
+  return isStalePredefinedCalibrationId(profileId);
 }
 
 export function isRespira3000PredefinedProfileId(profileId: string): boolean {

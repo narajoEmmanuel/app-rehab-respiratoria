@@ -50,8 +50,6 @@ Volumen (mL) = 28.66324925966009 × distanceMm − 523.8262554875091
 
 Resultado acotado entre **0** y **3000 mL** (valores < 0 se muestran como 0 mL; valores > 3000 pueden mostrarse como sobre rango visual). Constantes en `predefined-calibration-models.ts`.
 
-> **Referencia histórica (no activa):** calibración del 30 de mayo de 2026 (`cal-predefined-respira-3000-v20260530`, `R3K-20260530-LIN-v1`, ecuación `26.118550… × distanceMm − 1194.3556…`). Ecuación legacy anterior: `32.566738… × distanceMm − 1270.5786…`.
-
 ### Legacy (no activo en flujo paciente)
 
 | Elemento | Notas |

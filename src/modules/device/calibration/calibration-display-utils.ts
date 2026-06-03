@@ -20,7 +20,7 @@ import {
   RESPIRA_3000_SENSOR_LABEL,
   RESPIRA_3000_SPIROMETER_MODEL_LABEL,
   isLegacyBankLinearCoefficients,
-  isPreviousOfficialLinearCoefficients,
+  isStalePredefinedLinearCoefficients,
   isRespira3000PredefinedProfileId,
 } from '@/src/modules/device/calibration/predefined-calibration-models';
 import { SPIROMETER_DEVICE_3000ML_ID } from '@/src/modules/device/spirometer';
@@ -129,7 +129,7 @@ export function shouldUseOfficialRespira3000DisplayMetadata(
   const { slope, intercept } = readActiveLinearCoefficients(activeModel);
   if (slope !== null && intercept !== null) {
     if (isLegacyBankLinearCoefficients(slope, intercept)) return true;
-    if (isPreviousOfficialLinearCoefficients(slope, intercept)) return true;
+    if (isStalePredefinedLinearCoefficients(slope, intercept)) return true;
     if (matchesOfficialLinearCoefficients(slope, intercept)) return true;
   }
 
