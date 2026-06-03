@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { appBrand } from '@/src/shared/branding/app-brand';
+import { AppBrandLogo } from '@/src/shared/branding/AppBrandLogo';
+import { AppBrandWordmark } from '@/src/shared/branding/AppBrandWordmark';
 import { spacing } from '@/src/shared/theme/spacing';
-import { fontBold, fontRegular } from '@/src/shared/theme/typography';
 import { wellness, wellnessColors, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 type InitialEvaluationWelcomeViewProps = {
@@ -32,21 +32,11 @@ export function InitialEvaluationWelcomeView({
       <View style={styles.heroWash} pointerEvents="none" />
 
       <View style={styles.logoWrap}>
-        {!logoFailed ? (
-          <View style={styles.logoBadge}>
-            <Image
-              source={appBrand.logo}
-              style={styles.logo}
-              resizeMode="contain"
-              accessibilityIgnoresInvertColors
-              onError={() => setLogoFailed(true)}
-            />
-          </View>
-        ) : null}
-        <Text style={styles.brandMark} accessibilityRole="header">
-          <Text style={styles.brandWord}>Respira</Text>
-          <Text style={styles.brandPlus}>+</Text>
-        </Text>
+        {logoFailed ? (
+          <AppBrandWordmark size="hero" />
+        ) : (
+          <AppBrandLogo variant="hero" onError={() => setLogoFailed(true)} />
+        )}
       </View>
 
       <View style={styles.card}>
@@ -121,42 +111,7 @@ const styles = StyleSheet.create({
   logoWrap: {
     alignItems: 'center',
     marginBottom: spacing.lg,
-  },
-  logoBadge: {
-    width: 112,
-    height: 76,
-    borderRadius: 22,
-    backgroundColor: wellness.softGreen,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(52, 171, 165, 0.28)',
-    marginBottom: spacing.sm,
-    shadowColor: '#1F7E7A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  logo: {
-    width: 96,
-    height: 60,
-  },
-  brandMark: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: wellness.primaryDark,
-    letterSpacing: 0.2,
-  },
-  brandWord: {
-    fontFamily: fontBold,
-    color: wellness.text,
-    letterSpacing: -0.4,
-  },
-  brandPlus: {
-    fontFamily: fontRegular,
-    color: appBrand.primaryColor,
-    letterSpacing: 0.5,
+    zIndex: 1,
   },
   card: {
     backgroundColor: wellness.card,
@@ -170,6 +125,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 24,
     elevation: 4,
+    zIndex: 1,
   },
   title: {
     fontSize: 26,

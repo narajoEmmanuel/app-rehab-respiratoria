@@ -1,6 +1,6 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
@@ -9,9 +9,10 @@ import { ProfileAvatarView } from '@/src/modules/patient/components/ProfileAvata
 import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
 import { getProfilePreferences } from '@/src/modules/patient/storage/profile-preferences-repository';
 import { appBrand } from '@/src/shared/branding/app-brand';
+import { AppBrandLogo } from '@/src/shared/branding/AppBrandLogo';
+import { AppBrandWordmark } from '@/src/shared/branding/AppBrandWordmark';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
-import { fontBold, fontRegular } from '@/src/shared/theme/typography';
 
 const PRIMARY = appBrand.primaryColor;
 const SLOT_WIDTH = 56;
@@ -87,22 +88,9 @@ export function AppTopBar({
 
         <View style={styles.centerSlot}>
           <View style={styles.brandCluster} accessibilityRole="header">
-            <View
-              style={styles.leftBadge}
-              accessibilityRole="image"
-              accessibilityLabel={appBrand.name}>
-              <Image
-                source={appBrand.logo}
-                style={styles.logoImg}
-                resizeMode="contain"
-                accessibilityIgnoresInvertColors
-              />
-            </View>
+            <AppBrandLogo variant="header" />
             <View style={styles.brandBlock}>
-              <Text style={styles.brandLine} accessibilityLabel="Respira+">
-                <Text style={styles.brandWord}>Respira</Text>
-                <Text style={styles.brandPlus}>+</Text>
-              </Text>
+              <AppBrandWordmark size="header" />
             </View>
           </View>
         </View>
@@ -187,46 +175,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  leftBadge: {
-    flexShrink: 0,
-    width: 56,
-    height: 38,
-    borderRadius: wellnessRadii.full,
-    backgroundColor: wellness.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(52, 171, 165, 0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 1,
-    paddingVertical: 0,
-    shadowColor: '#4F6F52',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  logoImg: {
-    width: 50,
-    height: 32,
-  },
   brandBlock: {
     flexShrink: 1,
     justifyContent: 'center',
-  },
-  brandLine: {
-    includeFontPadding: false,
-  },
-  brandWord: {
-    fontSize: 22,
-    fontFamily: fontBold,
-    color: wellness.text,
-    letterSpacing: -0.4,
-  },
-  brandPlus: {
-    fontSize: 24,
-    fontFamily: fontRegular,
-    color: PRIMARY,
-    letterSpacing: 0.5,
   },
   avatarBtn: {
     width: 36,
