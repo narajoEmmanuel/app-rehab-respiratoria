@@ -1,12 +1,14 @@
 /**
  * Purpose: Single clinical CSV — daily_summary + session_summary rows (UTF-8 BOM, CRLF).
  * Module: export
- * Notes: Attempts are only used internally to derive tiempo_maximo when present.
+ * Notes: Intentos de evaluación inicial alimentan diagnostic_*; mejor intento = válido oficial (misma regla que UI).
  */
 
 import { LEVEL1_DAILY_GOAL } from '@/src/modules/history/services/history-aggregates';
 import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
 import type { ClinicalExportSnapshot } from '@/src/modules/export/types/export-record';
+import { resolveBestAttemptPeakVolumeMl } from '@/src/modules/diagnostics/diagnostic-evaluation-display-utils';
+import { DEFAULT_DIAGNOSTIC_INPUT_MODE } from '@/src/modules/diagnostics/diagnostic-input-mode';
 import type { DiagnosticRecord } from '@/src/modules/diagnostics/types';
 import {
   attemptClassificationExportFields,
@@ -44,13 +46,10 @@ function latestVimMl(snapshot: ClinicalExportSnapshot): string {
 }
 
 function diagnosticBestAttemptMl(diagnostic: DiagnosticRecord): string {
-  const attempts = diagnostic.attempts;
-  if (!attempts || attempts.length === 0) {
-    return String(diagnostic.max_inspiratory_volume);
-  }
-  const peaks = attempts.map((a) => a.peak_volume_ml).filter((v) => v > 0);
-  if (peaks.length === 0) return String(diagnostic.max_inspiratory_volume);
-  return String(Math.max(...peaks));
+  const inputMode = diagnostic.input_mode ?? DEFAULT_DIAGNOSTIC_INPUT_MODE;
+  const bestPeak = resolveBestAttemptPeakVolumeMl(diagnostic.attempts, inputMode);
+  if (bestPeak != null) return String(bestPeak);
+  return String(diagnostic.max_inspiratory_volume);
 }
 
 function diagnosticAttemptsJson(diagnostic: DiagnosticRecord): string {

@@ -58,6 +58,17 @@ export function resolveBestAttemptNumber(
   return best?.attempt_number ?? null;
 }
 
+/** Pico del mejor intento válido (mismo criterio que UI y export clínico). */
+export function resolveBestAttemptPeakVolumeMl(
+  attempts: DiagnosticAttemptRecord[] | undefined,
+  inputMode: DiagnosticInputMode = DEFAULT_DIAGNOSTIC_INPUT_MODE,
+): number | null {
+  const bestNumber = resolveBestAttemptNumber(attempts, inputMode);
+  if (bestNumber == null || !attempts?.length) return null;
+  const best = attempts.find((a) => a.attempt_number === bestNumber);
+  return best != null ? best.peak_volume_ml : null;
+}
+
 export function buildVimComparisonInsight(
   current: DiagnosticRecord,
   previous: DiagnosticRecord | null,

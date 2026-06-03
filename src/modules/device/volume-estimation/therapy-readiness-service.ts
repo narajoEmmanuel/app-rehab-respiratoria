@@ -545,7 +545,10 @@ export function showLevelPlayModePicker(options: LevelPlayModePickerOptions): vo
   ]);
 }
 
-/** Antes de entrar al diagnóstico: sensor oficial vs práctica táctil. */
+/**
+ * Uso interno/de desarrollo. No se invoca en el flujo paciente (evaluación inicial va directo a sensor).
+ * Modo práctica táctil sigue disponible vía deep link / `inputMode=touch_practice` cuando la flag lo permite.
+ */
 export function showDiagnosticPlayModePicker(options: DiagnosticPlayModePickerOptions): void {
   const { onWithSensor, onPracticeMode } = options;
 

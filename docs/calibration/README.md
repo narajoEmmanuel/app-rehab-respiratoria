@@ -105,4 +105,6 @@ Desarrollo completo, ejemplos y tabla comparativa: [README técnico del CSV — 
 
 El repositorio conserva migraciones y alias para perfiles **5000 mL** y dispositivos antiguos (`LEGACY_SPIROMETER_DEVICE_5000ML_ID`). La opción «Otro» espirómetro ya no está en el flujo paciente. No eliminar storage legacy sin plan de migración explícito.
 
+**CSV de ejemplo antiguo (may 2026):** no usar como calibración vigente. Está en [legacy/](legacy/) con prefijo `legacy_` y nota explícita. La referencia de banco activa es **jun. 2026** (`R3K-20260602-LIN-v2`).
+
 Documentación técnica completa: [src/modules/device/calibration/README.md](../../src/modules/device/calibration/README.md).
