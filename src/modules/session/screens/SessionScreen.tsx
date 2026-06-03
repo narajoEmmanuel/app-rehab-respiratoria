@@ -7,7 +7,15 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
@@ -44,6 +52,7 @@ import { useTouchInputAdapter } from '@/src/modules/session/engine/touch/use-tou
 import { LevelOneGameView } from '@/src/modules/session/games/components/LevelOneGameView';
 import { LevelAdvanceCelebrationModal } from '@/src/modules/session/games/components/LevelAdvanceCelebrationModal';
 import { AllLevelsCompleteCelebrationModal } from '@/src/modules/session/games/components/AllLevelsCompleteCelebrationModal';
+import { SessionCompleteMicroCelebration } from '@/src/modules/session/games/components/SessionCompleteMicroCelebration';
 import type { SessionDisplayVolumeSource } from '@/src/modules/session/games/components/SessionEstimatedVolumeCard';
 import { getLevelById } from '@/src/modules/session/registry/level-registry';
 import {
@@ -153,7 +162,6 @@ export function SessionScreen() {
     prepareFreshRunnerLevelSessionRun,
     discardInProgressRunnerLevelRun,
     clearLevelOneActiveRunMarker,
-    repeatCurrentRunnerLevelSession,
     interruptCurrentRunnerLevelSession,
   } = useLevelsProgress();
   const selectedLevelId = (levelId ?? progress.selectedLevelId) as LevelId;
@@ -212,6 +220,7 @@ export function SessionScreen() {
   const [celebrationKind, setCelebrationKind] = useState<'advance' | 'journey' | null>(null);
   const [pendingSummarySessionId, setPendingSummarySessionId] = useState<number | null>(null);
   const [pauseModalVisible, setPauseModalVisible] = useState(false);
+  const [sessionMicroCelebrationVisible, setSessionMicroCelebrationVisible] = useState(false);
   const attemptOutcomes = useMemo(() => {
     const slots: (boolean | null)[] = Array(TARGET_ATTEMPTS).fill(null);
     attemptsRuntime.forEach((attempt, index) => {
@@ -545,6 +554,7 @@ export function SessionScreen() {
   const dismissSessionOverlays = useCallback(() => {
     setCelebrationKind(null);
     setPauseModalVisible(false);
+    setSessionMicroCelebrationVisible(false);
     setSummaryDismissedKind('completed');
   }, []);
 
@@ -562,8 +572,19 @@ export function SessionScreen() {
   useEffect(() => {
     if (!summaryKind) {
       setSummaryDismissedKind(null);
+      setSessionMicroCelebrationVisible(false);
     }
   }, [summaryKind]);
+
+  useEffect(() => {
+    if (summaryKind !== 'completed' || summaryDismissedKind === 'completed') {
+      setSessionMicroCelebrationVisible(false);
+      return;
+    }
+    setSessionMicroCelebrationVisible(true);
+    const timer = setTimeout(() => setSessionMicroCelebrationVisible(false), 2600);
+    return () => clearTimeout(timer);
+  }, [summaryKind, summaryDismissedKind]);
 
   const inputPort = useTouchInputAdapter({
     onInhaleStart: isTouchPractice ? levelOneEngine.onInhaleStart : () => {},
@@ -947,8 +968,8 @@ export function SessionScreen() {
     setCelebrationKind(unlock.journeyComplete ? 'journey' : 'advance');
   };
 
-  const handleCompleteSessionContinue = async () => {
-    if (!patient || !patientLevelId || savingSummary) return;
+  const persistCompletedSession = async () => {
+    if (!patient || !patientLevelId || savingSummary) return null;
     setSavingSummary(true);
     try {
       const trace = calibrationTraceRef.current;
@@ -981,13 +1002,32 @@ export function SessionScreen() {
       levelOneEngine.stopSession();
       setAttemptsRuntime([]);
       setSummaryDismissedKind('completed');
+      setSessionMicroCelebrationVisible(false);
       setPendingSummarySessionId(savedSession.session_id);
-      applyUnlockCelebration(unlock);
-      if (!unlock.unlocked) {
-        navigateToSessionSummary(savedSession.session_id);
-      }
+      return { sessionId: savedSession.session_id, unlock };
     } finally {
       setSavingSummary(false);
+    }
+  };
+
+  const handleSessionCompleteViewSummary = async () => {
+    const saved = await persistCompletedSession();
+    if (!saved) return;
+    applyUnlockCelebration(saved.unlock);
+    if (!saved.unlock.unlocked) {
+      navigateToSessionSummary(saved.sessionId);
+    }
+  };
+
+  const handleSessionCompleteExitToTherapy = async () => {
+    const saved = await persistCompletedSession();
+    if (!saved) return;
+    applyUnlockCelebration(saved.unlock);
+    if (!saved.unlock.unlocked) {
+      dismissSessionOverlays();
+      requestAnimationFrame(() => {
+        exitToTherapy();
+      });
     }
   };
 
@@ -1104,101 +1144,106 @@ export function SessionScreen() {
           </View>
         </View>
       </Modal>
+      <SessionCompleteMicroCelebration
+        visible={isFocused && sessionMicroCelebrationVisible}
+      />
       <Modal
-        visible={isFocused && summaryKind !== null && summaryDismissedKind !== summaryKind}
+        visible={
+          isFocused &&
+          summaryKind !== null &&
+          summaryDismissedKind !== summaryKind &&
+          !sessionMicroCelebrationVisible
+        }
         transparent
         animationType="fade">
         <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHero}>
-              <View style={styles.modalHeroIcon}>
-                <Text style={styles.modalHeroIconText}>✓</Text>
-              </View>
-              <Text style={styles.modalHeroTitle}>Sesión completada</Text>
-              <Text style={styles.modalHeroSubtitle}>Buen control durante la sesión</Text>
-            </View>
-            <Text style={styles.modalTitle}>
-              {sessionSummaryModalTitle(summaryKind, currentLevelProgress.currentSession)}
-            </Text>
-            <View style={styles.modalMetaRow}>
-              <Text style={styles.modalMetaChip}>{levelGameplay?.title ?? level.title}</Text>
-              <Text style={styles.modalMetaChip}>Sesión {currentLevelProgress.currentSession}/6</Text>
-            </View>
-            <View style={styles.modalGrid}>
-              <View style={styles.modalTile}>
-                <Text style={styles.modalTileLabel}>Repeticiones válidas</Text>
-                <Text style={styles.modalTileValue}>{validAttempts}</Text>
-              </View>
-              <View style={styles.modalTile}>
-                <Text style={styles.modalTileLabel}>No completadas</Text>
-                <Text style={styles.modalTileValue}>{failedAttempts}</Text>
-              </View>
-            </View>
-            <View style={styles.modalComplianceBlock}>
-              <Text style={styles.modalComplianceLabel}>Progreso de sesión</Text>
-              <Text style={styles.modalProgressHeadline}>{sessionProgress.headline}</Text>
-              {sessionProgress.support ? (
-                <Text style={styles.modalProgressSupport}>{sessionProgress.support}</Text>
-              ) : null}
-              <View style={styles.modalComplianceTrack}>
-                <View
-                  style={[
-                    styles.modalComplianceFill,
-                    { width: `${Math.round(sessionProgress.progressRatio * 100)}%` },
-                  ]}
-                />
-              </View>
-              <Text style={styles.modalProgressMeta}>
-                {validAttempts} repeticiones válidas de {TARGET_ATTEMPTS}
+          <View style={styles.modalCardShell}>
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalScrollContent}
+              showsVerticalScrollIndicator={false}
+              bounces={false}>
+              <Text style={styles.modalTitle}>
+                {sessionSummaryModalTitle(summaryKind, currentLevelProgress.currentSession)}
               </Text>
-            </View>
-            {perfectSession ? (
-              <View style={styles.modalBadgeRow}>
-                <Text style={styles.modalBadgeStar}>★</Text>
-                <Text style={styles.modalBadgeText}>Sesión completada con buen control</Text>
+              <View style={styles.modalMetaRow}>
+                <Text style={styles.modalMetaChip}>{levelGameplay?.title ?? level.title}</Text>
+                <Text style={styles.modalMetaChip}>Sesión {currentLevelProgress.currentSession}/6</Text>
               </View>
-            ) : null}
-            <View style={styles.modalGrid}>
-              <View style={styles.modalTileWide}>
-                <Text style={styles.modalTileLabel}>Volumen máx. / prom.</Text>
-                <Text style={styles.modalTileValueSmall}>
-                  {maxVolume} mL · {avgVolume} mL
+              <View style={styles.modalGrid}>
+                <View style={styles.modalTile}>
+                  <Text style={styles.modalTileLabel}>Repeticiones válidas</Text>
+                  <Text style={styles.modalTileValue}>{validAttempts}</Text>
+                </View>
+                <View style={styles.modalTile}>
+                  <Text style={styles.modalTileLabel}>No completadas</Text>
+                  <Text style={styles.modalTileValue}>{failedAttempts}</Text>
+                </View>
+              </View>
+              <View style={styles.modalComplianceBlock}>
+                <Text style={styles.modalComplianceLabel}>Progreso de sesión</Text>
+                <Text style={styles.modalProgressHeadline}>{sessionProgress.headline}</Text>
+                {sessionProgress.support ? (
+                  <Text style={styles.modalProgressSupport}>{sessionProgress.support}</Text>
+                ) : null}
+                <View style={styles.modalComplianceTrack}>
+                  <View
+                    style={[
+                      styles.modalComplianceFill,
+                      { width: `${Math.round(sessionProgress.progressRatio * 100)}%` },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.modalProgressMeta}>
+                  {validAttempts} repeticiones válidas de {TARGET_ATTEMPTS}
                 </Text>
               </View>
-              <View style={styles.modalTileWide}>
-                <Text style={styles.modalTileLabel}>Tiempo máx. / prom. sostenido</Text>
-                <Text style={styles.modalTileValueSmall}>
-                  {maxHoldSeconds.toFixed(1)} s · {avgHoldSeconds.toFixed(1)} s
-                </Text>
+              {perfectSession ? (
+                <View style={styles.modalBadgeRow}>
+                  <Text style={styles.modalBadgeStar}>★</Text>
+                  <Text style={styles.modalBadgeText}>Sesión completada con buen control</Text>
+                </View>
+              ) : null}
+              <View style={styles.modalGrid}>
+                <View style={styles.modalTileWide}>
+                  <Text style={styles.modalTileLabel}>Volumen máx. / prom.</Text>
+                  <Text style={styles.modalTileValueSmall}>
+                    {maxVolume} mL · {avgVolume} mL
+                  </Text>
+                </View>
+                <View style={styles.modalTileWide}>
+                  <Text style={styles.modalTileLabel}>Tiempo máx. / prom. sostenido</Text>
+                  <Text style={styles.modalTileValueSmall}>
+                    {maxHoldSeconds.toFixed(1)} s · {avgHoldSeconds.toFixed(1)} s
+                  </Text>
+                </View>
               </View>
+              <Text style={styles.modalMotivation}>
+                {perfectSession
+                  ? 'Tu progreso se construye sesión a sesión. Buen control.'
+                  : 'Sigue a tu ritmo. Cada sesión cuenta para tu avance.'}
+              </Text>
+            </ScrollView>
+            <View style={styles.modalFooter}>
+              <Pressable
+                style={[styles.modalPrimaryButton, savingSummary && { opacity: 0.7 }]}
+                disabled={savingSummary}
+                onPress={() => {
+                  void handleSessionCompleteViewSummary();
+                }}>
+                <Text style={styles.modalPrimaryButtonText}>
+                  {savingSummary ? 'Guardando…' : 'Ver resumen'}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalSecondaryButton, savingSummary && { opacity: 0.7 }]}
+                disabled={savingSummary}
+                onPress={() => {
+                  void handleSessionCompleteExitToTherapy();
+                }}>
+                <Text style={styles.modalSecondaryButtonText}>Volver a terapia</Text>
+              </Pressable>
             </View>
-            <Text style={styles.modalMotivation}>
-              {perfectSession
-                ? 'Tu progreso se construye sesión a sesión. Buen control.'
-                : 'Sigue a tu ritmo. Cada sesión cuenta para tu avance.'}
-            </Text>
-            <Pressable
-              style={[styles.modalPrimaryButton, savingSummary && { opacity: 0.7 }]}
-              disabled={savingSummary}
-              onPress={() => {
-                void handleCompleteSessionContinue();
-              }}>
-              <Text style={styles.modalPrimaryButtonText}>Continuar</Text>
-            </Pressable>
-            <Pressable
-              style={styles.modalSecondaryButton}
-              onPress={() => {
-                if (summaryKind) {
-                  setSummaryDismissedKind(summaryKind);
-                }
-                if (runnerLevelId) {
-                  repeatCurrentRunnerLevelSession(runnerLevelId);
-                }
-                setAttemptsRuntime([]);
-                restartCurrentSession();
-              }}>
-              <Text style={styles.modalSecondaryButtonText}>Repetir sesión</Text>
-            </Pressable>
           </View>
         </View>
       </Modal>
@@ -1249,43 +1294,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 18,
   },
-  modalCard: {
+  modalCardShell: {
     width: '100%',
-    maxHeight: '92%',
+    maxHeight: '88%',
     borderRadius: wellnessRadii.cardLarge,
     backgroundColor: wellness.card,
     borderWidth: 1,
     borderColor: wellness.border,
-    padding: 20,
+    overflow: 'hidden',
   },
-  modalHero: {
-    alignItems: 'center',
-    marginBottom: 14,
+  modalScroll: {
+    flexGrow: 0,
+    flexShrink: 1,
   },
-  modalHeroIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: wellness.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
+  modalScrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 8,
   },
-  modalHeroIconText: {
-    color: '#FFFFFF',
-    fontSize: 26,
-    fontWeight: '800',
-  },
-  modalHeroTitle: {
-    color: wellness.text,
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  modalHeroSubtitle: {
-    marginTop: 4,
-    color: wellness.textSecondary,
-    fontSize: 15,
-    fontWeight: '600',
+  modalFooter: {
+    flexShrink: 0,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 18,
+    borderTopWidth: 1,
+    borderTopColor: wellness.border,
+    backgroundColor: wellness.card,
   },
   modalTitle: {
     color: wellness.textSecondary,
@@ -1425,7 +1459,7 @@ const styles = StyleSheet.create({
     color: wellness.text,
     fontSize: 15,
     marginTop: 6,
-    marginBottom: 16,
+    marginBottom: 4,
     fontWeight: '600',
     lineHeight: 22,
   },
@@ -1433,7 +1467,7 @@ const styles = StyleSheet.create({
     backgroundColor: wellness.primary,
     paddingVertical: 14,
     borderRadius: wellnessRadii.pill,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   modalPrimaryButtonText: {
     color: '#FFFFFF',

@@ -65,7 +65,7 @@ const LEVEL_DIFFICULTY: Record<RunnerGameLevelId, LevelDifficultyConfig> = {
   'level-1': {
     targetVolumeMultiplier: 1.0,
     requiredHoldMs: LEVEL_ONE_OFFICIAL_EVAL_MS,
-    restMs: 10000,
+    restMs: 5000,
     repetitionsPerSession: 10,
     sessionsToCompleteLevel: 6,
     description: 'Respiración guiada inicial',
@@ -73,7 +73,7 @@ const LEVEL_DIFFICULTY: Record<RunnerGameLevelId, LevelDifficultyConfig> = {
   'level-2': {
     targetVolumeMultiplier: 1.05,
     requiredHoldMs: LEVEL_ONE_OFFICIAL_EVAL_MS,
-    restMs: 10000,
+    restMs: 5000,
     repetitionsPerSession: 10,
     sessionsToCompleteLevel: 6,
     description: 'Control del volumen',
@@ -81,7 +81,7 @@ const LEVEL_DIFFICULTY: Record<RunnerGameLevelId, LevelDifficultyConfig> = {
   'level-3': {
     targetVolumeMultiplier: 1.1,
     requiredHoldMs: LEVEL_ONE_OFFICIAL_EVAL_MS,
-    restMs: 10000,
+    restMs: 5000,
     repetitionsPerSession: 10,
     sessionsToCompleteLevel: 6,
     description: 'Sostén respiratorio',
@@ -89,7 +89,7 @@ const LEVEL_DIFFICULTY: Record<RunnerGameLevelId, LevelDifficultyConfig> = {
   'level-4': {
     targetVolumeMultiplier: 1.15,
     requiredHoldMs: LEVEL_ONE_OFFICIAL_EVAL_MS,
-    restMs: 10000,
+    restMs: 5000,
     repetitionsPerSession: 10,
     sessionsToCompleteLevel: 6,
     description: 'Precisión y constancia',
@@ -97,7 +97,7 @@ const LEVEL_DIFFICULTY: Record<RunnerGameLevelId, LevelDifficultyConfig> = {
   'level-5': {
     targetVolumeMultiplier: 1.2,
     requiredHoldMs: LEVEL_ONE_OFFICIAL_EVAL_MS,
-    restMs: 10000,
+    restMs: 5000,
     repetitionsPerSession: 10,
     sessionsToCompleteLevel: 6,
     description: 'Dominio avanzado',

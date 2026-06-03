@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
@@ -65,13 +66,12 @@ export function resolveRunnerInstruction(params: {
     inhaleSoftHintVisible,
     attemptFeedback,
     holdSecondsRemaining,
-    prepSecondsRemaining,
   } = params;
 
   if (phase === 'preparing') {
     return {
       phaseLabel: 'Prepárate',
-      instructionText: `Comienza en ${prepSecondsRemaining} s`,
+      instructionText: 'Respira con calma',
       instructionTone: 'special',
     };
   }
@@ -112,7 +112,7 @@ export function resolveRunnerInstruction(params: {
     return { phaseLabel: 'Exhala', instructionText: 'Suelta con calma', instructionTone: 'level' };
   }
   if (phase === 'resting') {
-    return { phaseLabel: 'Descansa', instructionText: 'Prepárate para la siguiente', instructionTone: 'level' };
+    return { phaseLabel: 'Descansa', instructionText: '', instructionTone: 'level' };
   }
   return { phaseLabel: 'Listo', instructionText: '', instructionTone: 'level' };
 }
@@ -250,10 +250,12 @@ export function RunnerGameFeedbackBar({
           <Text style={styles.metricLabel}>Rep. {repetition}/10</Text>
           <View style={styles.repChipsRow}>
             <View style={styles.validChip}>
-              <Text style={styles.validChipText}>✓ {valid}</Text>
+              <Feather name="check-circle" size={13} color={RUNNER_FEEDBACK_COLORS.valid} />
+              <Text style={styles.validChipText}>{valid}</Text>
             </View>
             <View style={styles.failedChip}>
-              <Text style={styles.failedChipText}>✕ {failed}</Text>
+              <Feather name="x-circle" size={13} color={RUNNER_FEEDBACK_COLORS.failed} />
+              <Text style={styles.failedChipText}>{failed}</Text>
             </View>
           </View>
         </View>
@@ -265,6 +267,7 @@ export function RunnerGameFeedbackBar({
               onPress={onPressPause}
               accessibilityRole="button"
               accessibilityLabel="Pausar sesión">
+              <Feather name="pause" size={14} color={wellness.primaryDark} />
               <Text style={styles.pauseBtnText}>Pausar</Text>
             </Pressable>
           </>
@@ -276,50 +279,35 @@ export function RunnerGameFeedbackBar({
       {inRest ? (
         <View style={[styles.restCapsule, { borderColor: accentColor }]}>
           <Text style={[styles.restLabel, { color: accentColor }]}>Descansa</Text>
-          <View style={[styles.restTimerRingOuter, { borderColor: `${accentColor}33` }]}>
+          <View style={[styles.countdownBubble, { borderColor: `${accentColor}44` }]}>
             <View
               style={[
-                styles.restTimerRingTrack,
+                styles.countdownBubbleTrack,
                 {
                   borderColor: accentColor,
-                  opacity: 0.18 + restProgress * 0.55,
+                  opacity: 0.14 + restProgress * 0.4,
                 },
               ]}
             />
-            <View style={[styles.restTimerRing, { borderColor: accentColor }]}>
-              <Text style={[styles.restTimerValue, { color: accentColor }]}>
-                {restSecondsRemaining}
-              </Text>
-              <Text style={styles.restTimerUnit}>s</Text>
-            </View>
+            <Text style={[styles.countdownBig, { color: accentColor }]}>{restSecondsRemaining}</Text>
           </View>
-          <Text style={[styles.restSubline, { color: accentColor }]}>
-            Siguiente intento en {restSecondsRemaining} s
-          </Text>
         </View>
       ) : inPrep ? (
         <Animated.View style={[styles.prepCapsule, { borderColor: prepColor }, prepPulseStyle]}>
           <Text style={[styles.prepLabel, { color: prepColor }]}>Prepárate</Text>
-          <View style={[styles.prepTimerRingOuter, { borderColor: `${prepColor}40` }]}>
+          <View style={[styles.countdownBubble, { borderColor: `${prepColor}50` }]}>
             <View
               style={[
-                styles.prepTimerRingTrack,
+                styles.countdownBubbleTrack,
                 {
                   borderColor: prepColor,
-                  opacity: 0.2 + prepProgress * 0.5,
+                  opacity: 0.18 + prepProgress * 0.45,
                 },
               ]}
             />
-            <View style={[styles.prepTimerRing, { borderColor: prepColor }]}>
-              <Text style={[styles.prepTimerValue, { color: prepColor }]}>
-                {prepSecondsRemaining}
-              </Text>
-              <Text style={styles.prepTimerUnit}>s</Text>
-            </View>
+            <Text style={[styles.countdownBig, { color: prepColor }]}>{prepSecondsRemaining}</Text>
           </View>
-          <Text style={[styles.prepSubline, { color: prepColor }]}>
-            Comienza en {prepSecondsRemaining} s
-          </Text>
+          <Text style={[styles.prepHint, { color: prepColor }]}>Respira con calma</Text>
         </Animated.View>
       ) : (
         <View style={[styles.phaseBlock, { borderColor: accentColor }]}>
@@ -400,32 +388,36 @@ const styles = StyleSheet.create({
   repDotsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 5,
-    paddingHorizontal: 4,
+    gap: 7,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
   repDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
   },
   repDotValid: {
-    backgroundColor: RUNNER_FEEDBACK_COLORS.valid,
-    borderWidth: 1,
-    borderColor: 'rgba(74, 155, 110, 0.45)',
+    backgroundColor: 'rgba(74, 155, 110, 0.88)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(74, 155, 110, 0.35)',
   },
   repDotFailed: {
-    backgroundColor: RUNNER_FEEDBACK_COLORS.failed,
-    borderWidth: 1,
-    borderColor: 'rgba(196, 92, 92, 0.4)',
+    backgroundColor: 'rgba(196, 92, 92, 0.88)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(196, 92, 92, 0.32)',
   },
   repDotPending: {
-    backgroundColor: RUNNER_FEEDBACK_COLORS.pending,
-    borderWidth: 1,
-    borderColor: 'rgba(197, 206, 200, 0.9)',
+    backgroundColor: 'rgba(197, 206, 200, 0.55)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(197, 206, 200, 0.95)',
   },
   validChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: 'rgba(74, 155, 110, 0.14)',
-    borderRadius: 10,
+    borderRadius: 12,
     paddingVertical: 3,
     paddingHorizontal: 8,
     borderWidth: 1,
@@ -437,8 +429,11 @@ const styles = StyleSheet.create({
     color: RUNNER_FEEDBACK_COLORS.valid,
   },
   failedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: 'rgba(196, 92, 92, 0.1)',
-    borderRadius: 10,
+    borderRadius: 12,
     paddingVertical: 3,
     paddingHorizontal: 8,
     borderWidth: 1,
@@ -450,16 +445,19 @@ const styles = StyleSheet.create({
     color: RUNNER_FEEDBACK_COLORS.failed,
   },
   pauseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: 10,
+    borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.95)',
     borderWidth: 1,
     borderColor: wellness.border,
   },
   pauseBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: 10,
+    fontWeight: '700',
     color: wellness.primaryDark,
   },
   phaseBlock: {
@@ -519,43 +517,25 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
-  restTimerRingOuter: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+  countdownBubble: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.92)',
   },
-  restTimerRingTrack: {
+  countdownBubbleTrack: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 36,
+    borderRadius: 48,
     borderWidth: 4,
   },
-  restTimerRing: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    borderWidth: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.9)',
-  },
-  restTimerValue: {
-    fontSize: 24,
+  countdownBig: {
+    fontSize: 48,
     fontWeight: '900',
-    lineHeight: 26,
-  },
-  restTimerUnit: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: wellness.textSecondary,
-    marginTop: -2,
-  },
-  restSubline: {
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+    lineHeight: 52,
+    letterSpacing: -1,
   },
   prepCapsule: {
     alignItems: 'center',
@@ -573,42 +553,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
-  prepTimerRingOuter: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  prepTimerRingTrack: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 36,
-    borderWidth: 4,
-  },
-  prepTimerRing: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    borderWidth: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.92)',
-  },
-  prepTimerValue: {
-    fontSize: 24,
-    fontWeight: '900',
-    lineHeight: 26,
-  },
-  prepTimerUnit: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: wellness.textSecondary,
-    marginTop: -2,
-  },
-  prepSubline: {
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+  prepHint: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.15,
+    opacity: 0.9,
   },
 });

@@ -20,7 +20,7 @@ import type {
   LevelOneSessionProgress,
 } from '@/src/modules/levels/types/level-progress';
 
-const DEFAULT_REST_MS = 10000;
+const DEFAULT_REST_MS = 5000;
 const FAILED_EXHALE_MS = 2100;
 const VALID_EXHALE_MS = 700;
 const MAX_REPS = 10;
