@@ -12,7 +12,7 @@ import { readPatientById } from '@/src/modules/patient/patient-repository';
 import type { CalibrationExportBlock, ClinicalExportSnapshot } from '@/src/modules/export/types/export-record';
 import { getPatientExportData } from '@/src/modules/export/services/session-export-service';
 
-export const CLINICAL_EXPORT_FORMAT_VERSION = '2.3.0';
+export const CLINICAL_EXPORT_FORMAT_VERSION = '2.4.0';
 export const CLINICAL_EXPORT_SCHEMA_VERSION = '1.0.0';
 
 function getAppVersion(): string {

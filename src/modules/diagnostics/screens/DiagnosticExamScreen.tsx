@@ -14,11 +14,16 @@ import {
   resolveDiagnosticInputMode,
 } from '@/src/modules/diagnostics/diagnostic-input-mode';
 import {
-  INVALID_DIAGNOSTIC_VIM_MESSAGE,
-  isValidOfficialDiagnosticVim,
-} from '@/src/modules/diagnostics/diagnostic-vim-validation';
+  buildDiagnosticAttemptRecord,
+  clearDiagnosticEvaluationSession,
+  createDiagnosticEvaluationSession,
+  saveDiagnosticEvaluationSession,
+  type AttemptTrackingSnapshot,
+} from '@/src/modules/diagnostics/diagnostic-evaluation-session-service';
 import { useDiagnosticSensorVolume } from '@/src/modules/diagnostics/use-diagnostic-sensor-volume';
 import { useInitialEvaluationReadiness } from '@/src/modules/diagnostics/use-initial-evaluation-readiness';
+import type { DiagnosticAttemptNumber, DiagnosticEvaluationSession } from '@/src/modules/diagnostics/types';
+import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
@@ -75,8 +80,18 @@ function updateBalloonScale(balloonProgress: Animated.Value, volumeMl: number): 
   }).start();
 }
 
+function createEmptyAttemptTracking(): AttemptTrackingSnapshot {
+  return {
+    peak_volume_ml: 0,
+    had_live_signal: false,
+    live_sample_count: 0,
+    signal_lost_during_attempt: false,
+  };
+}
+
 function resetAttemptTracking(params: {
   maxVolumeRef: { current: number };
+  attemptTrackingRef: { current: AttemptTrackingSnapshot };
   setAttemptOneMax: (v: number) => void;
   setAttemptTwoMax: (v: number) => void;
   setAttemptThreeMax: (v: number) => void;
@@ -87,6 +102,7 @@ function resetAttemptTracking(params: {
   balloonProgress: Animated.Value;
 }): void {
   params.maxVolumeRef.current = 0;
+  params.attemptTrackingRef.current = createEmptyAttemptTracking();
   params.setAttemptOneMax(0);
   params.setAttemptTwoMax(0);
   params.setAttemptThreeMax(0);
@@ -100,6 +116,7 @@ function resetAttemptTracking(params: {
 export function DiagnosticExamScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { patient } = usePatientSession();
   const { inputMode: inputModeParam } = useLocalSearchParams<{ inputMode?: string }>();
   const inputMode = useMemo(() => resolveDiagnosticInputMode(inputModeParam), [inputModeParam]);
   const isTouchPractice = isTouchPracticeDiagnostic(inputMode);
@@ -118,6 +135,9 @@ export function DiagnosticExamScreen() {
   const pressStartedAtRef = useRef<number | null>(null);
   const balloonProgress = useRef(new Animated.Value(0)).current;
   const maxVolumeRef = useRef(0);
+  const attemptTrackingRef = useRef<AttemptTrackingSnapshot>(createEmptyAttemptTracking());
+  const attemptStartedAtRef = useRef<string | null>(null);
+  const evaluationSessionRef = useRef<DiagnosticEvaluationSession | null>(null);
   const isPressingRef = useRef(false);
   const phaseDeadlineRef = useRef(0);
   const timerRafRef = useRef<number | null>(null);
@@ -135,6 +155,17 @@ export function DiagnosticExamScreen() {
       const live = meta?.live ?? true;
       const clamped = Math.max(0, Math.min(MAX_SIMULATED_VOLUME, ml));
       const displayMl = live ? clamped : 0;
+      const tracking = attemptTrackingRef.current;
+
+      if (live) {
+        tracking.had_live_signal = true;
+        tracking.live_sample_count += 1;
+        if (clamped > tracking.peak_volume_ml) {
+          tracking.peak_volume_ml = clamped;
+        }
+      } else if (tracking.had_live_signal) {
+        tracking.signal_lost_during_attempt = true;
+      }
 
       if (live && clamped > maxVolumeRef.current) {
         maxVolumeRef.current = clamped;
@@ -147,32 +178,49 @@ export function DiagnosticExamScreen() {
     [balloonProgress],
   );
 
-  const navigateToRepeatEvaluation = useCallback(() => {
-    router.replace({
-      pathname: '/diagnostico',
-      params: { inputMode: isTouchPractice ? 'touch_practice' : 'sensor' },
-    });
-  }, [isTouchPractice, router]);
+  const appendAttemptToSession = useCallback(
+    async (attemptNumber: DiagnosticAttemptNumber) => {
+      const session = evaluationSessionRef.current;
+      if (!session) return;
+      const endedAt = new Date().toISOString();
+      const startedAt = attemptStartedAtRef.current ?? endedAt;
+      const tracking = { ...attemptTrackingRef.current, peak_volume_ml: maxVolumeRef.current };
+      if (isTouchPractice && tracking.peak_volume_ml > 0) {
+        tracking.had_live_signal = true;
+      }
+      const attempt = buildDiagnosticAttemptRecord({
+        sessionId: session.session_id,
+        patientId: session.patient_id,
+        attemptNumber,
+        inputMode,
+        startedAt,
+        endedAt,
+        tracking,
+      });
+      const others = session.attempts.filter((a) => a.attempt_number !== attemptNumber);
+      const updated: DiagnosticEvaluationSession = {
+        ...session,
+        attempts: [...others, attempt].sort((a, b) => a.attempt_number - b.attempt_number),
+      };
+      evaluationSessionRef.current = updated;
+      await saveDiagnosticEvaluationSession(updated);
+      return attempt;
+    },
+    [inputMode, isTouchPractice],
+  );
 
-  const showInvalidVimAlert = useCallback(() => {
-    Alert.alert('Lectura no válida', INVALID_DIAGNOSTIC_VIM_MESSAGE, [
-      {
-        text: 'Cancelar',
-        style: 'cancel',
-        onPress: () => {
-          phaseTransitionLockRef.current = false;
-          router.replace('/(tabs)');
+  const navigateToSummary = useCallback(
+    (sessionId: string) => {
+      router.replace({
+        pathname: '/diagnostico-resumen',
+        params: {
+          evaluationSessionId: sessionId,
+          inputMode,
         },
-      },
-      {
-        text: 'Repetir evaluación',
-        onPress: () => {
-          phaseTransitionLockRef.current = false;
-          navigateToRepeatEvaluation();
-        },
-      },
-    ]);
-  }, [navigateToRepeatEvaluation, router]);
+      });
+    },
+    [inputMode, router],
+  );
 
   const { spirometerLabel, hasLiveReading } = useDiagnosticSensorVolume({
     enabled: !isTouchPractice,
@@ -191,20 +239,33 @@ export function DiagnosticExamScreen() {
   }, []);
 
   const beginFirstAttempt = useCallback(() => {
-    resetAttemptTracking({
-      maxVolumeRef,
-      setAttemptOneMax,
-      setAttemptTwoMax,
-      setAttemptThreeMax,
-      setCurrentVolume,
-      setMaxVolume,
-      setIsPressing,
-      pressStartedAtRef,
-      balloonProgress,
-    });
-    setPhase('attempt-1');
-    armPhaseDeadline(ATTEMPT_MS);
-  }, [armPhaseDeadline, balloonProgress]);
+    void (async () => {
+      const priorSessionId = evaluationSessionRef.current?.session_id;
+      if (priorSessionId) {
+        await clearDiagnosticEvaluationSession(priorSessionId);
+      }
+      const session = await createDiagnosticEvaluationSession({
+        inputMode,
+        patientId: patient?.paciente_id ?? null,
+      });
+      evaluationSessionRef.current = session;
+      resetAttemptTracking({
+        maxVolumeRef,
+        attemptTrackingRef,
+        setAttemptOneMax,
+        setAttemptTwoMax,
+        setAttemptThreeMax,
+        setCurrentVolume,
+        setMaxVolume,
+        setIsPressing,
+        pressStartedAtRef,
+        balloonProgress,
+      });
+      attemptStartedAtRef.current = new Date().toISOString();
+      setPhase('attempt-1');
+      armPhaseDeadline(ATTEMPT_MS);
+    })();
+  }, [armPhaseDeadline, balloonProgress, inputMode, patient?.paciente_id]);
 
   const confirmCancelEvaluation = useCallback(() => {
     Alert.alert(
@@ -216,6 +277,11 @@ export function DiagnosticExamScreen() {
           text: 'Cancelar evaluación',
           style: 'destructive',
           onPress: () => {
+            const sessionId = evaluationSessionRef.current?.session_id;
+            if (sessionId) {
+              void clearDiagnosticEvaluationSession(sessionId);
+            }
+            evaluationSessionRef.current = null;
             if (router.canGoBack()) {
               router.back();
             } else {
@@ -325,86 +391,80 @@ export function DiagnosticExamScreen() {
     if (phaseTransitionLockRef.current) return;
     phaseTransitionLockRef.current = true;
 
-    if (phase === 'attempt-1') {
-      const first = maxVolumeRef.current;
-      setAttemptOneMax(first);
-      setCurrentVolume(first);
-      setMaxVolume(first);
+    const finishAttemptPhase = async (
+      attemptNumber: DiagnosticAttemptNumber,
+      setAttemptMax: (v: number) => void,
+    ) => {
+      const peak = maxVolumeRef.current;
+      setAttemptMax(peak);
+      setCurrentVolume(peak);
+      setMaxVolume(peak);
       setIsPressing(false);
       pressStartedAtRef.current = null;
-      setPhase('rest');
-      armPhaseDeadline(REST_MS);
+      await appendAttemptToSession(attemptNumber);
+    };
+
+    const startNextAttempt = (nextPhase: 'attempt-2' | 'attempt-3') => {
+      maxVolumeRef.current = 0;
+      attemptTrackingRef.current = createEmptyAttemptTracking();
+      attemptStartedAtRef.current = new Date().toISOString();
+      setCurrentVolume(0);
+      setMaxVolume(0);
+      updateBalloonScale(balloonProgress, 0);
+      setPhase(nextPhase);
+      armPhaseDeadline(ATTEMPT_MS);
+    };
+
+    if (phase === 'attempt-1') {
+      void finishAttemptPhase(1, setAttemptOneMax).then(() => {
+        setPhase('rest');
+        armPhaseDeadline(REST_MS);
+        phaseTransitionLockRef.current = false;
+      });
       return;
     }
 
     if (phase === 'rest') {
-      maxVolumeRef.current = 0;
-      setCurrentVolume(0);
-      setMaxVolume(0);
-      updateBalloonScale(balloonProgress, 0);
-      setPhase('attempt-2');
-      armPhaseDeadline(ATTEMPT_MS);
+      startNextAttempt('attempt-2');
+      phaseTransitionLockRef.current = false;
       return;
     }
 
     if (phase === 'attempt-2') {
-      const second = maxVolumeRef.current;
-      setAttemptTwoMax(second);
-      setCurrentVolume(second);
-      setMaxVolume(second);
-      setIsPressing(false);
-      pressStartedAtRef.current = null;
-      maxVolumeRef.current = 0;
-      setCurrentVolume(0);
-      setMaxVolume(0);
-      updateBalloonScale(balloonProgress, 0);
-      setPhase('rest-2');
-      armPhaseDeadline(REST_MS);
+      void finishAttemptPhase(2, setAttemptTwoMax).then(() => {
+        maxVolumeRef.current = 0;
+        setCurrentVolume(0);
+        setMaxVolume(0);
+        updateBalloonScale(balloonProgress, 0);
+        setPhase('rest-2');
+        armPhaseDeadline(REST_MS);
+        phaseTransitionLockRef.current = false;
+      });
       return;
     }
 
     if (phase === 'rest-2') {
-      maxVolumeRef.current = 0;
-      setCurrentVolume(0);
-      setMaxVolume(0);
-      updateBalloonScale(balloonProgress, 0);
-      setPhase('attempt-3');
-      armPhaseDeadline(ATTEMPT_MS);
+      startNextAttempt('attempt-3');
+      phaseTransitionLockRef.current = false;
       return;
     }
 
     if (phase === 'attempt-3') {
-      const third = maxVolumeRef.current;
-      const finalVim = Math.max(attemptOneMax, attemptTwoMax, third);
-      setAttemptThreeMax(third);
-
-      const attemptMaxes = [attemptOneMax, attemptTwoMax, third];
-      if (isTouchPractice || isValidOfficialDiagnosticVim(finalVim, attemptMaxes)) {
-        router.replace({
-          pathname: '/diagnostico-resumen',
-          params: {
-            attempt1: String(attemptOneMax),
-            attempt2: String(attemptTwoMax),
-            attempt3: String(third),
-            vim: String(finalVim),
-            inputMode,
-          },
-        });
-        return;
-      }
-
-      showInvalidVimAlert();
+      void finishAttemptPhase(3, setAttemptThreeMax).then(() => {
+        const sessionId = evaluationSessionRef.current?.session_id;
+        if (sessionId) {
+          navigateToSummary(sessionId);
+        } else {
+          phaseTransitionLockRef.current = false;
+        }
+      });
     }
   }, [
+    appendAttemptToSession,
     armPhaseDeadline,
-    attemptOneMax,
-    attemptTwoMax,
     balloonProgress,
-    inputMode,
+    navigateToSummary,
     phase,
-    isTouchPractice,
-    router,
-    showInvalidVimAlert,
     timeLeftMs,
   ]);
 

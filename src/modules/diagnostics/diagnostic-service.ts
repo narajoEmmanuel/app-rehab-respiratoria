@@ -10,7 +10,15 @@ import {
   writeAllDiagnostics,
   writeAllPatientLevels,
 } from './diagnostic-repository';
-import type { DiagnosticRecord, PatientLevelRecord } from './types';
+import { VIM_SOURCE } from './diagnostic-evaluation-session-service';
+import type { DiagnosticInputMode } from './diagnostic-input-mode';
+import type {
+  DiagnosticAttemptRecord,
+  DiagnosticConsistencySummary,
+  DiagnosticRecord,
+  DiagnosticVimSource,
+  PatientLevelRecord,
+} from './types';
 
 const LEVEL_FACTORS: { levelId: LevelId; factor: number }[] = [
   { levelId: 'level-1', factor: 0.5 },
@@ -58,7 +66,20 @@ export async function getLatestDiagnostic(patientId: number): Promise<Diagnostic
   return patientDiagnostics[0] ?? null;
 }
 
-export async function createDiagnostic(patientId: number, vim: number): Promise<DiagnosticRecord> {
+export type PersistOfficialDiagnosticPayload = {
+  vim: number;
+  attempts: DiagnosticAttemptRecord[];
+  validAttemptsCount: number;
+  consistencySummary: DiagnosticConsistencySummary | null;
+  inputMode: DiagnosticInputMode;
+  vimSource?: DiagnosticVimSource;
+};
+
+export async function createDiagnostic(
+  patientId: number,
+  payload: PersistOfficialDiagnosticPayload,
+): Promise<DiagnosticRecord> {
+  const { vim, attempts, validAttemptsCount, consistencySummary, inputMode } = payload;
   const diagnostics = await readAllDiagnostics();
   const nextDiagnosticId =
     diagnostics.length === 0 ? 1 : Math.max(...diagnostics.map((item) => item.diagnostic_id)) + 1;
@@ -66,12 +87,24 @@ export async function createDiagnostic(patientId: number, vim: number): Promise<
     .filter((item) => item.patient_id === patientId)
     .sort((a, b) => b.diagnostic_number - a.diagnostic_number)[0];
 
+  const diagnosticId = nextDiagnosticId;
+  const attemptsWithDiagnosticId: DiagnosticAttemptRecord[] = attempts.map((attempt) => ({
+    ...attempt,
+    diagnostic_id: diagnosticId,
+    patient_id: patientId,
+  }));
+
   const created: DiagnosticRecord = {
-    diagnostic_id: nextDiagnosticId,
+    diagnostic_id: diagnosticId,
     patient_id: patientId,
     diagnostic_number: (latest?.diagnostic_number ?? 0) + 1,
     diagnostic_date: new Date().toISOString(),
     max_inspiratory_volume: Math.round(vim),
+    attempts: attemptsWithDiagnosticId,
+    valid_attempts_count: validAttemptsCount,
+    vim_source: payload.vimSource ?? VIM_SOURCE,
+    consistency_summary: consistencySummary,
+    input_mode: inputMode,
   };
 
   diagnostics.push(created);
@@ -176,15 +209,16 @@ export async function applyDiagnosticVimToPatientLevels(
   return getPatientLevels(patientId);
 }
 
-/** Persiste diagnóstico oficial y propaga VIM a metas (primera vez o repetición). */
+/** Persiste evaluación oficial y propaga VIM a metas (primera vez o repetición). */
 export async function persistOfficialDiagnosticResult(
   patientId: number,
-  vim: number,
+  payload: PersistOfficialDiagnosticPayload,
 ): Promise<{ diagnostic: DiagnosticRecord; levels: PatientLevelRecord[] }> {
-  if (!Number.isFinite(vim) || vim <= 0) {
+  const { vim, validAttemptsCount } = payload;
+  if (!Number.isFinite(vim) || vim <= 0 || validAttemptsCount <= 0) {
     throw new Error('INVALID_DIAGNOSTIC_VIM');
   }
-  const diagnostic = await createDiagnostic(patientId, vim);
+  const diagnostic = await createDiagnostic(patientId, payload);
   const allLevels = await readAllPatientLevels();
   const hasExistingLevels = allLevels.some((row) => row.patient_id === patientId);
   const levels = hasExistingLevels

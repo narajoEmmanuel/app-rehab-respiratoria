@@ -1,9 +1,14 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { loadActiveVolumeEstimationContext } from '@/src/modules/device/volume-estimation/volume-estimation-service';
+import {
+  clearDiagnosticEvaluationSession,
+  getDiagnosticEvaluationSession,
+  resolveEvaluationFromSession,
+} from '@/src/modules/diagnostics/diagnostic-evaluation-session-service';
 import {
   isTouchPracticeDiagnostic,
   parseDiagnosticInputMode,
@@ -15,8 +20,9 @@ import {
 } from '@/src/modules/diagnostics/diagnostic-service';
 import {
   INVALID_DIAGNOSTIC_VIM_MESSAGE,
-  isValidOfficialDiagnosticVim,
+  isValidOfficialDiagnosticFromAttempts,
 } from '@/src/modules/diagnostics/diagnostic-vim-validation';
+import type { DiagnosticAttemptNumber, DiagnosticAttemptRecord } from '@/src/modules/diagnostics/types';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -30,20 +36,77 @@ const LEVEL_FACTOR_LABELS: Record<number, string> = {
   5: '100%',
 };
 
+const ATTEMPT_NUMBERS: DiagnosticAttemptNumber[] = [1, 2, 3];
+
+function attemptPeakForNumber(
+  attempts: { attempt_number: DiagnosticAttemptNumber; peak_volume_ml: number }[],
+  n: DiagnosticAttemptNumber,
+): number {
+  const row = attempts.find((a) => a.attempt_number === n);
+  return Math.max(0, row?.peak_volume_ml ?? 0);
+}
+
 export function DiagnosticSummaryScreen() {
   const router = useRouter();
   const { patient } = usePatientSession();
-  const { vim, attempt1, attempt2, attempt3, inputMode: inputModeParam } = useLocalSearchParams<{
-    vim?: string;
-    attempt1?: string;
-    attempt2?: string;
-    attempt3?: string;
+  const {
+    evaluationSessionId,
+    inputMode: inputModeParam,
+  } = useLocalSearchParams<{
+    evaluationSessionId?: string;
     inputMode?: string;
   }>();
   const inputMode = useMemo(() => parseDiagnosticInputMode(inputModeParam), [inputModeParam]);
   const isTouchPractice = isTouchPracticeDiagnostic(inputMode);
   const [saving, setSaving] = useState(false);
+  const [loadingSession, setLoadingSession] = useState(true);
+  const [sessionMissing, setSessionMissing] = useState(false);
   const [calibratedRangeMaxMl, setCalibratedRangeMaxMl] = useState<number | null>(null);
+  const [attemptPeaks, setAttemptPeaks] = useState<[number, number, number]>([0, 0, 0]);
+  const [vimNumber, setVimNumber] = useState(0);
+  const [consistencyLabel, setConsistencyLabel] = useState<string | null>(null);
+  const [bestAttemptNumber, setBestAttemptNumber] = useState<DiagnosticAttemptNumber | null>(null);
+  const [isOfficialResultValid, setIsOfficialResultValid] = useState(false);
+  const [sessionAttempts, setSessionAttempts] = useState<DiagnosticAttemptRecord[]>([]);
+
+  const loadSession = useCallback(async () => {
+    setLoadingSession(true);
+    setSessionMissing(false);
+    const sessionId = evaluationSessionId?.trim();
+    if (!sessionId) {
+      setSessionMissing(true);
+      setLoadingSession(false);
+      return;
+    }
+    const session = await getDiagnosticEvaluationSession(sessionId);
+    if (!session || session.attempts.length === 0) {
+      setSessionMissing(true);
+      setLoadingSession(false);
+      return;
+    }
+
+    const resolved = resolveEvaluationFromSession(session);
+    const practiceVim = Math.max(0, ...session.attempts.map((a) => a.peak_volume_ml));
+    setSessionAttempts(session.attempts);
+    setAttemptPeaks([
+      attemptPeakForNumber(session.attempts, 1),
+      attemptPeakForNumber(session.attempts, 2),
+      attemptPeakForNumber(session.attempts, 3),
+    ]);
+    setVimNumber(isTouchPractice ? practiceVim : resolved.vim);
+    setConsistencyLabel(resolved.consistencySummary.display_label);
+    setBestAttemptNumber(resolved.bestAttemptNumber);
+    setIsOfficialResultValid(
+      isTouchPractice
+        ? resolved.vim > 0
+        : isValidOfficialDiagnosticFromAttempts(session.attempts, session.input_mode),
+    );
+    setLoadingSession(false);
+  }, [evaluationSessionId, isTouchPractice]);
+
+  useEffect(() => {
+    void loadSession();
+  }, [loadSession]);
 
   useEffect(() => {
     if (isTouchPractice) {
@@ -61,15 +124,6 @@ export function DiagnosticSummaryScreen() {
     };
   }, [isTouchPractice]);
 
-  const attemptOne = Math.max(0, Number(attempt1 ?? 0) || 0);
-  const attemptTwo = Math.max(0, Number(attempt2 ?? 0) || 0);
-  const attemptThree = Math.max(0, Number(attempt3 ?? 0) || 0);
-  const attemptMaxes = useMemo(
-    () => [attemptOne, attemptTwo, attemptThree],
-    [attemptOne, attemptThree, attemptTwo],
-  );
-  const vimNumber = Math.max(0, Number(vim ?? 0) || 0);
-  const isOfficialResultValid = isValidOfficialDiagnosticVim(vimNumber, attemptMaxes);
   const levelTargets = useMemo(
     () => (vimNumber > 0 ? previewDiagnosticLevelTargets(vimNumber) : []),
     [vimNumber],
@@ -79,18 +133,60 @@ export function DiagnosticSummaryScreen() {
     isOfficialResultValid &&
     isDiagnosticHighPerformance(vimNumber, calibratedRangeMaxMl);
 
-  const navigateToRepeatEvaluation = () => {
+  const navigateToRepeatEvaluation = useCallback(() => {
+    const sessionId = evaluationSessionId?.trim();
+    if (sessionId) {
+      void clearDiagnosticEvaluationSession(sessionId);
+    }
     router.replace({
       pathname: '/diagnostico',
       params: { inputMode: isTouchPractice ? 'touch_practice' : 'sensor' },
     });
-  };
+  }, [evaluationSessionId, isTouchPractice, router]);
 
   const onContinueOfficial = async () => {
-    if (!patient || saving || !isOfficialResultValid) return;
+    if (!patient) {
+      Alert.alert(
+        'Sin paciente activo',
+        'Selecciona un paciente antes de guardar la evaluación.',
+      );
+      return;
+    }
+    if (saving || !isOfficialResultValid || sessionAttempts.length === 0) return;
+
+    const sessionId = evaluationSessionId?.trim();
+    const session = sessionId ? await getDiagnosticEvaluationSession(sessionId) : null;
+    if (!session) {
+      Alert.alert('Sesión no encontrada', INVALID_DIAGNOSTIC_VIM_MESSAGE, [
+        { text: 'Repetir evaluación', onPress: navigateToRepeatEvaluation },
+      ]);
+      return;
+    }
+
+    const resolved = resolveEvaluationFromSession(session);
+    if (
+      !isValidOfficialDiagnosticFromAttempts(session.attempts, session.input_mode) ||
+      resolved.vim <= 0
+    ) {
+      Alert.alert('No se pudo guardar', INVALID_DIAGNOSTIC_VIM_MESSAGE, [
+        { text: 'Repetir evaluación', onPress: navigateToRepeatEvaluation },
+      ]);
+      return;
+    }
+
     setSaving(true);
     try {
-      await persistOfficialDiagnosticResult(patient.paciente_id, vimNumber);
+      await persistOfficialDiagnosticResult(patient.paciente_id, {
+        vim: resolved.vim,
+        attempts: session.attempts,
+        validAttemptsCount: resolved.validAttemptsCount,
+        consistencySummary: resolved.consistencySummary,
+        inputMode: session.input_mode,
+        vimSource: resolved.vimSource,
+      });
+      if (sessionId) {
+        await clearDiagnosticEvaluationSession(sessionId);
+      }
       router.replace('/(tabs)/terapia');
     } catch {
       Alert.alert('No se pudo guardar', INVALID_DIAGNOSTIC_VIM_MESSAGE, [
@@ -102,8 +198,49 @@ export function DiagnosticSummaryScreen() {
   };
 
   const onExitPractice = () => {
+    const sessionId = evaluationSessionId?.trim();
+    if (sessionId) {
+      void clearDiagnosticEvaluationSession(sessionId);
+    }
     router.replace('/(tabs)');
   };
+
+  if (loadingSession) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <AppTopBar
+          showBackButton
+          backFallbackHref="/(tabs)/index"
+          onPressProfile={() => router.push('/profile')}
+        />
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={wellness.primary} />
+          <Text style={styles.loadingText}>Preparando resumen…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (sessionMissing) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <AppTopBar
+          showBackButton
+          backFallbackHref="/(tabs)/index"
+          onPressProfile={() => router.push('/profile')}
+        />
+        <View style={styles.loadingWrap}>
+          <Text style={styles.missingTitle}>No se encontró la sesión de evaluación</Text>
+          <Text style={styles.missingText}>
+            Vuelve a realizar la evaluación para ver tus resultados.
+          </Text>
+          <Pressable style={styles.primaryBtn} onPress={navigateToRepeatEvaluation}>
+            <Text style={styles.primaryBtnText}>Repetir evaluación</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -164,26 +301,39 @@ export function DiagnosticSummaryScreen() {
         ) : null}
 
         <View style={styles.resultsCard}>
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Intento 1</Text>
-            <Text style={styles.resultValue}>{Math.round(attemptOne)} mL</Text>
-          </View>
-          <View style={styles.resultDivider} />
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Intento 2</Text>
-            <Text style={styles.resultValue}>{Math.round(attemptTwo)} mL</Text>
-          </View>
-          <View style={styles.resultDivider} />
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Intento 3</Text>
-            <Text style={styles.resultValue}>{Math.round(attemptThree)} mL</Text>
-          </View>
+          {ATTEMPT_NUMBERS.map((attemptNumber, index) => {
+            const peak = attemptPeaks[index] ?? 0;
+            const isBest =
+              bestAttemptNumber === attemptNumber && isOfficialResultValid && !isTouchPractice;
+            return (
+              <View key={attemptNumber}>
+                {index > 0 ? <View style={styles.resultDivider} /> : null}
+                <View style={[styles.resultRow, isBest && styles.resultRowBest]}>
+                  <View style={styles.resultLabelWrap}>
+                    <Text style={styles.resultLabel}>Intento {attemptNumber}</Text>
+                    {isBest ? <Text style={styles.bestBadge}>Mejor intento</Text> : null}
+                  </View>
+                  <Text style={[styles.resultValue, isBest && styles.resultValueBest]}>
+                    {Math.round(peak)} mL
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
           <View style={styles.finalVimWrap}>
             <Text style={styles.finalVimLabel}>
               Volumen de referencia {isTouchPractice ? '(simulado)' : ''}
             </Text>
             <Text style={styles.finalVimValue}>{Math.round(vimNumber)} mL</Text>
           </View>
+          {!isTouchPractice && consistencyLabel ? (
+            <View style={styles.consistencyWrap}>
+              <Text style={styles.consistencyLabel}>{consistencyLabel}</Text>
+              <Text style={styles.consistencyHint}>
+                Indicador técnico de estabilidad entre intentos válidos.
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         {!isTouchPractice && isOfficialResultValid && levelTargets.length > 0 ? (
@@ -239,6 +389,31 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: wellness.screenBg,
     paddingBottom: wellnessFloatingTabBarInset,
+  },
+  loadingWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+  },
+  loadingText: {
+    fontSize: 15,
+    color: wellness.textSecondary,
+    fontWeight: '600',
+  },
+  missingTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: wellness.text,
+    textAlign: 'center',
+  },
+  missingText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: wellness.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.md,
   },
   container: {
     flexGrow: 1,
@@ -339,16 +514,39 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: 2,
+  },
+  resultRowBest: {
+    backgroundColor: 'rgba(52, 171, 165, 0.06)',
+    marginHorizontal: -spacing.xs,
+    paddingHorizontal: spacing.xs,
+    borderRadius: wellnessRadii.card,
+  },
+  resultLabelWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    flex: 1,
   },
   resultLabel: {
     fontSize: 16,
     color: wellness.textSecondary,
     fontWeight: '600',
   },
+  bestBadge: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+    textTransform: 'uppercase',
+    letterSpacing: 0.2,
+  },
   resultValue: {
     fontSize: 24,
     fontWeight: '800',
     color: wellness.text,
+  },
+  resultValueBest: {
+    color: wellness.primaryDark,
   },
   resultDivider: {
     height: 1,
@@ -376,6 +574,23 @@ const styles = StyleSheet.create({
     lineHeight: 40,
     fontWeight: '800',
     color: wellness.primaryDark,
+  },
+  consistencyWrap: {
+    marginTop: spacing.md,
+    alignItems: 'center',
+    gap: 4,
+  },
+  consistencyLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: wellness.text,
+  },
+  consistencyHint: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: wellness.textSecondary,
+    textAlign: 'center',
+    paddingHorizontal: spacing.sm,
   },
   levelGoalsCard: {
     borderRadius: wellnessRadii.cardLarge,

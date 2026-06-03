@@ -7,6 +7,7 @@
 import { LEVEL1_DAILY_GOAL } from '@/src/modules/history/services/history-aggregates';
 import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
 import type { ClinicalExportSnapshot } from '@/src/modules/export/types/export-record';
+import type { DiagnosticRecord } from '@/src/modules/diagnostics/types';
 import {
   attemptClassificationExportFields,
   classificationExportFields,
@@ -40,6 +41,51 @@ function latestVimMl(snapshot: ClinicalExportSnapshot): string {
     (a, b) => Date.parse(b.diagnostic_date) - Date.parse(a.diagnostic_date),
   );
   return String(sorted[0]?.max_inspiratory_volume ?? '');
+}
+
+function diagnosticBestAttemptMl(diagnostic: DiagnosticRecord): string {
+  const attempts = diagnostic.attempts;
+  if (!attempts || attempts.length === 0) {
+    return String(diagnostic.max_inspiratory_volume);
+  }
+  const peaks = attempts.map((a) => a.peak_volume_ml).filter((v) => v > 0);
+  if (peaks.length === 0) return String(diagnostic.max_inspiratory_volume);
+  return String(Math.max(...peaks));
+}
+
+function diagnosticAttemptsJson(diagnostic: DiagnosticRecord): string {
+  if (!diagnostic.attempts || diagnostic.attempts.length === 0) return '';
+  try {
+    return JSON.stringify(
+      diagnostic.attempts.map((a) => ({
+        attempt_number: a.attempt_number,
+        peak_volume_ml: a.peak_volume_ml,
+        valid: a.valid,
+        had_live_signal: a.had_live_signal,
+        signal_lost_during_attempt: a.signal_lost_during_attempt,
+      })),
+    );
+  } catch {
+    return '';
+  }
+}
+
+function fillDiagnosticExportFields(
+  row: Record<(typeof HEADER)[number], string>,
+  diagnostic: DiagnosticRecord,
+): void {
+  row.diagnostic_attempts_json = diagnosticAttemptsJson(diagnostic);
+  row.diagnostic_valid_attempts_count =
+    diagnostic.valid_attempts_count != null
+      ? String(diagnostic.valid_attempts_count)
+      : '';
+  row.diagnostic_consistency_label =
+    diagnostic.consistency_summary?.display_label ?? '';
+  row.diagnostic_consistency_cv_percent =
+    diagnostic.consistency_summary?.coefficient_of_variation_percent != null
+      ? String(diagnostic.consistency_summary.coefficient_of_variation_percent)
+      : '';
+  row.diagnostic_best_attempt_ml = diagnosticBestAttemptMl(diagnostic);
 }
 
 /** Max hold duration (s) from attempts only — internal aggregation. */
@@ -137,6 +183,11 @@ const HEADER: readonly string[] = [
   'sensor_confidence_label',
   'sensor_volume_reached_conservatively',
   'sensor_attempt_status',
+  'diagnostic_attempts_json',
+  'diagnostic_valid_attempts_count',
+  'diagnostic_consistency_label',
+  'diagnostic_consistency_cv_percent',
+  'diagnostic_best_attempt_ml',
 ] as const;
 
 function isTherapeuticExportSession(session: SessionRecord): boolean {
@@ -210,6 +261,22 @@ export function buildClinicalReportCsv(snapshot: ClinicalExportSnapshot): string
   const patientName = p?.nombre_completo != null ? normalizePatientDisplayName(p.nombre_completo) : '';
   const age = p != null ? String(p.edad) : '';
   const vimActual = latestVimMl(snapshot);
+
+  const sortedDiagnostics = [...snapshot.diagnostics].sort(
+    (a, b) => Date.parse(a.diagnostic_date) - Date.parse(b.diagnostic_date),
+  );
+  for (const diagnostic of sortedDiagnostics) {
+    const dr = emptyRow();
+    dr.row_type = 'diagnostic_summary';
+    dr.patient_code = patientCode;
+    dr.patient_name = patientName;
+    dr.age = age;
+    dr.vim_actual = String(diagnostic.max_inspiratory_volume);
+    dr.fecha = sessionRecordLocalDayKey(diagnostic.diagnostic_date) ?? '';
+    dr.hora = horaLocalDesdeIso(diagnostic.diagnostic_date);
+    fillDiagnosticExportFields(dr, diagnostic);
+    lines.push(rowToCsvLine(dr));
+  }
 
   const sessionItems = snapshot.sessions;
   const dayIndex = computeSessionIndexByDay(sessionItems);
