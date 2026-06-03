@@ -86,6 +86,19 @@ CSV/JSON con R², U95, pendiente, intercepto y curvas de referencia: disponible 
 
 - [README técnico del CSV de calibración](README-csv-tecnico-calibracion.md) — diccionario de datos, unidades, métricas y limitaciones (formato APA 7).
 
+### Qué datos de puntos incluye el CSV
+
+El mismo archivo CSV (esquema 2.4.0) puede contener **distinto nivel de detalle** según desde dónde se exporte:
+
+| Origen | ¿Cada captura individual (p. ej. 5 repeticiones × volumen)? |
+|--------|---------------------------------------------------------------|
+| Calibración **predeterminada oficial** (resumen técnico, `DataExportScreen`, perfil de banco jun. 2026) | **No** — exporta el **modelo ya calculado** (pendiente, intercepto, métricas) y **puntos resumidos** (~8 promedios por volumen o ~9 puntos de curva de referencia). En metadatos compactos, `points_count = 40` indica que el ajuste de banco usó 40 mediciones (8 volúmenes × 5 repeticiones), pero esas 40 filas crudas **no** se vuelcan al CSV desde la app. |
+| **Captura técnica manual** (`SensorCalibrationTechnicalCaptureScreen`) | **Sí** — una fila por cada punto registrado en `profile.points` (cada «Registrar punto» con su repetición, distancia, std, etc.). |
+
+La calibración vigente en producción se ajustó en banco con 40 capturas; los promedios por volumen están en `predefined-calibration-models.ts` (`RESPIRA_3000_CALIBRATED_POINTS`). Para auditoría de las 40 mediciones brutas del banco, conservar el informe original del laboratorio; el CSV de la app certifica el modelo adoptado en el dispositivo (`R3K-20260602-LIN-v2` / `cal-predefined-respira-3000-v20260602`).
+
+Desarrollo completo, ejemplos y tabla comparativa: [README técnico del CSV — Qué puntos incluye](README-csv-tecnico-calibracion.md#puntos-en-csv).
+
 ---
 
 ## Legacy

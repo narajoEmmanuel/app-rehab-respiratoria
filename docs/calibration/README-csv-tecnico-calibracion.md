@@ -112,7 +112,112 @@ flowchart LR
 | Sección compacta | Tabla `# RESPIRA_METADATA_COMPACT` + puntos resumidos (8 columnas) |
 | Sección ancha | `# RESPIRA_LEGACY_WIDE_FORMAT` + cabecera de **146 columnas** + filas de datos |
 
-**Nota metrológica:** En calibración predeterminada oficial, `points_count` en la sección compacta reporta **40** (capturas de banco usadas en el ajuste), mientras que la tabla ancha puede listar **9 puntos** de curva de referencia por tramos (`calibrationCurve`, incluye punto extrapolado a 0 mL). El ID visible `R3K-20260602-LIN-v2` aparece en la sección compacta como `display_calibration_id`, no como columna de la tabla ancha.
+**Nota metrológica:** En calibración predeterminada oficial, `points_count` en la sección compacta reporta **40** (capturas de banco usadas en el ajuste), mientras que la tabla ancha puede listar **9 puntos** de curva de referencia por tramos (`calibrationCurve`, incluye punto extrapolado a 0 mL). El ID visible `R3K-20260602-LIN-v2` aparece en la sección compacta como `display_calibration_id`, no como columna de la tabla ancha. El detalle interpretativo se desarrolla en la sección siguiente.
+
+---
+
+<a id="puntos-en-csv"></a>
+
+## Qué puntos de calibración incluye el CSV
+
+Esta sección responde si el archivo conserva **cada medición individual** (por ejemplo, las cinco repeticiones por volumen) utilizada para ajustar la ecuación, o únicamente **resúmenes y metadatos del modelo ya calculado**. La respuesta depende del **origen del exporte**, no del formato del archivo (el esquema 2.4.0 es el mismo en ambos casos).
+
+### Respuesta resumida
+
+| Origen del exporte | ¿Cada captura individual en el CSV? | Interpretación |
+|--------------------|-------------------------------------|----------------|
+| Calibración **predeterminada oficial** (banco jun. 2026) | **No** | Certificado del modelo vigente + puntos resumidos por volumen/curva |
+| **Captura técnica manual** en pantalla (`profile.points`) | **Sí** (si se registró cada punto) | Registro de auditoría de la sesión de laboratorio |
+
+### Calibración predeterminada oficial — **no** exporta las 40 mediciones crudas
+
+#### Qué ocurrió en banco (fuente del modelo, fuera del CSV)
+
+La ecuación vigente del 2 de junio de 2026 se obtuvo en banco con **40 mediciones**:
+
+- **8** volúmenes de referencia en el espirómetro (500, 750, 1000, 1250, 1500, 2000, 2500, 3000 mL).
+- **5** repeticiones por volumen → 8 × 5 = **40** pares distancia–volumen de referencia.
+
+Con ese conjunto se calcularon pendiente, intercepto, R², MAE, RMSE y error máximo. Esos valores quedan fijados en `predefined-calibration-models.ts` y en el `ActiveCalibrationModel` instalado en el dispositivo; el exportador **no vuelve a leer** un archivo externo de las 40 filas en cada descarga.
+
+#### Qué almacena el perfil predeterminado en la app
+
+El `CalibrationProfile` oficial tiene `points: []` (sin capturas crudas en storage). Para el CSV, `buildCalibrationTechnicalCsv()` toma los puntos desde:
+
+1. **`profile.summaries`** — un promedio de distancia por volumen de referencia (8 niveles en la calibración vigente), o
+2. **`activeModel.calibrationCurve.points`** — curva de referencia por tramos (**9** entradas: punto extrapolado a 0 mL + 8 promedios de banco), según la rama del exportador.
+
+Por tanto, el CSV documenta el **modelo ya validado** y una **representación resumida** de la relación distancia–volumen, no el cuaderno metrológico completo de las 40 repeticiones.
+
+#### Ejemplo conceptual (volumen 500 mL)
+
+| Etapa | Contenido |
+|-------|-----------|
+| Banco | 5 lecturas de distancia distintas al marcar 500 mL |
+| Perfil en app | Un valor resumido (p. ej. 37,27 mm promedio en constantes de banco) |
+| Tabla ancha del CSV | **Una fila** (o una entrada en la tabla compacta) con ese promedio, no cinco filas |
+
+Lo mismo aplica, en bloque, a los demás volúmenes calibrados: el CSV refleja **niveles de volumen**, no **cada repetición** dentro del nivel.
+
+#### Metadatos vs. filas de datos
+
+| Elemento en el archivo | Valor típico (oficial) | Significado |
+|------------------------|------------------------|-------------|
+| `points_count` (sección compacta) | **40** | Trazabilidad: el ajuste de banco usó 40 capturas |
+| Filas en tabla ancha | **~8–9** | Puntos resumidos o de curva de referencia exportable |
+| `slope`, `intercept`, `r_squared`, `mae_ml`, … | Coeficientes de banco | Modelo activo, repetido en cada fila de la tabla ancha |
+
+**Conclusión metrológica:** usar `points_count = 40` para citar el diseño experimental del banco; usar las filas del CSV para revisar la **curva resumida** y los residuales calculados con la ecuación vigente, no para reconstruir las 40 mediciones originales desde la app.
+
+#### Pantallas que producen este tipo de exporte
+
+- `CalibrationTechnicalSummaryScreen` («Descargar CSV técnico»).
+- `DataExportScreen` (exportación de calibración activa).
+- `SensorCalibrationTechnicalScreen` (perfil predeterminado cargado).
+
+Implementación: rama `isOfficialPredefined` en `calibration-technical-csv-exporter.ts` (IDs `cal-predefined-respira-3000-v20260602`, `display_calibration_id` en bloque compacto).
+
+### Captura técnica manual — **sí** puede exportar cada punto registrado
+
+#### Condición
+
+Cuando el operador exporta desde **`SensorCalibrationTechnicalCaptureScreen`** («Exportar CSV técnico») tras registrar capturas en vivo, el perfil enviado contiene entradas en **`profile.points`** (`CalibrationCapturePoint`). El exportador recorre ese arreglo y emite **una fila en la tabla ancha por cada punto guardado**.
+
+Requisitos en UI: al menos 2 volúmenes distintos con señal válida y modelo lineal con pendiente e intercepto finitos (`canExportTechnicalCsv`). Opciones: `exportSessionOnly: true` y `technicalContext` con métricas de repetibilidad, cobertura e incertidumbre.
+
+#### Ejemplo conceptual (500 mL, cinco registros)
+
+Si el operador pulsa «Registrar punto» cinco veces a 500 mL, el CSV puede contener **cinco filas** con el mismo `mark_ml` / `target_volume_ml` y `repetition_number` distinto (1…5), cada una con su `avg_distance_mm`, `std_distance_mm`, `samples_count`, etc.
+
+| Fila | `mark_ml` | `repetition_number` | Contenido |
+|------|-----------|---------------------|-----------|
+| 1 | 500 | 1 | Distancia y estadísticas del buffer de esa captura |
+| 2 | 500 | 2 | Segunda repetición |
+| … | 500 | … | … |
+| 5 | 500 | 5 | Quinta repetición |
+
+Esas filas son las evidencias individuales que alimentaron el ajuste lineal **de esa sesión** (calculado en pantalla), no las 40 capturas históricas del banco de junio de 2026.
+
+#### Columnas que suelen completarse solo en este modo
+
+Repetibilidad (`repeatability_*`), cobertura de protocolo (`coverage_*`, `protocol_*`), incertidumbre agregada (`uncertainty_avg_u95_ml`, `uncertainty_u95_ml` por volumen), segmentos (`segments_json`) y advertencias del recomendador (`model_warnings_json`). En el exporte de la calibración predeterminada, la mayoría permanece vacía (véase convención **Téc.** en el diccionario de columnas).
+
+### Tabla comparativa
+
+| Criterio | Predeterminada oficial | Captura técnica manual |
+|----------|------------------------|-------------------------|
+| Fuente de puntos en código | `summaries` / `calibrationCurve` | `profile.points` |
+| ¿40 filas del banco jun. 2026? | No | No (sesión distinta) |
+| ¿Cada repetición por volumen? | No (promedio por nivel) | Sí, si se registró cada una |
+| Ecuación en CSV | Vigente de banco (v20260602) | De la sesión en curso |
+| ID visible en compacta | `R3K-20260602-LIN-v2` | Depende del perfil exportado |
+| Uso documental recomendado | Trazabilidad del modelo en producción | Auditoría de una nueva calibración en laboratorio |
+
+### Implicación para archivo histórico de banco
+
+Si se requiere auditar las **40 mediciones brutas** del evento de banco del 2 de junio de 2026, deben conservarse en el **informe o base de datos original del laboratorio**. El CSV generado por la app en dispositivos con calibración predeterminada instalada **no sustituye** ese archivo; declara el modelo adoptado y los puntos resumidos que la app utiliza para exportación y referencia piecewise.
+
+Para incluir las 40 filas en futuras versiones haría falta extender el exportador (por ejemplo, serializar `RESPIRA_3000_CALIBRATED_POINTS` y repeticiones en un anexo CSV); eso queda fuera del comportamiento actual documentado aquí.
 
 ### Confirmación de alineación con v20260602
 
@@ -420,7 +525,7 @@ Los campos JSON se serializan en una sola celda CSV entre comillas si contienen 
 4. **No es expediente clínico** ni contiene datos identificables del paciente en el export de calibración.  
 5. **`firmware_version` y `device_id`** pueden ir vacíos si el firmware de referencia no los incluye en el JSON.  
 6. La **incertidumbre U95** solo es significativa cuando se ejecutó el pipeline completo de captura técnica.  
-7. Discrepancia **40 puntos (ajuste) vs. filas en tabla ancha (curva resumida)** en calibración predeterminada: documentar ambos al interpretar.
+7. Discrepancia **40 puntos (ajuste de banco) vs. filas en tabla ancha (curva resumida)** en calibración predeterminada: no equivale a exportar cada repetición individual (véase sección *Qué puntos de calibración incluye el CSV*).
 
 ---
 
