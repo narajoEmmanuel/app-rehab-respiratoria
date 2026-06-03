@@ -103,6 +103,8 @@ type LevelOneGameViewProps = {
   repetition: number;
   valid: number;
   failed: number;
+  attemptOutcomes?: (boolean | null)[];
+  restTotalSeconds?: number;
   holdSecondsRemaining: number;
   prepSecondsRemaining: number;
   restSecondsRemaining: number;
@@ -146,6 +148,8 @@ export function LevelOneGameView({
   repetition,
   valid,
   failed,
+  attemptOutcomes = [],
+  restTotalSeconds = 10,
   holdSecondsRemaining,
   prepSecondsRemaining,
   restSecondsRemaining,
@@ -564,11 +568,14 @@ export function LevelOneGameView({
               repetition={repetition}
               valid={valid}
               failed={failed}
+              attemptOutcomes={attemptOutcomes}
               restSecondsRemaining={restSecondsRemaining}
+              restTotalSeconds={restTotalSeconds}
               instructionText={instructionText}
               phaseLabel={phaseLabel}
               instructionTone={instructionTone}
               accentColor={accentColor}
+              attemptFeedback={attemptFeedback}
               inhaleSoftHintVisible={inhaleSoftHintVisible}
               showPauseButton={sessionActive && Boolean(onPressPause)}
               onPressPause={onPressPause}

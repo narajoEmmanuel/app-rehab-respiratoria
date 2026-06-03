@@ -162,6 +162,7 @@ export function SessionScreen() {
   const runnerLevelId = isRunnerLevel ? selectedLevelId : null;
   const levelGameplay = runnerLevelId ? getLevelGameplayConfig(runnerLevelId) : undefined;
   const levelDifficulty = getLevelDifficultyConfig(selectedLevelId);
+  const restTotalSeconds = Math.max(1, Math.round(levelDifficulty.restMs / 1000));
   const currentLevelProgress = runnerLevelId
     ? getRunnerLevelProgress(progress, runnerLevelId)
     : progress.levelOne;
@@ -211,6 +212,15 @@ export function SessionScreen() {
   const [celebrationKind, setCelebrationKind] = useState<'advance' | 'journey' | null>(null);
   const [pendingSummarySessionId, setPendingSummarySessionId] = useState<number | null>(null);
   const [pauseModalVisible, setPauseModalVisible] = useState(false);
+  const attemptOutcomes = useMemo(() => {
+    const slots: (boolean | null)[] = Array(TARGET_ATTEMPTS).fill(null);
+    attemptsRuntime.forEach((attempt, index) => {
+      if (index < TARGET_ATTEMPTS) {
+        slots[index] = attempt.valid;
+      }
+    });
+    return slots;
+  }, [attemptsRuntime]);
   const sessionCleanExitRef = useRef(false);
   const stopSessionRef = useRef<() => void>(() => {});
   const sensorInhaleArmedRef = useRef(true);
@@ -1028,6 +1038,8 @@ export function SessionScreen() {
           repetition={currentLevelProgress.currentRepetition}
           valid={validAttempts}
           failed={failedAttempts}
+          attemptOutcomes={attemptOutcomes}
+          restTotalSeconds={restTotalSeconds}
           holdSecondsRemaining={levelOneEngine.holdSecondsRemaining}
           prepSecondsRemaining={levelOneEngine.prepSecondsRemaining}
           restSecondsRemaining={levelOneEngine.restSecondsRemaining}
