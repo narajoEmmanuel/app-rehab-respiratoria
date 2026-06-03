@@ -84,6 +84,8 @@ No se inicia un segundo WebSocket en terapia; se reutiliza `useActiveVolumeEstim
 
 CSV/JSON con R², U95, pendiente, intercepto y curvas de referencia: disponible en modo técnico/debug. **No forma parte del flujo paciente.**
 
+- [README técnico del CSV de calibración](README-csv-tecnico-calibracion.md) — diccionario de datos, unidades, métricas y limitaciones (formato APA 7).
+
 ---
 
 ## Legacy
