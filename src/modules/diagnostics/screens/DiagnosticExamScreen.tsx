@@ -459,22 +459,15 @@ export function DiagnosticExamScreen() {
 
   if (phase === 'welcome') {
     return (
-      <SafeAreaView style={styles.welcomeSafe} edges={['top']}>
-        <AppTopBar
-          showBackButton
-          backFallbackHref="/(tabs)/index"
-          onPressBack={handleBack}
-          onPressProfile={() => router.push('/profile')}
-        />
-        <InitialEvaluationWelcomeView
-          canStart={canShowStartButton}
-          loading={!isTouchPractice && readiness.loading}
-          statusMessage={readiness.statusMessage}
-          spirometerLabel={liveLabel}
-          onStart={handleStartEvaluation}
-          onGoToSensor={() => router.push('/sensor-connection')}
-        />
-      </SafeAreaView>
+      <InitialEvaluationWelcomeView
+        canStart={canShowStartButton}
+        loading={!isTouchPractice && readiness.loading}
+        statusMessage={readiness.statusMessage}
+        spirometerLabel={liveLabel}
+        onStart={handleStartEvaluation}
+        onGoToSensor={() => router.push('/sensor-connection')}
+        onBack={handleBack}
+      />
     );
   }
 
