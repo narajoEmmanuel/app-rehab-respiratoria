@@ -28,14 +28,13 @@ import {
   isRunnerGameLevel,
   type LevelId,
 } from '@/src/modules/levels/types/level-progress';
-import { getLevelDifficultyConfig } from '@/src/modules/session/levels/level-difficulty-config';
+import { getLevelDifficultyConfig, getLevelDisplayMeta } from '@/src/modules/session/levels/level-difficulty-config';
 import { getLevelGameplayConfig } from '@/src/modules/session/levels/level-gameplay-config';
 import { resolveSafeLevelTargetVolume } from '@/src/modules/session/levels/level-target-safety';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import {
   computeInspirationNorm,
   evaluateLevelOneAttemptRelease,
-  LEVEL_ONE_ASCENT_MS,
 } from '@/src/modules/session/engine/level-one/level-one-repetition-rules';
 import {
   useLevelOneGame,
@@ -43,10 +42,9 @@ import {
 } from '@/src/modules/session/engine/level-one/use-level-one-game';
 import { useTouchInputAdapter } from '@/src/modules/session/engine/touch/use-touch-input-adapter';
 import { LevelOneGameView } from '@/src/modules/session/games/components/LevelOneGameView';
-import {
-  SessionEstimatedVolumeCard,
-  type SessionDisplayVolumeSource,
-} from '@/src/modules/session/games/components/SessionEstimatedVolumeCard';
+import { LevelAdvanceCelebrationModal } from '@/src/modules/session/games/components/LevelAdvanceCelebrationModal';
+import { AllLevelsCompleteCelebrationModal } from '@/src/modules/session/games/components/AllLevelsCompleteCelebrationModal';
+import type { SessionDisplayVolumeSource } from '@/src/modules/session/games/components/SessionEstimatedVolumeCard';
 import { getLevelById } from '@/src/modules/session/registry/level-registry';
 import {
   buildOfficialValidationFromLevelOneRelease,
@@ -59,15 +57,16 @@ import {
   parseSessionInputMode,
 } from '@/src/modules/session/session-input-mode';
 import { buildSessionResult } from '@/src/modules/session/session-result-factory';
-import { persistSessionResult, TARGET_ATTEMPTS } from '@/src/modules/session/session-progress-service';
+import { persistSessionResult, TARGET_ATTEMPTS, type LevelUnlockResult } from '@/src/modules/session/session-progress-service';
+import { navigateToInitialEvaluation } from '@/src/modules/diagnostics/navigate-to-initial-evaluation';
+import { getLevelVisualIdentity } from '@/src/theme/level-colors';
 import { describeSessionProgress } from '@/src/modules/session/patient-ui/session-progress-copy';
 import type { SessionAttemptResult } from '@/src/modules/session/types/session-result';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 type SessionSummaryKind = 'completed' | 'interrupted' | null;
-/** En práctica, alcanzar la meta antes del countdown de 3 s si mantiene presionado. */
-/** A los 1.5 s de presión el volumen simulado alcanza la meta (antes del sostén 2 s). */
-const PRACTICE_VOLUME_RAMP_MS = LEVEL_ONE_ASCENT_MS;
+/** Ramp de volumen simulado en práctica táctil (sin límite de fallo por tiempo). */
+const PRACTICE_VOLUME_RAMP_MS = 4500;
 /** Umbral mínimo de volumen (mL) para detectar inicio de inspiración con sensor. */
 const SENSOR_INHALE_START_MIN_ML = 60;
 const SENSOR_INHALE_START_TARGET_RATIO = 0.07;
@@ -209,6 +208,8 @@ export function SessionScreen() {
   const [savingSummary, setSavingSummary] = useState(false);
   const [savingInterrupt, setSavingInterrupt] = useState(false);
   const [introAcknowledged, setIntroAcknowledged] = useState(false);
+  const [celebrationKind, setCelebrationKind] = useState<'advance' | 'journey' | null>(null);
+  const [pendingSummarySessionId, setPendingSummarySessionId] = useState<number | null>(null);
   const sessionCleanExitRef = useRef(false);
   const stopSessionRef = useRef<() => void>(() => {});
   const sensorInhaleArmedRef = useRef(true);
@@ -863,6 +864,76 @@ export function SessionScreen() {
   const maxHoldSeconds =
     attemptsRuntime.length > 0 ? Math.max(...attemptsRuntime.map((item) => item.holdMs)) / 1000 : 0;
 
+  const levelVisual = getLevelVisualIdentity(selectedLevelId);
+  const levelDisplayMeta = getLevelDisplayMeta(selectedLevelId);
+
+  const navigateToSessionSummary = (sessionId: number) => {
+    router.replace({
+      pathname: '/(tabs)/resumen',
+      params: { sessionId: String(sessionId) },
+    });
+  };
+
+  const applyUnlockCelebration = (unlock: LevelUnlockResult) => {
+    if (!unlock.unlocked) {
+      setCelebrationKind(null);
+      return;
+    }
+    setCelebrationKind(unlock.journeyComplete ? 'journey' : 'advance');
+  };
+
+  const handleCompleteSessionContinue = async () => {
+    if (!patient || !patientLevelId || savingSummary) return;
+    setSavingSummary(true);
+    try {
+      const trace = calibrationTraceRef.current;
+      const fwTrace = firmwareTraceRef.current;
+      const result = buildSessionResult({
+        patientId: patient.paciente_id,
+        patientLevelId,
+        levelId: selectedLevelId,
+        status: 'completed',
+        validAttempts,
+        invalidAttempts: failedAttempts,
+        attemptsRuntime,
+        inputMode: sessionInputMode,
+        calibrationProfileId: trace.calibrationProfileId,
+        activeModelId: trace.activeModelId,
+        modelKind: trace.modelKind,
+        spirometerDeviceId: trace.spirometerDeviceId,
+        calibrationCreatedAt: trace.calibrationCreatedAt,
+        calibrationUpdatedAt: trace.calibrationUpdatedAt,
+        firmwareVersion: fwTrace.firmwareVersion,
+        deviceId: fwTrace.deviceId,
+        sensorStatus: fwTrace.sensorStatus,
+        sensorFilter: fwTrace.sensorFilter,
+      });
+      const { session: savedSession, unlock } = await persistSessionResult(result);
+      if (!isTouchPractice && runnerLevelId) {
+        finalizeRunnerLevelSession(runnerLevelId);
+      }
+      markSessionCleanExit();
+      levelOneEngine.stopSession();
+      setAttemptsRuntime([]);
+      setSummaryDismissedKind('completed');
+      setPendingSummarySessionId(savedSession.session_id);
+      applyUnlockCelebration(unlock);
+      if (!unlock.unlocked) {
+        navigateToSessionSummary(savedSession.session_id);
+      }
+    } finally {
+      setSavingSummary(false);
+    }
+  };
+
+  const handleCelebrationViewSummary = () => {
+    const sessionId = pendingSummarySessionId;
+    setCelebrationKind(null);
+    if (sessionId != null) {
+      navigateToSessionSummary(sessionId);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {savingInterrupt ? (
@@ -880,11 +951,21 @@ export function SessionScreen() {
         <LevelOneGameView
           introMode={levelOneEngine.phase === 'not-started' && !introAcknowledged}
           onIntroComplete={handleIntroComplete}
+          onIntroExit={() => {
+            abandonSessionAndExit({
+              persistInterruptedToHistory: false,
+              markLevelSlotInterrupted: false,
+              valid: 0,
+              failed: 0,
+              attempts: [],
+            });
+          }}
           holdMs={levelOneEngine.holdMs}
           sustainMs={levelOneEngine.sustainMs}
           targetReached={levelOneEngine.targetReached}
           obstacleActive={levelOneEngine.obstacleActive}
-          holdPrepSecondsRemaining={levelOneEngine.holdPrepSecondsRemaining}
+          metaJustReached={levelOneEngine.metaJustReached}
+          inhaleSoftHintVisible={levelOneEngine.inhaleSoftHintVisible}
           liveCrashSignal={levelOneEngine.liveCrashSignal}
           phase={levelOneEngine.phase}
           session={currentLevelProgress.currentSession}
@@ -896,6 +977,8 @@ export function SessionScreen() {
           restSecondsRemaining={levelOneEngine.restSecondsRemaining}
           attemptFeedback={levelOneEngine.attemptFeedback}
           levelLabel={levelGameplay?.title ?? level.title}
+          levelDisplayName={levelDisplayMeta.humanName}
+          accentColor={levelVisual.accent}
           theme={levelGameplay?.theme ?? level.theme ?? 'forest'}
           obstacleType={levelGameplay?.obstacleType ?? level.obstacleType ?? 'mountain'}
           touchInputEnabled={isTouchPractice}
@@ -940,17 +1023,28 @@ export function SessionScreen() {
           showSensorDebugMetrics={isSensorDebugEnabled()}
           sessionInputMode={sessionInputMode}
           targetVolume={targetVolume}
-          sensorStatusSlot={
-            isTouchPractice ? null : (
-              <SessionEstimatedVolumeCard
-                sessionInputMode={sessionInputMode}
-                status={volumeEstimateStatus}
-                displaySource={sessionDisplaySource}
-              />
-            )
-          }
         />
       </View>
+      <LevelAdvanceCelebrationModal
+        visible={celebrationKind === 'advance'}
+        theme={levelGameplay?.theme ?? level.theme ?? 'forest'}
+        accentColor={levelVisual.accent}
+        onContinue={handleCelebrationViewSummary}
+      />
+      <AllLevelsCompleteCelebrationModal
+        visible={celebrationKind === 'journey'}
+        onGoHome={() => {
+          setCelebrationKind(null);
+          router.replace('/(tabs)');
+        }}
+        onRedoDiagnostic={() => {
+          setCelebrationKind(null);
+          navigateToInitialEvaluation(router);
+        }}
+        onViewSummary={
+          pendingSummarySessionId != null ? handleCelebrationViewSummary : undefined
+        }
+      />
       <Modal
         visible={summaryKind !== null && summaryDismissedKind !== summaryKind}
         transparent
@@ -1027,46 +1121,10 @@ export function SessionScreen() {
             <Pressable
               style={[styles.modalPrimaryButton, savingSummary && { opacity: 0.7 }]}
               disabled={savingSummary}
-              onPress={async () => {
-                if (!patient || !patientLevelId) return;
-                setSavingSummary(true);
-                const trace = calibrationTraceRef.current;
-                const fwTrace = firmwareTraceRef.current;
-                const result = buildSessionResult({
-                  patientId: patient.paciente_id,
-                  patientLevelId,
-                  levelId: selectedLevelId,
-                  status: 'completed',
-                  validAttempts,
-                  invalidAttempts: failedAttempts,
-                  attemptsRuntime,
-                  inputMode: sessionInputMode,
-                  calibrationProfileId: trace.calibrationProfileId,
-                  activeModelId: trace.activeModelId,
-                  modelKind: trace.modelKind,
-                  spirometerDeviceId: trace.spirometerDeviceId,
-                  calibrationCreatedAt: trace.calibrationCreatedAt,
-                  calibrationUpdatedAt: trace.calibrationUpdatedAt,
-                  firmwareVersion: fwTrace.firmwareVersion,
-                  deviceId: fwTrace.deviceId,
-                  sensorStatus: fwTrace.sensorStatus,
-                  sensorFilter: fwTrace.sensorFilter,
-                });
-                const savedSession = await persistSessionResult(result);
-                if (!isTouchPractice && runnerLevelId) {
-                  finalizeRunnerLevelSession(runnerLevelId);
-                }
-                markSessionCleanExit();
-                levelOneEngine.stopSession();
-                setAttemptsRuntime([]);
-                setSummaryDismissedKind('completed');
-                setSavingSummary(false);
-                router.replace({
-                  pathname: '/(tabs)/resumen',
-                  params: { sessionId: String(savedSession.session_id) },
-                });
+              onPress={() => {
+                void handleCompleteSessionContinue();
               }}>
-              <Text style={styles.modalPrimaryButtonText}>Ver resumen</Text>
+              <Text style={styles.modalPrimaryButtonText}>Continuar</Text>
             </Pressable>
             <Pressable
               style={styles.modalSecondaryButton}

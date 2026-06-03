@@ -1,12 +1,14 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { loadActiveVolumeEstimationContext } from '@/src/modules/device/volume-estimation/volume-estimation-service';
 import {
   isTouchPracticeDiagnostic,
   parseDiagnosticInputMode,
 } from '@/src/modules/diagnostics/diagnostic-input-mode';
+import { isDiagnosticHighPerformance } from '@/src/modules/diagnostics/diagnostic-performance-threshold';
 import {
   persistOfficialDiagnosticResult,
   previewDiagnosticLevelTargets,
@@ -41,6 +43,23 @@ export function DiagnosticSummaryScreen() {
   const inputMode = useMemo(() => parseDiagnosticInputMode(inputModeParam), [inputModeParam]);
   const isTouchPractice = isTouchPracticeDiagnostic(inputMode);
   const [saving, setSaving] = useState(false);
+  const [calibratedRangeMaxMl, setCalibratedRangeMaxMl] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (isTouchPractice) {
+      setCalibratedRangeMaxMl(null);
+      return;
+    }
+    let active = true;
+    void loadActiveVolumeEstimationContext().then((loaded) => {
+      if (!active) return;
+      const max = loaded.context.calibratedRangeMl?.max;
+      setCalibratedRangeMaxMl(typeof max === 'number' && Number.isFinite(max) ? max : null);
+    });
+    return () => {
+      active = false;
+    };
+  }, [isTouchPractice]);
 
   const attemptOne = Math.max(0, Number(attempt1 ?? 0) || 0);
   const attemptTwo = Math.max(0, Number(attempt2 ?? 0) || 0);
@@ -55,6 +74,10 @@ export function DiagnosticSummaryScreen() {
     () => (vimNumber > 0 ? previewDiagnosticLevelTargets(vimNumber) : []),
     [vimNumber],
   );
+  const showHighPerformance =
+    !isTouchPractice &&
+    isOfficialResultValid &&
+    isDiagnosticHighPerformance(vimNumber, calibratedRangeMaxMl);
 
   const navigateToRepeatEvaluation = () => {
     router.replace({
@@ -102,6 +125,18 @@ export function DiagnosticSummaryScreen() {
         {!isTouchPractice && !isOfficialResultValid ? (
           <View style={styles.invalidBanner}>
             <Text style={styles.invalidBannerText}>{INVALID_DIAGNOSTIC_VIM_MESSAGE}</Text>
+          </View>
+        ) : null}
+
+        {showHighPerformance ? (
+          <View style={styles.achievementBanner}>
+            <Text style={styles.achievementTitle}>Excelente rendimiento</Text>
+            <Text style={styles.achievementText}>
+              Alcanzaste un volumen muy alto dentro del rango calibrado.
+            </Text>
+            <Text style={styles.achievementText}>
+              Puedes continuar con tu seguimiento respiratorio.
+            </Text>
           </View>
         ) : null}
 
@@ -236,6 +271,26 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: wellness.text,
     fontWeight: '600',
+  },
+  achievementBanner: {
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    borderRadius: wellnessRadii.card,
+    backgroundColor: 'rgba(52, 171, 165, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.35)',
+  },
+  achievementTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+    marginBottom: 6,
+  },
+  achievementText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: wellness.text,
+    fontWeight: '500',
   },
   practiceBanner: {
     marginBottom: spacing.md,

@@ -1,5 +1,5 @@
 /**
- * Motor Nivel 1: ascenso 1.5 s → sostén oficial 2 s (obstáculo) → resultado → descanso.
+ * Motor runner: inspiración libre hasta meta → sostén oficial 2 s (obstáculo) → resultado → descanso.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
@@ -8,7 +8,6 @@ import {
   enterOfficialEvalPhase,
   evaluateLevelOneAttemptComplete,
   evaluateLevelOneAttemptRelease,
-  LEVEL_ONE_ASCENT_MS,
   LEVEL_ONE_OFFICIAL_EVAL_MS,
   type LevelOneAttemptRuntime,
   type LevelOneFailReason,
@@ -84,7 +83,7 @@ export function useLevelOneGame({
 }: UseLevelOneGameParams) {
   const [phase, setPhase] = useState<LevelOnePhase>('not-started');
   const [countdownMs, setCountdownMs] = useState(PREP_MS);
-  const [phaseCountdownMs, setPhaseCountdownMs] = useState(LEVEL_ONE_ASCENT_MS);
+  const [phaseCountdownMs, setPhaseCountdownMs] = useState(0);
   const [holdMs, setHoldMs] = useState(0);
   const [clearMs, setClearMs] = useState(0);
   const [obstacleActive, setObstacleActive] = useState(false);
@@ -92,6 +91,9 @@ export function useLevelOneGame({
   const [attemptFeedback, setAttemptFeedback] = useState<AttemptFeedback>('idle');
   const [lastFailReason, setLastFailReason] = useState<LevelOneFailReason | null>(null);
   const [liveCrashSignal, setLiveCrashSignal] = useState(0);
+  const [inhaleSoftHintVisible, setInhaleSoftHintVisible] = useState(false);
+  const [metaJustReached, setMetaJustReached] = useState(false);
+  const metaJustReachedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const holdStartRef = useRef<number | null>(null);
   const attemptRuntimeRef = useRef<LevelOneAttemptRuntime>(createLevelOneAttemptRuntime());
@@ -127,7 +129,13 @@ export function useLevelOneGame({
     setObstacleActive(false);
     setEverClearedObstacle(false);
     setLastFailReason(null);
-    setPhaseCountdownMs(LEVEL_ONE_ASCENT_MS);
+    setInhaleSoftHintVisible(false);
+    setMetaJustReached(false);
+    if (metaJustReachedTimerRef.current) {
+      clearTimeout(metaJustReachedTimerRef.current);
+      metaJustReachedTimerRef.current = null;
+    }
+    setPhaseCountdownMs(0);
   }, []);
 
   const stopSession = useCallback(() => {
@@ -296,6 +304,15 @@ export function useLevelOneGame({
     setPhase('evaluating');
     setPhaseCountdownMs(officialEvalMs);
     setObstacleActive(true);
+    setMetaJustReached(true);
+    setInhaleSoftHintVisible(false);
+    if (metaJustReachedTimerRef.current) {
+      clearTimeout(metaJustReachedTimerRef.current);
+    }
+    metaJustReachedTimerRef.current = setTimeout(() => {
+      setMetaJustReached(false);
+      metaJustReachedTimerRef.current = null;
+    }, 1200);
   }, [officialEvalMs]);
 
   const runAttemptTick = useCallback(() => {
@@ -313,9 +330,10 @@ export function useLevelOneGame({
     if (runtime.subPhase === 'ascending') {
       const tick = tickLevelOneRepetition(runtime, norm, HOLD_TICK_MS);
       attemptRuntimeRef.current = tick.runtime;
-      setPhaseCountdownMs(
-        Math.max(0, LEVEL_ONE_ASCENT_MS - tick.runtime.subPhaseElapsedMs),
-      );
+
+      if (tick.shouldShowInhaleSoftHint) {
+        setInhaleSoftHintVisible(true);
+      }
 
       if (tick.shouldBeginOfficialEval) {
         beginOfficialEval();
@@ -491,14 +509,14 @@ export function useLevelOneGame({
     restMs,
   ]);
 
-  useEffect(() => () => clearTimers(), [clearTimers]);
+  useEffect(() => () => {
+    clearTimers();
+    if (metaJustReachedTimerRef.current) {
+      clearTimeout(metaJustReachedTimerRef.current);
+    }
+  }, [clearTimers]);
 
   const evalSecondsRemaining = Math.max(0, Math.ceil(phaseCountdownMs / 1000));
-  const ascentMsRemaining =
-    phase === 'inhaling' ? Math.max(0, LEVEL_ONE_ASCENT_MS - holdMs) : 0;
-  const ascentSecondsRemaining =
-    ascentMsRemaining > 0 ? Math.ceil(ascentMsRemaining / 500) / 2 : 0;
-  const holdPrepSecondsRemaining = ascentSecondsRemaining;
   const sustainSecondsRemaining =
     phase === 'evaluating' ? evalSecondsRemaining : 0;
   const restSecondsRemaining = Math.max(0, Math.ceil(countdownMs / 1000));
@@ -515,10 +533,10 @@ export function useLevelOneGame({
     lastFailReason,
     attemptFeedback,
     liveCrashSignal,
+    inhaleSoftHintVisible,
+    metaJustReached,
     currentSessionData,
     holdSecondsRemaining: sustainSecondsRemaining,
-    holdPrepSecondsRemaining,
-    ascentSecondsRemaining,
     sustainSecondsRemaining,
     evalSecondsRemaining,
     restSecondsRemaining,

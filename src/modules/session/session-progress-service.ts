@@ -25,6 +25,20 @@ import { getLocalDateKey } from '@/src/shared/utils/local-date-key';
 const TARGET_ATTEMPTS = 10;
 const TARGET_PERFECT_SESSIONS = 6;
 
+export type LevelUnlockResult = {
+  unlocked: boolean;
+  completedLevelId: LevelId | null;
+  nextLevelId: LevelId | null;
+  journeyComplete: boolean;
+};
+
+const NO_UNLOCK: LevelUnlockResult = {
+  unlocked: false,
+  completedLevelId: null,
+  nextLevelId: null,
+  journeyComplete: false,
+};
+
 function nextLevel(levelId: LevelId): LevelId | null {
   const levels: LevelId[] = ['level-1', 'level-2', 'level-3', 'level-4', 'level-5'];
   const index = levels.indexOf(levelId);
@@ -86,7 +100,12 @@ export async function getSessionDetail(sessionId: number): Promise<SessionDetail
   return { session, attempts };
 }
 
-export async function persistSessionResult(result: SessionResult): Promise<SessionRecord> {
+export type PersistSessionResult = {
+  session: SessionRecord;
+  unlock: LevelUnlockResult;
+};
+
+export async function persistSessionResult(result: SessionResult): Promise<PersistSessionResult> {
   const completed = result.completed;
   const interrupted = completed ? false : result.interrupted;
   const perfect = completed ? result.perfect : false;
@@ -146,13 +165,13 @@ export async function persistSessionResult(result: SessionResult): Promise<Sessi
   }
 
   if (result.isPracticeSession) {
-    return savedSession;
+    return { session: savedSession, unlock: NO_UNLOCK };
   }
 
   await updatePatientLevelProgress(result.patientId, result.patientLevelId);
   await updateDailyProgress(result.patientId);
-  await checkAndUnlockNextLevel(result.patientId, { afterOfficialSessionSave: true });
-  return savedSession;
+  const unlock = await checkAndUnlockNextLevel(result.patientId, { afterOfficialSessionSave: true });
+  return { session: savedSession, unlock };
 }
 
 export async function updateDailyProgress(patientId: number): Promise<{ completedToday: number; remainingToday: number }> {
@@ -221,7 +240,7 @@ export async function checkAndUnlockNextLevel(
   patientId: number,
   /** Sesión recién guardada: el desbloqueo solo debe evaluarse tras persistir una sesión oficial. */
   options?: { afterOfficialSessionSave?: boolean },
-): Promise<void> {
+): Promise<LevelUnlockResult> {
   if (options?.afterOfficialSessionSave !== true) {
     if (__DEV__) {
       console.warn(
@@ -229,7 +248,7 @@ export async function checkAndUnlockNextLevel(
         { patientId },
       );
     }
-    return;
+    return NO_UNLOCK;
   }
 
   /** Solo debe invocarse tras guardar una sesión oficial (persistSessionResult), no al abrir Terapia/Niveles. */
@@ -241,7 +260,7 @@ export async function checkAndUnlockNextLevel(
     if (__DEV__) {
       logLevelUnlockDiagnostics(await buildLevelUnlockDiagnosticSnapshot(patientId));
     }
-    return;
+    return NO_UNLOCK;
   }
 
   const active = levels[activeIndex];
@@ -255,9 +274,10 @@ export async function checkAndUnlockNextLevel(
     if (__DEV__) {
       logLevelUnlockDiagnostics(await buildLevelUnlockDiagnosticSnapshot(patientId));
     }
-    return;
+    return NO_UNLOCK;
   }
 
+  const completedLevelId = active.level_id;
   const nextLevelId = nextLevel(active.level_id);
   levels[activeIndex] = { ...active, level_status: 'completed' };
 
@@ -281,6 +301,13 @@ export async function checkAndUnlockNextLevel(
   if (__DEV__) {
     logLevelUnlockDiagnostics(await buildLevelUnlockDiagnosticSnapshot(patientId));
   }
+
+  return {
+    unlocked: true,
+    completedLevelId,
+    nextLevelId,
+    journeyComplete: nextLevelId === null,
+  };
 }
 
 export { TARGET_ATTEMPTS, TARGET_PERFECT_SESSIONS };

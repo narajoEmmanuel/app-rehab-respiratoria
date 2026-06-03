@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -8,7 +8,6 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   cancelAnimation,
@@ -25,11 +24,14 @@ import Animated, {
 
 import {
   LEVEL_ONE_CLEAR_MIN_NORM,
-  LEVEL_ONE_HOLD_PREP_MS,
   LEVEL_ONE_MAX_INHALE_MS,
   LEVEL_ONE_OBSTACLE_TOP_NORM,
   LEVEL_ONE_OFFICIAL_EVAL_MS,
 } from '@/src/modules/session/engine/level-one/level-one-repetition-rules';
+import {
+  resolveRunnerInstruction,
+  RunnerGameFeedbackBar,
+} from '@/src/modules/session/games/components/RunnerGameFeedbackBar';
 import {
   DesertBackdropCactus,
   DesertGroundSegment,
@@ -63,7 +65,6 @@ import {
 } from '@/src/modules/session/session-input-mode';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
-const REQUIRED_EVAL_MS = LEVEL_ONE_OFFICIAL_EVAL_MS;
 /** Altura mínima de salto (px) y rango adicional hasta la meta de inspiración. */
 const JUMP_BASE_PX = 14;
 const JUMP_RANGE_PX = 90;
@@ -72,9 +73,8 @@ const MAX_JUMP_PX = JUMP_BASE_PX + JUMP_RANGE_PX;
 const GAME_VISUAL_SCALE = 1.26;
 const RABBIT_ANCHOR_BOTTOM = 52;
 const OBSTACLE_TOP_NORM = LEVEL_ONE_OBSTACLE_TOP_NORM;
-/** Duración máxima esperada de una inspiración (subida + prep + eval). */
-const MAX_INSPIRATION_MS =
-  LEVEL_ONE_MAX_INHALE_MS + LEVEL_ONE_HOLD_PREP_MS + LEVEL_ONE_OFFICIAL_EVAL_MS;
+/** Duración máxima esperada de una inspiración (visual touch fallback). */
+const MAX_INSPIRATION_MS = LEVEL_ONE_MAX_INHALE_MS + LEVEL_ONE_OFFICIAL_EVAL_MS;
 /** Ancho de la colina-meta (escala visual). */
 const META_HILL_WIDTH = Math.round(128 * GAME_VISUAL_SCALE);
 /** Altura visual de la colina: base + cima alineada al salto máximo del conejo. */
@@ -127,15 +127,17 @@ type LevelOneGameViewProps = {
   sustainMs?: number;
   targetReached?: boolean;
   obstacleActive?: boolean;
-  holdPrepSecondsRemaining?: number;
   liveCrashSignal?: number;
   levelLabel?: string;
+  levelDisplayName?: string;
+  accentColor?: string;
+  metaJustReached?: boolean;
+  inhaleSoftHintVisible?: boolean;
   theme?: LevelGameTheme;
   obstacleType?: LevelObstacleType;
   introMode?: boolean;
   onIntroComplete?: () => void;
-  /** Chip compacto de estado del sensor; no altera el juego. */
-  sensorStatusSlot?: ReactNode;
+  onIntroExit?: () => void;
 };
 
 export function LevelOneGameView({
@@ -165,14 +167,17 @@ export function LevelOneGameView({
   sustainMs = 0,
   targetReached = false,
   obstacleActive = false,
-  holdPrepSecondsRemaining = 0,
   liveCrashSignal = 0,
   levelLabel = 'Nivel 1',
+  levelDisplayName,
+  accentColor = wellness.primary,
+  metaJustReached = false,
+  inhaleSoftHintVisible = false,
   theme = 'forest',
   obstacleType = 'mountain',
   introMode = false,
   onIntroComplete,
-  sensorStatusSlot,
+  onIntroExit,
 }: LevelOneGameViewProps) {
   const sceneTheme = SCENE_THEME_TOKENS[theme];
   const isDesert = theme === 'desert';
@@ -196,31 +201,29 @@ export function LevelOneGameView({
   const showGoalBarrier = obstacleActive;
   const inEvaluating = phase === 'evaluating';
   const inRest = phase === 'resting';
-  const inFailedFeedback = phase === 'exhale' && attemptFeedback === 'failed';
   const inValidFeedback = phase === 'exhale' && attemptFeedback === 'valid';
   const showGameFeedback = inRest || crashToastVisible || inValidFeedback;
 
-  const status = getStatusText({
-    phase,
-    holdSecondsRemaining,
-    holdPrepSecondsRemaining,
-    prepSecondsRemaining,
-    restSecondsRemaining,
-    attemptFeedback,
-  });
+  const introTitle = levelDisplayName ?? levelLabel;
 
-  const estadoLabel = (() => {
-    if (phase === 'preparing') return 'Prepárate';
-    if (phase === 'ready') return 'Listo';
-    if (phase === 'inhaling') return 'Inspira';
-    if (phase === 'evaluating') return 'Sostén';
-    if (phase === 'resting') return 'Descansa';
-    if (phase === 'exhale') return attemptFeedback === 'failed' ? 'Ajusta' : 'Exhala';
-    return status.primary;
-  })();
+  const { phaseLabel, instructionText } = useMemo(
+    () =>
+      resolveRunnerInstruction({
+        phase,
+        metaJustReached,
+        inhaleSoftHintVisible,
+        attemptFeedback,
+        holdSecondsRemaining,
+      }),
+    [
+      attemptFeedback,
+      holdSecondsRemaining,
+      inhaleSoftHintVisible,
+      metaJustReached,
+      phase,
+    ],
+  );
 
-  const evalProgress =
-    phase === 'evaluating' ? Math.min(1, sustainMs / REQUIRED_EVAL_MS) : 0;
   const playCenterX = layoutW * 0.5;
   const rabbitLeft = Math.max(10, playCenterX - RABBIT_VISUAL_WIDTH_PX * 0.48);
   const metaHillLeft = Math.max(6, playCenterX - META_HILL_WIDTH * 0.36);
@@ -536,31 +539,6 @@ export function LevelOneGameView({
     transform: [{ translateY: metaHillTranslateY.value }],
   }));
 
-  const statusHero = (() => {
-    if (phase === 'preparing') return 'PREPÁRATE';
-    if (phase === 'ready') return 'LISTO';
-    if (phase === 'inhaling') return 'INSPIRA';
-    if (phase === 'evaluating') {
-      if (!rabbitClearsObstacle) return 'SUBE';
-      if (targetReached) {
-        return holdSecondsRemaining > 0
-          ? `META ✓ · ${holdSecondsRemaining}s`
-          : 'META ✓';
-      }
-      return 'SOSTÉN';
-    }
-    if (phase === 'resting') return 'DESCANSA';
-    if (phase === 'exhale') {
-      if (attemptFeedback === 'valid') return 'VÁLIDA';
-      if (attemptFeedback === 'failed') {
-        return crashToastVisible ? '¡UPS!' : 'EXHALA';
-      }
-      return 'EXHALA';
-    }
-    if (phase === 'session-complete') return 'LISTO';
-    return status.primary.toUpperCase();
-  })();
-
   return (
     <View style={styles.root}>
       <LinearGradient
@@ -572,38 +550,23 @@ export function LevelOneGameView({
       <View style={[styles.playfield, { paddingBottom: Math.max(insets.bottom, 10) + 4 }]}>
         {!introMode ? (
           <View style={styles.infoZone}>
-            <HudDashboard
-              levelLabel={levelLabel}
-              session={session}
+            <RunnerGameFeedbackBar
+              phase={phase}
+              displayVolumeMl={displayVolumeMl}
+              targetVolume={targetVolume}
+              volumeHudMessage={volumeHudMessage}
               repetition={repetition}
               valid={valid}
               failed={failed}
-              targetVolume={targetVolume}
-              showPracticeBadge={isTouchPractice}
-              onPause={onPressStop}
-            />
-            {!isTouchPractice && sensorStatusSlot ? sensorStatusSlot : null}
-            <PhaseStatusStrip
-              title={statusHero}
-              secondary={status.secondary}
-              phase={phase}
-              inFailedFeedback={inFailedFeedback}
-              holdPrepSecondsRemaining={holdPrepSecondsRemaining}
-              inEvaluating={inEvaluating}
-              evalProgress={evalProgress}
-              holdSecondsRemaining={holdSecondsRemaining}
-              rabbitClearsObstacle={rabbitClearsObstacle}
-              targetReached={targetReached}
-              estadoLabel={estadoLabel}
+              instructionText={instructionText}
+              phaseLabel={phaseLabel}
+              accentColor={accentColor}
+              inhaleSoftHintVisible={inhaleSoftHintVisible}
             />
           </View>
         ) : (
-          <View style={styles.introHudRow}>
-            <Text style={styles.introHudLevel}>{levelLabel}</Text>
-            <View style={{ flex: 1 }} />
-            <Pressable style={styles.pauseCompact} onPress={onPressStop} accessibilityRole="button">
-              <Text style={styles.pauseCompactText}>Pausar</Text>
-            </Pressable>
+          <View style={styles.introTitleRow}>
+            <Text style={[styles.introLevelTitle, { color: accentColor }]}>{introTitle}</Text>
           </View>
         )}
 
@@ -882,222 +845,40 @@ export function LevelOneGameView({
             <View
               style={[styles.introOverlay, { backgroundColor: sceneTheme.introOverlay }]}
               pointerEvents="box-none">
-              <View style={styles.introCard}>
-                <Text style={styles.introKicker}>Terapia respiratoria</Text>
+              <View style={[styles.introCard, { borderColor: accentColor }]}>
+                <Text style={[styles.introKicker, { color: accentColor }]}>Terapia respiratoria</Text>
                 <Text style={styles.introLine}>
-                  Con <Text style={styles.introStrong}>INSPIRA</Text>, alcanza la meta en 1.5 s.
+                  Con <Text style={[styles.introStrong, { color: accentColor }]}>INSPIRA</Text>, alcanza
+                  la meta de volumen a tu ritmo.
                 </Text>
                 <Text style={styles.introLine}>
-                  Con <Text style={styles.introStrong}>SOSTÉN</Text>, alcanza la meta en 1.5 s y luego
-                  supera el obstáculo 2 s.
+                  Con <Text style={[styles.introStrong, { color: accentColor }]}>SOSTÉN</Text>, mantente
+                  arriba de la meta durante 2 segundos.
                 </Text>
                 <Text style={styles.introLine}>
-                  Con <Text style={styles.introStrong}>DESCANSA</Text>, exhala y prepárate otra vez.
+                  Con <Text style={[styles.introStrong, { color: accentColor }]}>DESCANSA</Text>, exhala y
+                  prepárate otra vez.
                 </Text>
-                <Text style={styles.introLine}>Completa repeticiones válidas para avanzar.</Text>
-                <Pressable style={styles.introCta} onPress={onIntroComplete} accessibilityRole="button">
+                <Text style={styles.introLineMuted}>
+                  Completa repeticiones válidas para avanzar en tu nivel.
+                </Text>
+                <Pressable
+                  style={[styles.introCta, { backgroundColor: accentColor }]}
+                  onPress={onIntroComplete}
+                  accessibilityRole="button">
                   <Text style={styles.introCtaText}>Entendido, comenzar</Text>
                 </Pressable>
+                {onIntroExit ? (
+                  <Pressable style={styles.introExitBtn} onPress={onIntroExit} accessibilityRole="button">
+                    <Text style={styles.introExitBtnText}>Regresar</Text>
+                  </Pressable>
+                ) : null}
               </View>
             </View>
           ) : null}
           </View>
         </View>
-
-        {!introMode ? (
-          <View style={styles.volumeSection}>
-            {touchInputEnabled ? (
-              <Pressable
-                style={styles.volumeBar}
-                onPressIn={onPressIn}
-                onPressOut={onPressOut}
-                accessibilityRole="adjustable"
-                accessibilityLabel={`Volumen de práctica ${Math.round(displayVolumeMl)} mililitros. Modo práctica táctil sin medición del sensor.`}>
-                <Text style={styles.volumeBarLabel}>Volumen de práctica</Text>
-                <View style={styles.volumeBarValueRow}>
-                  <Text style={styles.volumeBarValue}>
-                    {Math.round(displayVolumeMl)}
-                    <Text style={styles.volumeBarUnit}> mL</Text>
-                  </Text>
-                </View>
-              </Pressable>
-            ) : volumeHudMessage ? (
-              <View
-                style={styles.volumeBar}
-                accessibilityRole="text"
-                accessibilityLabel={volumeHudMessage}>
-                <Text style={styles.volumeBarLabel}>Volumen medido</Text>
-                <Text style={styles.volumeBarWaiting}>{volumeHudMessage}</Text>
-              </View>
-            ) : (
-              <View
-                style={styles.volumeBar}
-                accessibilityRole="text"
-                accessibilityLabel={`Volumen medido ${Math.round(displayVolumeMl)} mililitros.`}>
-                <Text style={styles.volumeBarLabel}>Volumen medido</Text>
-                <View style={styles.volumeBarValueRow}>
-                  <Text style={styles.volumeBarValue}>
-                    {Math.round(displayVolumeMl)}
-                    <Text style={styles.volumeBarUnit}> mL</Text>
-                  </Text>
-                  {showSensorDebugMetrics &&
-                  displayU95Ml !== null &&
-                  Number.isFinite(displayU95Ml) ? (
-                    <Text style={styles.volumeBarU95}>±{Math.round(displayU95Ml)} mL</Text>
-                  ) : null}
-                </View>
-                <Text style={styles.volumeBarHint}>
-                  Inspira con el espirómetro · el conejo sigue tu volumen
-                </Text>
-              </View>
-            )}
-          </View>
-        ) : null}
       </View>
-    </View>
-  );
-}
-
-function PhaseStatusStrip({
-  title,
-  secondary,
-  phase,
-  inFailedFeedback,
-  holdPrepSecondsRemaining,
-  inEvaluating,
-  evalProgress,
-  holdSecondsRemaining,
-  rabbitClearsObstacle,
-  targetReached,
-  estadoLabel,
-}: {
-  title: string;
-  secondary: string | null;
-  phase: LevelOnePhase;
-  inFailedFeedback: boolean;
-  holdPrepSecondsRemaining: number;
-  inEvaluating: boolean;
-  evalProgress: number;
-  holdSecondsRemaining: number;
-  rabbitClearsObstacle: boolean;
-  targetReached: boolean;
-  estadoLabel: string;
-}) {
-  return (
-    <View
-      style={styles.phaseStrip}
-      accessibilityRole="text"
-      accessibilityLabel={[title, secondary, estadoLabel].filter(Boolean).join('. ')}>
-      <Text style={styles.phaseStripTitle}>{title}</Text>
-      {secondary && phase !== 'inhaling' && !inEvaluating ? (
-        <Text style={styles.phaseStripSub}>{secondary}</Text>
-      ) : null}
-      {phase === 'inhaling' && !inFailedFeedback ? (
-        <Text style={styles.phaseStripSub}>
-          Inspira para subir · {holdPrepSecondsRemaining}s
-        </Text>
-      ) : null}
-      {inEvaluating && !inFailedFeedback ? (
-        <>
-          <View style={styles.phaseTrack}>
-            <View style={[styles.phaseFill, { width: `${evalProgress * 100}%` }]} />
-          </View>
-          <Text style={styles.phaseStripSub}>
-            {targetReached
-              ? `Mantente arriba del obstáculo · ${holdSecondsRemaining}s`
-              : rabbitClearsObstacle
-                ? 'Mantente arriba del obstáculo'
-                : 'Sube por encima del obstáculo'}
-          </Text>
-        </>
-      ) : null}
-    </View>
-  );
-}
-
-function HudDashboard({
-  levelLabel,
-  session,
-  repetition,
-  valid,
-  failed,
-  targetVolume,
-  showPracticeBadge,
-  onPause,
-}: {
-  levelLabel: string;
-  session: number;
-  repetition: number;
-  valid: number;
-  failed: number;
-  targetVolume: number;
-  showPracticeBadge?: boolean;
-  onPause: () => void;
-}) {
-  const BlurOrFallback =
-    Platform.OS === 'web' ? View : BlurView;
-
-  const blurProps =
-    Platform.OS === 'web'
-      ? {}
-      : { intensity: 34, tint: 'light' as const };
-
-  return (
-    <View style={styles.hudOuter}>
-      <BlurOrFallback {...blurProps} style={styles.hudBlur}>
-        <View style={styles.hudSolidOverlay}>
-          <View style={styles.hudHeaderRow}>
-            <Text style={styles.hudTitleMini}>Sesión activa</Text>
-            {showPracticeBadge ? (
-              <View style={styles.practiceBadge} accessibilityLabel="Modo práctica">
-                <Text style={styles.practiceBadgeText}>Práctica</Text>
-              </View>
-            ) : null}
-            <View style={{ flex: 1 }} />
-            <Pressable onPress={onPause} style={styles.hudPause} accessibilityRole="button">
-              <Text style={styles.hudPauseText}>Pausar</Text>
-            </Pressable>
-          </View>
-          <View style={styles.hudGrid}>
-            <View style={styles.hudRow3}>
-              <HudCell compact label="Nivel" value={levelLabel} />
-              <HudCell compact label="Sesión" value={`${session}/6`} />
-              <HudCell compact label="Rep." value={`${repetition}/10`} />
-            </View>
-            <View style={styles.hudRow3}>
-              <HudCell compact label="Objetivo" value={`${targetVolume}`} unit="mL" />
-              <HudCell compact label="Válidas" value={String(valid)} accent />
-              <HudCell compact label="Fallidas" value={String(failed)} />
-            </View>
-          </View>
-        </View>
-      </BlurOrFallback>
-    </View>
-  );
-}
-
-function HudCell({
-  label,
-  value,
-  unit,
-  accent,
-  compact,
-}: {
-  label: string;
-  value: string;
-  unit?: string;
-  accent?: boolean;
-  compact?: boolean;
-}) {
-  return (
-    <View style={[styles.hudCell, compact && styles.hudCellCompact, accent && styles.hudCellAccent]}>
-      <Text style={[styles.hudCellLabel, compact && styles.hudCellLabelCompact]}>{label}</Text>
-      <Text
-        style={[styles.hudCellValue, compact && styles.hudCellValueCompact, accent && styles.hudCellValueAccent]}
-        numberOfLines={1}>
-        {value}
-        {unit ? <Text style={styles.hudCellUnit}> {unit}</Text> : null}
-      </Text>
     </View>
   );
 }
@@ -1290,54 +1071,6 @@ function RunnerRabbit({ crashed = false, astronaut = false }: { crashed?: boolea
   );
 }
 
-function getStatusText({
-  phase,
-  holdSecondsRemaining,
-  holdPrepSecondsRemaining,
-  prepSecondsRemaining,
-  restSecondsRemaining,
-  attemptFeedback,
-}: {
-  phase: LevelOnePhase;
-  holdSecondsRemaining: number;
-  holdPrepSecondsRemaining: number;
-  prepSecondsRemaining: number;
-  restSecondsRemaining: number;
-  attemptFeedback: 'idle' | 'valid' | 'failed';
-}) {
-  if (phase === 'preparing') {
-    return { primary: 'Prepárate', secondary: `Listo en ${prepSecondsRemaining}s` };
-  }
-  if (phase === 'ready') {
-    return { primary: 'Listo', secondary: 'Inspira cuando estés preparado' };
-  }
-  if (phase === 'inhaling') {
-    return { primary: 'Inspira', secondary: null };
-  }
-  if (phase === 'evaluating') {
-    return { primary: 'Sostén', secondary: null };
-  }
-  if (phase === 'exhale') {
-    if (attemptFeedback === 'valid') {
-      return { primary: 'Válida', secondary: 'Exhala con calma' };
-    }
-    if (attemptFeedback === 'failed') {
-      return { primary: 'Detente', secondary: 'Mantén más tiempo la próxima' };
-    }
-    return { primary: 'Exhala', secondary: '' };
-  }
-  if (phase === 'resting') {
-    return { primary: 'Descansa', secondary: `${restSecondsRemaining}s` };
-  }
-  if (phase === 'session-complete') {
-    return { primary: 'Sesión lista', secondary: '' };
-  }
-  if (phase === 'interrupted') {
-    return { primary: 'Interrumpida', secondary: '' };
-  }
-  return { primary: 'Listo', secondary: '' };
-}
-
 const SKY_TOP = '#D8EBDF';
 
 const styles = StyleSheet.create({
@@ -1477,6 +1210,18 @@ const styles = StyleSheet.create({
   },
   hudCellValueAccent: {
     color: wellness.primaryDark,
+  },
+  introTitleRow: {
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingTop: 4,
+  },
+  introLevelTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    textAlign: 'center',
+    textTransform: 'uppercase',
   },
   introHudRow: {
     flexDirection: 'row',
@@ -2112,6 +1857,14 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: wellness.text,
     marginBottom: 10,
+    textAlign: 'center',
+  },
+  introLineMuted: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: wellness.textSecondary,
+    marginBottom: 4,
+    textAlign: 'center',
   },
   introStrong: {
     fontWeight: '900',
@@ -2128,5 +1881,15 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 16,
+  },
+  introExitBtn: {
+    marginTop: 10,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  introExitBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: wellness.textSecondary,
   },
 });

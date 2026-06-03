@@ -14,7 +14,6 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
 import {
-  showLevelPlayModePicker,
   showTherapyReadinessAlert,
   useTherapyReadinessGate,
 } from '@/src/modules/device/volume-estimation';
@@ -263,22 +262,14 @@ export function HomeScreen() {
       return;
     }
     onLightImpact();
-    showLevelPlayModePicker({
-      onWithSensor: () => {
-        logLevelSensorModeSelected('sensor');
-        void beginOfficialSensorSession(activeLevelId);
-      },
-      onPracticeMode: () => {
-        navigateToSession(activeLevelId, 'touch_practice');
-      },
-    });
+    logLevelSensorModeSelected('sensor');
+    void beginOfficialSensorSession(activeLevelId);
   }, [
     activeLevelId,
     beginOfficialSensorSession,
     consentActive,
     consentUiReady,
     hasCompletedDiagnostic,
-    navigateToSession,
     router,
     startingLevel,
   ]);

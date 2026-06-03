@@ -1,13 +1,15 @@
 /**
- * Reglas Nivel 1: ascenso libre → prep «Sostén» (1.5 s) → evaluación con obstáculo (2 s).
+ * Reglas runner: inspiración libre hasta meta → sostén oficial 2 s (obstáculo) → resultado → descanso.
  */
 import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
 import { isTouchPracticeSession } from '@/src/modules/session/session-input-mode';
 
-/** Tiempo para subir a la meta antes del sostén oficial (sin obstáculo). */
+/** @deprecated Ya no fuerza transición; conservado por imports legacy. */
 export const LEVEL_ONE_ASCENT_MS = 1500;
-/** @deprecated Alias: ascenso 1.5 s (no es fase extra de prep). */
+/** @deprecated Alias legacy. */
 export const LEVEL_ONE_HOLD_PREP_MS = LEVEL_ONE_ASCENT_MS;
+/** Aviso informativo tras inspirar sin alcanzar meta (sin penalización). */
+export const LEVEL_ONE_INHALE_SOFT_HINT_MS = 60_000;
 /** Evaluación oficial con obstáculo activo. */
 export const LEVEL_ONE_OFFICIAL_EVAL_MS = 2000;
 /** Alias clínico / HUD. */
@@ -24,10 +26,10 @@ export const LEVEL_ONE_FAIL_MAX_NORM = 0.995;
 /** Sin tolerancia: tocar el obstáculo falla al instante. */
 export const LEVEL_ONE_HIT_GRACE_MS = 0;
 
-/** Tiempo mínimo inspirando antes de mostrar «Sostén». */
+/** Tiempo mínimo inspirando antes de mostrar «Sostén» (solo UI). */
 export const LEVEL_ONE_MIN_INHALE_MS = 600;
-/** Subida máxima antes de forzar fase «Sostén». */
-export const LEVEL_ONE_MAX_INHALE_MS = 4000;
+/** Ventana máxima de inspiración para animación visual (sin fallo por tiempo). */
+export const LEVEL_ONE_MAX_INHALE_MS = 60_000;
 
 export type LevelOneAttemptSubPhase = 'ascending' | 'hold_prep' | 'official_eval';
 
@@ -96,8 +98,10 @@ export function isAboveObstacle(inspirationNorm: number): boolean {
 export type LevelOneRepetitionTickResult = {
   runtime: LevelOneAttemptRuntime;
   liveFail: LevelOneFailReason | null;
-  /** Tras 1.5 s de ascenso, iniciar de inmediato los 2 s de sostén oficial. */
+  /** Cuando volumeMl >= targetVolume (norm >= 1), iniciar los 2 s de sostén oficial. */
   shouldBeginOfficialEval: boolean;
+  /** Tras 60 s sin meta: aviso suave informativo (sin fallo). */
+  shouldShowInhaleSoftHint: boolean;
 };
 
 export function tickLevelOneRepetition(
@@ -115,10 +119,13 @@ export function tickLevelOneRepetition(
   let everClearedObstacle = runtime.everClearedObstacle;
   let liveFail: LevelOneFailReason | null = null;
   let shouldBeginOfficialEval = false;
+  let shouldShowInhaleSoftHint = false;
 
   if (subPhase === 'ascending') {
-    if (subPhaseElapsedMs >= LEVEL_ONE_ASCENT_MS) {
+    if (isClearlyAboveObstacle(norm)) {
       shouldBeginOfficialEval = true;
+    } else if (subPhaseElapsedMs >= LEVEL_ONE_INHALE_SOFT_HINT_MS) {
+      shouldShowInhaleSoftHint = true;
     }
   } else if (subPhase === 'official_eval') {
     if (isClearlyAboveObstacle(norm)) {
@@ -142,6 +149,7 @@ export function tickLevelOneRepetition(
     },
     liveFail,
     shouldBeginOfficialEval,
+    shouldShowInhaleSoftHint,
   };
 }
 
