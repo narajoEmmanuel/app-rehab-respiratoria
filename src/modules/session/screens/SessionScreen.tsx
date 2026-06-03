@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
@@ -210,6 +210,7 @@ export function SessionScreen() {
   const [introAcknowledged, setIntroAcknowledged] = useState(false);
   const [celebrationKind, setCelebrationKind] = useState<'advance' | 'journey' | null>(null);
   const [pendingSummarySessionId, setPendingSummarySessionId] = useState<number | null>(null);
+  const [pauseModalVisible, setPauseModalVisible] = useState(false);
   const sessionCleanExitRef = useRef(false);
   const stopSessionRef = useRef<() => void>(() => {});
   const sensorInhaleArmedRef = useRef(true);
@@ -528,8 +529,22 @@ export function SessionScreen() {
       lastResolvedValidationRef.current = null;
     },
   });
-  const { restartCurrentSession, stopSession } = levelOneEngine;
+  const { restartCurrentSession, stopSession, pauseSession, resumeSession } = levelOneEngine;
   stopSessionRef.current = stopSession;
+
+  const dismissSessionOverlays = useCallback(() => {
+    setCelebrationKind(null);
+    setPauseModalVisible(false);
+    setSummaryDismissedKind('completed');
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        dismissSessionOverlays();
+      };
+    }, [dismissSessionOverlays]),
+  );
 
   const summaryKind: SessionSummaryKind =
     levelOneEngine.phase === 'session-complete' ? 'completed' : null;
@@ -767,6 +782,53 @@ export function SessionScreen() {
     ],
   );
 
+  const navigateToSessionSummary = useCallback(
+    (sessionId: number) => {
+      dismissSessionOverlays();
+      markSessionCleanExit();
+      requestAnimationFrame(() => {
+        router.replace({
+          pathname: '/(tabs)/resumen',
+          params: { sessionId: String(sessionId) },
+        });
+      });
+    },
+    [dismissSessionOverlays, markSessionCleanExit, router],
+  );
+
+  const handlePausePress = useCallback(() => {
+    if (pauseSession()) {
+      setPauseModalVisible(true);
+    }
+  }, [pauseSession]);
+
+  const handlePauseContinue = useCallback(() => {
+    setPauseModalVisible(false);
+    resumeSession();
+  }, [resumeSession]);
+
+  const handlePauseSaveAndExit = useCallback(() => {
+    setPauseModalVisible(false);
+    const validSnap = currentSessionData?.validRepetitions ?? 0;
+    const failedSnap = currentSessionData?.failedRepetitions ?? 0;
+    const attemptsSnap = [...attemptsRuntime];
+    const totalAttemptsSnap = validSnap + failedSnap;
+    const hadAttempts = totalAttemptsSnap > 0;
+    abandonSessionAndExit({
+      persistInterruptedToHistory: hadAttempts,
+      markLevelSlotInterrupted: hadAttempts && !isTouchPractice,
+      valid: validSnap,
+      failed: failedSnap,
+      attempts: attemptsSnap,
+    });
+  }, [
+    abandonSessionAndExit,
+    attemptsRuntime,
+    currentSessionData?.failedRepetitions,
+    currentSessionData?.validRepetitions,
+    isTouchPractice,
+  ]);
+
   const simulatedVolume = useMemo(
     () => simulatedVolumeForHold(targetVolume, levelOneEngine.holdMs),
     [targetVolume, levelOneEngine.holdMs],
@@ -867,13 +929,6 @@ export function SessionScreen() {
   const levelVisual = getLevelVisualIdentity(selectedLevelId);
   const levelDisplayMeta = getLevelDisplayMeta(selectedLevelId);
 
-  const navigateToSessionSummary = (sessionId: number) => {
-    router.replace({
-      pathname: '/(tabs)/resumen',
-      params: { sessionId: String(sessionId) },
-    });
-  };
-
   const applyUnlockCelebration = (unlock: LevelUnlockResult) => {
     if (!unlock.unlocked) {
       setCelebrationKind(null);
@@ -928,9 +983,10 @@ export function SessionScreen() {
 
   const handleCelebrationViewSummary = () => {
     const sessionId = pendingSummarySessionId;
-    setCelebrationKind(null);
     if (sessionId != null) {
       navigateToSessionSummary(sessionId);
+    } else {
+      dismissSessionOverlays();
     }
   };
 
@@ -984,36 +1040,7 @@ export function SessionScreen() {
           touchInputEnabled={isTouchPractice}
           onPressIn={inputPort.onInhaleStart}
           onPressOut={inputPort.onInhaleEnd}
-          onPressStop={() => {
-            Alert.alert(
-              'Detener sesión',
-              'Puedes continuar ahora o guardar tu avance parcial y volver a Terapia. Detén la sesión si sientes dolor, mareo o falta de aire intensa.',
-              [
-                {
-                  text: 'Continuar sesión',
-                  style: 'cancel',
-                },
-                {
-                  text: 'Detener y guardar',
-                  style: 'destructive',
-                  onPress: () => {
-                    const validSnap = currentSessionData?.validRepetitions ?? 0;
-                    const failedSnap = currentSessionData?.failedRepetitions ?? 0;
-                    const attemptsSnap = [...attemptsRuntime];
-                    const totalAttemptsSnap = validSnap + failedSnap;
-                    const hadAttempts = totalAttemptsSnap > 0;
-                    abandonSessionAndExit({
-                      persistInterruptedToHistory: hadAttempts,
-                      markLevelSlotInterrupted: hadAttempts && !isTouchPractice,
-                      valid: validSnap,
-                      failed: failedSnap,
-                      attempts: attemptsSnap,
-                    });
-                  },
-                },
-              ]
-            );
-          }}
+          onPressPause={handlePausePress}
           simulatedVolume={simulatedVolume}
           displayVolumeMl={sessionDisplayVolumeMl}
           displayVolumeSource={sessionDisplaySource}
@@ -1026,19 +1053,19 @@ export function SessionScreen() {
         />
       </View>
       <LevelAdvanceCelebrationModal
-        visible={celebrationKind === 'advance'}
+        visible={celebrationKind === 'advance' && isFocused}
         theme={levelGameplay?.theme ?? level.theme ?? 'forest'}
         accentColor={levelVisual.accent}
         onContinue={handleCelebrationViewSummary}
       />
       <AllLevelsCompleteCelebrationModal
-        visible={celebrationKind === 'journey'}
+        visible={celebrationKind === 'journey' && isFocused}
         onGoHome={() => {
-          setCelebrationKind(null);
+          dismissSessionOverlays();
           router.replace('/(tabs)');
         }}
         onRedoDiagnostic={() => {
-          setCelebrationKind(null);
+          dismissSessionOverlays();
           navigateToInitialEvaluation(router);
         }}
         onViewSummary={
@@ -1046,7 +1073,27 @@ export function SessionScreen() {
         }
       />
       <Modal
-        visible={summaryKind !== null && summaryDismissedKind !== summaryKind}
+        visible={pauseModalVisible && isFocused}
+        transparent
+        animationType="fade"
+        onRequestClose={handlePauseContinue}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.pauseModalCard}>
+            <Text style={styles.pauseModalTitle}>Sesión en pausa</Text>
+            <Text style={styles.pauseModalSubtitle}>
+              Tómate un momento. Tu progreso de esta repetición queda en espera.
+            </Text>
+            <Pressable style={styles.modalPrimaryButton} onPress={handlePauseContinue}>
+              <Text style={styles.modalPrimaryButtonText}>Continuar</Text>
+            </Pressable>
+            <Pressable style={styles.modalSecondaryButton} onPress={handlePauseSaveAndExit}>
+              <Text style={styles.modalSecondaryButtonText}>Guardar y salir</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={isFocused && summaryKind !== null && summaryDismissedKind !== summaryKind}
         transparent
         animationType="fade">
         <View style={styles.modalBackdrop}>
@@ -1434,6 +1481,30 @@ const styles = StyleSheet.create({
     color: '#9A7B1A',
     fontSize: 13,
     fontWeight: '600',
+  },
+  pauseModalCard: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: wellnessRadii.cardLarge,
+    backgroundColor: wellness.card,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    padding: 22,
+  },
+  pauseModalTitle: {
+    color: wellness.text,
+    fontSize: 22,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  pauseModalSubtitle: {
+    color: wellness.textSecondary,
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 18,
   },
 });
 

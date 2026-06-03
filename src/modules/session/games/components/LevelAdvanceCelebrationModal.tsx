@@ -15,6 +15,7 @@ import Animated, {
 
 import type { LevelGameTheme } from '@/src/modules/session/levels/level-gameplay-config';
 import { SCENE_THEME_TOKENS } from '@/src/modules/session/games/components/level-runner-scene';
+import { RUNNER_FEEDBACK_COLORS } from '@/src/modules/session/games/components/RunnerGameFeedbackBar';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 const STAR_COUNT = 16;
@@ -166,7 +167,7 @@ export function LevelAdvanceCelebrationModal({
         <WinkingRabbit />
 
         <Animated.View entering={FadeInDown.duration(500).delay(200)} style={styles.popup}>
-          <Text style={[styles.title, { color: accentColor }]}>Lo lograste</Text>
+          <Text style={[styles.title, { color: RUNNER_FEEDBACK_COLORS.achievement }]}>Lo lograste</Text>
           <Text style={styles.subtitle}>Pasaste al siguiente nivel</Text>
           <Text style={styles.body}>Sigue construyendo tu avance respiratorio.</Text>
         </Animated.View>

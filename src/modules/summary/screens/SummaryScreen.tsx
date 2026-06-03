@@ -2,7 +2,7 @@
  * Purpose: Session summary after completing Level 1 — loads saved session by id.
  * Module: summary
  */
-import { useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { AppCard } from '@/src/shared/ui/AppCard';
@@ -64,39 +64,42 @@ export function SummaryScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  useLayoutEffect(() => {
-    setSessionDetail(null);
-    setErrorMessage(null);
-
-    if (sessionId == null || sessionId === '') {
-      setLoading(false);
-      return;
-    }
-    if (parsedId == null || Number.isNaN(parsedId)) {
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    let cancelled = false;
-    void (async () => {
-      const detail = await getSessionDetail(parsedId);
-      if (cancelled) return;
-      if (!detail) {
+  useFocusEffect(
+    useCallback(() => {
+      if (sessionId == null || sessionId === '') {
         setSessionDetail(null);
-        setErrorMessage('not_found');
+        setErrorMessage(null);
         setLoading(false);
         return;
       }
-      setSessionDetail(detail);
-      setErrorMessage(null);
-      setLoading(false);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [sessionId, parsedId]);
+      if (parsedId == null || Number.isNaN(parsedId)) {
+        setSessionDetail(null);
+        setErrorMessage(null);
+        setLoading(false);
+        return;
+      }
+      let cancelled = false;
+      void (async () => {
+        setLoading(true);
+        setErrorMessage(null);
+        setSessionDetail(null);
+        const detail = await getSessionDetail(parsedId);
+        if (cancelled) return;
+        if (!detail) {
+          setSessionDetail(null);
+          setErrorMessage('not_found');
+          setLoading(false);
+          return;
+        }
+        setSessionDetail(detail);
+        setErrorMessage(null);
+        setLoading(false);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [parsedId, sessionId]),
+  );
 
   const maxHoldSeconds = useMemo(() => {
     if (sessionDetail == null || !sessionDetail.attempts.length) return 0;

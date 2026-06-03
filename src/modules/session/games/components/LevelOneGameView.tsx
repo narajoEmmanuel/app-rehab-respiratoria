@@ -109,7 +109,7 @@ type LevelOneGameViewProps = {
   attemptFeedback: 'idle' | 'valid' | 'failed';
   onPressIn: () => void;
   onPressOut: () => void;
-  onPressStop: () => void;
+  onPressPause?: () => void;
   /** En modo sensor el juego no usa dedo; solo práctica táctil. */
   touchInputEnabled?: boolean;
   simulatedVolume: number;
@@ -152,7 +152,7 @@ export function LevelOneGameView({
   attemptFeedback,
   onPressIn,
   onPressOut,
-  onPressStop,
+  onPressPause,
   touchInputEnabled = true,
   simulatedVolume: _simulatedVolume,
   displayVolumeMl,
@@ -200,13 +200,12 @@ export function LevelOneGameView({
   /** Solo durante los 2 s oficiales de sostén. */
   const showGoalBarrier = obstacleActive;
   const inEvaluating = phase === 'evaluating';
-  const inRest = phase === 'resting';
   const inValidFeedback = phase === 'exhale' && attemptFeedback === 'valid';
-  const showGameFeedback = inRest || crashToastVisible || inValidFeedback;
+  const showGameFeedback = crashToastVisible || inValidFeedback;
 
   const introTitle = levelDisplayName ?? levelLabel;
 
-  const { phaseLabel, instructionText } = useMemo(
+  const { phaseLabel, instructionText, instructionTone } = useMemo(
     () =>
       resolveRunnerInstruction({
         phase,
@@ -223,6 +222,13 @@ export function LevelOneGameView({
       phase,
     ],
   );
+
+  const sessionActive =
+    !introMode &&
+    phase !== 'not-started' &&
+    phase !== 'session-complete' &&
+    phase !== 'interrupted' &&
+    phase !== 'level-complete';
 
   const playCenterX = layoutW * 0.5;
   const rabbitLeft = Math.max(10, playCenterX - RABBIT_VISUAL_WIDTH_PX * 0.48);
@@ -558,10 +564,14 @@ export function LevelOneGameView({
               repetition={repetition}
               valid={valid}
               failed={failed}
+              restSecondsRemaining={restSecondsRemaining}
               instructionText={instructionText}
               phaseLabel={phaseLabel}
+              instructionTone={instructionTone}
               accentColor={accentColor}
               inhaleSoftHintVisible={inhaleSoftHintVisible}
+              showPauseButton={sessionActive && Boolean(onPressPause)}
+              onPressPause={onPressPause}
             />
           </View>
         ) : (
@@ -813,11 +823,6 @@ export function LevelOneGameView({
             <Animated.View
               style={[styles.gameFeedbackOverlay, feedbackOverlayStyle]}
               pointerEvents="none">
-              {inRest ? (
-                <View style={styles.toastSoft}>
-                  <Text style={styles.toastSoftText}>{sceneTheme.restToast}</Text>
-                </View>
-              ) : null}
               {crashToastVisible ? (
                 <View style={styles.toastWarn}>
                   <Text style={styles.toastWarnText}>¡Ups! Sube un poco más la próxima</Text>

@@ -93,6 +93,7 @@ export function useLevelOneGame({
   const [liveCrashSignal, setLiveCrashSignal] = useState(0);
   const [inhaleSoftHintVisible, setInhaleSoftHintVisible] = useState(false);
   const [metaJustReached, setMetaJustReached] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const metaJustReachedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const holdStartRef = useRef<number | null>(null);
@@ -146,6 +147,7 @@ export function useLevelOneGame({
     setAttemptFeedback('idle');
     attemptEndedSessionRef.current = false;
     setCountdownMs(PREP_MS);
+    setIsPaused(false);
     setPhase('not-started');
   }, [clearTimers, resetAttemptRuntime]);
 
@@ -162,6 +164,7 @@ export function useLevelOneGame({
     attemptEndedSessionRef.current = false;
     setAttemptFeedback('idle');
     setHoldMs(0);
+    setIsPaused(false);
     resetAttemptRuntime();
     setCountdownMs(PREP_MS);
     setPhase('preparing');
@@ -367,8 +370,39 @@ export function useLevelOneGame({
     resolveAndCloseAttempt,
   ]);
 
+  const resumeHoldTick = useCallback(() => {
+    if (phase !== 'inhaling' && phase !== 'evaluating') return;
+    if (holdTickRef.current) return;
+    holdStartRef.current = Date.now() - holdMs;
+    holdTickRef.current = setInterval(() => {
+      runAttemptTick();
+    }, HOLD_TICK_MS);
+  }, [holdMs, phase, runAttemptTick]);
+
+  const pauseSession = useCallback((): boolean => {
+    if (
+      phase === 'not-started' ||
+      phase === 'session-complete' ||
+      phase === 'interrupted' ||
+      phase === 'level-complete' ||
+      phase === 'exhale'
+    ) {
+      return false;
+    }
+    clearTimers();
+    stopAttemptTick();
+    setIsPaused(true);
+    return true;
+  }, [clearTimers, phase, stopAttemptTick]);
+
+  const resumeSession = useCallback(() => {
+    if (!isPaused) return;
+    setIsPaused(false);
+    resumeHoldTick();
+  }, [isPaused, resumeHoldTick]);
+
   const onInhaleStart = useCallback(() => {
-    if (phase !== 'ready') {
+    if (isPaused || phase !== 'ready') {
       return;
     }
 
@@ -382,9 +416,10 @@ export function useLevelOneGame({
     holdTickRef.current = setInterval(() => {
       runAttemptTick();
     }, HOLD_TICK_MS);
-  }, [phase, resetAttemptRuntime, runAttemptTick]);
+  }, [isPaused, phase, resetAttemptRuntime, runAttemptTick]);
 
   const onInhaleEnd = useCallback(() => {
+    if (isPaused) return;
     if (phase !== 'inhaling' && phase !== 'evaluating') {
       return;
     }
@@ -404,7 +439,7 @@ export function useLevelOneGame({
     }
 
     resolveAndCloseAttempt(elapsed, { releasedDuringEval: false });
-  }, [phase, resolveAndCloseAttempt]);
+  }, [isPaused, phase, resolveAndCloseAttempt]);
 
   useEffect(() => {
     if (phase !== 'preparing' || !pendingPrepReadyRef.current) {
@@ -424,6 +459,11 @@ export function useLevelOneGame({
   }, [advanceRepetition, phase, countdownMs]);
 
   useEffect(() => {
+    if (isPaused) {
+      clearTimers();
+      return;
+    }
+
     if (progress.levelCompleted) {
       setPhase('level-complete');
       setCountdownMs(0);
@@ -504,6 +544,7 @@ export function useLevelOneGame({
     attemptFeedback,
     clearTimers,
     currentSessionData?.completed,
+    isPaused,
     phase,
     progress,
     restMs,
@@ -535,6 +576,7 @@ export function useLevelOneGame({
     liveCrashSignal,
     inhaleSoftHintVisible,
     metaJustReached,
+    isPaused,
     currentSessionData,
     holdSecondsRemaining: sustainSecondsRemaining,
     sustainSecondsRemaining,
@@ -545,6 +587,8 @@ export function useLevelOneGame({
     onInhaleEnd,
     startSession,
     stopSession,
+    pauseSession,
+    resumeSession,
     restartCurrentSession,
   };
 }
