@@ -9,17 +9,18 @@ En producción con `EXPO_PUBLIC_ENABLE_TECHNICAL_CALIBRATION=false`:
 | Aspecto | Valor |
 |---------|--------|
 | Espirómetro | **RESPIRA+ 3000 mL** (único activo) |
-| Modelo | Lineal predeterminado validado por el equipo (banco **30 de mayo de 2026**) |
-| ID perfil | `cal-predefined-respira-3000-v20260530` |
-| Ecuación vigente | `Volumen = 26.11855011086812 × distanceMm − 1194.3556609431557` |
-| Clamp | 0–3000 mL (< 0 → 0 mL; > 3000 → 3000 mL) |
+| Modelo | Lineal predeterminado validado por el equipo (banco **2 de junio de 2026**) |
+| ID perfil | `cal-predefined-respira-3000-v20260602` |
+| ID visible | `R3K-20260602-LIN-v2` |
+| Ecuación vigente | `Volumen = 28.66324925966009 × distanceMm − 523.8262554875091` |
+| Clamp | 0–3000 mL (< 0 → 0 mL; > 3000 puede mostrarse como sobre rango visual) |
 | Origen del volumen | **App** (a partir de `distanceMm` del ESP32; el firmware no calcula volumen clínico) |
 | Instalación | Automática al primer uso (`predefined-calibration-service.ts`) |
 | UI paciente | Termómetro de volumen en `/sensor-connection`; sin pantalla de calibración manual |
 
 Constantes: `src/modules/device/calibration/predefined-calibration-models.ts`.
 
-> **Referencia histórica (no activa):** ecuación anterior de banco `32.566738… × distanceMm − 1270.5786…`. Conservada solo como registro; la app usa la ecuación del 30 de mayo.
+> **Referencia histórica (no activa):** calibración del 30 de mayo de 2026 (`cal-predefined-respira-3000-v20260530`, ecuación `26.118550… × distanceMm − 1194.3556…`). Ecuación legacy anterior: `32.566738… × distanceMm − 1270.5786…`.
 
 ---
 

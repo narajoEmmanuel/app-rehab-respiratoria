@@ -28,7 +28,7 @@ Concentra el **único transporte WebSocket**, ingestión de mensajes, **calibrac
 2. `Esp32WebSocketClient` recibe y parsea con `parseSensorMessage`.
 3. `useEsp32WebSocketSensor` actualiza estado (modo `mock` o `websocket`).
 4. `SensorConnectionProvider` expone lectura y controles a toda la app.
-5. `useActiveVolumeEstimate` aplica el **modelo activo** (lineal predeterminado RESPIRA+ 3000 mL, banco 30-mayo-2026: `26.118550… × distanceMm − 1194.3556…`) y calcula `volumeMl` a partir de `distanceMm`.
+5. `useActiveVolumeEstimate` aplica el **modelo activo** (lineal predeterminado RESPIRA+ 3000 mL, banco 2-jun-2026: `28.663249… × distanceMm − 523.826…`) y calcula `volumeMl` a partir de `distanceMm`.
 6. Terapia y conexión consumen el mismo stream; **no abren sockets adicionales**.
 7. Si la señal deja de estar viva, la terapia **no reutiliza** el último volumen.
 

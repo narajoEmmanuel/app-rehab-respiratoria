@@ -42,15 +42,15 @@ El proyecto comenzó orientado a **EPOC**. Tras revisión con especialista en re
 
 ### Modelo lineal predeterminado (RESPIRA+ 3000 mL)
 
-Calibración de banco validada el **30 de mayo de 2026** (`cal-predefined-respira-3000-v20260530`):
+Calibración de banco validada el **2 de junio de 2026** (`cal-predefined-respira-3000-v20260602`):
 
 ```
-Volumen (mL) = 26.11855011086812 × distanceMm − 1194.3556609431557
+Volumen (mL) = 28.66324925966009 × distanceMm − 523.8262554875091
 ```
 
-Resultado acotado entre **0** y **3000 mL** (valores < 0 se muestran como 0 mL; valores > 3000 como 3000 mL). Constantes en `predefined-calibration-models.ts`.
+Resultado acotado entre **0** y **3000 mL** (valores < 0 se muestran como 0 mL; valores > 3000 pueden mostrarse como sobre rango visual). Constantes en `predefined-calibration-models.ts`.
 
-> **Referencia histórica (no activa):** una ecuación anterior de banco usaba `32.566738… × distanceMm − 1270.5786…`. La app ya no la aplica.
+> **Referencia histórica (no activa):** calibración del 30 de mayo de 2026 (`cal-predefined-respira-3000-v20260530`, `R3K-20260530-LIN-v1`, ecuación `26.118550… × distanceMm − 1194.3556…`). Ecuación legacy anterior: `32.566738… × distanceMm − 1270.5786…`.
 
 ### Legacy (no activo en flujo paciente)
 
@@ -151,8 +151,8 @@ En **flujo paciente**, la calibración lineal predeterminada RESPIRA+ 3000 mL se
 
 | Regla (flujo paciente) | Valor |
 |------------------------|--------|
-| Modelo activo | Lineal (30-mayo-2026): `26.118550… × distanceMm − 1194.3556…` |
-| Clamp de volumen | 0–3000 mL (< 0 → 0 mL; > 3000 → 3000 mL) |
+| Modelo activo | Lineal (2-jun-2026): `28.663249… × distanceMm − 523.826…` (`R3K-20260602-LIN-v2`) |
+| Clamp de volumen | 0–3000 mL (< 0 → 0 mL; > 3000 puede mostrarse como sobre rango visual) |
 | Origen del volumen | Calculado en app a partir de `distanceMm`; el ESP32 no envía volumen clínico |
 | Bloqueo por distancia | `distanceMm < 30` mm (VL53L0X inestable) |
 | Lecturas obsoletas en terapia | Bloqueadas si la señal no está viva |

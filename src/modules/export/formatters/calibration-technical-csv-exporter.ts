@@ -16,6 +16,13 @@ import type { CalibrationProfile } from '@/src/modules/device/calibration/calibr
 import { volumeFromLinear } from '@/src/modules/device/calibration/imported-calibration-service';
 import { respiraSystemComponentsCsvFields } from '@/src/modules/device/calibration/respira-system-components';
 import {
+  RESPIRA_3000_DISPLAY_CALIBRATION_ID,
+  RESPIRA_3000_PREDEFINED_CALIBRATION_ID,
+  RESPIRA_3000_PREDEFINED_CAPTURE_POINTS_COUNT,
+  RESPIRA_3000_PREDEFINED_EXPORTED_AT_UTC,
+  RESPIRA_3000_PREDEFINED_SOURCE,
+} from '@/src/modules/device/calibration/predefined-calibration-models';
+import {
     buildTechnicalMetricsCsvFields,
     CALIBRATION_TECHNICAL_METRICS_COLUMNS,
     type CalibrationTechnicalExportContext,
@@ -142,17 +149,31 @@ function resolveLinearModelForExport(
 function buildCompactMetadataAndPointsSections(
   profile: CalibrationProfile,
   linearModel: CalibrationModel | null,
+  predefinedExport?: {
+    calibrationId: string;
+    displayCalibrationId: string;
+    exportedAtUtcSource: string;
+    pointsCount: number;
+  },
 ): string[] {
   const lines: string[] = [];
   const slope = linearModel?.coefficients.slope;
   const intercept = linearModel?.coefficients.intercept;
   const metrics = linearModel?.metrics;
-  const exportedAt = new Date().toISOString();
+  const exportedAt = predefinedExport?.exportedAtUtcSource ?? new Date().toISOString();
   const notes = profile.deviceIdentification?.technicalNotes ?? profile.notes ?? '';
+  const pointsCount =
+    predefinedExport?.pointsCount ??
+    (profile.points.length > 0 ? profile.points.length : profile.summaries?.length ?? 0);
 
   lines.push('# RESPIRA_METADATA_COMPACT');
   lines.push('metadata_key,metadata_value');
   lines.push('calibration_type,technical');
+  if (predefinedExport) {
+    lines.push(`calibration_id,${predefinedExport.calibrationId}`);
+    lines.push(`display_calibration_id,${predefinedExport.displayCalibrationId}`);
+    lines.push(`exported_at_utc_source,${predefinedExport.exportedAtUtcSource}`);
+  }
   lines.push(`spirometer_type,${spirometerTypeLabelFromProfile(profile)}`);
   lines.push(`created_at,${exportedAt}`);
   lines.push('model_type,linear');
@@ -162,7 +183,7 @@ function buildCompactMetadataAndPointsSections(
   lines.push(`mae_ml,${metrics?.maeMl != null ? metrics.maeMl : ''}`);
   lines.push(`rmse_ml,${metrics?.rmseMl != null ? metrics.rmseMl : ''}`);
   lines.push(`max_abs_error_ml,${metrics?.maxAbsErrorMl != null ? metrics.maxAbsErrorMl : ''}`);
-  lines.push(`points_count,${profile.points.length}`);
+  lines.push(`points_count,${pointsCount}`);
   if (notes) {
     lines.push(`technical_notes,${escapeCsvCell(notes)}`);
   }
@@ -171,7 +192,29 @@ function buildCompactMetadataAndPointsSections(
     'point_index,reference_volume_ml,distance_mm,filtered_distance_mm,estimated_volume_ml,error_ml,abs_error_ml,timestamp',
   );
 
-  const sorted = [...profile.points].sort((a, b) => a.volumeMl - b.volumeMl || a.createdAt - b.createdAt);
+  const curveSummaries =
+    profile.points.length > 0
+      ? null
+      : (profile.summaries?.length ? profile.summaries : null);
+
+  const exportCurvePoints =
+    profile.points.length > 0
+      ? profile.points.map((point) => ({
+          volumeMl: point.volumeMl,
+          distanceMm: point.distanceMm,
+          timestamp: point.timestamp ?? point.createdAt,
+        }))
+      : curveSummaries
+        ? curveSummaries.map((summary) => ({
+            volumeMl: summary.volumeMl,
+            distanceMm: summary.avgDistanceMm,
+            timestamp: profile.updatedAt,
+          }))
+        : [];
+
+  const sorted = [...exportCurvePoints].sort(
+    (a, b) => a.volumeMl - b.volumeMl || a.timestamp - b.timestamp,
+  );
   sorted.forEach((point, index) => {
     const predicted =
       slope != null && intercept != null
@@ -189,7 +232,7 @@ function buildCompactMetadataAndPointsSections(
         predicted !== null ? predicted.toFixed(4) : '',
         errorMl !== null ? errorMl.toFixed(4) : '',
         absError !== null ? absError.toFixed(4) : '',
-        formatTimestamp(point.timestamp ?? point.createdAt),
+        formatTimestamp(point.timestamp),
       ]
         .map((cell) => escapeCsvCell(cell))
         .join(','),
@@ -214,6 +257,18 @@ export function buildCalibrationTechnicalCsv(params: CalibrationTechnicalCsvPara
     params;
 
   const linearForExport = resolveLinearModelForExport(params);
+  const predefined = activeModel?.predefinedCalibration;
+  const isOfficialPredefined =
+    predefined?.source === RESPIRA_3000_PREDEFINED_SOURCE &&
+    predefined.predefinedId === RESPIRA_3000_PREDEFINED_CALIBRATION_ID;
+  const predefinedExport = isOfficialPredefined
+    ? {
+        calibrationId: RESPIRA_3000_PREDEFINED_CALIBRATION_ID,
+        displayCalibrationId: RESPIRA_3000_DISPLAY_CALIBRATION_ID,
+        exportedAtUtcSource: RESPIRA_3000_PREDEFINED_EXPORTED_AT_UTC,
+        pointsCount: RESPIRA_3000_PREDEFINED_CAPTURE_POINTS_COUNT,
+      }
+    : undefined;
 
   const lines: string[] = [];
   lines.push('RESPIRA_CALIBRACION_TECNICA');
@@ -221,13 +276,16 @@ export function buildCalibrationTechnicalCsv(params: CalibrationTechnicalCsvPara
   lines.push(`calibration_export_schema_version,${CALIBRATION_EXPORT_SCHEMA_VERSION}`);
   lines.push(`firmware_version,${escapeCsvCell(firmwareVersion ?? '')}`);
   lines.push(`device_id,${escapeCsvCell(deviceId ?? '')}`);
-  lines.push(`exported_at,${new Date().toISOString()}`);
-  lines.push(...buildCompactMetadataAndPointsSections(profile, linearForExport));
+  lines.push(
+    `exported_at,${predefinedExport?.exportedAtUtcSource ?? new Date().toISOString()}`,
+  );
+  lines.push(
+    ...buildCompactMetadataAndPointsSections(profile, linearForExport, predefinedExport),
+  );
   lines.push(FULL_HEADER.join(','));
 
   const deviceIdMeta = mergeCalibratedDeviceIdentification(profile.deviceIdentification);
   const modelKind = activeModel?.modelKind ?? technicalContext?.linearModel?.kind ?? '';
-  const predefined = activeModel?.predefinedCalibration;
   const activeModelId = activeModel?.id ?? '';
   const recommendedModel = activeModel?.recommendedModel ?? null;
   const slope = linearForExport?.coefficients.slope;
@@ -252,9 +310,13 @@ export function buildCalibrationTechnicalCsv(params: CalibrationTechnicalCsvPara
   const baseFields: Record<string, string> = {
     calibration_export_schema_version: CALIBRATION_EXPORT_SCHEMA_VERSION,
     app_version: getAppVersion(),
-    exported_at: new Date().toISOString(),
-    calibration_id: profile.id,
-    calibration_profile_id: profile.id,
+    exported_at: predefinedExport?.exportedAtUtcSource ?? new Date().toISOString(),
+    calibration_id: isOfficialPredefined
+      ? RESPIRA_3000_PREDEFINED_CALIBRATION_ID
+      : profile.id,
+    calibration_profile_id: isOfficialPredefined
+      ? RESPIRA_3000_PREDEFINED_CALIBRATION_ID
+      : profile.id,
     calibration_name: profile.name,
     calibration_version: String(profile.version),
     calibration_created_at: formatTimestamp(profile.createdAt),

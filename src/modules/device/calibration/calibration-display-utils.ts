@@ -20,6 +20,7 @@ import {
   RESPIRA_3000_SENSOR_LABEL,
   RESPIRA_3000_SPIROMETER_MODEL_LABEL,
   isLegacyBankLinearCoefficients,
+  isPreviousOfficialLinearCoefficients,
   isRespira3000PredefinedProfileId,
 } from '@/src/modules/device/calibration/predefined-calibration-models';
 import { SPIROMETER_DEVICE_3000ML_ID } from '@/src/modules/device/spirometer';
@@ -128,6 +129,7 @@ export function shouldUseOfficialRespira3000DisplayMetadata(
   const { slope, intercept } = readActiveLinearCoefficients(activeModel);
   if (slope !== null && intercept !== null) {
     if (isLegacyBankLinearCoefficients(slope, intercept)) return true;
+    if (isPreviousOfficialLinearCoefficients(slope, intercept)) return true;
     if (matchesOfficialLinearCoefficients(slope, intercept)) return true;
   }
 
@@ -178,7 +180,7 @@ function formatOfficialDateLabel(): string {
       year: 'numeric',
     });
   } catch {
-    return '30 de mayo de 2026';
+    return '2 de junio de 2026';
   }
 }
 
@@ -190,7 +192,7 @@ function formatOfficialDateShort(): string {
       year: 'numeric',
     });
   } catch {
-    return '30 May 2026';
+    return '2 Jun 2026';
   }
 }
 

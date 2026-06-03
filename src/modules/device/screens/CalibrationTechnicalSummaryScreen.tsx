@@ -15,7 +15,7 @@ import {
   resolveCalibrationDisplayMetadata,
 } from '@/src/modules/device/calibration/calibration-display-utils';
 import { ensureRespira3000PredefinedCalibrationInstalled } from '@/src/modules/device/calibration/predefined-calibration-service';
-import { RESPIRA_3000_OVER_RANGE_FOOTNOTE } from '@/src/modules/device/calibration/predefined-calibration-models';
+import { RESPIRA_3000_OVER_RANGE_FOOTNOTE, RESPIRA_3000_PREDEFINED_CAPTURE_POINTS_COUNT } from '@/src/modules/device/calibration/predefined-calibration-models';
 import { useActiveVolumeEstimate } from '@/src/modules/device/volume-estimation';
 import { exportCalibrationTechnicalCsv } from '@/src/modules/export/services/calibration-technical-export-service';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -103,12 +103,13 @@ export function CalibrationTechnicalSummaryScreen() {
   const metricCards = useMemo(
     () => [
       { label: 'R²', value: formatMetricValue(meta.rSquared, 4) },
-      { label: 'MAE', value: formatMetricValue(meta.maeMl, 1), unit: ' mL' },
-      { label: 'RMSE', value: formatMetricValue(meta.rmseMl, 1), unit: ' mL' },
-      { label: 'Error máx.', value: formatMetricValue(meta.maxAbsErrorMl, 1), unit: ' mL' },
+      { label: 'MAE', value: formatMetricValue(meta.maeMl, 2), unit: ' mL' },
+      { label: 'RMSE', value: formatMetricValue(meta.rmseMl, 2), unit: ' mL' },
+      { label: 'Error máx.', value: formatMetricValue(meta.maxAbsErrorMl, 2), unit: ' mL' },
       { label: 'Pendiente', value: formatMetricValue(meta.slope, 4), unit: ' mL/mm' },
       { label: 'Intercepto', value: formatMetricValue(meta.intercept, 2), unit: ' mL' },
       { label: 'Capacidad', value: `${meta.capacityMl}`, unit: ' mL' },
+      { label: 'Puntos', value: `${RESPIRA_3000_PREDEFINED_CAPTURE_POINTS_COUNT}` },
       { label: 'Calibración', value: meta.calibrationDateShort },
     ],
     [meta],

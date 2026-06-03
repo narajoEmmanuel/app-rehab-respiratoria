@@ -36,11 +36,13 @@ import {
     RESPIRA_3000_PREDEFINED_CALIBRATION_DATE_ISO,
     RESPIRA_3000_PREDEFINED_CALIBRATION_DATE_MS,
     RESPIRA_3000_PREDEFINED_CALIBRATION_ID,
+    RESPIRA_3000_PREDEFINED_CAPTURE_POINTS_COUNT,
     RESPIRA_3000_PREDEFINED_DEFAULT_ACTIVE_MODEL_KIND,
     RESPIRA_3000_PREDEFINED_ORIGIN_LABEL,
     RESPIRA_3000_PREDEFINED_SOURCE,
-    isRespira3000PredefinedProfileId,
     isLegacyBankLinearCoefficients,
+    isPreviousOfficialLinearCoefficients,
+    isRespira3000PredefinedProfileId,
     type PredefinedCalibrationPoint,
 } from '@/src/modules/device/calibration/predefined-calibration-models';
 import {
@@ -113,7 +115,7 @@ function buildPrimaryLinearModel(profileId: string, calibrationTs: number): Cali
     updatedAt: calibrationTs,
     relation: 'direct',
     coefficients: { slope, intercept },
-    pointsUsed: RESPIRA_3000_CALIBRATED_POINTS.length,
+    pointsUsed: RESPIRA_3000_PREDEFINED_CAPTURE_POINTS_COUNT,
     volumeRangeMl: { ...RESPIRA_3000_DISPLAY_RANGE_ML },
     distanceRangeMm: { min: dMin, max: dMax },
     metrics: { rSquared, rmseMl, maeMl, maxAbsErrorMl },
@@ -227,7 +229,7 @@ export function buildRespira3000PredefinedCalibrationBundle(
       requiredVolumesMl: [...profileSnapshot.requiredVolumesMl],
       minimumRepetitionsPerVolume: 1,
       minimumValidPoints: RESPIRA_3000_CALIBRATED_POINTS.length,
-      totalValidRequiredPoints: RESPIRA_3000_CALIBRATED_POINTS.length,
+      totalValidRequiredPoints: RESPIRA_3000_PREDEFINED_CAPTURE_POINTS_COUNT,
       meetsRequiredProtocol: true,
     },
     coverage: {
@@ -349,9 +351,10 @@ export type EnsurePredefinedCalibrationResult = {
     | 'active_model_exists'
     | 'user_local_profile'
     | 'no_device'
-    | 'installed'
+    | 'installed_predefined_20260602'
     | 'migrated_predefined_version'
     | 'replaced_stale_local_calibration'
+    | 'replaced_predefined_20260530_with_20260602'
     | 'already_linear_predefined';
 };
 
@@ -375,8 +378,61 @@ function isGeneratedLocalCalibrationProfileId(profileId: string): boolean {
   return profileId.startsWith('cal-') && !isRespira3000PredefinedProfileId(profileId);
 }
 
+const PREVIOUS_OFFICIAL_PREDEFINED_ID = 'cal-predefined-respira-3000-v20260530';
+
+function isExplicitPostOfficialUserCalibration(
+  profile: CalibrationProfile | null,
+  model: ActiveCalibrationModel,
+): boolean {
+  if (!profile || profile.source !== 'local_calibration' || profile.points.length === 0) {
+    return false;
+  }
+  if (isGeneratedLocalCalibrationProfileId(profile.id)) return false;
+  if (profile.updatedAt <= RESPIRA_3000_PREDEFINED_CALIBRATION_DATE_MS) return false;
+
+  const { slope, intercept } = readLinearCoefficients(model);
+  if (slope === null || intercept === null) return false;
+  if (matchesOfficialLinearCoefficients(slope, intercept)) return false;
+  if (isPreviousOfficialLinearCoefficients(slope, intercept)) return false;
+  if (isLegacyBankLinearCoefficients(slope, intercept)) return false;
+
+  return true;
+}
+
+function isPreviousOfficialPredefinedContext(
+  profile: CalibrationProfile | null,
+  model: ActiveCalibrationModel,
+): boolean {
+  const profileId = profile?.id ?? model.calibrationProfileId;
+  if (profileId === PREVIOUS_OFFICIAL_PREDEFINED_ID) return true;
+
+  const predefinedId = model.predefinedCalibration?.predefinedId;
+  if (predefinedId === PREVIOUS_OFFICIAL_PREDEFINED_ID) return true;
+
+  const { slope, intercept } = readLinearCoefficients(model);
+  if (slope !== null && intercept !== null && isPreviousOfficialLinearCoefficients(slope, intercept)) {
+    return true;
+  }
+
+  return false;
+}
+
+function resolvePredefinedInstallReason(
+  profile: CalibrationProfile | null,
+  model: ActiveCalibrationModel | null,
+  fallback:
+    | 'migrated_predefined_version'
+    | 'replaced_stale_local_calibration'
+    | 'installed_predefined_20260602',
+): EnsurePredefinedCalibrationResult['reason'] {
+  if (model && isPreviousOfficialPredefinedContext(profile, model)) {
+    return 'replaced_predefined_20260530_with_20260602';
+  }
+  return fallback;
+}
+
 /**
- * Calibración local/ephemeral o ecuación legacy de banco que debe ceder a la oficial del 30-may.
+ * Calibración local/ephemeral o ecuación legacy de banco que debe ceder a la oficial del 2-jun-2026.
  * No reemplaza calibraciones locales nuevas con ecuación distinta elegida explícitamente por el usuario.
  */
 function shouldReplaceWithOfficialPredefined(
@@ -384,6 +440,7 @@ function shouldReplaceWithOfficialPredefined(
   profile: CalibrationProfile | null,
 ): boolean {
   if (isCurrentPredefinedBundle(model)) return false;
+  if (isExplicitPostOfficialUserCalibration(profile, model)) return false;
   if (needsPredefinedUpgrade(model)) return true;
 
   const profileId = profile?.id ?? model.calibrationProfileId;
@@ -391,6 +448,7 @@ function shouldReplaceWithOfficialPredefined(
     const { slope, intercept } = readLinearCoefficients(model);
     if (slope !== null && intercept !== null) {
       if (isLegacyBankLinearCoefficients(slope, intercept)) return true;
+      if (isPreviousOfficialLinearCoefficients(slope, intercept)) return true;
       if (matchesOfficialLinearCoefficients(slope, intercept)) return true;
     }
     return true;
@@ -398,15 +456,17 @@ function shouldReplaceWithOfficialPredefined(
 
   if (profile?.source === 'local_calibration' && profile.points.length > 0) {
     const { slope, intercept } = readLinearCoefficients(model);
-    if (slope !== null && intercept !== null && isLegacyBankLinearCoefficients(slope, intercept)) {
-      return true;
+    if (slope !== null && intercept !== null) {
+      if (isLegacyBankLinearCoefficients(slope, intercept)) return true;
+      if (isPreviousOfficialLinearCoefficients(slope, intercept)) return true;
     }
   }
 
   if (!model.predefinedCalibration && !isTeamValidatedPredefined(model)) {
     const { slope, intercept } = readLinearCoefficients(model);
-    if (slope !== null && intercept !== null && isLegacyBankLinearCoefficients(slope, intercept)) {
-      return true;
+    if (slope !== null && intercept !== null) {
+      if (isLegacyBankLinearCoefficients(slope, intercept)) return true;
+      if (isPreviousOfficialLinearCoefficients(slope, intercept)) return true;
     }
   }
 
@@ -430,25 +490,40 @@ export async function ensureRespira3000PredefinedCalibrationInstalled(
     if (shouldReplaceWithOfficialPredefined(existingActive, profile)) {
       const bundle = buildRespira3000PredefinedCalibrationBundle(existingActive.activatedAt);
       await persistRespira3000PredefinedCalibrationBundle(bundle);
+      const fallback = isGeneratedLocalCalibrationProfileId(
+        profile?.id ?? existingActive.calibrationProfileId,
+      )
+        ? 'replaced_stale_local_calibration'
+        : 'migrated_predefined_version';
       return {
         installed: true,
-        reason: isGeneratedLocalCalibrationProfileId(
-          profile?.id ?? existingActive.calibrationProfileId,
-        )
-          ? 'replaced_stale_local_calibration'
-          : 'migrated_predefined_version',
+        reason: resolvePredefinedInstallReason(profile, existingActive, fallback),
       };
     }
     if (needsPredefinedUpgrade(existingActive)) {
       const bundle = buildRespira3000PredefinedCalibrationBundle(existingActive.activatedAt);
       await persistRespira3000PredefinedCalibrationBundle(bundle);
-      return { installed: true, reason: 'migrated_predefined_version' };
+      return {
+        installed: true,
+        reason: resolvePredefinedInstallReason(
+          profile,
+          existingActive,
+          'migrated_predefined_version',
+        ),
+      };
     }
     if (isCurrentPredefinedBundle(existingActive)) {
       if (needsPredefinedMetadataRefresh(existingActive)) {
         const bundle = buildRespira3000PredefinedCalibrationBundle(existingActive.activatedAt);
         await persistRespira3000PredefinedCalibrationBundle(bundle);
-        return { installed: true, reason: 'migrated_predefined_version' };
+        return {
+          installed: true,
+          reason: resolvePredefinedInstallReason(
+            profile,
+            existingActive,
+            'migrated_predefined_version',
+          ),
+        };
       }
       return { installed: false, reason: 'already_linear_predefined' };
     }
@@ -467,10 +542,20 @@ export async function ensureRespira3000PredefinedCalibrationInstalled(
   if (profile && needsProfilePredefinedRefresh(profile)) {
     const bundle = buildRespira3000PredefinedCalibrationBundle();
     await persistRespira3000PredefinedCalibrationBundle(bundle);
-    return { installed: true, reason: 'migrated_predefined_version' };
+    return {
+      installed: true,
+      reason: resolvePredefinedInstallReason(profile, existingActive, 'migrated_predefined_version'),
+    };
   }
 
   const bundle = buildRespira3000PredefinedCalibrationBundle();
   await persistRespira3000PredefinedCalibrationBundle(bundle);
-  return { installed: true, reason: 'installed' };
+  return {
+    installed: true,
+    reason: resolvePredefinedInstallReason(
+      profile,
+      existingActive,
+      'installed_predefined_20260602',
+    ),
+  };
 }
