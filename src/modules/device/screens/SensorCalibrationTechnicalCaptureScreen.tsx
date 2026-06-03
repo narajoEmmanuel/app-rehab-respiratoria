@@ -67,7 +67,6 @@ import {
     type TechnicalSpirometerOption,
 } from '@/src/modules/device/spirometer';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
-import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
 import type { CalibrationTechnicalExportContext } from '@/src/modules/export/formatters/calibration-technical-export-context';
 import { exportCalibrationTechnicalCsv } from '@/src/modules/export/services/calibration-technical-export-service';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -97,24 +96,6 @@ function newCaptureId(): string {
   return `cap-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function statusLabel(state: SensorConnectionStatus): string {
-  switch (state) {
-    case 'idle':
-      return 'En espera';
-    case 'connecting':
-      return 'Conectando';
-    case 'connected':
-    case 'receiving':
-      return 'Conectado';
-    case 'error':
-      return 'Error';
-    case 'disconnected':
-      return 'Desconectado';
-    default:
-      return state;
-  }
-}
-
 const RESPIRA_SPIROMETER_DISPLAY = 'MediMetrics MV1811-3';
 const RESPIRA_SPIROMETER_CAPACITY_ML = 3000;
 
@@ -131,19 +112,6 @@ function classifyStabilityForUi(stats: BufferStats | null): SignalStability {
   if (stats.stdDistanceMm <= STABILITY_STABLE_STD_MM) return 'stable';
   if (stats.stdDistanceMm <= STABILITY_VARIABLE_STD_MM) return 'acceptable';
   return 'variable';
-}
-
-function stabilityLabel(s: SignalStability): string {
-  switch (s) {
-    case 'stable':
-      return 'Estable';
-    case 'acceptable':
-      return 'Aceptable';
-    case 'variable':
-      return 'Variable';
-    default:
-      return 'Esperando muestras';
-  }
 }
 
 function modelStatusLabel(status: CalibrationModelStatus): string {
@@ -302,7 +270,6 @@ export function SensorCalibrationTechnicalCaptureScreen(
   const [activeModelBusy, setActiveModelBusy] = useState<'idle' | 'activating' | 'clearing'>(
     'idle',
   );
-  const [advancedDetailsExpanded, setAdvancedDetailsExpanded] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [saveSuccessVisible, setSaveSuccessVisible] = useState(false);
 
@@ -312,7 +279,6 @@ export function SensorCalibrationTechnicalCaptureScreen(
     status,
     mode,
     lastReading,
-    connect,
   } = useSensorConnection();
 
   const volumeMl = useMemo(() => parseVolumeMlInput(volumeInput), [volumeInput]);
@@ -366,7 +332,7 @@ export function SensorCalibrationTechnicalCaptureScreen(
     if (!inLiveMode) return 'Conecta el sensor para comenzar.';
     if (!liveSignalOk) return 'No hay señal válida del sensor';
     if (!distanceAboveSensorMin) {
-      return 'La distancia está por debajo del rango confiable del sensor. Reubica el sensor o usa un volumen mayor.';
+      return 'Reubica el pistón o elige un volumen mayor.';
     }
     if (!hasEnoughSamples) return 'Espera señal estable antes de registrar';
     return null;
@@ -401,6 +367,66 @@ export function SensorCalibrationTechnicalCaptureScreen(
     [activeSpirometerProfile],
   );
   const isSubOperativeInput = volumeMl !== null && volumeMl < operativeMinVolumeMl;
+
+  const registerHelperMessage = useMemo(() => {
+    if (!canRegister && registerBlockReason) {
+      return registerBlockReason;
+    }
+    if (isSubOperativeInput) {
+      return `El rango operativo recomendado inicia en ${operativeMinVolumeMl} mL.`;
+    }
+    if (canRegister && isVariableSignal) {
+      return 'La señal está variable, considera repetir la medición.';
+    }
+    return null;
+  }, [
+    canRegister,
+    isSubOperativeInput,
+    isVariableSignal,
+    operativeMinVolumeMl,
+    registerBlockReason,
+  ]);
+  const registerHelperIsBlock = !canRegister && registerBlockReason !== null;
+
+  const measurementReadiness = useMemo((): {
+    label: string;
+    tone: 'success' | 'warning' | 'neutral' | 'danger';
+  } => {
+    if (status === 'connecting') {
+      return { label: 'Conectando sensor…', tone: 'neutral' };
+    }
+    if (!inLiveMode) {
+      return { label: 'Sensor desconectado', tone: 'danger' };
+    }
+    if (canRegister) {
+      if (isVariableSignal) {
+        return { label: 'Medición lista · señal variable', tone: 'warning' };
+      }
+      return { label: 'Medición lista', tone: 'success' };
+    }
+    if (volumeMl === null) {
+      return { label: 'Indica el volumen objetivo', tone: 'neutral' };
+    }
+    if (!liveSignalOk) {
+      return { label: 'Esperando señal válida', tone: 'warning' };
+    }
+    if (!hasEnoughSamples) {
+      return { label: 'Esperando señal estable', tone: 'warning' };
+    }
+    if (!distanceAboveSensorMin) {
+      return { label: 'Ajusta volumen o posición', tone: 'warning' };
+    }
+    return { label: 'Completa la medición', tone: 'neutral' };
+  }, [
+    canRegister,
+    distanceAboveSensorMin,
+    hasEnoughSamples,
+    inLiveMode,
+    isVariableSignal,
+    liveSignalOk,
+    status,
+    volumeMl,
+  ]);
 
   const volumeSummaries = useMemo<VolumeCalibrationSummary[]>(
     () => computeVolumeSummaries(points),
@@ -823,6 +849,8 @@ export function SensorCalibrationTechnicalCaptureScreen(
   const canClearStorage =
     (savedStatus.kind === 'saved' || savedStatus.kind === 'corrupt') && storageBusy === 'idle';
 
+  const canCancelCalibrationInProgress = points.length > 0 || retakeVolumeMl !== null;
+
   const canActivateRecommendedModel = useMemo(() => {
     if (activeModelBusy !== 'idle' || storageBusy !== 'idle') return false;
     if (!activeSpirometerDevice || !savedProfile) return false;
@@ -977,9 +1005,6 @@ export function SensorCalibrationTechnicalCaptureScreen(
     storageBusy,
   ]);
 
-  const isConnecting = status === 'connecting';
-  const isOnline = status === 'connected' || status === 'receiving';
-
   const showPreliminaryResult = points.length >= 2 && linearModel !== null;
   const preliminaryReadyLabel = useMemo(() => {
     if (!recommendation) return 'Calculando…';
@@ -1026,7 +1051,7 @@ export function SensorCalibrationTechnicalCaptureScreen(
         showsVerticalScrollIndicator={false}>
         <SectionHeader
           title="Nueva calibración del espirómetro"
-          subtitle="Registra las marcas de volumen y la distancia del sensor para ajustar el modelo de medición."
+          subtitle="Registra cada marca de volumen para ajustar el modelo de medición."
         />
 
         <AppCard style={styles.sessionCard}>
@@ -1080,6 +1105,19 @@ export function SensorCalibrationTechnicalCaptureScreen(
                 year: 'numeric',
               })}
             </Text>
+          ) : null}
+          {canClearStorage ? (
+            <Pressable
+              onPress={() => void onClearStorage()}
+              style={({ pressed }) => [
+                styles.destructiveTextBtn,
+                styles.sessionStoredClearAction,
+                pressed && styles.destructiveTextBtnPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Borrar calibración guardada">
+              <Text style={styles.destructiveTextBtnLabelMuted}>Borrar calibración guardada</Text>
+            </Pressable>
           ) : null}
         </AppCard>
 
@@ -1138,78 +1176,7 @@ export function SensorCalibrationTechnicalCaptureScreen(
           </View>
         )}
 
-        <Text style={styles.sectionEyebrow}>Captura</Text>
-
-        <View style={styles.heroCard}>
-          <View style={styles.captureLiveRow}>
-            <View style={styles.captureLiveCol}>
-              <Text style={styles.heroEyebrow}>Distancia filtrada</Text>
-              <Text style={styles.captureDistanceValue}>
-                {distanceIsFinite ? `${(distanceMm as number).toFixed(1)}` : '—'}
-              </Text>
-              <Text style={styles.captureDistanceUnit}>mm</Text>
-            </View>
-            <View style={styles.captureLiveCol}>
-              <Text style={styles.heroEyebrow}>Sensor</Text>
-              <View style={styles.heroStatusRow}>
-                {isConnecting ? (
-                  <ActivityIndicator size="small" color={wellness.primaryDark} />
-                ) : (
-                  <View
-                    style={[
-                      styles.statusDot,
-                      liveSignalOk && inLiveMode ? styles.statusDotOk : styles.statusDotMuted,
-                    ]}
-                  />
-                )}
-                <Text style={styles.captureSensorStatus}>{statusLabel(status)}</Text>
-              </View>
-            </View>
-          </View>
-          <View style={styles.pillRow}>
-            <View
-              style={[
-                styles.pill,
-                stability === 'stable'
-                  ? styles.pillOk
-                  : stability === 'variable'
-                    ? styles.pillWarn
-                    : stability === 'insufficient'
-                      ? null
-                      : styles.pillOk,
-              ]}>
-              <Text
-                style={
-                  stability === 'stable' || stability === 'variable' || stability === 'acceptable'
-                    ? styles.pillText
-                    : styles.pillTextMuted
-                }>
-                {stability === 'insufficient' && !inLiveMode
-                  ? 'Sin señal'
-                  : stabilityLabel(stability)}
-              </Text>
-            </View>
-            <View style={[styles.pill, liveSignalOk ? styles.pillOk : styles.pillWarn]}>
-              <Text style={styles.pillText}>{liveSignalOk ? 'Señal válida' : 'Señal no válida'}</Text>
-            </View>
-          </View>
-          {!isOnline && !isConnecting ? (
-            <Pressable
-              style={({ pressed }) => [
-                styles.secondaryBtn,
-                styles.captureConnectBtn,
-                pressed && styles.secondaryBtnPressed,
-              ]}
-              onPress={() => {
-                hapticLight();
-                connect();
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Conectar sensor">
-              <Text style={styles.secondaryBtnText}>Conectar sensor</Text>
-            </Pressable>
-          ) : null}
-        </View>
+        <Text style={styles.sectionEyebrow}>Medición</Text>
 
         {isRetakeMode && retakeVolumeMl !== null ? (
           <View style={styles.retakeBanner}>
@@ -1244,6 +1211,13 @@ export function SensorCalibrationTechnicalCaptureScreen(
         ) : null}
 
         <View style={styles.card}>
+          <View style={styles.measurementReadinessRow}>
+            <StatusPill
+              label={measurementReadiness.label}
+              tone={measurementReadiness.tone}
+              size="sm"
+            />
+          </View>
           <Text style={styles.cardTitleStrong}>Volumen objetivo</Text>
           <Text style={styles.cardSubTitleStrong}>Valor objetivo para registrar el siguiente punto (mL)</Text>
           <TextInput
@@ -1313,36 +1287,38 @@ export function SensorCalibrationTechnicalCaptureScreen(
               </View>
             </>
           ) : null}
-          {isSubOperativeInput ? (
-            <Text style={styles.warnHint}>
-              El rango operativo recomendado inicia en {operativeMinVolumeMl} mL.
-            </Text>
-          ) : null}
-          {!canRegister && registerBlockReason ? (
-            <Text style={styles.blockHint}>{registerBlockReason}</Text>
-          ) : null}
-          {canRegister && isVariableSignal ? (
-            <Text style={styles.warnHint}>
-              La señal está variable, considera repetir la medición.
-            </Text>
-          ) : null}
-          <Pressable
-            style={({ pressed }) => [
-              styles.primaryBtn,
-              { marginTop: spacing.md },
-              (!canRegister || isRegistering) && styles.btnDisabled,
-              pressed && canRegister && !isRegistering && styles.primaryBtnPressed,
-            ]}
-            onPress={onRegister}
-            disabled={!canRegister || isRegistering}>
-            <Text
-              style={[
-                styles.primaryBtnText,
-                (!canRegister || isRegistering) && styles.primaryBtnTextDisabled,
-              ]}>
-              {isRegistering ? 'Registrando…' : 'Registrar punto'}
-            </Text>
-          </Pressable>
+          <View style={styles.registerActionBlock}>
+            <View style={styles.rangeHelperSlot}>
+              <Text
+                style={
+                  registerHelperMessage
+                    ? registerHelperIsBlock
+                      ? styles.blockHintSlot
+                      : styles.warnHintSlot
+                    : styles.registerHelperPlaceholder
+                }
+                numberOfLines={2}
+                ellipsizeMode="tail">
+                {registerHelperMessage ?? ' '}
+              </Text>
+            </View>
+            <Pressable
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                (!canRegister || isRegistering) && styles.btnDisabled,
+                pressed && canRegister && !isRegistering && styles.primaryBtnPressed,
+              ]}
+              onPress={onRegister}
+              disabled={!canRegister || isRegistering}>
+              <Text
+                style={[
+                  styles.primaryBtnText,
+                  (!canRegister || isRegistering) && styles.primaryBtnTextDisabled,
+                ]}>
+                {isRegistering ? 'Registrando…' : 'Registrar punto'}
+              </Text>
+            </Pressable>
+          </View>
         </View>
 
         <Text style={styles.sectionEyebrow}>Progreso</Text>
@@ -1453,131 +1429,19 @@ export function SensorCalibrationTechnicalCaptureScreen(
           </>
         ) : null}
 
-        <Text style={styles.sectionEyebrow}>Finalizar</Text>
+        <Text style={styles.sectionEyebrow}>Revisión de calibración</Text>
+        <Text style={styles.sectionIntro}>
+          Consulta el estado técnico antes de guardar y activar.
+        </Text>
 
         <View style={styles.card}>
-          <View style={styles.rowGap}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.primaryBtn,
-                !canSaveAndActivate && styles.btnDisabled,
-                pressed && canSaveAndActivate && styles.primaryBtnPressed,
-              ]}
-              onPress={() => {
-                void onSaveAndActivateCalibration();
-              }}
-              disabled={!canSaveAndActivate}
-              accessibilityRole="button"
-              accessibilityLabel="Guardar y activar calibración">
-              <Text
-                style={[styles.primaryBtnText, !canSaveAndActivate && styles.btnTextDisabled]}>
-                Guardar y activar calibración
-              </Text>
-            </Pressable>
-            {!canSaveAndActivate && activationBlockReason && !showPreliminaryResult ? (
-              <Text style={styles.cardHint}>{activationBlockReason}</Text>
-            ) : null}
-            <Pressable
-              onPress={() => void handleExportCalibrationTechnical()}
-              style={({ pressed }) => [
-                styles.secondaryBtn,
-                !canExportTechnicalCsv && styles.btnDisabled,
-                pressed && canExportTechnicalCsv && styles.secondaryBtnPressed,
-              ]}
-              disabled={!canExportTechnicalCsv}
-              accessibilityRole="button"
-              accessibilityLabel="Descargar CSV técnico de calibración">
-              <Text
-                style={[styles.secondaryBtnText, !canExportTechnicalCsv && styles.btnTextDisabled]}>
-                Descargar CSV técnico
-              </Text>
-            </Pressable>
-            {!canExportTechnicalCsv ? (
-              <Text style={styles.cardHint}>
-                Captura al menos 2 volúmenes distintos con señal válida para habilitar la exportación.
-              </Text>
-            ) : null}
-            <Pressable
-              style={({ pressed }) => [
-                styles.dangerBtn,
-                !canClearStorage && styles.btnDisabled,
-                pressed && canClearStorage && styles.dangerBtnPressed,
-              ]}
-              onPress={() => {
-                void onClearStorage();
-              }}
-              disabled={!canClearStorage}
-              accessibilityRole="button"
-              accessibilityLabel="Borrar calibración guardada">
-              <Text style={[styles.dangerBtnText, !canClearStorage && styles.btnTextDisabled]}>
-                Borrar calibración
-              </Text>
-            </Pressable>
-            {storageMessage ? <Text style={styles.cardHint}>{storageMessage}</Text> : null}
-            {points.length > 0 || retakeVolumeMl !== null ? (
-              <>
-                <Pressable
-                  onPress={() => void onCancelCalibrationInProgress()}
-                  style={({ pressed }) => [
-                    styles.destructiveTextBtn,
-                    pressed && styles.destructiveTextBtnPressed,
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Borrar calibración en curso">
-                  <Text style={styles.destructiveTextBtnLabel}>Borrar calibración en curso</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => void onCancelCalibrationInProgress()}
-                  style={({ pressed }) => [
-                    styles.destructiveTextBtn,
-                    pressed && styles.destructiveTextBtnPressed,
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Cancelar calibración">
-                  <Text style={styles.destructiveTextBtnLabel}>Cancelar calibración</Text>
-                </Pressable>
-              </>
-            ) : null}
-          </View>
-        </View>
-
-        {saveSuccessVisible ? (
-          <View style={styles.saveSuccessBanner} accessibilityRole="alert">
-            <Text style={styles.saveSuccessTitle}>Calibración guardada y activada correctamente.</Text>
-            <Text style={styles.saveSuccessHint}>
-              Puedes descargar el CSV técnico cuando quieras; no es necesario guardar antes.
+          <Text style={styles.cardTitleStrong}>Protocolo de calibración</Text>
+          {points.length === 0 ? (
+            <Text style={styles.cardHint}>
+              El protocolo se completa conforme captures puntos.
             </Text>
-            <Pressable
-              onPress={() => setSaveSuccessVisible(false)}
-              style={({ pressed }) => [styles.saveSuccessDismiss, pressed && styles.saveSuccessDismissPressed]}
-              accessibilityRole="button"
-              accessibilityLabel="Cerrar mensaje de éxito">
-              <Text style={styles.saveSuccessDismissText}>Entendido</Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        <Pressable
-          onPress={() => setAdvancedDetailsExpanded((prev) => !prev)}
-          style={({ pressed }) => [styles.techDetailsToggle, pressed && styles.techDetailsTogglePressed]}
-          accessibilityRole="button"
-          accessibilityLabel={
-            advancedDetailsExpanded
-              ? 'Ocultar detalles avanzados de calibración'
-              : 'Detalles avanzados de calibración'
-          }>
-          <Text style={styles.techDetailsToggleText}>
-            {advancedDetailsExpanded
-              ? 'Ocultar detalles avanzados de calibración'
-              : 'Detalles avanzados de calibración'}
-          </Text>
-          <Text style={styles.techDetailsToggleChevron}>{advancedDetailsExpanded ? '▾' : '▸'}</Text>
-        </Pressable>
-
-        {advancedDetailsExpanded ? (
-          <>
-            <View style={styles.card}>
-              <Text style={styles.cardTitleStrong}>Protocolo de calibración</Text>
+          ) : (
+            <>
               <Text style={styles.cardHint}>
                 Revisión rápida de los puntos necesarios para activar.
               </Text>
@@ -1624,100 +1488,176 @@ export function SensorCalibrationTechnicalCaptureScreen(
                   mL.
                 </Text>
               ) : null}
-            </View>
+            </>
+          )}
+        </View>
 
-            <View style={styles.card}>
-              <Text style={styles.cardTitleStrong}>Incertidumbre resumida</Text>
-              {uncertaintyHasData && uncertaintySummary && recommendation ? (
-                <>
-                  <View style={styles.preliminaryStatsRow}>
-                    <MetricTile
-                      label="U95 promedio"
-                      value={formatUncertaintyMl(uncertaintySummary.averageU95Ml)}
-                      helper="mL"
-                      tone="default"
-                      size="compact"
-                    />
-                    <MetricTile
-                      label="U95 máximo"
-                      value={formatUncertaintyMl(uncertaintySummary.maxU95Ml)}
-                      helper="mL"
-                      tone="default"
-                      size="compact"
-                    />
-                    <MetricTile
-                      label="Estado"
-                      value={uncertaintyOverallLabel(
-                        uncertaintySummary.reports,
-                        recommendation.uncertainty.hasAcceptableUncertainty,
-                      )}
-                      tone={
-                        uncertaintyOverallLabel(
-                          uncertaintySummary.reports,
-                          recommendation.uncertainty.hasAcceptableUncertainty,
-                        ) === 'Aceptable'
-                          ? 'success'
-                          : 'warning'
-                      }
-                      size="compact"
-                    />
+        <View style={styles.card}>
+          <Text style={styles.cardTitleStrong}>Incertidumbre resumida</Text>
+          {uncertaintyHasData && uncertaintySummary && recommendation ? (
+            <>
+              <View style={styles.preliminaryStatsRow}>
+                <MetricTile
+                  label="U95 promedio"
+                  value={formatUncertaintyMl(uncertaintySummary.averageU95Ml)}
+                  helper="mL"
+                  tone="default"
+                  size="compact"
+                />
+                <MetricTile
+                  label="U95 máximo"
+                  value={formatUncertaintyMl(uncertaintySummary.maxU95Ml)}
+                  helper="mL"
+                  tone="default"
+                  size="compact"
+                />
+                <MetricTile
+                  label="Estado"
+                  value={uncertaintyOverallLabel(
+                    uncertaintySummary.reports,
+                    recommendation.uncertainty.hasAcceptableUncertainty,
+                  )}
+                  tone={
+                    uncertaintyOverallLabel(
+                      uncertaintySummary.reports,
+                      recommendation.uncertainty.hasAcceptableUncertainty,
+                    ) === 'Aceptable'
+                      ? 'success'
+                      : 'warning'
+                  }
+                  size="compact"
+                />
+              </View>
+              <Text style={styles.cardHint}>
+                El detalle por volumen se conserva en el CSV técnico.
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.cardHint}>
+              La incertidumbre se calcula cuando hay suficientes puntos.
+            </Text>
+          )}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitleStrong}>Repetibilidad</Text>
+          {!repeatability.hasPoints ? (
+            <Text style={styles.cardHint}>
+              La repetibilidad se evaluará conforme captures más mediciones.
+            </Text>
+          ) : repeatabilityConcernVolumes.length === 0 ? (
+            <Text style={styles.cardHint}>Las mediciones capturadas son consistentes.</Text>
+          ) : (
+            <View style={styles.rowGap}>
+              {repeatabilityConcernVolumes.map((row) => (
+                <View key={`rep-concern-${row.volumeMl}`} style={styles.repeatabilityActionRow}>
+                  <View style={styles.repeatabilityActionInfo}>
+                    <Text style={styles.repeatabilityActionVolume}>{row.volumeMl} mL</Text>
+                    <Text style={styles.repeatabilityActionLabel}>
+                      {row.warningLevel === 'high' ? 'Variación alta' : 'Variación moderada'}
+                    </Text>
                   </View>
-                  <Text style={styles.cardHint}>
-                    El detalle por volumen se conserva en el CSV técnico.
-                  </Text>
-                </>
-              ) : (
-                <Text style={styles.cardHint}>
-                  La incertidumbre se calcula cuando hay suficientes puntos.
-                </Text>
-              )}
-            </View>
-
-            <View style={styles.card}>
-              <Text style={styles.cardTitleStrong}>Repetibilidad</Text>
-              {!repeatability.hasPoints ? (
-                <Text style={styles.cardHint}>
-                  La repetibilidad se evaluará conforme captures más puntos.
-                </Text>
-              ) : repeatabilityConcernVolumes.length === 0 ? (
-                <Text style={styles.cardHint}>
-                  Las mediciones capturadas son consistentes.
-                </Text>
-              ) : (
-                <View style={styles.rowGap}>
-                  {repeatabilityConcernVolumes.map((row) => (
-                    <View key={`rep-concern-${row.volumeMl}`} style={styles.repeatabilityActionRow}>
-                      <View style={styles.repeatabilityActionInfo}>
-                        <Text style={styles.repeatabilityActionVolume}>{row.volumeMl} mL</Text>
-                        <Text style={styles.repeatabilityActionLabel}>
-                          {row.warningLevel === 'high' ? 'Variación alta' : 'Variación moderada'}
-                        </Text>
-                      </View>
-                      {row.warningLevel === 'high' && !isRetakeMode ? (
-                        <Pressable
-                          style={({ pressed }) => [
-                            styles.repetRepeatBtn,
-                            pressed && styles.repetRepeatBtnPressed,
-                          ]}
-                          onPress={() => {
-                            void onStartVolumeRetake(row.volumeMl);
-                          }}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Repetir volumen ${row.volumeMl} mililitros`}>
-                          <Text style={styles.repetRepeatBtnText}>Repetir {row.volumeMl} mL</Text>
-                        </Pressable>
-                      ) : row.warningLevel === 'high' &&
-                        isRetakeMode &&
-                        retakeVolumeMl === row.volumeMl ? (
-                        <Text style={styles.repetActionMuted}>En curso</Text>
-                      ) : null}
-                    </View>
-                  ))}
+                  {row.warningLevel === 'high' && !isRetakeMode ? (
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.repetRepeatBtn,
+                        pressed && styles.repetRepeatBtnPressed,
+                      ]}
+                      onPress={() => {
+                        void onStartVolumeRetake(row.volumeMl);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Repetir volumen ${row.volumeMl} mililitros`}>
+                      <Text style={styles.repetRepeatBtnText}>Repetir {row.volumeMl} mL</Text>
+                    </Pressable>
+                  ) : row.warningLevel === 'high' &&
+                    isRetakeMode &&
+                    retakeVolumeMl === row.volumeMl ? (
+                    <Text style={styles.repetActionMuted}>En curso</Text>
+                  ) : null}
                 </View>
-              )}
+              ))}
             </View>
+          )}
+        </View>
 
-        </>
+        <Text style={styles.sectionEyebrow}>Finalizar</Text>
+        <Text style={styles.sectionIntro}>
+          Guarda la calibración o exporta el archivo técnico.
+        </Text>
+
+        <View style={styles.card}>
+          <View style={styles.finalizeActions}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                !canSaveAndActivate && styles.btnDisabled,
+                pressed && canSaveAndActivate && styles.primaryBtnPressed,
+              ]}
+              onPress={() => {
+                void onSaveAndActivateCalibration();
+              }}
+              disabled={!canSaveAndActivate}
+              accessibilityRole="button"
+              accessibilityLabel="Guardar y activar calibración">
+              <Text
+                style={[styles.primaryBtnText, !canSaveAndActivate && styles.btnTextDisabled]}>
+                Guardar y activar
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void handleExportCalibrationTechnical()}
+              style={({ pressed }) => [
+                styles.secondaryBtn,
+                !canExportTechnicalCsv && styles.btnDisabled,
+                pressed && canExportTechnicalCsv && styles.secondaryBtnPressed,
+              ]}
+              disabled={!canExportTechnicalCsv}
+              accessibilityRole="button"
+              accessibilityLabel="Descargar CSV técnico de calibración">
+              <Text
+                style={[styles.secondaryBtnText, !canExportTechnicalCsv && styles.btnTextDisabled]}>
+                Descargar CSV técnico
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void onCancelCalibrationInProgress()}
+              disabled={!canCancelCalibrationInProgress}
+              style={({ pressed }) => [
+                styles.dangerBtn,
+                !canCancelCalibrationInProgress && styles.btnDisabled,
+                pressed && canCancelCalibrationInProgress && styles.dangerBtnPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Borrar calibración en curso"
+              accessibilityState={{ disabled: !canCancelCalibrationInProgress }}>
+              <Text
+                style={[
+                  styles.dangerBtnText,
+                  !canCancelCalibrationInProgress && styles.btnTextDisabled,
+                ]}>
+                Borrar calibración en curso
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {storageMessage ? <Text style={styles.finalizeStatusHint}>{storageMessage}</Text> : null}
+
+        {saveSuccessVisible ? (
+          <View style={styles.saveSuccessBanner} accessibilityRole="alert">
+            <Text style={styles.saveSuccessTitle}>Calibración guardada y activada correctamente.</Text>
+            <Text style={styles.saveSuccessHint}>
+              Puedes descargar el CSV técnico cuando quieras; no es necesario guardar antes.
+            </Text>
+            <Pressable
+              onPress={() => setSaveSuccessVisible(false)}
+              style={({ pressed }) => [styles.saveSuccessDismiss, pressed && styles.saveSuccessDismissPressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Cerrar mensaje de éxito">
+              <Text style={styles.saveSuccessDismissText}>Entendido</Text>
+            </Pressable>
+          </View>
         ) : null}
       </ScrollView>
     </SafeAreaView>
@@ -1752,6 +1692,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     marginBottom: spacing.xs,
   },
+  sectionIntro: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: wellness.textSecondary,
+    marginBottom: spacing.xs,
+  },
   scroll: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl * 2,
@@ -1767,35 +1713,8 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     marginBottom: spacing.xs,
   },
-  captureLiveRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: spacing.lg,
-  },
-  captureLiveCol: {
-    flex: 1,
-  },
-  captureDistanceValue: {
-    fontSize: 36,
-    fontWeight: '800',
-    color: wellness.primaryDark,
-    letterSpacing: -1,
-    lineHeight: 40,
-  },
-  captureDistanceUnit: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: wellness.textSecondary,
-    marginTop: 2,
-  },
-  captureSensorStatus: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: wellness.primaryDark,
-  },
-  captureConnectBtn: {
-    marginTop: spacing.md,
+  measurementReadinessRow: {
+    marginBottom: spacing.sm,
   },
   preliminaryHeader: {
     flexDirection: 'row',
@@ -1816,73 +1735,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginBottom: spacing.xs,
   },
-  heroCard: {
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.cardLarge,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    ...wellnessShadows.card,
-  },
-  heroTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  heroStatusCol: { flex: 1 },
-  heroMetricsCol: { alignItems: 'flex-end' },
-  heroEyebrow: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: wellness.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: spacing.xs,
-  },
-  heroStatusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  statusDotOk: { backgroundColor: wellness.primary },
-  statusDotMuted: { backgroundColor: wellness.textSecondary },
-  heroStatusText: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: wellness.primaryDark,
-  },
-  heroBigNumber: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: wellness.primaryDark,
-    letterSpacing: -0.5,
-  },
-  pillRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginTop: spacing.md,
-  },
-  pill: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: wellnessRadii.pill,
-    backgroundColor: wellness.screenBg,
-    borderWidth: 1,
-    borderColor: wellness.border,
-  },
-  pillOk: {
-    backgroundColor: wellness.successBg,
-    borderColor: wellness.border,
-  },
-  pillWarn: {
-    backgroundColor: wellness.errorBg,
-    borderColor: wellness.borderStrong,
-  },
-  pillText: { fontSize: 13, fontWeight: '700', color: wellness.primaryDark },
-  pillTextMuted: { fontSize: 13, fontWeight: '600', color: wellness.textSecondary },
   calibrationPurposeCard: {
     backgroundColor: wellness.card,
     borderRadius: wellnessRadii.cardLarge,
@@ -2015,16 +1867,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginBottom: spacing.md,
   },
-  connectedPill: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: wellnessRadii.pill,
-    backgroundColor: wellness.successBg,
-    borderWidth: 1,
-    borderColor: wellness.border,
-  },
-  connectedPillText: { fontSize: 13, fontWeight: '800', color: wellness.primaryDark },
   limpiarExplain: {
     fontSize: 12,
     lineHeight: 17,
@@ -2066,7 +1908,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   destructiveTextBtnPressed: { opacity: 0.75 },
+  destructiveTextBtnDisabled: { opacity: 0.45 },
   destructiveTextBtnLabel: { fontSize: 15, fontWeight: '700', color: wellness.errorText },
+  destructiveTextBtnLabelDisabled: { color: wellness.textSecondary },
+  destructiveTextBtnLabelMuted: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+  },
+  finalizeActions: {
+    gap: spacing.md,
+  },
+  finalizeStatusHint: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+    textAlign: 'center',
+    marginTop: -spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  sessionStoredClearAction: {
+    alignSelf: 'flex-start',
+    marginTop: spacing.sm,
+  },
   saveSuccessBanner: {
     marginBottom: spacing.md,
     padding: spacing.md,
@@ -2200,6 +2065,32 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: wellness.errorText,
     marginTop: spacing.xs,
+  },
+  rangeHelperSlot: {
+    height: 56,
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  registerActionBlock: {
+    marginTop: spacing.md,
+    gap: spacing.md,
+  },
+  blockHintSlot: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: wellness.errorText,
+    lineHeight: 20,
+  },
+  warnHintSlot: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: wellness.errorText,
+    lineHeight: 20,
+  },
+  registerHelperPlaceholder: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: 'transparent',
   },
   warnHint: {
     fontSize: 14,
@@ -2717,21 +2608,6 @@ const styles = StyleSheet.create({
     color: wellnessColors.textMuted,
     marginTop: spacing.xs,
   },
-  techDetailsToggle: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.card,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    marginBottom: spacing.md,
-  },
-  techDetailsTogglePressed: { opacity: 0.94 },
-  techDetailsToggleText: { fontSize: 15, fontWeight: '700', color: wellness.primaryDark },
-  techDetailsToggleChevron: { fontSize: 16, fontWeight: '800', color: wellness.textSecondary },
   techExportSection: {
     marginTop: spacing.md,
     marginBottom: spacing.md,
