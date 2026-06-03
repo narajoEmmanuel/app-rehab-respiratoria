@@ -12,6 +12,8 @@ export const LEVEL_ONE_HOLD_PREP_MS = LEVEL_ONE_ASCENT_MS;
 export const LEVEL_ONE_INHALE_SOFT_HINT_MS = 60_000;
 /** Evaluación oficial con obstáculo activo. */
 export const LEVEL_ONE_OFFICIAL_EVAL_MS = 2000;
+/** Cuenta atrás visual antes de cada repetición (no cuenta como intento). */
+export const PRE_ATTEMPT_COUNTDOWN_MS = 2000;
 /** Alias clínico / HUD. */
 export const LEVEL_ONE_REQUIRED_SUSTAIN_MS = LEVEL_ONE_OFFICIAL_EVAL_MS;
 

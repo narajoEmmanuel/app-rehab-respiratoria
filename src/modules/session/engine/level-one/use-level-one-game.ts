@@ -9,6 +9,7 @@ import {
   evaluateLevelOneAttemptComplete,
   evaluateLevelOneAttemptRelease,
   LEVEL_ONE_OFFICIAL_EVAL_MS,
+  PRE_ATTEMPT_COUNTDOWN_MS,
   type LevelOneAttemptRuntime,
   type LevelOneFailReason,
   tickLevelOneRepetition,
@@ -20,7 +21,6 @@ import type {
 } from '@/src/modules/levels/types/level-progress';
 
 const DEFAULT_REST_MS = 10000;
-const PREP_MS = 3000;
 const FAILED_EXHALE_MS = 2100;
 const VALID_EXHALE_MS = 700;
 const MAX_REPS = 10;
@@ -82,7 +82,7 @@ export function useLevelOneGame({
   restMs = DEFAULT_REST_MS,
 }: UseLevelOneGameParams) {
   const [phase, setPhase] = useState<LevelOnePhase>('not-started');
-  const [countdownMs, setCountdownMs] = useState(PREP_MS);
+  const [countdownMs, setCountdownMs] = useState(PRE_ATTEMPT_COUNTDOWN_MS);
   const [phaseCountdownMs, setPhaseCountdownMs] = useState(0);
   const [holdMs, setHoldMs] = useState(0);
   const [clearMs, setClearMs] = useState(0);
@@ -146,10 +146,15 @@ export function useLevelOneGame({
     resetAttemptRuntime();
     setAttemptFeedback('idle');
     attemptEndedSessionRef.current = false;
-    setCountdownMs(PREP_MS);
+    setCountdownMs(PRE_ATTEMPT_COUNTDOWN_MS);
     setIsPaused(false);
     setPhase('not-started');
   }, [clearTimers, resetAttemptRuntime]);
+
+  const enterPreAttemptPrep = useCallback(() => {
+    setCountdownMs(PRE_ATTEMPT_COUNTDOWN_MS);
+    setPhase('preparing');
+  }, []);
 
   useLayoutEffect(() => {
     if (engineScopeKey === undefined) return;
@@ -166,9 +171,8 @@ export function useLevelOneGame({
     setHoldMs(0);
     setIsPaused(false);
     resetAttemptRuntime();
-    setCountdownMs(PREP_MS);
-    setPhase('preparing');
-  }, [clearTimers, resetAttemptRuntime]);
+    enterPreAttemptPrep();
+  }, [clearTimers, enterPreAttemptPrep, resetAttemptRuntime]);
 
   const startSession = useCallback(() => {
     if (phase === 'not-started') {
@@ -455,8 +459,8 @@ export function useLevelOneGame({
     }
     pendingRestAdvanceRef.current = false;
     advanceRepetition();
-    setPhase('ready');
-  }, [advanceRepetition, phase, countdownMs]);
+    enterPreAttemptPrep();
+  }, [advanceRepetition, enterPreAttemptPrep, phase, countdownMs]);
 
   useEffect(() => {
     if (isPaused) {
@@ -477,7 +481,6 @@ export function useLevelOneGame({
     }
 
     if (phase === 'preparing') {
-      setCountdownMs(PREP_MS);
       countdownRef.current = setInterval(() => {
         setCountdownMs((prev) => {
           const next = prev - 1000;
@@ -532,7 +535,7 @@ export function useLevelOneGame({
     }
 
     if (!progress.levelCompleted && !currentSessionData?.completed && phase === 'session-complete') {
-      setPhase('preparing');
+      enterPreAttemptPrep();
     }
 
     return () => {
@@ -544,6 +547,7 @@ export function useLevelOneGame({
     attemptFeedback,
     clearTimers,
     currentSessionData?.completed,
+    enterPreAttemptPrep,
     isPaused,
     phase,
     progress,
@@ -560,8 +564,9 @@ export function useLevelOneGame({
   const evalSecondsRemaining = Math.max(0, Math.ceil(phaseCountdownMs / 1000));
   const sustainSecondsRemaining =
     phase === 'evaluating' ? evalSecondsRemaining : 0;
-  const restSecondsRemaining = Math.max(0, Math.ceil(countdownMs / 1000));
-  const prepSecondsRemaining = Math.max(0, Math.ceil(countdownMs / 1000));
+  const restSecondsRemaining = phase === 'resting' ? Math.max(0, Math.ceil(countdownMs / 1000)) : 0;
+  const prepSecondsRemaining =
+    phase === 'preparing' ? Math.max(1, Math.ceil(countdownMs / 1000)) : 0;
 
   return {
     phase,

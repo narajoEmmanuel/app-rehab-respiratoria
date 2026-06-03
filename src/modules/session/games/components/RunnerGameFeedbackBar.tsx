@@ -4,15 +4,18 @@ import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
 
 import type { LevelOnePhase } from '@/src/modules/session/engine/level-one/use-level-one-game';
+import { PRE_ATTEMPT_COUNTDOWN_MS } from '@/src/modules/session/engine/level-one/level-one-repetition-rules';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 const REP_COUNT = 10;
 const VALID_FX_MS = 900;
+const PREP_TOTAL_SECONDS = Math.max(1, Math.round(PRE_ATTEMPT_COUNTDOWN_MS / 1000));
 
 /** Paleta emocional para mensajes motivacionales (sin saturación agresiva). */
 export const RUNNER_FEEDBACK_COLORS = {
@@ -37,6 +40,7 @@ type RunnerGameFeedbackBarProps = {
   attemptOutcomes: (boolean | null)[];
   restSecondsRemaining: number;
   restTotalSeconds: number;
+  prepSecondsRemaining: number;
   instructionText: string;
   phaseLabel: string;
   instructionTone: RunnerInstructionTone;
@@ -53,15 +57,26 @@ export function resolveRunnerInstruction(params: {
   inhaleSoftHintVisible: boolean;
   attemptFeedback: 'idle' | 'valid' | 'failed';
   holdSecondsRemaining: number;
+  prepSecondsRemaining: number;
 }): { phaseLabel: string; instructionText: string; instructionTone: RunnerInstructionTone } {
-  const { phase, metaJustReached, inhaleSoftHintVisible, attemptFeedback, holdSecondsRemaining } =
-    params;
+  const {
+    phase,
+    metaJustReached,
+    inhaleSoftHintVisible,
+    attemptFeedback,
+    holdSecondsRemaining,
+    prepSecondsRemaining,
+  } = params;
 
   if (phase === 'preparing') {
-    return { phaseLabel: 'Prepárate', instructionText: 'Listo en unos segundos', instructionTone: 'level' };
+    return {
+      phaseLabel: 'Prepárate',
+      instructionText: `Comienza en ${prepSecondsRemaining} s`,
+      instructionTone: 'special',
+    };
   }
   if (phase === 'ready') {
-    return { phaseLabel: 'Listo', instructionText: 'Inspira cuando estés preparado', instructionTone: 'level' };
+    return { phaseLabel: 'Inspira', instructionText: 'Inspira hasta alcanzar la meta', instructionTone: 'level' };
   }
   if (phase === 'inhaling') {
     if (inhaleSoftHintVisible) {
@@ -149,6 +164,7 @@ export function RunnerGameFeedbackBar({
   attemptOutcomes,
   restSecondsRemaining,
   restTotalSeconds,
+  prepSecondsRemaining,
   instructionText,
   phaseLabel,
   instructionTone,
@@ -165,10 +181,35 @@ export function RunnerGameFeedbackBar({
       ? `${Math.round(displayVolumeMl)} mL`
       : '—';
   const inRest = phase === 'resting';
+  const inPrep = phase === 'preparing';
+  const prepColor = RUNNER_FEEDBACK_COLORS.special;
   const phaseColor = instructionColor(instructionTone, accentColor);
   const instructionColorValue = instructionColor(instructionTone, accentColor);
   const restProgress =
     restTotalSeconds > 0 ? Math.min(1, restSecondsRemaining / restTotalSeconds) : 0;
+  const prepProgress =
+    PREP_TOTAL_SECONDS > 0 ? Math.min(1, prepSecondsRemaining / PREP_TOTAL_SECONDS) : 0;
+
+  const prepPulse = useSharedValue(1);
+
+  useEffect(() => {
+    if (!inPrep) {
+      prepPulse.value = 1;
+      return;
+    }
+    prepPulse.value = withRepeat(
+      withSequence(
+        withTiming(1.04, { duration: 700, easing: Easing.inOut(Easing.quad) }),
+        withTiming(1, { duration: 700, easing: Easing.inOut(Easing.quad) }),
+      ),
+      -1,
+      false,
+    );
+  }, [inPrep, prepPulse]);
+
+  const prepPulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: prepPulse.value }],
+  }));
 
   const validFxOpacity = useSharedValue(0);
   const validFxScale = useSharedValue(0.92);
@@ -256,6 +297,30 @@ export function RunnerGameFeedbackBar({
             Siguiente intento en {restSecondsRemaining} s
           </Text>
         </View>
+      ) : inPrep ? (
+        <Animated.View style={[styles.prepCapsule, { borderColor: prepColor }, prepPulseStyle]}>
+          <Text style={[styles.prepLabel, { color: prepColor }]}>Prepárate</Text>
+          <View style={[styles.prepTimerRingOuter, { borderColor: `${prepColor}40` }]}>
+            <View
+              style={[
+                styles.prepTimerRingTrack,
+                {
+                  borderColor: prepColor,
+                  opacity: 0.2 + prepProgress * 0.5,
+                },
+              ]}
+            />
+            <View style={[styles.prepTimerRing, { borderColor: prepColor }]}>
+              <Text style={[styles.prepTimerValue, { color: prepColor }]}>
+                {prepSecondsRemaining}
+              </Text>
+              <Text style={styles.prepTimerUnit}>s</Text>
+            </View>
+          </View>
+          <Text style={[styles.prepSubline, { color: prepColor }]}>
+            Comienza en {prepSecondsRemaining} s
+          </Text>
+        </Animated.View>
       ) : (
         <View style={[styles.phaseBlock, { borderColor: accentColor }]}>
           <Animated.View style={[styles.validFxOverlay, validFxStyle]} pointerEvents="none">
@@ -488,6 +553,60 @@ const styles = StyleSheet.create({
     marginTop: -2,
   },
   restSubline: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  prepCapsule: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 22,
+    borderRadius: wellnessRadii.cardLarge,
+    backgroundColor: 'rgba(139, 126, 200, 0.08)',
+    borderWidth: 2,
+  },
+  prepLabel: {
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  prepTimerRingOuter: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  prepTimerRingTrack: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 36,
+    borderWidth: 4,
+  },
+  prepTimerRing: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    borderWidth: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+  prepTimerValue: {
+    fontSize: 24,
+    fontWeight: '900',
+    lineHeight: 26,
+  },
+  prepTimerUnit: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: wellness.textSecondary,
+    marginTop: -2,
+  },
+  prepSubline: {
     fontSize: 14,
     fontWeight: '700',
     letterSpacing: 0.2,

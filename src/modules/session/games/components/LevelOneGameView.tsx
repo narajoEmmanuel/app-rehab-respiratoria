@@ -217,6 +217,7 @@ export function LevelOneGameView({
         inhaleSoftHintVisible,
         attemptFeedback,
         holdSecondsRemaining,
+        prepSecondsRemaining,
       }),
     [
       attemptFeedback,
@@ -224,6 +225,7 @@ export function LevelOneGameView({
       inhaleSoftHintVisible,
       metaJustReached,
       phase,
+      prepSecondsRemaining,
     ],
   );
 
@@ -571,6 +573,7 @@ export function LevelOneGameView({
               attemptOutcomes={attemptOutcomes}
               restSecondsRemaining={restSecondsRemaining}
               restTotalSeconds={restTotalSeconds}
+              prepSecondsRemaining={prepSecondsRemaining}
               instructionText={instructionText}
               phaseLabel={phaseLabel}
               instructionTone={instructionTone}
