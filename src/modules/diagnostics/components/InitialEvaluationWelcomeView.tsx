@@ -1,9 +1,8 @@
-import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { AppBrandLogo } from '@/src/shared/branding/AppBrandLogo';
-import { AppBrandWordmark } from '@/src/shared/branding/AppBrandWordmark';
+import { appBrand } from '@/src/shared/branding/app-brand';
 import { spacing } from '@/src/shared/theme/spacing';
+import { fontBold, fontRegular } from '@/src/shared/theme/typography';
 import { wellness, wellnessColors, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 type InitialEvaluationWelcomeViewProps = {
@@ -23,7 +22,6 @@ export function InitialEvaluationWelcomeView({
   onStart,
   onGoToSensor,
 }: InitialEvaluationWelcomeViewProps) {
-  const [logoFailed, setLogoFailed] = useState(false);
   const showSensorHint = !canStart && !loading;
   const buttonDisabled = !canStart || loading;
 
@@ -31,12 +29,19 @@ export function InitialEvaluationWelcomeView({
     <View style={styles.screen}>
       <View style={styles.heroWash} pointerEvents="none" />
 
-      <View style={styles.logoWrap}>
-        {logoFailed ? (
-          <AppBrandWordmark size="hero" />
-        ) : (
-          <AppBrandLogo variant="hero" onError={() => setLogoFailed(true)} />
-        )}
+      <View style={styles.brandWrap}>
+        <View style={styles.brandBadge} accessibilityRole="header" accessibilityLabel={appBrand.name}>
+          <Text style={styles.brandTitle}>
+            <Text style={styles.brandWord}>Respira</Text>
+            <Text style={styles.brandPlus}>+</Text>
+          </Text>
+          <Text style={styles.brandSubtitle}>Evaluación inicial</Text>
+          <View style={styles.brandAccent}>
+            <View style={styles.brandAccentDot} />
+            <View style={styles.brandAccentLine} />
+            <View style={styles.brandAccentDot} />
+          </View>
+        </View>
       </View>
 
       <View style={styles.card}>
@@ -108,10 +113,68 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(52, 171, 165, 0.12)',
   },
-  logoWrap: {
+  brandWrap: {
     alignItems: 'center',
     marginBottom: spacing.lg,
     zIndex: 1,
+  },
+  brandBadge: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    paddingVertical: 18,
+    paddingHorizontal: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.22)',
+    shadowColor: '#1F7E7A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  brandTitle: {
+    fontSize: 38,
+    fontWeight: '900',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+    includeFontPadding: false,
+  },
+  brandWord: {
+    fontFamily: fontBold,
+    color: '#078B83',
+  },
+  brandPlus: {
+    fontFamily: fontRegular,
+    color: wellnessColors.primary,
+    letterSpacing: 0.8,
+  },
+  brandSubtitle: {
+    marginTop: 6,
+    fontSize: 15,
+    fontWeight: '700',
+    color: 'rgba(31, 126, 122, 0.72)',
+    textAlign: 'center',
+    letterSpacing: 0.15,
+  },
+  brandAccent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: spacing.sm,
+  },
+  brandAccentDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: wellnessColors.primary,
+    opacity: 0.55,
+  },
+  brandAccentLine: {
+    width: 28,
+    height: 2,
+    borderRadius: wellnessRadii.full,
+    backgroundColor: 'rgba(52, 171, 165, 0.35)',
   },
   card: {
     backgroundColor: wellness.card,
