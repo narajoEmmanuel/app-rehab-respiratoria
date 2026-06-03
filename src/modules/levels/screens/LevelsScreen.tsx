@@ -12,7 +12,6 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import {
-  showLevelPlayModePicker,
   showTherapyReadinessAlert,
   useTherapyReadinessGate,
 } from '@/src/modules/device/volume-estimation';
@@ -242,28 +241,13 @@ export function LevelsScreen({
     ],
   );
 
-  const beginPracticeMode = useCallback(
-    (levelId: LevelId) => {
-      navigateToSession(levelId, 'touch_practice');
-    },
-    [navigateToSession],
-  );
-
   const onPlayLevel = useCallback(
     (levelId: LevelId, progressionLocked: boolean) => {
       if (progressionLocked || startingLevelId !== null) return;
-
-      showLevelPlayModePicker({
-        onWithSensor: () => {
-          logLevelSensorModeSelected('sensor');
-          void beginOfficialSensorSession(levelId);
-        },
-        onPracticeMode: () => {
-          beginPracticeMode(levelId);
-        },
-      });
+      logLevelSensorModeSelected('sensor');
+      void beginOfficialSensorSession(levelId);
     },
-    [beginOfficialSensorSession, beginPracticeMode, startingLevelId],
+    [beginOfficialSensorSession, startingLevelId],
   );
 
   const scrollBottom = dashboardScrollBottomPadding(insets.bottom);
