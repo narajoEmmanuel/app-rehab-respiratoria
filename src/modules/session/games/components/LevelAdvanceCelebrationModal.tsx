@@ -90,6 +90,7 @@ function FallingStar({
   );
 }
 
+// TODO(fase-mascota): unificar WinkingRabbit con RespiraBunny (@/src/shared/ui/RespiraBunny).
 function WinkingRabbit() {
   const wink = useSharedValue(1);
 

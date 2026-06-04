@@ -63,6 +63,7 @@ import {
   isTouchPracticeSession,
   type SessionInputMode,
 } from '@/src/modules/session/session-input-mode';
+import { RespiraBunny } from '@/src/shared/ui/RespiraBunny';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 /** Altura mínima de salto (px) y rango adicional hasta la meta de inspiración. */
@@ -747,7 +748,10 @@ export function LevelOneGameView({
                   rabbitStyle,
                 ]}>
                 <View style={styles.rabbitVisualScale}>
-                  <RunnerRabbit crashed={crashFxVisible} astronaut={isSpace} />
+                  <RespiraBunny
+                    mood={crashFxVisible ? 'crashed' : 'default'}
+                    variant={isSpace ? 'astronaut' : 'default'}
+                  />
                 </View>
               </Animated.View>
 
@@ -1016,72 +1020,6 @@ function CrashImpactFx() {
       <View style={styles.crashFxPuffOuter} />
       <View style={styles.crashFxPuffInner} />
       <Text style={styles.crashFxBoom}>¡Ups!</Text>
-    </View>
-  );
-}
-
-/** Conejo unificado: una sola jerarquía, proporciones fijas, estilo minimal. */
-function RunnerRabbit({ crashed = false, astronaut = false }: { crashed?: boolean; astronaut?: boolean }) {
-  const fur = astronaut ? '#E8ECF4' : '#FAFAF7';
-  const outline = astronaut ? '#5A6A88' : '#7A8A82';
-  const innerEar = astronaut ? '#C8D0E0' : '#E8B8C8';
-  const suitBlue = '#6A8AC8';
-  const helmetGlass = 'rgba(180, 220, 255, 0.45)';
-
-  return (
-    <View style={styles.bunnyRoot} pointerEvents="none">
-      <View style={styles.bunnyEarsRow}>
-        <View
-          style={[
-            styles.bunnyEar,
-            { borderColor: outline, backgroundColor: fur },
-            crashed && styles.bunnyEarCrashed,
-            astronaut && styles.bunnyEarAstronaut,
-          ]}>
-          <View style={[styles.bunnyEarInner, { backgroundColor: innerEar }]} />
-        </View>
-        <View
-          style={[
-            styles.bunnyEar,
-            { borderColor: outline, backgroundColor: fur },
-            crashed && styles.bunnyEarCrashed,
-            astronaut && styles.bunnyEarAstronaut,
-          ]}>
-          <View style={[styles.bunnyEarInner, { backgroundColor: innerEar }]} />
-        </View>
-      </View>
-      <View style={[styles.bunnyTorso, { borderColor: outline, backgroundColor: astronaut ? suitBlue : fur }]}>
-        {astronaut ? (
-          <View style={styles.bunnySuitStripe} />
-        ) : (
-          <View style={styles.bunnyBelly} />
-        )}
-        {astronaut ? (
-          <View style={[styles.bunnyHelmet, { borderColor: outline }]}>
-            <View style={[styles.bunnyHelmetGlass, { backgroundColor: helmetGlass }]} />
-            {crashed ? (
-              <>
-                <View style={styles.bunnyEyeCrashedLeft} />
-                <View style={styles.bunnyEyeCrashedRight} />
-              </>
-            ) : (
-              <View style={styles.bunnyEyeHelmet} />
-            )}
-          </View>
-        ) : crashed ? (
-          <>
-            <View style={styles.bunnyEyeCrashedLeft} />
-            <View style={styles.bunnyEyeCrashedRight} />
-          </>
-        ) : (
-          <View style={styles.bunnyEye} />
-        )}
-        {!astronaut ? <View style={styles.bunnyNose} /> : null}
-      </View>
-      <View style={styles.bunnyFeetRow}>
-        <View style={[styles.bunnyFoot, { borderColor: outline, backgroundColor: astronaut ? '#4A5A78' : undefined }]} />
-        <View style={[styles.bunnyFoot, { borderColor: outline, backgroundColor: astronaut ? '#4A5A78' : undefined }]} />
-      </View>
     </View>
   );
 }
@@ -1620,140 +1558,6 @@ const styles = StyleSheet.create({
     color: '#8C3A42',
     letterSpacing: 0.5,
     zIndex: 2,
-  },
-  bunnyRoot: {
-    width: 72,
-    height: 88,
-    alignItems: 'center',
-  },
-  bunnyEarsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: -10,
-    zIndex: 2,
-  },
-  bunnyEar: {
-    width: 12,
-    height: 26,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    paddingTop: 5,
-  },
-  bunnyEarInner: {
-    width: 5,
-    height: 14,
-    borderRadius: 3,
-  },
-  bunnyTorso: {
-    width: 50,
-    height: 56,
-    borderRadius: 26,
-    borderWidth: 1.5,
-    marginTop: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  bunnyBelly: {
-    position: 'absolute',
-    width: 26,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    bottom: 8,
-    opacity: 0.95,
-  },
-  bunnyEye: {
-    position: 'absolute',
-    top: 18,
-    right: 14,
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: '#2C3834',
-  },
-  bunnyEyeCrashedLeft: {
-    position: 'absolute',
-    top: 20,
-    left: 12,
-    width: 8,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: '#2C3834',
-    transform: [{ rotate: '18deg' }],
-  },
-  bunnyEyeCrashedRight: {
-    position: 'absolute',
-    top: 20,
-    right: 12,
-    width: 8,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: '#2C3834',
-    transform: [{ rotate: '-18deg' }],
-  },
-  bunnyEarCrashed: {
-    transform: [{ rotate: '-12deg' }],
-  },
-  bunnyEarAstronaut: {
-    height: 22,
-    marginTop: -4,
-  },
-  bunnySuitStripe: {
-    position: 'absolute',
-    width: 8,
-    height: 36,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.35)',
-    bottom: 10,
-  },
-  bunnyHelmet: {
-    position: 'absolute',
-    top: 4,
-    width: 38,
-    height: 34,
-    borderRadius: 19,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(230, 238, 248, 0.9)',
-  },
-  bunnyHelmetGlass: {
-    width: 30,
-    height: 26,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(120, 160, 200, 0.35)',
-  },
-  bunnyEyeHelmet: {
-    position: 'absolute',
-    top: 12,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#2C3834',
-  },
-  bunnyNose: {
-    position: 'absolute',
-    top: 26,
-    right: 10,
-    width: 6,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: '#E8A0A8',
-  },
-  bunnyFeetRow: {
-    flexDirection: 'row',
-    gap: 14,
-    marginTop: -6,
-  },
-  bunnyFoot: {
-    width: 16,
-    height: 9,
-    borderRadius: 5,
-    backgroundColor: '#F0F2EF',
-    borderWidth: 1,
   },
   phaseStrip: {
     marginTop: 4,
