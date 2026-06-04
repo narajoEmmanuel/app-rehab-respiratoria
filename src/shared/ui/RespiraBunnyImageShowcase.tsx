@@ -6,6 +6,7 @@
 
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { RunnerBunnyCoachBubble } from '@/src/modules/session/games/components/RunnerBunnyCoachBubble';
 import { wellness, wellnessTypography } from '@/src/shared/theme/wellness-theme';
 import { RespiraBunnyImage, type BunnyImagePose } from '@/src/shared/ui/RespiraBunnyImage';
 
@@ -66,6 +67,50 @@ export function RespiraBunnyImageShowcase() {
         <RespiraBunnyImage pose="celebrate" size={100} opacity={1} />
         <RespiraBunnyImage pose="celebrate" size={100} opacity={0.55} />
       </View>
+
+      <Text style={styles.sectionTitle}>RunnerBunnyCoachBubble</Text>
+      <Text style={styles.subtitle}>
+        Level 1 coach chip (not mounted in gameplay yet). Route: /dev/respira-bunny-image-showcase
+      </Text>
+      <View style={styles.coachStack}>
+        <RunnerBunnyCoachBubble
+          visible
+          pose="wink"
+          tone="info"
+          message="Cuando estés listo, inspira hacia la meta."
+        />
+        <RunnerBunnyCoachBubble
+          visible
+          pose="celebrate"
+          tone="success"
+          message="Buen trabajo. Repetición registrada."
+        />
+        <RunnerBunnyCoachBubble
+          visible
+          pose="wink"
+          tone="rest"
+          message="Exhala y deja que el cuerpo se relaje."
+        />
+        <RunnerBunnyCoachBubble
+          visible
+          pose="wink"
+          tone="encourage"
+          message="Ajusta en la siguiente. Vas bien."
+        />
+        <RunnerBunnyCoachBubble
+          visible={false}
+          pose="wink"
+          tone="info"
+          message="(visible=false — no debe aparecer)"
+        />
+        <RunnerBunnyCoachBubble
+          visible
+          pose="wink"
+          tone="info"
+          size="regular"
+          message="Tamaño regular — misma copy de ejemplo info."
+        />
+      </View>
     </ScrollView>
   );
 }
@@ -124,5 +169,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: 16,
     paddingVertical: 8,
+  },
+  coachStack: {
+    width: '100%',
+    gap: 12,
+    paddingVertical: 4,
   },
 });
