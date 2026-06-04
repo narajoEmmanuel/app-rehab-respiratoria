@@ -1,9 +1,10 @@
 /**
- * Purpose: Mandatory digital acceptance screen (checkboxes + open full PDF).
+ * Purpose: Mandatory digital acceptance screen (document cards + single acceptance checkbox).
  * Module: legal
  */
 
 import Constants from 'expo-constants';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
@@ -16,8 +17,10 @@ import {
   Text,
   View,
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AuthRegistrationHeader } from '@/src/modules/auth/components/AuthRegistrationHeader';
 import {
   LEGAL_DOCUMENT_TITLE,
   LEGAL_DOCUMENT_VERSION,
@@ -27,12 +30,11 @@ import {
 import { acceptConsent, needsConsent } from '@/src/modules/legal/consent-service';
 import { LEGAL_DOCUMENT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
-import { AppTopBar } from '@/src/shared/ui/AppTopBar';
-import { AppButton } from '@/src/shared/ui/AppButton';
-import { AppCard } from '@/src/shared/ui/AppCard';
-import { SectionHeader } from '@/src/shared/ui/SectionHeader';
+import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellnessColors, wellnessRadius } from '@/src/shared/theme/wellness-theme';
+import { wellness, wellnessColors, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+
+const TEXT_MUTED = '#6B7B86';
 
 const CHECK_LABELS: readonly string[] = [
   'He leído y acepto los Términos y condiciones de uso.',
@@ -44,8 +46,204 @@ const CHECK_LABELS: readonly string[] = [
   'Entiendo que puedo retirar mi consentimiento en cualquier momento.',
 ];
 
+const MASTER_CHECK_LABEL = 'He leído y acepto todos los documentos anteriores.';
+
+const DOCUMENT_BLOCKS = [
+  { id: 'terms', title: 'Términos y condiciones de uso' },
+  { id: 'consent', title: 'Consentimiento informado' },
+  { id: 'privacy', title: 'Aviso de privacidad' },
+] as const;
+
+const BTN_GRADIENT_ACTIVE = ['#45BDB7', '#34ABA5', '#1F7E7A'] as const;
+const BTN_GRADIENT_DISABLED = ['#9DD9D2', '#8BCEC6', '#7ABFB8'] as const;
+
 function initialBoxes(): boolean[] {
   return CHECK_LABELS.map(() => false);
+}
+
+function LegalWellnessBackdrop() {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <LinearGradient
+        colors={['#FAFFFE', '#E8F8F6', '#D8F2EE', '#C8EBE6']}
+        locations={[0, 0.35, 0.7, 1]}
+        start={{ x: 0.2, y: 0 }}
+        end={{ x: 0.85, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <LinearGradient
+        colors={['rgba(52, 171, 165, 0.18)', 'rgba(69, 189, 183, 0.07)', 'transparent']}
+        locations={[0, 0.4, 1]}
+        start={{ x: 0, y: 0.15 }}
+        end={{ x: 0.95, y: 0.75 }}
+        style={styles.leftRailWash}
+      />
+      <LinearGradient
+        colors={['transparent', 'rgba(210, 245, 240, 0.35)', 'rgba(52, 171, 165, 0.14)']}
+        locations={[0, 0.5, 1]}
+        start={{ x: 0.5, y: 0.1 }}
+        end={{ x: 0.5, y: 1 }}
+        style={styles.bottomDepthWash}
+      />
+      <View style={[styles.blurOrb, styles.orbBottomLeft]} />
+      <Svg
+        width="100%"
+        height={200}
+        viewBox="0 0 400 200"
+        style={styles.arcBottom}
+        preserveAspectRatio="none">
+        <Path
+          d="M0,140 C100,90 220,120 320,85 C360,70 385,88 400,78 L400,200 L0,200 Z"
+          fill="rgba(52, 171, 165, 0.1)"
+        />
+      </Svg>
+    </View>
+  );
+}
+
+function LegalAcceptContent({
+  masterChecked,
+  allChecked,
+  busy,
+  allowBack,
+  onToggleMaster,
+  onAccept,
+  onOpenDocument,
+  onBack,
+  onGoLogin,
+  onGoHome,
+  hasPatient,
+}: {
+  masterChecked: boolean;
+  allChecked: boolean;
+  busy: boolean;
+  allowBack: boolean;
+  onToggleMaster: () => void;
+  onAccept: () => void;
+  onOpenDocument: () => void;
+  onBack: () => void;
+  onGoLogin: () => void;
+  onGoHome: () => void;
+  hasPatient: boolean;
+}) {
+  const canSubmit = allChecked && !busy && hasPatient;
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <LegalWellnessBackdrop />
+      <AuthRegistrationHeader
+        onBack={onBack}
+        backAccessibilityLabel={allowBack ? 'Volver al inicio' : 'Volver'}
+        step={{ current: 3, total: 4 }}
+      />
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled">
+        {!hasPatient ? (
+          <View style={styles.center}>
+            <Text style={styles.emptyBody}>Inicia sesión para continuar.</Text>
+            <Pressable
+              style={({ pressed }) => [styles.btnPrimaryWrap, pressed && styles.pressed]}
+              onPress={onGoLogin}
+              accessibilityRole="button"
+              accessibilityLabel="Ir al acceso">
+              <LinearGradient
+                colors={BTN_GRADIENT_ACTIVE}
+                locations={[0, 0.45, 1]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.btnPrimaryGradient}>
+                <Text style={styles.btnPrimaryText}>Ir al acceso</Text>
+              </LinearGradient>
+            </Pressable>
+          </View>
+        ) : (
+          <>
+            <View style={styles.titleBlock}>
+              <Text style={styles.title}>Revisa y acepta</Text>
+              <Text style={styles.subtitle}>
+                Lee los documentos legales para continuar con tu registro.
+              </Text>
+            </View>
+
+            <View style={styles.documentsCard}>
+              {DOCUMENT_BLOCKS.map((doc, index) => (
+                <View key={doc.id}>
+                  <Pressable
+                    style={({ pressed }) => [styles.docRow, pressed && styles.docRowPressed]}
+                    onPress={onOpenDocument}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Abrir ${doc.title}`}>
+                    <View style={styles.docIconWrap}>
+                      <IconSymbol
+                        name="doc.text.fill"
+                        size={20}
+                        color={wellness.primaryDark}
+                      />
+                    </View>
+                    <Text style={styles.docTitle}>{doc.title}</Text>
+                    <IconSymbol name="chevron.right" size={18} color={wellnessColors.textMuted} />
+                  </Pressable>
+                  {index < DOCUMENT_BLOCKS.length - 1 ? <View style={styles.docDivider} /> : null}
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.masterCheckCard}>
+              <Pressable
+                style={styles.checkRow}
+                onPress={onToggleMaster}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: masterChecked }}>
+                <View style={[styles.checkbox, masterChecked && styles.checkboxOn]}>
+                  {masterChecked ? <Text style={styles.checkMark}>✓</Text> : null}
+                </View>
+                <Text style={styles.checkLabel}>{MASTER_CHECK_LABEL}</Text>
+              </Pressable>
+            </View>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.btnPrimaryWrap,
+                !canSubmit && styles.btnPrimaryWrapDisabled,
+                pressed && canSubmit && styles.pressed,
+              ]}
+              onPress={onAccept}
+              disabled={!canSubmit}
+              accessibilityRole="button"
+              accessibilityLabel="Aceptar y continuar">
+              <LinearGradient
+                colors={canSubmit ? BTN_GRADIENT_ACTIVE : BTN_GRADIENT_DISABLED}
+                locations={[0, 0.45, 1]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.btnPrimaryGradient}>
+                {busy ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text
+                    style={[styles.btnPrimaryText, !canSubmit && styles.btnPrimaryTextDisabled]}>
+                    Aceptar y continuar
+                  </Text>
+                )}
+              </LinearGradient>
+            </Pressable>
+
+            {allowBack ? (
+              <Pressable
+                style={({ pressed }) => [styles.backLink, pressed && styles.pressed]}
+                onPress={onGoHome}
+                accessibilityRole="button"
+                accessibilityLabel="Volver al inicio">
+                <Text style={styles.backLinkText}>Volver al inicio</Text>
+              </Pressable>
+            ) : null}
+          </>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
 }
 
 export function LegalAcceptScreen() {
@@ -56,14 +254,15 @@ export function LegalAcceptScreen() {
   const [allowBack, setAllowBack] = useState(false);
 
   const allChecked = boxes.length > 0 && boxes.every(Boolean);
+  const masterChecked = allChecked;
 
-  const toggle = useCallback((index: number) => {
-    setBoxes((prev) => {
-      const next = [...prev];
-      next[index] = !next[index];
-      return next;
-    });
+  const setAllBoxes = useCallback((value: boolean) => {
+    setBoxes(CHECK_LABELS.map(() => value));
   }, []);
+
+  const toggleMaster = useCallback(() => {
+    setAllBoxes(!masterChecked);
+  }, [masterChecked, setAllBoxes]);
 
   const onAccept = useCallback(() => {
     if (!patient || !allChecked) return;
@@ -111,145 +310,236 @@ export function LegalAcceptScreen() {
     }, []),
   );
 
-  if (!patient) {
-    return (
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <View style={styles.center}>
-          <Text style={styles.body}>Inicia sesión para continuar.</Text>
-          <AppButton
-            title="Ir al acceso"
-            onPress={() => router.replace('/auth/login')}
-            variant="secondary"
-          />
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const handleBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else if (allowBack) {
+      router.replace('/(tabs)');
+    }
+  }, [allowBack, router]);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <AppTopBar
-        showBackButton={allowBack}
-        showProfileButton={false}
-        backFallbackHref="/(tabs)/index"
-      />
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}>
-        <SectionHeader
-          title="Antes de comenzar"
-          subtitle="Antes de continuar, revisa los documentos de uso, consentimiento y privacidad."
-        />
-
-        <AppButton
-          title="Leer documentos"
-          onPress={() => router.push(LEGAL_DOCUMENT_HREF)}
-          variant="secondary"
-          iconName="doc.text.fill"
-          style={styles.docLink}
-        />
-
-        <AppCard style={styles.checksCard}>
-          {CHECK_LABELS.map((label, i) => (
-            <Pressable
-              key={label}
-              style={styles.checkRow}
-              onPress={() => toggle(i)}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: boxes[i] === true }}>
-              <View style={[styles.checkbox, boxes[i] === true && styles.checkboxOn]}>
-                {boxes[i] === true ? <Text style={styles.checkMark}>✓</Text> : null}
-              </View>
-              <Text style={styles.checkLabel}>{label}</Text>
-            </Pressable>
-          ))}
-        </AppCard>
-
-        <AppButton
-          title={busy ? '' : 'Aceptar y continuar'}
-          onPress={onAccept}
-          variant="primary"
-          disabled={!allChecked || busy}
-          style={styles.acceptBtn}
-        />
-        {busy ? (
-          <View style={styles.busyOverlay}>
-            <ActivityIndicator color="#fff" />
-          </View>
-        ) : null}
-      </ScrollView>
-    </SafeAreaView>
+    <LegalAcceptContent
+      masterChecked={masterChecked}
+      allChecked={allChecked}
+      busy={busy}
+      allowBack={allowBack}
+      onToggleMaster={toggleMaster}
+      onAccept={onAccept}
+      onOpenDocument={() => router.push(LEGAL_DOCUMENT_HREF)}
+      onBack={patient ? handleBack : () => router.replace('/auth/login')}
+      onGoLogin={() => router.replace('/auth/login')}
+      onGoHome={() => router.replace('/(tabs)')}
+      hasPatient={Boolean(patient)}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: wellnessColors.background },
+  safe: {
+    flex: 1,
+    backgroundColor: '#D8F2EE',
+  },
   scroll: {
+    flexGrow: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: spacing.xl * 2,
+    paddingBottom: spacing.xl,
   },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
+  leftRailWash: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '78%',
+    height: '75%',
+  },
+  bottomDepthWash: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '78%',
+  },
+  blurOrb: {
+    position: 'absolute',
+    borderRadius: 999,
+  },
+  orbBottomLeft: {
+    width: 240,
+    height: 240,
+    bottom: -60,
+    left: -90,
+    backgroundColor: 'rgba(52, 171, 165, 0.1)',
+  },
+  arcBottom: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '32%',
+  },
+  titleBlock: {
     alignItems: 'center',
-    padding: spacing.lg,
-    gap: spacing.md,
-  },
-  body: {
-    fontSize: 16,
-    color: wellnessColors.textSecondary,
-  },
-  docLink: {
-    marginBottom: spacing.md,
-  },
-  checksCard: {
-    gap: 2,
+    paddingHorizontal: spacing.sm,
     marginBottom: spacing.lg,
+  },
+  title: {
+    fontSize: 27,
+    fontWeight: '800',
+    color: '#2A3439',
+    textAlign: 'center',
+    marginBottom: spacing.xs + 2,
+    letterSpacing: -0.35,
+  },
+  subtitle: {
+    fontSize: 16,
+    lineHeight: 23,
+    color: TEXT_MUTED,
+    textAlign: 'center',
+    maxWidth: 320,
+  },
+  documentsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: wellnessRadii.cardLarge,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.18)',
+    shadowColor: '#1F7E7A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 5,
+    overflow: 'hidden',
+  },
+  docRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md + 2,
+    paddingHorizontal: spacing.md,
+    minHeight: 64,
+  },
+  docRowPressed: {
+    backgroundColor: wellnessColors.primarySubtle,
+  },
+  docDivider: {
+    height: 1,
+    backgroundColor: 'rgba(52, 171, 165, 0.1)',
+    marginLeft: spacing.md + 44 + spacing.md,
+  },
+  docIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: wellnessColors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  docTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2A3439',
+    lineHeight: 22,
+  },
+  masterCheckCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: wellnessRadii.cardLarge,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.18)',
+    shadowColor: '#1F7E7A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   checkRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    borderBottomWidth: 1,
-    borderBottomColor: wellnessColors.border,
   },
   checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
+    width: 26,
+    height: 26,
+    borderRadius: 8,
     borderWidth: 2,
-    borderColor: wellnessColors.border,
+    borderColor: 'rgba(52, 171, 165, 0.28)',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 1,
     backgroundColor: '#fff',
+    flexShrink: 0,
   },
   checkboxOn: {
-    borderColor: wellnessColors.primary,
+    borderColor: wellness.primary,
     backgroundColor: wellnessColors.primarySubtle,
   },
   checkMark: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
-    color: wellnessColors.primaryDark,
+    color: wellness.primaryDark,
   },
   checkLabel: {
     flex: 1,
     fontSize: 15,
-    lineHeight: 21,
-    color: wellnessColors.textPrimary,
+    lineHeight: 22,
+    color: '#354656',
+    fontWeight: '500',
   },
-  acceptBtn: {
-    marginTop: spacing.sm,
-    borderRadius: wellnessRadius.md,
+  btnPrimaryWrap: {
+    borderRadius: wellnessRadii.pill,
+    overflow: 'hidden',
+    shadowColor: '#1F7E7A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  busyOverlay: {
-    position: 'absolute',
-    bottom: spacing.xl * 2 + spacing.sm + 14,
-    left: 0,
-    right: 0,
+  btnPrimaryWrapDisabled: {
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  btnPrimaryGradient: {
+    paddingVertical: 17,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 54,
+  },
+  btnPrimaryText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  btnPrimaryTextDisabled: {
+    color: 'rgba(255, 255, 255, 0.92)',
+  },
+  backLink: {
+    alignItems: 'center',
+    paddingVertical: spacing.lg,
+    marginTop: spacing.xs,
+  },
+  backLinkText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: wellness.primary,
+    textDecorationLine: 'underline',
+  },
+  center: {
+    alignItems: 'center',
+    gap: spacing.lg,
+    paddingVertical: spacing.xl,
+  },
+  emptyBody: {
+    fontSize: 16,
+    lineHeight: 23,
+    color: TEXT_MUTED,
+    textAlign: 'center',
+  },
+  pressed: {
+    opacity: 0.88,
   },
 });
