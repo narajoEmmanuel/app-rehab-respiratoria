@@ -1,5 +1,5 @@
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { useCallback, useState } from 'react';
+import { useNavigation } from '@react-navigation/native';
+import { useCallback } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 
@@ -7,7 +7,6 @@ import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { ProfileAvatarView } from '@/src/modules/patient/components/ProfileAvatarView';
 import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
-import { getProfilePreferences } from '@/src/modules/patient/storage/profile-preferences-repository';
 import { appBrand } from '@/src/shared/branding/app-brand';
 import { AppBrandLogo } from '@/src/shared/branding/AppBrandLogo';
 import { AppBrandWordmark } from '@/src/shared/branding/AppBrandWordmark';
@@ -35,27 +34,9 @@ export function AppTopBar({
   backFallbackHref = '/(tabs)/index',
   showProfileButton = true,
 }: AppTopBarProps) {
-  const { patient } = usePatientSession();
+  const { patient, profileAvatarUri } = usePatientSession();
   const navigation = useNavigation();
   const router = useRouter();
-  const [avatarUri, setAvatarUri] = useState<string | null>(null);
-
-  useFocusEffect(
-    useCallback(() => {
-      let mounted = true;
-      void (async () => {
-        if (!patient) {
-          if (mounted) setAvatarUri(null);
-          return;
-        }
-        const prefs = await getProfilePreferences(patient.paciente_id);
-        if (mounted) setAvatarUri(prefs.avatarUri);
-      })();
-      return () => {
-        mounted = false;
-      };
-    }, [patient]),
-  );
 
   const handleBack = useCallback(() => {
     if (onPressBack) {
@@ -106,7 +87,7 @@ export function AppTopBar({
               {patient ? (
                 <ProfileAvatarView
                   displayName={normalizePatientDisplayName(patient.nombre_completo)}
-                  avatarUri={avatarUri}
+                  avatarUri={profileAvatarUri}
                   size={36}
                 />
               ) : (

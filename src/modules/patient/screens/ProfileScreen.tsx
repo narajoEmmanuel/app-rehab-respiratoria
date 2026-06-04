@@ -41,7 +41,6 @@ import { deleteCurrentPatientLocalData } from '@/src/modules/patient/patient-del
 import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
 import {
   getProfilePreferences,
-  updateProfilePreferences,
 } from '@/src/modules/patient/storage/profile-preferences-repository';
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
@@ -112,7 +111,7 @@ function buildSessionQuickStats(sessions: SessionRecord[], patientId: number): S
 
 export function ProfileScreen() {
   const router = useRouter();
-  const { patient, clearSession, refreshSession } = usePatientSession();
+  const { patient, clearSession, refreshSession, setProfileAvatarUri } = usePatientSession();
   const [latestDiagnostic, setLatestDiagnostic] = useState<DiagnosticRecord | null>(null);
   const [consentActive, setConsentActive] = useState(false);
   const [prefs, setPrefs] = useState<ProfilePreferences>(DEFAULT_PROFILE_PREFERENCES);
@@ -184,10 +183,10 @@ export function ProfileScreen() {
   const onAvatarChange = useCallback(
     async (uri: string | null) => {
       if (!patient) return;
-      const next = await updateProfilePreferences(patient.paciente_id, { avatarUri: uri });
-      setPrefs(next);
+      await setProfileAvatarUri(uri);
+      setPrefs((prev) => ({ ...prev, avatarUri: uri }));
     },
-    [patient],
+    [patient, setProfileAvatarUri],
   );
 
   const onTouchPracticeInputChange = useCallback(

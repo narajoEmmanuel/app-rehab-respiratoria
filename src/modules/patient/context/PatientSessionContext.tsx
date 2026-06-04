@@ -18,12 +18,18 @@ import {
   logoutPatient as clearSessionStorage,
   saveCurrentPatient as persistCurrentPatient,
 } from '@/src/modules/patient/patient-service';
+import {
+  getProfilePreferences,
+  updateProfilePreferences,
+} from '@/src/modules/patient/storage/profile-preferences-repository';
 import type { PatientRecord } from '@/src/modules/patient/types';
 import { getErrorMessage } from '@/src/shared/utils/get-error-message';
 
 type PatientSessionContextValue = {
   patient: PatientRecord | null;
   hydrated: boolean;
+  profileAvatarUri: string | null;
+  setProfileAvatarUri: (uri: string | null) => Promise<void>;
   setSessionPatient: (p: PatientRecord) => Promise<void>;
   clearSession: () => Promise<void>;
   refreshSession: () => Promise<void>;
@@ -31,16 +37,25 @@ type PatientSessionContextValue = {
 
 const PatientSessionContext = createContext<PatientSessionContextValue | undefined>(undefined);
 
+async function loadProfileAvatarUri(p: PatientRecord | null): Promise<string | null> {
+  if (!p) return null;
+  const prefs = await getProfilePreferences(p.paciente_id);
+  return prefs.avatarUri;
+}
+
 export function PatientSessionProvider({ children }: { children: React.ReactNode }) {
   const [patient, setPatient] = useState<PatientRecord | null>(null);
+  const [profileAvatarUri, setProfileAvatarUriState] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
   const refreshSession = useCallback(async () => {
     try {
       const p = await loadCurrentPatientFromStorage();
       setPatient(p);
+      setProfileAvatarUriState(await loadProfileAvatarUri(p));
     } catch {
       setPatient(null);
+      setProfileAvatarUriState(null);
     }
   }, []);
 
@@ -55,6 +70,7 @@ export function PatientSessionProvider({ children }: { children: React.ReactNode
       }
       if (!cancelled) {
         setPatient(p);
+        setProfileAvatarUriState(await loadProfileAvatarUri(p));
         setHydrated(true);
       }
     })();
@@ -63,10 +79,18 @@ export function PatientSessionProvider({ children }: { children: React.ReactNode
     };
   }, []);
 
+  const setProfileAvatarUri = useCallback(async (uri: string | null) => {
+    const activePatient = patient ?? (await loadCurrentPatientFromStorage());
+    if (!activePatient) return;
+    await updateProfilePreferences(activePatient.paciente_id, { avatarUri: uri });
+    setProfileAvatarUriState(uri);
+  }, [patient]);
+
   const setSessionPatient = useCallback(async (p: PatientRecord) => {
     try {
       await persistCurrentPatient(p);
       setPatient(p);
+      setProfileAvatarUriState(await loadProfileAvatarUri(p));
     } catch (error) {
       console.error('[ERROR DETALLE] setSessionPatient', error);
       throw new Error(getErrorMessage(error));
@@ -76,17 +100,20 @@ export function PatientSessionProvider({ children }: { children: React.ReactNode
   const clearSession = useCallback(async () => {
     await clearSessionStorage();
     setPatient(null);
+    setProfileAvatarUriState(null);
   }, []);
 
   const value = useMemo(
     () => ({
       patient,
       hydrated,
+      profileAvatarUri,
+      setProfileAvatarUri,
       setSessionPatient,
       clearSession,
       refreshSession,
     }),
-    [patient, hydrated, setSessionPatient, clearSession, refreshSession],
+    [patient, hydrated, profileAvatarUri, setProfileAvatarUri, setSessionPatient, clearSession, refreshSession],
   );
 
   return (

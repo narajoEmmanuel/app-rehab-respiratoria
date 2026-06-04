@@ -17,7 +17,6 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  InteractionManager,
   Linking,
   Modal,
   Platform,
@@ -35,8 +34,12 @@ import { spacing } from '@/src/shared/theme/spacing';
 const ACCENT_DARK = '#168C86';
 const SHEET_RADIUS = 24;
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const AVATAR_PICKER_QUALITY = 0.78;
 
-const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const waitForNextFrame = () =>
+  new Promise<void>((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
 
 function isLocalDocumentFile(uri: string): boolean {
   if (!documentDirectory) return false;
@@ -85,6 +88,7 @@ async function persistPickedUri(
   const dest = `${base}${avatarName}`;
 
   try {
+    // Picker crop + JPEG quality keeps avatar files small without extra dependencies.
     await copyAsync({ from: src, to: dest });
     await tryDeleteLocalFile(previousUri ?? null);
     return dest;
@@ -116,7 +120,9 @@ type Props = {
   patientId?: number;
   displayName: string;
   avatarUri: string | null;
-  onAvatarUriChange: (uri: string | null) => void;
+  onAvatarUriChange: (uri: string | null) => void | Promise<void>;
+  avatarSize?: number;
+  editButtonLabel?: string;
 };
 
 type SheetOption = {
@@ -132,13 +138,19 @@ export function ProfileAvatarPicker({
   displayName,
   avatarUri,
   onAvatarUriChange,
+  avatarSize = 96,
+  editButtonLabel = 'Editar perfil',
 }: Props) {
   const [sheetVisible, setSheetVisible] = useState(false);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [pendingNativeActionLabel, setPendingNativeActionLabel] = useState<string | null>(null);
+  const [isSavingPhoto, setIsSavingPhoto] = useState(false);
+  const [optimisticUri, setOptimisticUri] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
 
-  const isBusy = pendingNativeActionLabel != null;
+  const displayUri = optimisticUri ?? avatarUri;
+  const isBusy = pendingNativeActionLabel != null || isSavingPhoto;
+  const feedbackLabel = isSavingPhoto ? 'Guardando foto...' : pendingNativeActionLabel;
 
   const openSheet = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -155,14 +167,7 @@ export function ProfileAvatarPicker({
     async (label: string, action: () => Promise<void>) => {
       setPendingNativeActionLabel(label);
       setSheetVisible(false);
-
-      // If camera freezes on some devices, raise to 350
-      await wait(300);
-
-      await new Promise<void>((resolve) => {
-        InteractionManager.runAfterInteractions(() => resolve());
-      });
-
+      await waitForNextFrame();
       try {
         await action();
       } finally {
@@ -170,6 +175,23 @@ export function ProfileAvatarPicker({
       }
     },
     [],
+  );
+
+  const commitAvatarChange = useCallback(
+    async (asset: ImagePicker.ImagePickerAsset) => {
+      setOptimisticUri(asset.uri ?? null);
+      setIsSavingPhoto(true);
+      try {
+        const nextUri = await persistPickedUri(asset, patientId, avatarUri);
+        if (!nextUri) return;
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        await onAvatarUriChange(nextUri);
+      } finally {
+        setOptimisticUri(null);
+        setIsSavingPhoto(false);
+      }
+    },
+    [avatarUri, onAvatarUriChange, patientId],
   );
 
   const pickImageFromLibrary = useCallback(async () => {
@@ -191,7 +213,7 @@ export function ProfileAvatarPicker({
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.65,
+        quality: AVATAR_PICKER_QUALITY,
         exif: false,
         base64: Platform.OS === 'web',
         allowsMultipleSelection: false,
@@ -201,16 +223,12 @@ export function ProfileAvatarPicker({
       const asset = result.assets[0];
       if (!asset) return;
 
-      const nextUri = await persistPickedUri(asset, patientId, avatarUri);
-      if (nextUri) {
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        onAvatarUriChange(nextUri);
-      }
+      await commitAvatarChange(asset);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'No se pudo cargar la imagen.';
       Alert.alert('Foto de perfil', message);
     }
-  }, [avatarUri, onAvatarUriChange, patientId]);
+  }, [commitAvatarChange]);
 
   const takePhotoWithCamera = useCallback(async () => {
     try {
@@ -229,9 +247,9 @@ export function ProfileAvatarPicker({
 
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
-        allowsEditing: false,
+        allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.65,
+        quality: AVATAR_PICKER_QUALITY,
         exif: false,
         base64: false,
       });
@@ -240,16 +258,12 @@ export function ProfileAvatarPicker({
       const asset = result.assets[0];
       if (!asset) return;
 
-      const nextUri = await persistPickedUri(asset, patientId, avatarUri);
-      if (nextUri) {
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        onAvatarUriChange(nextUri);
-      }
+      await commitAvatarChange(asset);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'No se pudo tomar la foto.';
       Alert.alert('Foto de perfil', message);
     }
-  }, [avatarUri, onAvatarUriChange, patientId]);
+  }, [commitAvatarChange]);
 
   const handleViewPhoto = useCallback(() => {
     closeSheet();
@@ -268,9 +282,14 @@ export function ProfileAvatarPicker({
           style: 'destructive',
           onPress: () => {
             void (async () => {
-              await tryDeleteLocalFile(avatarUri);
-              void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              onAvatarUriChange(null);
+              setIsSavingPhoto(true);
+              try {
+                await tryDeleteLocalFile(avatarUri);
+                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                await onAvatarUriChange(null);
+              } finally {
+                setIsSavingPhoto(false);
+              }
             })();
           },
         },
@@ -280,7 +299,7 @@ export function ProfileAvatarPicker({
 
   const sheetOptions: SheetOption[] = [];
 
-  if (avatarUri) {
+  if (displayUri) {
     sheetOptions.push({
       key: 'view',
       label: 'Ver foto actual',
@@ -325,8 +344,8 @@ export function ProfileAvatarPicker({
         disabled={isBusy}
         style={({ pressed }) => pressed && styles.avatarPressed}
         accessibilityRole="button"
-        accessibilityLabel="Editar foto de perfil">
-        <ProfileAvatarView displayName={displayName} avatarUri={avatarUri} />
+        accessibilityLabel={editButtonLabel}>
+        <ProfileAvatarView displayName={displayName} avatarUri={displayUri} size={avatarSize} />
       </Pressable>
 
       <Pressable
@@ -337,14 +356,14 @@ export function ProfileAvatarPicker({
           pressed && styles.editPillPressed,
         ]}
         accessibilityRole="button"
-        accessibilityLabel="Editar foto de perfil">
-        <Text style={styles.editPillText}>Editar foto de perfil</Text>
+        accessibilityLabel={editButtonLabel}>
+        <Text style={styles.editPillText}>{editButtonLabel}</Text>
       </Pressable>
 
-      {pendingNativeActionLabel ? (
+      {feedbackLabel ? (
         <View style={styles.feedbackChip}>
           <ActivityIndicator size="small" color={ACCENT_DARK} />
-          <Text style={styles.feedbackChipText}>{pendingNativeActionLabel}</Text>
+          <Text style={styles.feedbackChipText}>{feedbackLabel}</Text>
         </View>
       ) : null}
 
@@ -417,7 +436,7 @@ export function ProfileAvatarPicker({
         </Pressable>
       </Modal>
 
-      {avatarUri ? (
+      {displayUri ? (
         <Modal
           visible={previewVisible}
           transparent
@@ -433,7 +452,7 @@ export function ProfileAvatarPicker({
               <IconSymbol name="xmark" size={22} color="#FFFFFF" />
             </Pressable>
             <Image
-              source={{ uri: avatarUri }}
+              source={{ uri: displayUri }}
               style={styles.previewImage}
               contentFit="contain"
               transition={200}
