@@ -1,8 +1,12 @@
 /**
- * Purpose: Reusable RESPIRA+ bunny mascot (extracted from runner level gameplay).
+ * Purpose: Programmatic RESPIRA+ bunny mascot for level gameplay only.
  * Module: shared/ui
  * Dependencies: mascot-tokens
  * Notes: Intrinsic canvas 72×88 px. Gameplay scale stays on the parent (e.g. GAME_VISUAL_SCALE).
+ *
+ * Dual mascot architecture:
+ * - RespiraBunny (this file) — View-based runner protagonist; keep stable for physics/runner.
+ * - RespiraBunnyImage — PNG poses for onboarding, pop-ups, celebrations (@/src/shared/ui/RespiraBunnyImage).
  */
 
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';

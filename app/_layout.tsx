@@ -148,6 +148,10 @@ export default function RootLayout() {
                   options={{ headerShown: false, title: 'Resumen de evaluación' }}
                 />
                 <Stack.Screen name="esp32-raw-test" options={{ headerShown: false, title: 'Prueba WebSocket ESP32' }} />
+                <Stack.Screen
+                  name="dev/respira-bunny-image-showcase"
+                  options={{ headerShown: true, title: 'Mascota PNG (dev)' }}
+                />
               </Stack>
             </LevelsProgressProvider>
             </TouchPracticePreferenceProvider>
