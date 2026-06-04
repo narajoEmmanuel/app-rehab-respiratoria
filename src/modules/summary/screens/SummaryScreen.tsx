@@ -15,11 +15,14 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { AppCard } from '@/src/shared/ui/AppCard';
-import { MetricTile } from '@/src/shared/ui/MetricTile';
 import { SectionHeader } from '@/src/shared/ui/SectionHeader';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellnessColors, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 
+import { SessionSummaryActions } from '@/src/modules/summary/components/SessionSummaryActions';
+import { SessionSummaryHero } from '@/src/modules/summary/components/SessionSummaryHero';
+import { SessionSummaryMetricsGrid } from '@/src/modules/summary/components/SessionSummaryMetricsGrid';
+import { SessionSummaryProgressCard } from '@/src/modules/summary/components/SessionSummaryProgressCard';
 import {
   getSessionDetail,
   type SessionDetail,
@@ -200,15 +203,16 @@ export function SummaryScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/terapia" />
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <Text style={styles.screenTitle}>{getSummaryTitle(session)}</Text>
-        <Text style={styles.screenSubtitle}>{getSummarySubtitle(session)}</Text>
-        <Text style={styles.levelLine}>Nivel {levelNum}</Text>
-        <View style={styles.classificationBanner}>
-          <Text style={styles.classificationTitle}>{classificationTitle}</Text>
-          {classificationNote ? (
-            <Text style={styles.classificationNote}>{classificationNote}</Text>
-          ) : null}
-        </View>
+        <SessionSummaryHero
+          title={getSummaryTitle(session)}
+          subtitle={getSummarySubtitle(session)}
+          levelLabel={levelNum}
+          classificationTitle={classificationTitle}
+          classificationNote={classificationNote}
+          perfect={session.perfect}
+          completed={session.completed}
+          interrupted={session.interrupted}
+        />
 
         {showSensorCard ? (
           <AppCard style={styles.sensorCard}>
@@ -243,47 +247,25 @@ export function SummaryScreen() {
         ) : null}
 
         <SectionHeader title="Resultados" />
-        <View style={styles.progressBlock}>
-          <Text style={styles.progressHeadline}>{sessionProgress.headline}</Text>
-          {sessionProgress.support ? (
-            <Text style={styles.progressSupport}>{sessionProgress.support}</Text>
-          ) : null}
-          <View style={styles.progressTrack}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${Math.round(sessionProgress.progressRatio * 100)}%` },
-              ]}
-            />
-          </View>
-          <Text style={styles.progressMeta}>
-            {session.valid_attempts} repeticiones válidas de {TARGET_ATTEMPTS}
-          </Text>
-        </View>
-        <View style={styles.card}>
-          <MetricTile label="Repeticiones válidas" value={String(session.valid_attempts)} tone="success" />
-          <MetricTile label="No completadas" value={String(session.invalid_attempts)} />
-          <MetricTile label="Volumen máximo" value={`${session.max_volume} mL`} />
-          <MetricTile label="Volumen promedio" value={`${session.avg_volume} mL`} />
-          <MetricTile label="Tiempo máx. sostenido" value={`${maxHoldSeconds.toFixed(1)} s`} />
-          <MetricTile
-            label="Tiempo prom. sostenido"
-            value={`${session.avg_hold_seconds.toFixed(1)} s`}
-          />
-        </View>
-
-        <View style={styles.actionsRow}>
-          <AppButton
-            title="Volver a Terapia"
-            onPress={() => router.replace('/(tabs)/terapia')}
-            variant="primary"
-          />
-          <AppButton
-            title="Ver Historial"
-            onPress={() => router.replace('/(tabs)/historial')}
-            variant="secondary"
-          />
-        </View>
+        <SessionSummaryProgressCard
+          progressHeadline={sessionProgress.headline}
+          progressSupport={sessionProgress.support}
+          validAttempts={session.valid_attempts}
+          targetAttempts={TARGET_ATTEMPTS}
+          progressRatio={sessionProgress.progressRatio}
+        />
+        <SessionSummaryMetricsGrid
+          validAttempts={session.valid_attempts}
+          invalidAttempts={session.invalid_attempts}
+          maxVolume={session.max_volume}
+          avgVolume={session.avg_volume}
+          maxHoldSeconds={maxHoldSeconds}
+          avgHoldSeconds={session.avg_hold_seconds}
+        />
+        <SessionSummaryActions
+          onBackToTherapy={() => router.replace('/(tabs)/terapia')}
+          onViewHistory={() => router.replace('/(tabs)/historial')}
+        />
       </ScrollView>
     </SafeAreaView>
   );
@@ -326,33 +308,6 @@ const styles = StyleSheet.create({
     color: wellnessColors.textSecondary,
     fontSize: 16,
   },
-  levelLine: {
-    color: wellnessColors.primaryDark,
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: spacing.sm,
-  },
-  classificationBanner: {
-    marginBottom: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    borderRadius: wellnessRadii.card,
-    backgroundColor: wellnessColors.successSoft,
-    borderWidth: 1,
-    borderColor: wellnessColors.border,
-  },
-  classificationTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: wellnessColors.primaryDark,
-  },
-  classificationNote: {
-    marginTop: 4,
-    fontSize: 12,
-    fontWeight: '600',
-    color: wellnessColors.textSecondary,
-    lineHeight: 18,
-  },
   sensorCard: {
     marginBottom: spacing.md,
   },
@@ -389,19 +344,6 @@ const styles = StyleSheet.create({
     color: wellnessColors.textSecondary,
     lineHeight: 16,
   },
-  screenTitle: {
-    color: wellnessColors.textPrimary,
-    fontSize: 26,
-    fontWeight: '800',
-    letterSpacing: -0.3,
-    marginBottom: 6,
-  },
-  screenSubtitle: {
-    color: wellnessColors.textSecondary,
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: spacing.sm,
-  },
   title: {
     color: wellnessColors.textPrimary,
     fontSize: 26,
@@ -414,54 +356,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginBottom: spacing.md,
-  },
-  card: {
-    width: '100%',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
-  },
-  progressBlock: {
-    width: '100%',
-    marginBottom: spacing.md,
-    padding: spacing.md,
-    borderRadius: wellnessRadii.card,
-    backgroundColor: wellnessColors.successSoft,
-    borderWidth: 1,
-    borderColor: wellnessColors.border,
-  },
-  progressHeadline: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: wellnessColors.primaryDark,
-  },
-  progressSupport: {
-    marginTop: 4,
-    fontSize: 14,
-    fontWeight: '600',
-    color: wellnessColors.textSecondary,
-    lineHeight: 20,
-  },
-  progressTrack: {
-    marginTop: spacing.sm,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(61, 90, 74, 0.12)',
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-    backgroundColor: wellnessColors.primary,
-  },
-  progressMeta: {
-    marginTop: spacing.sm,
-    fontSize: 13,
-    fontWeight: '600',
-    color: wellnessColors.textSecondary,
-  },
-  actionsRow: {
-    gap: spacing.sm,
   },
 });
