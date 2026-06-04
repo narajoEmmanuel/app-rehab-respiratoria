@@ -18,7 +18,9 @@ function isProfilePreferences(value: unknown): value is ProfilePreferences {
   const avatarOk = o.avatarUri === null || typeof o.avatarUri === 'string';
   const notifOk = typeof o.notificationsEnabled === 'boolean';
   const timeOk = o.preferredReminderTime === null || typeof o.preferredReminderTime === 'string';
-  return avatarOk && notifOk && timeOk;
+  const touchOk =
+    o.allowTouchPracticeInput === undefined || typeof o.allowTouchPracticeInput === 'boolean';
+  return avatarOk && notifOk && timeOk && touchOk;
 }
 
 function normalizePrefs(raw: unknown): ProfilePreferences {
@@ -29,6 +31,7 @@ function normalizePrefs(raw: unknown): ProfilePreferences {
     avatarUri: raw.avatarUri,
     notificationsEnabled: raw.notificationsEnabled,
     preferredReminderTime: raw.preferredReminderTime,
+    allowTouchPracticeInput: raw.allowTouchPracticeInput === true,
   };
 }
 

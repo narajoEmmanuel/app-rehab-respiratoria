@@ -10,6 +10,7 @@ import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { isRealSensorTransportConnected } from '@/src/modules/device/sensor-real-connection';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import {
   showTherapyReadinessAlert,
@@ -32,8 +33,9 @@ import {
   getLevelDisplayMeta,
 } from '@/src/modules/session/levels/level-difficulty-config';
 import { listLevels } from '@/src/modules/session/registry/level-registry';
-import { TouchPracticeFallbackPanel } from '@/src/modules/session/components/TouchPracticeFallbackPanel';
+import { resolveTherapySessionLaunchInputMode } from '@/src/modules/session/hooks/resolve-therapy-session-launch';
 import { useTouchPracticeGate } from '@/src/modules/session/hooks/use-touch-practice-gate';
+import { useTouchPracticePreference } from '@/src/modules/session/hooks/use-touch-practice-preference';
 import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import {
@@ -134,10 +136,19 @@ export function LevelsScreen({
   const {
     refresh: refreshTherapyGate,
     lastReading,
-    sensorConnected,
-    sensorStatus,
+    sensorConnected: therapyGateSensorConnected,
+    sensorStatus: therapyGateSensorStatus,
   } = useTherapyReadinessGate();
-  const { lastDataReceivedAt, sensorStreamState } = useSensorConnection();
+  const {
+    lastDataReceivedAt,
+    sensorStreamState,
+    status: connectionStatus,
+    mode: sensorSourceMode,
+  } = useSensorConnection();
+  const sensorTransportConnected = isRealSensorTransportConnected(
+    connectionStatus,
+    sensorSourceMode,
+  );
   const levels = listLevels();
   const [patientLevels, setPatientLevels] = useState<PatientLevelRecord[]>([]);
   const [latestDiagnostic, setLatestDiagnostic] = useState<DiagnosticRecord | null>(null);
@@ -145,11 +156,9 @@ export function LevelsScreen({
     Record<number, LevelDisplayStats>
   >({});
   const [startingLevelId, setStartingLevelId] = useState<LevelId | null>(null);
-  const [touchPracticeEnabled, setTouchPracticeEnabled] = useState(false);
-  const { canUseTouchPractice, effectiveTouchPracticeEnabled } = useTouchPracticeGate({
-    sensorConnected,
-    touchPracticeEnabled,
-    setTouchPracticeEnabled,
+  const { reload: reloadTouchPracticePreference } = useTouchPracticePreference();
+  const { effectiveTouchPracticeEnabled } = useTouchPracticeGate({
+    sensorConnected: sensorTransportConnected,
   });
   const loadLevelsData = useCallback(async () => {
     if (!patient) {
@@ -187,7 +196,8 @@ export function LevelsScreen({
     useCallback(() => {
       void loadLevelsData();
       void refreshTherapyGate();
-    }, [loadLevelsData, refreshTherapyGate]),
+      void reloadTouchPracticePreference();
+    }, [loadLevelsData, refreshTherapyGate, reloadTouchPracticePreference]),
   );
 
   const navigateToSession = useCallback(
@@ -211,8 +221,8 @@ export function LevelsScreen({
       try {
         const readiness = await evaluateLevelSensorReadiness({
           inputMode: 'sensor',
-          sensorConnected,
-          sensorStatus,
+          sensorConnected: therapyGateSensorConnected,
+          sensorStatus: therapyGateSensorStatus,
           lastReading,
           receivedAtMs: lastDataReceivedAt,
           sensorStreamState,
@@ -228,16 +238,7 @@ export function LevelsScreen({
             );
             return;
           }
-          showTherapyReadinessAlert(
-            readiness.gate,
-            (route) => router.push(route),
-            canUseTouchPractice
-              ? {
-                  onPracticeWithoutSensor: () => navigateToSession(levelId, 'touch_practice'),
-                  practiceButtonLabel: 'Practicar sin sensor',
-                }
-              : undefined,
-          );
+          showTherapyReadinessAlert(readiness.gate, (route) => router.push(route));
           return;
         }
 
@@ -253,9 +254,8 @@ export function LevelsScreen({
       navigateToSession,
       patient?.paciente_id,
       router,
-      sensorConnected,
-      sensorStatus,
-      canUseTouchPractice,
+      therapyGateSensorConnected,
+      therapyGateSensorStatus,
     ],
   );
 
@@ -263,26 +263,22 @@ export function LevelsScreen({
     (levelId: LevelId, progressionLocked: boolean) => {
       if (progressionLocked || startingLevelId !== null) return;
 
-      if (sensorConnected) {
-        logLevelSensorModeSelected('sensor');
-        void beginOfficialSensorSession(levelId);
-        return;
-      }
-
-      if (effectiveTouchPracticeEnabled) {
-        logLevelSensorModeSelected('touch_practice');
+      const launchMode = resolveTherapySessionLaunchInputMode({
+        sensorTransportConnected,
+        effectiveTouchPracticeEnabled,
+      });
+      logLevelSensorModeSelected(launchMode);
+      if (launchMode === 'touch_practice') {
         navigateToSession(levelId, 'touch_practice');
         return;
       }
-
-      logLevelSensorModeSelected('sensor');
       void beginOfficialSensorSession(levelId);
     },
     [
       beginOfficialSensorSession,
       effectiveTouchPracticeEnabled,
       navigateToSession,
-      sensorConnected,
+      sensorTransportConnected,
       startingLevelId,
     ],
   );
@@ -371,13 +367,6 @@ export function LevelsScreen({
           title="Niveles disponibles"
           subtitle="Avanza paso a paso. Cada sesión debe sentirse controlada y segura."
         />
-
-        {canUseTouchPractice ? (
-          <TouchPracticeFallbackPanel
-            enabled={touchPracticeEnabled}
-            onEnabledChange={setTouchPracticeEnabled}
-          />
-        ) : null}
 
         {levels.map((level) => {
           const levelId = level.id as LevelId;

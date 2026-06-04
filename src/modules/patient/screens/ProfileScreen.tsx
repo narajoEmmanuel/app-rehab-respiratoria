@@ -6,7 +6,16 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getLatestDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
@@ -43,7 +52,14 @@ import { AppCard } from '@/src/shared/ui/AppCard';
 import { StatusPill } from '@/src/shared/ui/StatusPill';
 import { MetricTile } from '@/src/shared/ui/MetricTile';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellnessColors, wellnessFloatingTabBarInset, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+import { isTouchPracticeModeEnabled } from '@/src/modules/session/session-input-mode';
+import { useTouchPracticePreference } from '@/src/modules/session/hooks/use-touch-practice-preference';
+import {
+  wellness,
+  wellnessColors,
+  wellnessFloatingTabBarInset,
+  wellnessRadii,
+} from '@/src/shared/theme/wellness-theme';
 import { sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 import {
   DEFAULT_PROFILE_PREFERENCES,
@@ -108,6 +124,9 @@ export function ProfileScreen() {
   const [sessionQuickStats, setSessionQuickStats] = useState<SessionQuickStats | null>(null);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const touchPracticeFeatureEnabled = isTouchPracticeModeEnabled();
+  const { setProfileTouchPracticeEnabled, reload: reloadTouchPracticePreference } =
+    useTouchPracticePreference();
 
   const patientDisplayName = useMemo(
     () => (patient ? normalizePatientDisplayName(patient.nombre_completo) : ''),
@@ -152,11 +171,12 @@ export function ProfileScreen() {
         setPrefs(prefsResult);
         setNotificationSettings(notifSettingsResult);
         setSessionQuickStats(buildSessionQuickStats(sessions, patient.paciente_id));
+        await reloadTouchPracticePreference();
       })();
       return () => {
         active = false;
       };
-    }, [patient, refreshConsent, refreshSession]),
+    }, [patient, refreshConsent, refreshSession, reloadTouchPracticePreference]),
   );
 
   useEffect(() => {
@@ -172,6 +192,15 @@ export function ProfileScreen() {
       setPrefs(next);
     },
     [patient],
+  );
+
+  const onTouchPracticeInputChange = useCallback(
+    async (enabled: boolean) => {
+      if (!patient) return;
+      setPrefs((prev) => ({ ...prev, allowTouchPracticeInput: enabled }));
+      await setProfileTouchPracticeEnabled(enabled);
+    },
+    [patient, setProfileTouchPracticeEnabled],
   );
 
   const onWithdraw = useCallback(() => {
@@ -409,6 +438,32 @@ export function ProfileScreen() {
             />
           </ProfileInfoCard>
         </ProfileSection>
+
+        {touchPracticeFeatureEnabled ? (
+          <ProfileSection
+            title="Preferencias de sesión"
+            subtitle="Opciones avanzadas para practicar sin el dispositivo conectado.">
+            <AppCard>
+              <View style={styles.sessionPrefRow}>
+                <View style={styles.sessionPrefCopy}>
+                  <Text style={styles.sessionPrefTitle}>Entrada por pantalla</Text>
+                  <Text style={styles.sessionPrefBody}>
+                    Permite realizar sesiones sin sensor físico cuando el dispositivo no esté
+                    conectado.
+                  </Text>
+                </View>
+                <Switch
+                  accessibilityLabel="Entrada por pantalla"
+                  value={prefs.allowTouchPracticeInput}
+                  onValueChange={(value) => void onTouchPracticeInputChange(value)}
+                  trackColor={{ false: '#E5E7EB', true: 'rgba(52, 171, 165, 0.35)' }}
+                  thumbColor={prefs.allowTouchPracticeInput ? wellness.primary : '#F3F4F6'}
+                  ios_backgroundColor="#E5E7EB"
+                />
+              </View>
+            </AppCard>
+          </ProfileSection>
+        ) : null}
 
         <ProfileSection title="Ayuda y soporte" subtitle="Contacto y uso de la app.">
           <ProfileInfoCard>
@@ -691,6 +746,25 @@ const styles = StyleSheet.create({
   notifStatusEmphasis: {
     color: wellnessColors.primaryDark,
     fontWeight: '800',
+  },
+  sessionPrefRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  sessionPrefCopy: {
+    flex: 1,
+    gap: 6,
+  },
+  sessionPrefTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: wellnessColors.textPrimary,
+  },
+  sessionPrefBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: wellnessColors.textSecondary,
   },
   helpParagraph: {
     fontSize: 14,

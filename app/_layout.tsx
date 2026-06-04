@@ -24,6 +24,7 @@ import { AppModeProvider } from '@/src/modules/app-mode';
 import { SensorConnectionProvider } from '@/src/modules/device/state/SensorConnectionProvider';
 import { LevelsProgressProvider } from '@/src/modules/levels/state/use-levels-progress';
 import { PatientSessionProvider } from '@/src/modules/patient/context/PatientSessionContext';
+import { TouchPracticePreferenceProvider } from '@/src/modules/session/hooks/use-touch-practice-preference';
 import { fontRegular } from '@/src/shared/theme/typography';
 import { WebStartupSplash } from '@/src/shared/ui/WebStartupSplash';
 
@@ -120,6 +121,7 @@ export default function RootLayout() {
       <AppModeProvider>
         <SensorConnectionProvider>
           <PatientSessionProvider>
+            <TouchPracticePreferenceProvider>
             <LevelsProgressProvider>
               <Stack>
                 <Stack.Screen name="index" options={{ headerShown: false }} />
@@ -148,6 +150,7 @@ export default function RootLayout() {
                 <Stack.Screen name="esp32-raw-test" options={{ headerShown: false, title: 'Prueba WebSocket ESP32' }} />
               </Stack>
             </LevelsProgressProvider>
+            </TouchPracticePreferenceProvider>
           </PatientSessionProvider>
         </SensorConnectionProvider>
       </AppModeProvider>

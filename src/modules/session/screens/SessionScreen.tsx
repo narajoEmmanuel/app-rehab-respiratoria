@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
 import { loadActiveVolumeEstimationContext, showTherapyReadinessAlert } from '@/src/modules/device/volume-estimation';
 import { isSensorDebugEnabled } from '@/src/modules/app-mode';
+import { isRealSensorTransportConnected } from '@/src/modules/device/sensor-real-connection';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
 import { evaluateLevelSensorReadiness } from '@/src/modules/session/sensor/level-sensor-readiness';
@@ -148,25 +149,11 @@ export function SessionScreen() {
   const router = useRouter();
   const isFocused = useIsFocused();
   const { patient } = usePatientSession();
-  const { levelId, sessionRunId, inputMode: inputModeParam } = useLocalSearchParams<{
+  const { levelId, sessionRunId } = useLocalSearchParams<{
     levelId?: string;
     sessionRunId?: string;
     inputMode?: string;
   }>();
-  const routeSessionInputMode = useMemo(
-    () => parseSessionInputMode(inputModeParam),
-    [inputModeParam],
-  );
-  const [touchPracticeEnabled, setTouchPracticeEnabled] = useState(() =>
-    isTouchPracticeSession(routeSessionInputMode),
-  );
-
-  useEffect(() => {
-    if (isTouchPracticeSession(routeSessionInputMode)) {
-      setTouchPracticeEnabled(true);
-    }
-  }, [routeSessionInputMode]);
-
   const {
     isLoading,
     progress,
@@ -201,15 +188,13 @@ export function SessionScreen() {
   const sensorConnectionRef = useRef(sensorConnection);
   sensorConnectionRef.current = sensorConnection;
 
-  const sensorConnected =
-    sensorConnection.status === 'connected' ||
-    sensorConnection.status === 'receiving' ||
-    sensorConnection.mode === 'mock';
+  const sensorTransportConnected = isRealSensorTransportConnected(
+    sensorConnection.status,
+    sensorConnection.mode,
+  );
 
   const { effectiveTouchPracticeEnabled } = useTouchPracticeGate({
-    sensorConnected,
-    touchPracticeEnabled,
-    setTouchPracticeEnabled,
+    sensorConnected: sensorTransportConnected,
   });
 
   const isTouchPractice = effectiveTouchPracticeEnabled;

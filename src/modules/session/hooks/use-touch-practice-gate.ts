@@ -1,48 +1,47 @@
 /**
- * Purpose: Gate touch practice mode to when no sensor is connected.
+ * Purpose: Gate touch practice mode from profile preference and sensor connection.
  * Module: session/hooks
  */
 
-import { useEffect } from 'react';
-
-import { isTouchPracticeModeEnabled } from '@/src/modules/session/session-input-mode';
+import { useTouchPracticePreference } from '@/src/modules/session/hooks/use-touch-practice-preference';
 
 export type UseTouchPracticeGateParams = {
+  /** Real transport connected (not mock); see isRealSensorTransportConnected. */
   sensorConnected: boolean;
-  touchPracticeEnabled: boolean;
-  setTouchPracticeEnabled: (enabled: boolean) => void;
 };
 
 export type UseTouchPracticeGateResult = {
-  /** Feature flag on and no sensor connected — UI for touch backup may render. */
+  /** Feature + profile preference + no sensor — touch may run this session. */
   canUseTouchPractice: boolean;
-  /** Touch input is active for gameplay and session persistence. */
   effectiveTouchPracticeEnabled: boolean;
-  isTouchPracticeFeatureEnabled: boolean;
+  touchPracticeFeatureEnabled: boolean;
+  profileTouchPracticeEnabled: boolean;
+  /** AsyncStorage preference loaded for active patient. */
+  preferenceHydrated: boolean;
 };
 
 /**
- * Touch practice is only available without a connected sensor.
- * Automatically clears the user preference when a sensor connects.
+ * Touch practice runs only when enabled in Perfil, feature flag is on, and no real sensor link.
  */
 export function useTouchPracticeGate({
   sensorConnected,
-  touchPracticeEnabled,
-  setTouchPracticeEnabled,
 }: UseTouchPracticeGateParams): UseTouchPracticeGateResult {
-  const isTouchPracticeFeatureEnabled = isTouchPracticeModeEnabled();
-  const canUseTouchPractice = isTouchPracticeFeatureEnabled && !sensorConnected;
-  const effectiveTouchPracticeEnabled = canUseTouchPractice && touchPracticeEnabled;
+  const { hydrated, touchPracticeFeatureEnabled, profileTouchPracticeEnabled } =
+    useTouchPracticePreference();
 
-  useEffect(() => {
-    if (sensorConnected && touchPracticeEnabled) {
-      setTouchPracticeEnabled(false);
-    }
-  }, [sensorConnected, touchPracticeEnabled, setTouchPracticeEnabled]);
+  const canUseTouchPractice =
+    hydrated &&
+    touchPracticeFeatureEnabled &&
+    profileTouchPracticeEnabled &&
+    sensorConnected !== true;
+
+  const effectiveTouchPracticeEnabled = canUseTouchPractice;
 
   return {
     canUseTouchPractice,
     effectiveTouchPracticeEnabled,
-    isTouchPracticeFeatureEnabled,
+    touchPracticeFeatureEnabled,
+    profileTouchPracticeEnabled,
+    preferenceHydrated: hydrated,
   };
 }
