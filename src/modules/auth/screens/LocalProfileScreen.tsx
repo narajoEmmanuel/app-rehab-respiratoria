@@ -14,10 +14,10 @@ import {
 } from 'react-native';
 
 import { AuthCreateProfileView } from '@/src/modules/auth/components/AuthCreateProfileView';
+import { AuthGeneratedKeyView } from '@/src/modules/auth/components/AuthGeneratedKeyView';
 import { AuthWelcomeView } from '@/src/modules/auth/components/AuthWelcomeView';
 import {
   AuthFlowChrome,
-  AuthOutlineButton,
   AuthPrimaryButton,
   AuthSecondaryButton,
   AuthTitleBlock,
@@ -154,43 +154,22 @@ export function LocalProfileScreen() {
 
   if (createdPatient) {
     return (
-      <AuthFlowChrome step={{ current: 2, total: 4 }} showHeaderLogo>
-        <AuthTitleBlock
-          title="¡Todo listo!"
-          subtitle="Guarda tu clave de acceso. La necesitarás cada vez que entres a la app."
-        />
-
-        <View style={styles.keyCard} accessibilityRole="summary">
-          <Text style={styles.keyLabel}>Tu clave de acceso</Text>
-          <Text style={styles.keyValue} accessibilityLabel={`Clave ${createdPatient.clave}`}>
-            {createdPatient.clave}
-          </Text>
-        </View>
-
-        <AuthOutlineButton
-          label={copyAck ? 'Clave lista para compartir' : 'Copiar clave'}
-          onPress={onCopyKey}
-        />
-
-        <AuthPrimaryButton
-          label="Continuar a documentos"
-          onPress={onContinueAfterCreate}
-          loading={busyId === 'create'}
-          disabled={busyId != null}
-        />
-
-        <AuthSecondaryButton
-          label="Volver al acceso con clave"
-          onPress={() => router.replace('/auth/login')}
-          disabled={busyId != null}
-        />
-      </AuthFlowChrome>
+      <AuthGeneratedKeyView
+        clave={createdPatient.clave}
+        copyAck={copyAck}
+        busy={busyId != null}
+        onCopyKey={onCopyKey}
+        onContinue={onContinueAfterCreate}
+        onBackToLogin={() => router.replace('/auth/login')}
+      />
     );
   }
 
   if (phase === 'profiles' && hasProfiles) {
     return (
-      <AuthFlowChrome>
+      <AuthFlowChrome
+        onBack={() => setPhase('welcome')}
+        backAccessibilityLabel="Volver a bienvenida">
         <AuthTitleBlock
           title="Perfiles en este dispositivo"
           subtitle="Selecciona un perfil guardado o crea uno nuevo."
@@ -264,6 +243,8 @@ export function LocalProfileScreen() {
     <AuthWelcomeView
       onCreateProfile={() => setPhase('create')}
       onLoginWithKey={() => router.push('/auth/login')}
+      onBack={() => router.back()}
+      backAccessibilityLabel="Volver"
       hasDeviceProfiles={hasProfiles}
       onShowDeviceProfiles={hasProfiles ? () => setPhase('profiles') : undefined}
     />
@@ -271,28 +252,6 @@ export function LocalProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  keyCard: {
-    backgroundColor: authPalette.successBg,
-    borderRadius: wellnessRadii.cardLarge,
-    padding: spacing.xl,
-    borderWidth: 2,
-    borderColor: authPalette.primary,
-    marginBottom: spacing.md,
-    alignItems: 'center',
-    ...wellnessShadows.soft,
-  },
-  keyLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: authPalette.textMuted,
-    marginBottom: spacing.sm,
-  },
-  keyValue: {
-    fontSize: 40,
-    fontWeight: '800',
-    color: authPalette.primaryDark,
-    letterSpacing: 3,
-  },
   listSection: {
     marginBottom: spacing.lg,
     gap: spacing.sm,

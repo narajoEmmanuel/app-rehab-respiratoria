@@ -4,7 +4,8 @@
  * Dependencies: expo-router, patient session, patient-service
  */
 
-import { Link, useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -20,17 +21,21 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AuthRegistrationHeader } from '@/src/modules/auth/components/AuthRegistrationHeader';
+import { AuthWellnessBackdrop } from '@/src/modules/auth/components/AuthFlowChrome';
+import { LOCAL_PROFILE_HREF } from '@/src/modules/auth/local-profile-hrefs';
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
 import { getPatientByClave, normalizeClave } from '@/src/modules/patient/patient-service';
 import { getErrorMessage } from '@/src/shared/utils/get-error-message';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
-const TITLE = 26;
-const BODY = 18;
-const LABEL = 17;
-const BTN = 19;
+const TEXT_MUTED = '#6B7B86';
+const TEXT_SLATE = '#354656';
+const TEXT_PLACEHOLDER = '#B5BFC8';
+const BTN_GRADIENT_ACTIVE = ['#45BDB7', '#34ABA5', '#1F7E7A'] as const;
+const BTN_GRADIENT_DISABLED = ['#9DD9D2', '#8BCEC6', '#7ABFB8'] as const;
 
 export function LoginScreen() {
   const router = useRouter();
@@ -39,9 +44,15 @@ export function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
+  const normalized = normalizeClave(clave);
+  const canSubmit = Boolean(normalized) && !loading;
+
+  function goToCreateProfile() {
+    router.push({ pathname: LOCAL_PROFILE_HREF, params: { intent: 'create' } });
+  }
+
   async function onLogin() {
     setNotFound(false);
-    const normalized = normalizeClave(clave);
     if (!normalized) return;
     setLoading(true);
     try {
@@ -62,6 +73,17 @@ export function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <AuthWellnessBackdrop />
+      <AuthRegistrationHeader
+        onBack={() => {
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace(LOCAL_PROFILE_HREF);
+          }
+        }}
+        backAccessibilityLabel="Volver a bienvenida"
+      />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -69,25 +91,24 @@ export function LoginScreen() {
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
-          <View style={styles.header}>
-            <Text style={styles.brand}>Rehab respiratoria</Text>
+          <View style={styles.titleBlock}>
             <Text style={styles.title}>Acceso con tu clave</Text>
             <Text style={styles.subtitle}>
-              Escribe la clave que te dieron al registrarte (por ejemplo, PAC001).
+              Escribe la clave que recibiste al registrarte.
             </Text>
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.label}>Tu clave</Text>
+          <View style={styles.formCard}>
+            <Text style={styles.fieldLabel}>Tu clave</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, notFound && styles.inputError]}
               value={clave}
               onChangeText={(t) => {
                 setClave(t.toUpperCase());
                 setNotFound(false);
               }}
-              placeholder="PAC001"
-              placeholderTextColor={authPalette.textMuted}
+              placeholder="PACO01"
+              placeholderTextColor={TEXT_PLACEHOLDER}
               autoCapitalize="characters"
               autoCorrect={false}
               maxLength={12}
@@ -98,38 +119,52 @@ export function LoginScreen() {
               <View style={styles.notice} accessibilityRole="alert">
                 <Text style={styles.noticeTitle}>Clave no encontrada</Text>
                 <Text style={styles.noticeBody}>
-                  ¿Deseas registrarte para obtener una clave nueva?
+                  Revisa que esté escrita correctamente o crea un nuevo perfil.
                 </Text>
-                <Link href="/auth/registro" asChild>
-                  <Pressable style={styles.secondaryBtn} accessibilityRole="button">
-                    <Text style={styles.secondaryBtnText}>Ir a crear registro</Text>
-                  </Pressable>
-                </Link>
+                <Pressable
+                  style={({ pressed }) => [styles.noticeLink, pressed && styles.pressed]}
+                  onPress={goToCreateProfile}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ir a crear perfil">
+                  <Text style={styles.noticeLinkText}>Ir a crear perfil</Text>
+                </Pressable>
               </View>
             ) : null}
+          </View>
 
-            <Pressable
-              style={[styles.primaryBtn, loading && styles.primaryBtnDisabled]}
-              onPress={onLogin}
-              disabled={loading || !normalizeClave(clave)}
-              accessibilityRole="button"
-              accessibilityLabel="Iniciar sesión">
+          <Pressable
+            style={({ pressed }) => [
+              styles.btnPrimaryWrap,
+              !canSubmit && styles.btnPrimaryWrapDisabled,
+              pressed && canSubmit && styles.pressed,
+            ]}
+            onPress={onLogin}
+            disabled={!canSubmit}
+            accessibilityRole="button"
+            accessibilityLabel="Iniciar sesión">
+            <LinearGradient
+              colors={canSubmit ? BTN_GRADIENT_ACTIVE : BTN_GRADIENT_DISABLED}
+              locations={[0, 0.45, 1]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.btnPrimaryGradient}>
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.primaryBtnText}>Iniciar sesión</Text>
+                <Text style={[styles.btnPrimaryText, !canSubmit && styles.btnPrimaryTextDisabled]}>
+                  Iniciar sesión
+                </Text>
               )}
-            </Pressable>
-          </View>
+            </LinearGradient>
+          </Pressable>
 
-          <View style={styles.footer}>
-            <Text style={styles.footerHint}>¿Primera vez en la app?</Text>
-            <Link href="/auth/registro" asChild>
-              <Pressable style={styles.linkWrap} accessibilityRole="button">
-                <Text style={styles.link}>Crear registro</Text>
-              </Pressable>
-            </Link>
-          </View>
+          <Pressable
+            style={({ pressed }) => [styles.footerLink, pressed && styles.pressed]}
+            onPress={goToCreateProfile}
+            accessibilityRole="button"
+            accessibilityLabel="Crear perfil">
+            <Text style={styles.footerLinkText}>Crear perfil</Text>
+          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -137,114 +172,143 @@ export function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: authPalette.screenBg },
+  safe: {
+    flex: 1,
+    backgroundColor: authPalette.screenBg,
+  },
   flex: { flex: 1 },
   scroll: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.xxl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl,
   },
-  header: { marginBottom: spacing.xl },
-  brand: {
-    fontSize: 16,
-    color: authPalette.textMuted,
-    marginBottom: spacing.sm,
-    fontWeight: '600',
+  titleBlock: {
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    marginBottom: spacing.lg,
   },
   title: {
-    fontSize: TITLE,
-    fontWeight: '700',
-    color: authPalette.text,
-    marginBottom: spacing.md,
+    fontSize: 27,
+    fontWeight: '800',
+    color: '#2A3439',
+    textAlign: 'center',
+    marginBottom: spacing.xs + 2,
+    letterSpacing: -0.35,
   },
   subtitle: {
-    fontSize: BODY,
-    lineHeight: 26,
-    color: authPalette.textMuted,
+    fontSize: 16,
+    lineHeight: 23,
+    color: TEXT_MUTED,
+    textAlign: 'center',
+    maxWidth: 320,
   },
-  card: {
-    backgroundColor: authPalette.cardGlass,
+  formCard: {
+    backgroundColor: '#FFFFFF',
     borderRadius: wellnessRadii.cardLarge,
-    padding: spacing.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md + 2,
+    marginBottom: spacing.lg,
     borderWidth: 1,
-    borderColor: authPalette.border,
-    ...wellnessShadows.card,
+    borderColor: 'rgba(52, 171, 165, 0.18)',
+    shadowColor: '#1F7E7A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 5,
   },
-  label: {
-    fontSize: LABEL,
+  fieldLabel: {
+    fontSize: 14,
     fontWeight: '600',
-    color: authPalette.text,
-    marginBottom: spacing.sm,
+    color: TEXT_SLATE,
+    marginBottom: spacing.xs + 2,
   },
   input: {
-    borderWidth: 2,
-    borderColor: authPalette.border,
-    borderRadius: wellnessRadii.card,
-    paddingVertical: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.22)',
+    borderRadius: 14,
+    paddingVertical: spacing.sm + 4,
     paddingHorizontal: spacing.md,
     fontSize: 22,
-    fontWeight: '600',
+    fontWeight: '700',
     color: authPalette.text,
-    marginBottom: spacing.md,
-    letterSpacing: 1,
+    backgroundColor: 'rgba(250, 252, 251, 0.95)',
+    minHeight: 52,
+    letterSpacing: 2,
+  },
+  inputError: {
+    borderColor: 'rgba(140, 58, 66, 0.35)',
+    backgroundColor: authPalette.errorBg,
   },
   notice: {
+    marginTop: spacing.md,
     backgroundColor: authPalette.errorBg,
-    borderRadius: wellnessRadii.card,
+    borderRadius: 14,
     padding: spacing.md,
-    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(140, 58, 66, 0.14)',
   },
   noticeTitle: {
-    fontSize: BODY,
+    fontSize: 16,
     fontWeight: '700',
     color: authPalette.errorText,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   noticeBody: {
-    fontSize: BODY,
-    lineHeight: 24,
-    color: authPalette.text,
-    marginBottom: spacing.md,
+    fontSize: 15,
+    lineHeight: 22,
+    color: TEXT_SLATE,
+    marginBottom: spacing.sm,
   },
-  secondaryBtn: {
+  noticeLink: {
     alignSelf: 'flex-start',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: wellnessRadii.pill,
-    borderWidth: 2,
-    borderColor: authPalette.primaryDark,
+    paddingVertical: spacing.xs,
   },
-  secondaryBtnText: {
-    fontSize: BODY,
-    fontWeight: '700',
-    color: authPalette.primaryDark,
+  noticeLinkText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: wellness.primary,
+    textDecorationLine: 'underline',
   },
-  primaryBtn: {
-    backgroundColor: authPalette.primary,
-    paddingVertical: spacing.md + 4,
+  btnPrimaryWrap: {
     borderRadius: wellnessRadii.pill,
+    overflow: 'hidden',
+    shadowColor: '#1F7E7A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  btnPrimaryWrapDisabled: {
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  btnPrimaryGradient: {
+    paddingVertical: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 56,
+    minHeight: 54,
   },
-  primaryBtnDisabled: { opacity: 0.65 },
-  primaryBtnText: {
-    color: authPalette.primaryOnBrand,
-    fontSize: BTN,
+  btnPrimaryText: {
+    fontSize: 18,
     fontWeight: '700',
+    color: '#FFFFFF',
   },
-  footer: {
-    marginTop: spacing.xl,
+  btnPrimaryTextDisabled: {
+    color: 'rgba(255, 255, 255, 0.92)',
+  },
+  footerLink: {
     alignItems: 'center',
-    gap: spacing.sm,
+    paddingVertical: spacing.lg,
+    marginTop: spacing.sm,
   },
-  footerHint: { fontSize: BODY, color: authPalette.textMuted },
-  linkWrap: { padding: spacing.sm },
-  link: {
-    fontSize: BODY,
-    fontWeight: '700',
-    color: authPalette.link,
+  footerLinkText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: wellness.primary,
     textDecorationLine: 'underline',
+  },
+  pressed: {
+    opacity: 0.88,
   },
 });
