@@ -131,6 +131,10 @@ type LevelOneGameViewProps = {
   theme?: LevelGameTheme;
   obstacleType?: LevelObstacleType;
   introMode?: boolean;
+  /** When false, hides runner RespiraBunny + shadow only (scene parallax keeps running). */
+  showRunnerRabbit?: boolean;
+  /** When false during introMode, hides the scene header title (e.g. level human name). */
+  showSceneTitle?: boolean;
   onIntroComplete?: () => void;
   onIntroExit?: () => void;
 };
@@ -172,6 +176,8 @@ export function LevelOneGameView({
   theme = 'forest',
   obstacleType = 'mountain',
   introMode = false,
+  showRunnerRabbit = true,
+  showSceneTitle = true,
   onIntroComplete,
   onIntroExit,
 }: LevelOneGameViewProps) {
@@ -583,11 +589,11 @@ export function LevelOneGameView({
               onPressPause={onPressPause}
             />
           </View>
-        ) : (
+        ) : showSceneTitle ? (
           <View style={styles.introTitleRow}>
             <Text style={[styles.introLevelTitle, { color: accentColor }]}>{introTitle}</Text>
           </View>
-        )}
+        ) : null}
 
         <View style={[styles.gameStage, { minHeight: gameSceneMinHeight }]}>
           <View
@@ -732,26 +738,33 @@ export function LevelOneGameView({
             </Animated.View>
 
             <View style={styles.runnerLane}>
-              <Animated.View
-                style={[
-                  styles.rabbitShadow,
-                  { left: rabbitLeft + Math.round(20 * GAME_VISUAL_SCALE), bottom: RABBIT_ANCHOR_BOTTOM - 8 },
-                  rabbitShadowStyle,
-                ]}
-              />
-              <Animated.View
-                style={[
-                  styles.rabbitAnchor,
-                  { left: rabbitLeft, bottom: RABBIT_ANCHOR_BOTTOM },
-                  rabbitStyle,
-                ]}>
-                <View style={styles.rabbitVisualScale}>
-                  <RespiraBunny
-                    mood={crashFxVisible ? 'crashed' : 'default'}
-                    variant={isSpace ? 'astronaut' : 'default'}
+              {showRunnerRabbit ? (
+                <>
+                  <Animated.View
+                    style={[
+                      styles.rabbitShadow,
+                      {
+                        left: rabbitLeft + Math.round(20 * GAME_VISUAL_SCALE),
+                        bottom: RABBIT_ANCHOR_BOTTOM - 8,
+                      },
+                      rabbitShadowStyle,
+                    ]}
                   />
-                </View>
-              </Animated.View>
+                  <Animated.View
+                    style={[
+                      styles.rabbitAnchor,
+                      { left: rabbitLeft, bottom: RABBIT_ANCHOR_BOTTOM },
+                      rabbitStyle,
+                    ]}>
+                    <View style={styles.rabbitVisualScale}>
+                      <RespiraBunny
+                        mood={crashFxVisible ? 'crashed' : 'default'}
+                        variant={isSpace ? 'astronaut' : 'default'}
+                      />
+                    </View>
+                  </Animated.View>
+                </>
+              ) : null}
 
               {showGoalBarrier ? (
                 <Animated.View

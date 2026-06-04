@@ -51,6 +51,7 @@ import {
 } from '@/src/modules/session/engine/level-one/use-level-one-game';
 import { useTouchInputAdapter } from '@/src/modules/session/engine/touch/use-touch-input-adapter';
 import { LevelOneGameView } from '@/src/modules/session/games/components/LevelOneGameView';
+import { LevelOnePreStartIntro } from '@/src/modules/session/games/components/LevelOnePreStartIntro';
 import { LevelAdvanceCelebrationModal } from '@/src/modules/session/games/components/LevelAdvanceCelebrationModal';
 import { AllLevelsCompleteCelebrationModal } from '@/src/modules/session/games/components/AllLevelsCompleteCelebrationModal';
 import { SessionCompleteMicroCelebration } from '@/src/modules/session/games/components/SessionCompleteMicroCelebration';
@@ -826,6 +827,16 @@ export function SessionScreen() {
     ],
   );
 
+  const handleIntroExit = useCallback(() => {
+    abandonSessionAndExit({
+      persistInterruptedToHistory: false,
+      markLevelSlotInterrupted: false,
+      valid: 0,
+      failed: 0,
+      attempts: [],
+    });
+  }, [abandonSessionAndExit]);
+
   const navigateToSessionSummary = useCallback(
     (sessionId: number) => {
       dismissSessionOverlays();
@@ -1051,6 +1062,10 @@ export function SessionScreen() {
     }
   };
 
+  const runnerIntroActive =
+    isRunnerLevel && levelOneEngine.phase === 'not-started' && !introAcknowledged;
+  const showLevelOnePreStartIntro = selectedLevelId === 'level-1' && runnerIntroActive;
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {savingInterrupt ? (
@@ -1066,17 +1081,11 @@ export function SessionScreen() {
       ) : null}
       <View style={styles.gameWrap}>
         <LevelOneGameView
-          introMode={levelOneEngine.phase === 'not-started' && !introAcknowledged}
-          onIntroComplete={handleIntroComplete}
-          onIntroExit={() => {
-            abandonSessionAndExit({
-              persistInterruptedToHistory: false,
-              markLevelSlotInterrupted: false,
-              valid: 0,
-              failed: 0,
-              attempts: [],
-            });
-          }}
+          introMode={runnerIntroActive}
+          showRunnerRabbit={!showLevelOnePreStartIntro}
+          showSceneTitle={!showLevelOnePreStartIntro}
+          onIntroComplete={showLevelOnePreStartIntro ? undefined : handleIntroComplete}
+          onIntroExit={showLevelOnePreStartIntro ? undefined : handleIntroExit}
           holdMs={levelOneEngine.holdMs}
           sustainMs={levelOneEngine.sustainMs}
           targetReached={levelOneEngine.targetReached}
@@ -1115,6 +1124,9 @@ export function SessionScreen() {
           showSensorDebugMetrics={isSensorDebugEnabled()}
           targetVolume={targetVolume}
         />
+        {showLevelOnePreStartIntro ? (
+          <LevelOnePreStartIntro onStart={handleIntroComplete} onBack={handleIntroExit} />
+        ) : null}
       </View>
       <LevelAdvanceCelebrationModal
         visible={celebrationKind === 'advance' && isFocused}
@@ -1287,6 +1299,7 @@ const styles = StyleSheet.create({
   gameWrap: {
     flex: 1,
     minHeight: 400,
+    position: 'relative',
   },
   title: {
     color: wellness.text,
