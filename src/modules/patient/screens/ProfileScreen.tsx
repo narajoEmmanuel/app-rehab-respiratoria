@@ -16,8 +16,11 @@ import {
   withdrawConsent,
 } from '@/src/modules/legal/consent-service';
 import { LEGAL_ACCEPT_HREF, LEGAL_DOCUMENT_HREF } from '@/src/modules/legal/legal-hrefs';
-import { getNotificationPreferences } from '@/src/modules/notifications/storage/notification-preferences-repository';
-import type { NotificationPreferences } from '@/src/modules/notifications/types/notification-preferences';
+import { loadNotificationSettings } from '@/src/modules/notifications/notification-settings.storage';
+import {
+  formatProfileReminderSummary,
+  type NotificationSettings,
+} from '@/src/modules/notifications/notification-settings.types';
 import { DeletePatientConfirmModal } from '@/src/modules/patient/components/DeletePatientConfirmModal';
 import { ProfileActionRow } from '@/src/modules/patient/components/ProfileActionRow';
 import { ProfileAvatarPicker } from '@/src/modules/patient/components/ProfileAvatarPicker';
@@ -101,7 +104,7 @@ export function ProfileScreen() {
   const [latestDiagnostic, setLatestDiagnostic] = useState<DiagnosticRecord | null>(null);
   const [consentActive, setConsentActive] = useState(false);
   const [prefs, setPrefs] = useState<ProfilePreferences>(DEFAULT_PROFILE_PREFERENCES);
-  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences | null>(null);
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings | null>(null);
   const [sessionQuickStats, setSessionQuickStats] = useState<SessionQuickStats | null>(null);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -120,7 +123,7 @@ export function ProfileScreen() {
     setLatestDiagnostic(null);
     setSessionQuickStats(null);
     setPrefs(DEFAULT_PROFILE_PREFERENCES);
-    setNotificationPrefs(null);
+    setNotificationSettings(null);
     setConsentActive(false);
   }, []);
 
@@ -135,19 +138,19 @@ export function ProfileScreen() {
           setLatestDiagnostic(null);
           setSessionQuickStats(null);
           setPrefs(DEFAULT_PROFILE_PREFERENCES);
-          setNotificationPrefs(null);
+          setNotificationSettings(null);
           return;
         }
-        const [diagnostic, prefsResult, sessions, notifPrefsResult] = await Promise.all([
+        const [diagnostic, prefsResult, sessions, notifSettingsResult] = await Promise.all([
           getLatestDiagnostic(patient.paciente_id),
           getProfilePreferences(patient.paciente_id),
           readAllSessions(),
-          getNotificationPreferences(String(patient.paciente_id)),
+          loadNotificationSettings(String(patient.paciente_id)),
         ]);
         if (!active) return;
         setLatestDiagnostic(diagnostic);
         setPrefs(prefsResult);
-        setNotificationPrefs(notifPrefsResult);
+        setNotificationSettings(notifSettingsResult);
         setSessionQuickStats(buildSessionQuickStats(sessions, patient.paciente_id));
       })();
       return () => {
@@ -393,24 +396,15 @@ export function ProfileScreen() {
         </ProfileSection>
 
         <ProfileSection
-          title="Notificaciones"
-          subtitle="Recordatorios locales en tu dispositivo para la terapia respiratoria (sin mensajes push remotos).">
+          title="Recordatorios"
+          subtitle={
+            notificationSettings == null ? undefined : formatProfileReminderSummary(notificationSettings)
+          }>
           <ProfileInfoCard>
-            <Text style={styles.notifStatusLine}>
-              Recordatorios de terapia:{' '}
-              <Text style={styles.notifStatusEmphasis}>
-                {notificationPrefs == null
-                  ? '—'
-                  : notificationPrefs.remindersEnabled
-                    ? 'Activo'
-                    : 'Inactivo'}
-              </Text>
-            </Text>
-            <View style={styles.divider} />
             <ProfileActionRow
-              label="Recordatorios de terapia"
+              label="Configurar"
               onPress={() => router.push('/notification-settings' as Href)}
-              accessibilityLabel="Abrir configuración de recordatorios de terapia"
+              accessibilityLabel="Abrir configuración de recordatorios"
               variant="neutral"
             />
           </ProfileInfoCard>

@@ -13,11 +13,11 @@ import {
   writeAllPatientLevels,
 } from '@/src/modules/diagnostics/diagnostic-repository';
 import { clearLevelsProgress } from '@/src/modules/levels/storage/levels-progress-storage';
-import { cancelScheduledReminders } from '@/src/modules/notifications/services/notification-service';
+import { cancelScheduledNotificationIds } from '@/src/modules/notifications/notification-scheduler';
 import {
-  clearNotificationPreferences,
-  getNotificationPreferences,
-} from '@/src/modules/notifications/storage/notification-preferences-repository';
+  clearNotificationSettings,
+  loadNotificationSettings,
+} from '@/src/modules/notifications/notification-settings.storage';
 import { isCloudAuthEnabled } from '@/src/modules/app-mode/app-mode-config';
 import { bumpPatientIdSequenceFloor } from '@/src/modules/patient/patient-id-allocation';
 import { assertPatientFullyRemoved } from '@/src/modules/patient/patient-delete-verification';
@@ -59,11 +59,11 @@ export async function deletePatientLocalData(patientId: number): Promise<void> {
 
   const patientIdStr = String(patientId);
 
-  const notifPrefs = await getNotificationPreferences(patientIdStr);
-  if (notifPrefs.scheduledNotificationIds.length > 0) {
-    await cancelScheduledReminders(notifPrefs.scheduledNotificationIds);
+  const notifSettings = await loadNotificationSettings(patientIdStr);
+  if (notifSettings.scheduledNotificationIds.length > 0) {
+    await cancelScheduledNotificationIds(notifSettings.scheduledNotificationIds);
   }
-  await clearNotificationPreferences(patientIdStr);
+  await clearNotificationSettings(patientIdStr);
   await clearProfilePreferences(patientId);
   await clearLevelsProgress(patientId);
 

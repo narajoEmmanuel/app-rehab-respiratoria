@@ -131,7 +131,7 @@ export default function RootLayout() {
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="profile" options={{ headerShown: false }} />
                 <Stack.Screen name="data-export" options={{ headerShown: false, title: 'Datos y exportación' }} />
-                <Stack.Screen name="notification-settings" options={{ headerShown: false, title: 'Recordatorios' }} />
+                <Stack.Screen name="notification-settings" options={{ headerShown: false, title: 'Recordatorios y adherencia' }} />
                 <Stack.Screen name="sensor-connection" options={{ headerShown: false }} />
                 <Stack.Screen name="sensor-calibration" options={{ headerShown: false }} />
                 <Stack.Screen

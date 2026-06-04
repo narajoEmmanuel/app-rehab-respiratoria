@@ -1,472 +1,1066 @@
 /**
- * Purpose: Configure local daily therapy reminders (permissions, time, persistence).
+
+ * Purpose: Configure local therapy reminders — simplified adherence layout.
+
  * Module: notifications
+
  */
 
+
+
 import { useFocusEffect } from '@react-navigation/native';
-import type { PermissionStatus } from 'expo-modules-core';
+
 import { useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+
 import {
+
   ActivityIndicator,
-  Alert,
+
   Pressable,
+
   ScrollView,
+
   StyleSheet,
+
   Switch,
+
   Text,
+
+  TextInput,
+
   View,
+
 } from 'react-native';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+
+
 import { isConsentActive } from '@/src/modules/legal/consent-service';
+
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
+
 import {
-  getNotificationPermissionStatus,
-  requestNotificationPermissions,
-  scheduleDailyTherapyReminder,
-  cancelScheduledReminders,
-  supportsScheduledLocalReminders,
-} from '@/src/modules/notifications/services/notification-service';
+  describeWebLimitation,
+  formatAwakeWindowScheduleMessage,
+  FREQUENCY_FIXED_DESCRIPTION,
+  TODAY_PREVIEW_DESCRIPTION,
+  TODAY_PREVIEW_TITLE,
+} from '@/src/modules/notifications/notification-copy';
+
 import {
-  getNotificationPreferences,
-  updateNotificationPreferences,
-} from '@/src/modules/notifications/storage/notification-preferences-repository';
-import {
-  REMINDER_TIME_OPTIONS,
-  type NotificationPreferences,
-} from '@/src/modules/notifications/types/notification-preferences';
+  ACTIVE_WINDOW_INVALID_MESSAGE,
+  isReminderTimePassed,
+} from '@/src/modules/notifications/notification-settings.types';
+
+import { useNotificationSettings } from '@/src/modules/notifications/use-notification-settings';
+
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+
 import { spacing } from '@/src/shared/theme/spacing';
+
 import { wellness, wellnessFloatingTabBarInset, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
-const ACCENT = '#34aba5';
 
-function permissionLabel(status: PermissionStatus | null): string {
-  if (status == null) return 'Comprobando…';
-  if (status === 'granted') return 'Activas en el dispositivo';
-  if (status === 'denied') return 'No disponibles (rechazadas o desactivadas)';
-  return 'Aún no solicitadas';
+
+const ACCENT = wellness.primary;
+
+
+
+function Card({ children }: { children: ReactNode }) {
+
+  return <View style={styles.card}>{children}</View>;
+
 }
 
-function describeWebLimitation(): string {
-  return 'En la versión web no se pueden programar recordatorios locales como en iPhone o Android. Usa la app en un dispositivo móvil para recibir avisos diarios.';
+
+
+function CardTitle({ children }: { children: string }) {
+
+  return <Text style={styles.cardTitle}>{children}</Text>;
+
 }
+
+
+
+function formatTimeDraftInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+}
+
+type AwakeTimeFieldProps = {
+
+  label: string;
+
+  value: string;
+
+  onChangeText: (value: string) => void;
+
+  onCommit: () => void;
+
+  disabled?: boolean;
+
+};
+
+
+
+function AwakeTimeField({ label, value, onChangeText, onCommit, disabled }: AwakeTimeFieldProps) {
+  return (
+    <View style={styles.timeField}>
+      <Text style={styles.timeFieldLabel}>{label}</Text>
+      <TextInput
+        style={styles.timeInput}
+        value={value}
+        onChangeText={(text) => onChangeText(formatTimeDraftInput(text))}
+        onBlur={onCommit}
+        onSubmitEditing={onCommit}
+        placeholder="HH:mm"
+        keyboardType="number-pad"
+        maxLength={5}
+        editable={!disabled}
+        accessibilityLabel={label}
+      />
+    </View>
+  );
+}
+
+
 
 export function NotificationSettingsScreen() {
+
   const router = useRouter();
+
   const { patient, hydrated } = usePatientSession();
-  const patientKey = patient ? String(patient.paciente_id) : '';
 
-  const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
+  const patientKey = patient ? String(patient.paciente_id) : null;
+
   const [consentOk, setConsentOk] = useState<boolean | null>(null);
-  const [permissionStatus, setPermissionStatus] = useState<PermissionStatus | null>(null);
-  const [draftEnabled, setDraftEnabled] = useState(false);
-  const [draftTime, setDraftTime] = useState('09:00');
-  const [busy, setBusy] = useState(false);
 
-  const refresh = useCallback(async () => {
+  const [startDraft, setStartDraft] = useState('08:00');
+
+  const [endDraft, setEndDraft] = useState('22:00');
+
+
+
+  const {
+
+    settings,
+
+    loading,
+
+    busy,
+
+    nativeSupported,
+
+    previewDisplay,
+
+    activeWindowInvalid,
+
+    refresh,
+
+    setEnabled,
+
+    setActiveWindow,
+
+    sendTestReminder,
+
+  } = useNotificationSettings(patientKey);
+
+
+
+  useEffect(() => {
+
+    if (settings == null) return;
+
+    setStartDraft(settings.activeWindowStart);
+
+    setEndDraft(settings.activeWindowEnd);
+
+  }, [settings?.activeWindowStart, settings?.activeWindowEnd, settings]);
+
+
+
+  const loadConsent = useCallback(async () => {
+
     if (!patient) {
-      setPrefs(null);
+
       setConsentOk(null);
-      setPermissionStatus(null);
-      setDraftEnabled(false);
-      setDraftTime('09:00');
+
       return;
+
     }
-    const [active, stored, perm] = await Promise.all([
-      isConsentActive(),
-      getNotificationPreferences(patientKey),
-      supportsScheduledLocalReminders() ? getNotificationPermissionStatus() : Promise.resolve(null),
-    ]);
-    setConsentOk(active);
-    setPrefs(stored);
-    setDraftEnabled(stored.remindersEnabled);
-    setDraftTime(stored.preferredReminderTime);
-    setPermissionStatus(perm);
-  }, [patient, patientKey]);
+
+    setConsentOk(await isConsentActive());
+
+  }, [patient]);
+
+
 
   useFocusEffect(
+
     useCallback(() => {
+
       if (!hydrated) return;
+
+      void loadConsent();
+
       void refresh();
-    }, [hydrated, refresh]),
+
+    }, [hydrated, loadConsent, refresh]),
+
   );
 
-  const onSave = useCallback(async () => {
-    if (!patient || prefs == null) return;
-    if (consentOk !== true) {
-      Alert.alert('Consentimiento', 'Activa el consentimiento digital para poder usar recordatorios.');
-      return;
-    }
 
-    if (!draftEnabled) {
-      setBusy(true);
-      try {
-        if (supportsScheduledLocalReminders() && prefs.scheduledNotificationIds.length > 0) {
-          await cancelScheduledReminders(prefs.scheduledNotificationIds);
-        }
-        const next = await updateNotificationPreferences(patientKey, {
-          remindersEnabled: false,
-          scheduledNotificationIds: [],
-        });
-        setPrefs(next);
-        if (supportsScheduledLocalReminders()) {
-          setPermissionStatus(await getNotificationPermissionStatus());
-        }
-        Alert.alert('Listo', 'Los recordatorios están desactivados.');
-      } catch (e) {
-        const message = e instanceof Error ? e.message : 'No se pudo actualizar.';
-        Alert.alert('Error', message);
-      } finally {
-        setBusy(false);
-      }
-      return;
-    }
-
-    if (!supportsScheduledLocalReminders()) {
-      Alert.alert('Versión web', describeWebLimitation());
-      return;
-    }
-
-    setBusy(true);
-    try {
-      const perm = await requestNotificationPermissions();
-      setPermissionStatus(perm);
-      if (perm !== 'granted') {
-        Alert.alert(
-          'Permisos',
-          'Activa las notificaciones desde la configuración del dispositivo para recibir recordatorios.',
-        );
-        setBusy(false);
-        return;
-      }
-
-      if (prefs.scheduledNotificationIds.length > 0) {
-        await cancelScheduledReminders(prefs.scheduledNotificationIds);
-      }
-
-      const ids = await scheduleDailyTherapyReminder(draftTime);
-      const next = await updateNotificationPreferences(patientKey, {
-        remindersEnabled: true,
-        preferredReminderTime: draftTime,
-        reminderFrequency: 'daily',
-        scheduledNotificationIds: ids,
-      });
-      setPrefs(next);
-      Alert.alert('Listo', `Recordatorio diario guardado a las ${draftTime}.`);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'No se pudo programar el recordatorio.';
-      Alert.alert('Error', message);
-    } finally {
-      setBusy(false);
-    }
-  }, [consentOk, draftEnabled, draftTime, patient, patientKey, prefs]);
 
   const blockedByConsent = patient != null && consentOk === false;
-  const webLimited = supportsScheduledLocalReminders() === false;
+
+  const controlsDisabled = busy || blockedByConsent;
+
+  const scheduleDisabled = controlsDisabled || !settings?.enabled;
+
+
+
+  const commitStartTime = useCallback(() => {
+
+    if (!settings) return;
+
+    void setActiveWindow(startDraft, settings.activeWindowEnd);
+
+  }, [setActiveWindow, settings, startDraft]);
+
+
+
+  const commitEndTime = useCallback(() => {
+
+    if (!settings) return;
+
+    void setActiveWindow(settings.activeWindowStart, endDraft);
+
+  }, [endDraft, setActiveWindow, settings]);
+
+
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <AppTopBar
-        showBackButton
-        backFallbackHref="/profile"
-        onPressProfile={() => router.push('/profile')}
-      />
-      <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: wellnessFloatingTabBarInset + spacing.lg }]}
-        showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Recordatorios</Text>
-        <Text style={styles.lead}>
-          Los recordatorios te ayudan a mantener la constancia con la terapia respiratoria. Solo usamos notificaciones
-          locales en tu dispositivo: no enviamos avisos desde servidores ni usamos mensajes push remotos.
-        </Text>
 
-        {!hydrated || (patient != null && (consentOk === null || prefs === null)) ? (
+    <SafeAreaView style={styles.safe} edges={['top']}>
+
+      <AppTopBar
+
+        showBackButton
+
+        backFallbackHref="/profile"
+
+        onPressProfile={() => router.push('/profile')}
+
+      />
+
+      <ScrollView
+
+        contentContainerStyle={[styles.scroll, { paddingBottom: wellnessFloatingTabBarInset + spacing.xl }]}
+
+        showsVerticalScrollIndicator={false}>
+
+        <View style={styles.header}>
+
+          <Text style={styles.title}>Recordatorios</Text>
+
+          <Text style={styles.subtitle}>Configura cuándo quieres recibir tus sesiones</Text>
+
+        </View>
+
+
+
+        {!hydrated || (patient != null && (consentOk === null || loading)) ? (
+
           <View style={styles.centerRow}>
-            <ActivityIndicator />
-            <Text style={styles.muted}>Cargando preferencias…</Text>
+
+            <ActivityIndicator color={ACCENT} />
+
+            <Text style={styles.muted}>Cargando…</Text>
+
           </View>
+
         ) : null}
 
-        {patient == null ? <Text style={styles.warning}>Inicia sesión para configurar recordatorios.</Text> : null}
+
+
+        {patient == null ? <Text style={styles.note}>Inicia sesión para configurar.</Text> : null}
+
+
 
         {blockedByConsent ? (
-          <View style={styles.blockCard}>
-            <Text style={styles.blockTitle}>Configuración no disponible</Text>
-            <Text style={styles.blockText}>
-              El consentimiento digital no está activo. Revisa y acepta los documentos legales para poder activar
-              recordatorios.
-            </Text>
+
+          <Card>
+
+            <Text style={styles.note}>Acepta los documentos legales para activar recordatorios.</Text>
+
             <Pressable
-              style={({ pressed }) => [styles.primaryBtn, pressed && styles.btnPressed]}
+
+              style={({ pressed }) => [styles.linkBtn, pressed && styles.pressed]}
+
               onPress={() => router.push(LEGAL_ACCEPT_HREF)}
-              accessibilityRole="button"
-              accessibilityLabel="Revisar documentos legales">
-              <Text style={styles.primaryBtnText}>Revisar documentos</Text>
+
+              accessibilityRole="button">
+
+              <Text style={styles.linkBtnText}>Revisar documentos</Text>
+
             </Pressable>
-          </View>
+
+          </Card>
+
         ) : null}
 
-        {webLimited ? (
-          <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>Navegador web</Text>
-            <Text style={styles.infoText}>{describeWebLimitation()}</Text>
-          </View>
-        ) : null}
 
-        {patient && consentOk === true && prefs != null ? (
+
+        {!nativeSupported ? <Text style={styles.note}>{describeWebLimitation()}</Text> : null}
+
+
+
+        {patient && consentOk === true && settings != null ? (
+
           <>
-            <View style={styles.card}>
-              <Text style={styles.cardLabel}>Notificaciones del sistema</Text>
-              <Text style={styles.cardValue}>
-                {webLimited ? 'No aplica en el navegador' : permissionLabel(permissionStatus)}
-              </Text>
-              {permissionStatus === 'denied' && supportsScheduledLocalReminders() ? (
-                <Text style={styles.warnInline}>
-                  Activa las notificaciones desde la configuración del dispositivo para recibir recordatorios.
-                </Text>
-              ) : null}
-            </View>
 
-            <View style={styles.card}>
-              <View style={styles.rowBetween}>
-                <View style={styles.switchTextCol}>
-                  <Text style={styles.cardLabel}>Recordatorios diarios</Text>
-                  <Text style={styles.hint}>Un aviso cada día a la hora que elijas.</Text>
-                </View>
+            <Card>
+
+              <View style={styles.toggleRow}>
+
+                <Text style={styles.rowLabel}>Recordatorios</Text>
+
                 <Switch
-                  accessibilityLabel="Activar recordatorios diarios"
-                  value={draftEnabled}
-                  onValueChange={setDraftEnabled}
-                  disabled={webLimited || blockedByConsent}
+
+                  accessibilityLabel="Activar recordatorios"
+
+                  value={settings.enabled}
+
+                  onValueChange={(value) => void setEnabled(value)}
+
+                  disabled={controlsDisabled}
+
                   trackColor={{ false: '#E5E7EB', true: 'rgba(52, 171, 165, 0.35)' }}
-                  thumbColor={draftEnabled ? ACCENT : '#F3F4F6'}
+
+                  thumbColor={settings.enabled ? ACCENT : '#F3F4F6'}
+
                   ios_backgroundColor="#E5E7EB"
+
                 />
+
               </View>
-            </View>
 
-            <View style={styles.card}>
-              <Text style={styles.cardLabel}>Hora preferida</Text>
-              <Text style={styles.hint}>Elige una opción (formato 24 h).</Text>
-              <View style={styles.timeGrid}>
-                {REMINDER_TIME_OPTIONS.map((opt) => {
-                  const selected = draftTime === opt;
-                  return (
-                    <Pressable
-                      key={opt}
-                      onPress={() => setDraftTime(opt)}
-                      disabled={!draftEnabled || webLimited}
-                      style={({ pressed }) => [
-                        styles.timeChip,
-                        selected && styles.timeChipSelected,
-                        pressed && styles.timeChipPressed,
-                        (!draftEnabled || webLimited) && styles.timeChipDisabled,
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      accessibilityLabel={`Hora ${opt}`}>
-                      <Text style={[styles.timeChipText, selected && styles.timeChipTextSelected]}>{opt}</Text>
-                    </Pressable>
-                  );
-                })}
+              <Text style={styles.statusText}>{settings.enabled ? 'Activos' : 'Inactivos'}</Text>
+
+              {nativeSupported ? (
+
+                <Pressable
+
+                  onPress={() => void sendTestReminder()}
+
+                  disabled={controlsDisabled}
+
+                  style={({ pressed }) => [
+
+                    styles.testBtn,
+
+                    controlsDisabled && styles.disabled,
+
+                    pressed && styles.pressed,
+
+                  ]}
+
+                  accessibilityRole="button"
+
+                  accessibilityLabel="Enviar notificación de prueba">
+
+                  <Text style={styles.testBtnText}>Enviar prueba</Text>
+
+                </Pressable>
+
+              ) : null}
+
+            </Card>
+
+
+
+            <Card>
+              <View style={styles.frequencyHero}>
+                <View style={styles.frequencyBadge}>
+                  <Text style={styles.frequencyValue}>2</Text>
+                  <Text style={styles.frequencyUnit}>h</Text>
+                </View>
+                <View style={styles.frequencyCopy}>
+                  <Text style={styles.frequencyDescription}>{FREQUENCY_FIXED_DESCRIPTION}</Text>
+                  <Text style={styles.recommendedInline}>Recomendado</Text>
+                </View>
               </View>
-            </View>
+            </Card>
 
-            <View style={styles.card}>
-              <Text style={styles.cardLabel}>Frecuencia</Text>
-              <Text style={styles.cardValue}>Diaria</Text>
-            </View>
 
-            <Pressable
-              style={({ pressed }) => [
-                styles.primaryBtn,
-                (busy || blockedByConsent) && styles.btnDisabled,
-                pressed && !busy && styles.btnPressed,
-              ]}
-              disabled={busy || blockedByConsent}
-              onPress={() => void onSave()}
-              accessibilityRole="button"
-              accessibilityLabel="Guardar recordatorio">
-              {busy ? (
-                <ActivityIndicator color={wellness.primaryDark} />
+
+            <Card>
+
+              <CardTitle>Horario despierto</CardTitle>
+
+              <Text style={styles.awakeHint}>Recibir recordatorios entre</Text>
+
+              <View style={styles.customWindowRow}>
+
+                <AwakeTimeField
+
+                  label="Inicio"
+
+                  value={startDraft}
+
+                  onChangeText={setStartDraft}
+
+                  onCommit={commitStartTime}
+
+                  disabled={scheduleDisabled}
+
+                />
+
+                <Text style={styles.windowSeparator}>a</Text>
+
+                <AwakeTimeField
+
+                  label="Fin"
+
+                  value={endDraft}
+
+                  onChangeText={setEndDraft}
+
+                  onCommit={commitEndTime}
+
+                  disabled={scheduleDisabled}
+
+                />
+
+              </View>
+
+              {activeWindowInvalid ? (
+                <Text style={styles.windowError}>{ACTIVE_WINDOW_INVALID_MESSAGE}</Text>
               ) : (
-                <Text style={styles.primaryBtnText}>Guardar recordatorio</Text>
+                <View style={styles.windowConfirm}>
+                  <Text style={styles.windowConfirmText}>
+                    {formatAwakeWindowScheduleMessage(
+                      settings.activeWindowStart,
+                      settings.activeWindowEnd,
+                      settings.enabled,
+                    )}
+                  </Text>
+                </View>
               )}
-            </Pressable>
+            </Card>
+
+            <Card>
+              <View style={styles.previewHeader}>
+                <View style={styles.previewHeaderCopy}>
+                  <Text style={styles.previewTitle}>{TODAY_PREVIEW_TITLE}</Text>
+                  <Text style={styles.previewExplainer}>{TODAY_PREVIEW_DESCRIPTION}</Text>
+                </View>
+                {previewDisplay.totalCount > 0 ? (
+                  <View style={styles.previewCountBadge}>
+                    <Text style={styles.previewCountBadgeValue}>{previewDisplay.totalCount}</Text>
+                    <Text style={styles.previewCountBadgeLabel}>
+                      {previewDisplay.totalCount === 1 ? 'aviso' : 'avisos'}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+
+              {previewDisplay.totalCount > 0 ? (
+                <View style={styles.previewPanel}>
+                  <View style={styles.previewTimeline}>
+                    {previewDisplay.visibleTimes.map((time, index) => {
+                      const passed = isReminderTimePassed(time);
+                      const nextTime = previewDisplay.visibleTimes[index + 1];
+                      const linePassed =
+                        nextTime != null
+                          ? isReminderTimePassed(nextTime)
+                          : previewDisplay.remainingCount > 0
+                            ? false
+                            : passed;
+
+                      return (
+                      <View key={time} style={styles.previewTimelineItem}>
+                        <View style={styles.previewTimelineRail}>
+                          <View
+                            style={[
+                              styles.previewTimelineDot,
+                              passed ? styles.previewTimelineDotPassed : styles.previewTimelineDotUpcoming,
+                            ]}
+                          />
+                          {index < previewDisplay.visibleTimes.length - 1 ||
+                          previewDisplay.remainingCount > 0 ? (
+                            <View
+                              style={[
+                                styles.previewTimelineLine,
+                                linePassed
+                                  ? styles.previewTimelineLinePassed
+                                  : styles.previewTimelineLineUpcoming,
+                              ]}
+                            />
+                          ) : null}
+                        </View>
+                        <View
+                          style={[
+                            styles.previewTimeChip,
+                            passed && styles.previewTimeChipPassed,
+                          ]}>
+                          <Text
+                            style={[
+                              styles.previewTimeChipText,
+                              passed && styles.previewTimeChipTextPassed,
+                            ]}>
+                            {time}
+                          </Text>
+                        </View>
+                      </View>
+                      );
+                    })}
+                    {previewDisplay.remainingCount > 0 ? (
+                      <View style={styles.previewTimelineItem}>
+                        <View style={styles.previewTimelineRail}>
+                          <View style={styles.previewTimelineDotMuted} />
+                        </View>
+                        <View style={styles.previewMoreChip}>
+                          <Text style={styles.previewMoreText}>
+                            +{previewDisplay.remainingCount} más
+                          </Text>
+                        </View>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.previewEmpty}>
+                  <Text style={styles.previewEmptyText}>
+                    {activeWindowInvalid
+                      ? 'Corrige el horario despierto para ver la vista previa.'
+                      : 'Configura tu horario despierto para ver los avisos de hoy.'}
+                  </Text>
+                </View>
+              )}
+            </Card>
           </>
         ) : null}
+
       </ScrollView>
+
     </SafeAreaView>
+
   );
+
 }
 
+
+
 const styles = StyleSheet.create({
+
   safe: {
+
     flex: 1,
+
     backgroundColor: wellness.screenBg,
+
   },
+
   scroll: {
+
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
+
+    paddingTop: spacing.sm,
+
     gap: spacing.md,
+
   },
+
+  header: {
+
+    gap: 4,
+
+    marginBottom: spacing.xs,
+
+  },
+
   title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: wellness.primaryDark,
-  },
-  lead: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: wellness.textSecondary,
-  },
-  centerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  muted: {
-    fontSize: 14,
-    color: wellness.textSecondary,
-  },
-  warning: {
-    fontSize: 15,
-    color: '#9a3b2f',
-    fontWeight: '600',
-  },
-  blockCard: {
-    padding: spacing.lg,
-    borderRadius: wellnessRadii.card,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    backgroundColor: wellness.card,
-    gap: spacing.sm,
-  },
-  blockTitle: {
-    fontSize: 17,
+
+    fontSize: 28,
+
     fontWeight: '700',
+
     color: wellness.text,
+
+    letterSpacing: -0.3,
+
   },
-  blockText: {
+
+  subtitle: {
+
     fontSize: 15,
-    lineHeight: 22,
+
     color: wellness.textSecondary,
+
   },
-  infoCard: {
-    padding: spacing.lg,
-    borderRadius: wellnessRadii.card,
-    borderWidth: 1,
-    borderColor: 'rgba(52, 171, 165, 0.35)',
-    backgroundColor: 'rgba(52, 171, 165, 0.08)',
-    gap: spacing.xs,
+
+  centerRow: {
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: spacing.sm,
+
+    paddingVertical: spacing.lg,
+
   },
-  infoTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: wellness.primaryDark,
-  },
-  infoText: {
+
+  muted: {
+
     fontSize: 14,
-    lineHeight: 21,
-    color: wellness.text,
+
+    color: wellness.textSecondary,
+
+  },
+
+  note: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: wellness.textSecondary,
   },
   card: {
-    padding: spacing.lg,
-    borderRadius: wellnessRadii.card,
-    borderWidth: 1,
-    borderColor: wellness.border,
+
     backgroundColor: wellness.card,
+
+    borderRadius: wellnessRadii.card,
+
+    borderWidth: StyleSheet.hairlineWidth,
+
+    borderColor: wellness.border,
+
+    padding: spacing.md,
+
     gap: spacing.sm,
+
   },
-  cardLabel: {
+
+  cardTitle: {
+
     fontSize: 13,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
+
+    fontWeight: '600',
+
     color: wellness.textSecondary,
+
+    textTransform: 'uppercase',
+
+    letterSpacing: 0.5,
+
   },
-  cardValue: {
+
+  toggleRow: {
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'space-between',
+
+    minHeight: 44,
+
+  },
+
+  rowLabel: {
+
+    fontSize: 16,
+
+    fontWeight: '500',
+
+    color: wellness.text,
+
+  },
+
+  statusText: {
+
+    fontSize: 14,
+
+    color: wellness.textSecondary,
+
+    marginTop: -spacing.xs,
+
+  },
+
+  testBtn: {
+
+    alignSelf: 'flex-start',
+
+    paddingVertical: 6,
+
+    paddingHorizontal: spacing.sm,
+
+    borderRadius: wellnessRadii.pill,
+
+    borderWidth: 1,
+
+    borderColor: wellness.border,
+
+    backgroundColor: wellness.screenBg,
+
+    marginTop: spacing.xs,
+
+  },
+
+  testBtnText: {
+
+    fontSize: 13,
+
+    fontWeight: '600',
+
+    color: wellness.primaryDark,
+
+  },
+
+  frequencyHero: {
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: spacing.md,
+
+  },
+
+  frequencyBadge: {
+
+    width: 72,
+
+    height: 72,
+
+    borderRadius: 36,
+
+    backgroundColor: 'rgba(52, 171, 165, 0.14)',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    flexDirection: 'row',
+
+    gap: 2,
+
+  },
+
+  frequencyValue: {
+
+    fontSize: 32,
+
+    fontWeight: '700',
+
+    color: wellness.primaryDark,
+
+    lineHeight: 36,
+
+  },
+
+  frequencyUnit: {
+
+    fontSize: 18,
+
+    fontWeight: '700',
+
+    color: wellness.primaryDark,
+
+    marginTop: 8,
+
+  },
+
+  frequencyCopy: {
+    flex: 1,
+    gap: 6,
+  },
+  frequencyDescription: {
     fontSize: 16,
     fontWeight: '600',
+    lineHeight: 22,
     color: wellness.text,
   },
-  hint: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: wellness.textSecondary,
-  },
-  warnInline: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#9a3b2f',
+  recommendedInline: {
+    fontSize: 12,
     fontWeight: '600',
-    marginTop: spacing.xs,
+    color: '#1F7E7A',
   },
-  rowBetween: {
+
+  awakeHint: {
+
+    fontSize: 14,
+
+    color: wellness.textSecondary,
+
+  },
+
+  customWindowRow: {
+
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-  },
-  switchTextCol: {
-    flex: 1,
-    minWidth: 0,
-    gap: 4,
-  },
-  timeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+
+    alignItems: 'flex-end',
+
     gap: spacing.sm,
-    marginTop: spacing.sm,
+
   },
-  timeChip: {
+
+  timeField: {
+
+    flex: 1,
+
+    gap: 4,
+
+  },
+
+  timeFieldLabel: {
+
+    fontSize: 13,
+
+    fontWeight: '600',
+
+    color: wellness.textSecondary,
+
+  },
+
+  timeInput: {
+
+    height: 40,
+
+    borderRadius: 10,
+
+    borderWidth: 1,
+
+    borderColor: wellness.border,
+
+    backgroundColor: wellness.screenBg,
+
+    paddingHorizontal: spacing.sm,
+
+    fontSize: 16,
+
+    fontWeight: '600',
+
+    color: wellness.text,
+
+    textAlign: 'center',
+
+    fontVariant: ['tabular-nums'],
+
+  },
+
+  windowSeparator: {
+
+    fontSize: 14,
+
+    fontWeight: '600',
+
+    color: wellness.textSecondary,
+
+    paddingBottom: 10,
+
+  },
+
+  windowError: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#9A5248',
+  },
+  windowConfirm: {
+    marginTop: spacing.xs,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    borderRadius: wellnessRadii.pill,
+    borderRadius: 12,
+    backgroundColor: 'rgba(52, 171, 165, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.2)',
+  },
+  windowConfirmText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#1F5E59',
+    fontWeight: '500',
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  previewHeaderCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  previewTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: wellness.text,
+  },
+  previewExplainer: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: wellness.textSecondary,
+  },
+  previewCountBadge: {
+    minWidth: 52,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 12,
+    backgroundColor: 'rgba(52, 171, 165, 0.14)',
+    alignItems: 'center',
+  },
+  previewCountBadgeValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: wellness.primaryDark,
+    fontVariant: ['tabular-nums'],
+  },
+  previewCountBadgeLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1F7E7A',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  previewPanel: {
+    borderRadius: 14,
+    backgroundColor: wellness.screenBg,
     borderWidth: 1,
     borderColor: wellness.border,
-    backgroundColor: wellness.screenBg,
+    padding: spacing.sm,
   },
-  timeChipSelected: {
-    borderColor: ACCENT,
-    backgroundColor: 'rgba(52, 171, 165, 0.15)',
+  previewTimeline: {
+    gap: 2,
   },
-  timeChipPressed: {
-    opacity: 0.9,
+  previewTimelineItem: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: spacing.sm,
   },
-  timeChipDisabled: {
-    opacity: 0.45,
+  previewTimelineRail: {
+    width: 16,
+    alignItems: 'center',
   },
-  timeChipText: {
+  previewTimelineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginTop: 9,
+  },
+  previewTimelineDotPassed: {
+    backgroundColor: ACCENT,
+    borderWidth: 0,
+  },
+  previewTimelineDotUpcoming: {
+    backgroundColor: wellness.card,
+    borderWidth: 2,
+    borderColor: 'rgba(52, 171, 165, 0.45)',
+  },
+  previewTimelineDotMuted: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#C5CCC8',
+    marginTop: 11,
+  },
+  previewTimelineLine: {
+    flex: 1,
+    width: 3,
+    marginVertical: 2,
+    borderRadius: 2,
+  },
+  previewTimelineLinePassed: {
+    backgroundColor: ACCENT,
+  },
+  previewTimelineLineUpcoming: {
+    backgroundColor: 'rgba(52, 171, 165, 0.18)',
+  },
+  previewTimeChip: {
+    flex: 1,
+    marginBottom: spacing.xs,
+    paddingVertical: 8,
+    paddingHorizontal: spacing.md,
+    borderRadius: 10,
+    backgroundColor: wellness.card,
+    borderWidth: 1,
+    borderColor: wellness.border,
+  },
+  previewTimeChipPassed: {
+    backgroundColor: 'rgba(52, 171, 165, 0.08)',
+    borderColor: 'rgba(52, 171, 165, 0.25)',
+  },
+  previewTimeChipText: {
     fontSize: 15,
     fontWeight: '700',
     color: wellness.text,
+    fontVariant: ['tabular-nums'],
   },
-  timeChipTextSelected: {
-    color: wellness.primaryDark,
+  previewTimeChipTextPassed: {
+    color: wellness.textSecondary,
   },
-  primaryBtn: {
+  previewMoreChip: {
+    flex: 1,
+    marginBottom: spacing.xs,
+    paddingVertical: 8,
+    paddingHorizontal: spacing.md,
+    borderRadius: 10,
+    backgroundColor: '#EEF2EF',
+  },
+  previewMoreText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+  },
+  previewEmpty: {
     paddingVertical: spacing.md,
-    borderRadius: wellnessRadii.pill,
-    alignItems: 'center',
-    backgroundColor: wellness.softGreen,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 12,
+    backgroundColor: wellness.screenBg,
     borderWidth: 1,
     borderColor: wellness.border,
-    minHeight: 48,
-    justifyContent: 'center',
+    borderStyle: 'dashed',
   },
-  btnPressed: {
-    opacity: 0.92,
+  previewEmptyText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: wellness.textSecondary,
+    textAlign: 'center',
   },
-  btnDisabled: {
-    opacity: 0.45,
+
+  linkBtn: {
+
+    alignSelf: 'flex-start',
+
   },
-  primaryBtnText: {
-    fontSize: 16,
-    fontWeight: '700',
+
+  linkBtnText: {
+
+    fontSize: 15,
+
+    fontWeight: '600',
+
     color: wellness.primaryDark,
+
   },
+
+  pressed: {
+
+    opacity: 0.88,
+
+  },
+
+  disabled: {
+
+    opacity: 0.4,
+
+  },
+
 });
+
+
