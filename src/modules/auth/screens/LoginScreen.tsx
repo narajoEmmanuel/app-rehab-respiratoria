@@ -10,6 +10,7 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -19,6 +20,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LOCAL_PROFILE_HREF } from '@/src/modules/auth/local-profile-hrefs';
@@ -26,26 +28,93 @@ import { authPalette } from '@/src/modules/auth/theme/auth-palette';
 import { getPatientByClave, normalizeClave } from '@/src/modules/patient/patient-service';
 import { getErrorMessage } from '@/src/shared/utils/get-error-message';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+import { wellness, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+
+const LOGO_SOURCE = require('../../../../assets/images/respira-logo.png');
 
 const TEXT_MUTED = '#6B7B86';
-const TEXT_SLATE = '#354656';
+const TEXT_SLATE = '#3F4F5C';
+const TEXT_TITLE = '#2A3439';
 const TEXT_PLACEHOLDER = '#B5BFC8';
 const BTN_GRADIENT_ACTIVE = ['#45BDB7', '#34ABA5', '#1F7E7A'] as const;
 const BTN_GRADIENT_DISABLED = ['#9DD9D2', '#8BCEC6', '#7ABFB8'] as const;
 
-function LoginBackdrop() {
+const NOTICE_BG = 'rgba(248, 244, 252, 0.96)';
+const NOTICE_BORDER = 'rgba(124, 92, 140, 0.14)';
+const NOTICE_TITLE = '#5C4A6B';
+
+const HEADER_LOGO_CIRCLE = 60;
+const HEADER_LOGO_IMAGE = 48;
+
+const CONTENT_TITLE_TOP = 42;
+const CONTENT_FORM_TOP = 32;
+const CONTENT_FORM_TO_NOTICE = 18;
+const CONTENT_NOTICE_TO_SECURITY = 18;
+const CONTENT_FORM_TO_SECURITY = 20;
+const CONTENT_SECURITY_TO_BUTTON = 26;
+const CONTENT_BUTTON_TO_FOOTER = 24;
+
+function LoginWellnessBackdrop() {
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <LinearGradient
-        colors={['#F5F7F3', '#F0FAF9', '#F5F7F3']}
+        colors={['#FAFFFE', '#E8F8F6', '#D8F2EE', '#C8EBE6']}
+        locations={[0, 0.35, 0.7, 1]}
         start={{ x: 0.2, y: 0 }}
-        end={{ x: 0.8, y: 1 }}
+        end={{ x: 0.85, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
-      <View style={loginBackdropStyles.blobTop} />
-      <View style={loginBackdropStyles.blobBottom} />
+      <LinearGradient
+        colors={['rgba(52, 171, 165, 0.18)', 'rgba(69, 189, 183, 0.07)', 'transparent']}
+        locations={[0, 0.4, 1]}
+        start={{ x: 0, y: 0.15 }}
+        end={{ x: 0.95, y: 0.75 }}
+        style={backdropStyles.leftRailWash}
+      />
+      <LinearGradient
+        colors={['transparent', 'rgba(210, 245, 240, 0.35)', 'rgba(52, 171, 165, 0.14)']}
+        locations={[0, 0.5, 1]}
+        start={{ x: 0.5, y: 0.1 }}
+        end={{ x: 0.5, y: 1 }}
+        style={backdropStyles.bottomDepthWash}
+      />
+      <View style={[backdropStyles.blurOrb, backdropStyles.orbTopRight]} />
+      <View style={[backdropStyles.blurOrb, backdropStyles.orbBottomLeft]} />
+      <Svg
+        width="100%"
+        height={200}
+        viewBox="0 0 400 200"
+        style={backdropStyles.arcBottom}
+        preserveAspectRatio="none">
+        <Path
+          d="M0,140 C100,90 220,120 320,85 C360,70 385,88 400,78 L400,200 L0,200 Z"
+          fill="rgba(52, 171, 165, 0.1)"
+        />
+      </Svg>
+    </View>
+  );
+}
+
+function LoginHeader({ onBack }: { onBack: () => void }) {
+  return (
+    <View style={styles.headerBar}>
+      <View style={styles.headerShell}>
+        <Pressable
+          style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
+          onPress={onBack}
+          accessibilityRole="button"
+          accessibilityLabel="Volver a bienvenida">
+          <IconSymbol name="chevron.left" size={20} color={wellness.primary} />
+        </Pressable>
+        <View style={styles.headerBrandCenter}>
+          <View style={styles.headerLogoCircle}>
+            <Image source={LOGO_SOURCE} style={styles.headerLogoImage} resizeMode="contain" />
+          </View>
+          <Text style={styles.headerBrandText}>RESPIRA+</Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -62,6 +131,14 @@ export function LoginScreen() {
 
   function goToCreateProfile() {
     router.push({ pathname: LOCAL_PROFILE_HREF, params: { intent: 'create' } });
+  }
+
+  function onBack() {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace(LOCAL_PROFILE_HREF);
+    }
   }
 
   async function onLogin() {
@@ -86,115 +163,253 @@ export function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <LoginBackdrop />
+      <LoginWellnessBackdrop />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <LoginHeader onBack={onBack} />
         <ScrollView
+          style={styles.scrollView}
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}>
-          <View style={styles.titleBlock}>
-            <Text style={styles.title}>Acceso con tu clave</Text>
-            <Text style={styles.subtitle}>
-              Escribe la clave que recibiste al registrarte.
-            </Text>
-          </View>
-
-          <View style={styles.formCard}>
-            <Text style={styles.fieldLabel}>Tu clave</Text>
-            <TextInput
-              style={[styles.input, notFound && styles.inputError]}
-              value={clave}
-              onChangeText={(t) => {
-                setClave(t.toUpperCase());
-                setNotFound(false);
-              }}
-              placeholder="PACO01"
-              placeholderTextColor={TEXT_PLACEHOLDER}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              maxLength={12}
-              accessibilityLabel="Campo de clave del paciente"
-            />
-
-            {notFound ? (
-              <View style={styles.notice} accessibilityRole="alert">
-                <Text style={styles.noticeTitle}>Clave no encontrada</Text>
-                <Text style={styles.noticeBody}>
-                  Revisa que esté escrita correctamente o crea un nuevo perfil.
+          showsVerticalScrollIndicator={false}
+          bounces={false}>
+          <View style={styles.page}>
+            <View style={styles.contentMain}>
+              <View style={styles.titleBlock}>
+                <Text style={styles.title} accessibilityRole="header">
+                  Acceso con tu clave
                 </Text>
+                <Text style={styles.subtitle}>
+                  Escribe la clave que recibiste al registrarte.
+                </Text>
+              </View>
+
+              <View style={styles.formCard}>
+                <Text style={styles.fieldLabel}>Tu clave</Text>
+                <TextInput
+                  style={[styles.input, notFound && styles.inputError]}
+                  value={clave}
+                  onChangeText={(t) => {
+                    setClave(t.toUpperCase());
+                    setNotFound(false);
+                  }}
+                  placeholder="PACO01"
+                  placeholderTextColor={TEXT_PLACEHOLDER}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  maxLength={12}
+                  accessibilityLabel="Campo de clave del paciente"
+                />
+              </View>
+
+              {notFound ? (
+                <View style={styles.notice} accessibilityRole="alert">
+                  <Text style={styles.noticeTitle}>Clave no encontrada</Text>
+                  <Text style={styles.noticeBody}>
+                    Revisa que esté escrita correctamente o crea un nuevo perfil.
+                  </Text>
+                  <Pressable
+                    style={({ pressed }) => [styles.noticeLink, pressed && styles.pressed]}
+                    onPress={goToCreateProfile}
+                    accessibilityRole="button"
+                    accessibilityLabel="Ir a crear perfil">
+                    <Text style={styles.noticeLinkText}>Ir a crear perfil</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              <View
+                style={[
+                  styles.securityCard,
+                  notFound ? styles.securityCardAfterNotice : styles.securityCardAfterForm,
+                ]}>
+                <View style={styles.securityIconWrap}>
+                  <IconSymbol name="lock.fill" size={14} color={wellness.primaryDark} />
+                </View>
+                <Text style={styles.securityText}>
+                  Tu clave mantiene tu perfil seguro en este dispositivo.
+                </Text>
+              </View>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.btnPrimaryWrap,
+                  !canSubmit && styles.btnPrimaryWrapDisabled,
+                  pressed && canSubmit && styles.pressed,
+                ]}
+                onPress={onLogin}
+                disabled={!canSubmit}
+                accessibilityRole="button"
+                accessibilityLabel="Iniciar sesión">
+                <LinearGradient
+                  colors={canSubmit ? BTN_GRADIENT_ACTIVE : BTN_GRADIENT_DISABLED}
+                  locations={[0, 0.45, 1]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.btnPrimaryGradient}>
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={[styles.btnPrimaryText, !canSubmit && styles.btnPrimaryTextDisabled]}>
+                      Iniciar sesión
+                    </Text>
+                  )}
+                </LinearGradient>
+              </Pressable>
+
+              <View style={styles.footerCreate}>
+                <Text style={styles.footerHint}>¿Primera vez en RESPIRA+?</Text>
                 <Pressable
-                  style={({ pressed }) => [styles.noticeLink, pressed && styles.pressed]}
+                  style={({ pressed }) => [styles.footerLink, pressed && styles.pressed]}
                   onPress={goToCreateProfile}
                   accessibilityRole="button"
-                  accessibilityLabel="Ir a crear perfil">
-                  <Text style={styles.noticeLinkText}>Ir a crear perfil</Text>
+                  accessibilityLabel="Crear perfil">
+                  <Text style={styles.footerLinkText}>Crear perfil</Text>
                 </Pressable>
               </View>
-            ) : null}
+            </View>
+
+            <View style={styles.pageTailSpacer} />
           </View>
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.btnPrimaryWrap,
-              !canSubmit && styles.btnPrimaryWrapDisabled,
-              pressed && canSubmit && styles.pressed,
-            ]}
-            onPress={onLogin}
-            disabled={!canSubmit}
-            accessibilityRole="button"
-            accessibilityLabel="Iniciar sesión">
-            <LinearGradient
-              colors={canSubmit ? BTN_GRADIENT_ACTIVE : BTN_GRADIENT_DISABLED}
-              locations={[0, 0.45, 1]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.btnPrimaryGradient}>
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={[styles.btnPrimaryText, !canSubmit && styles.btnPrimaryTextDisabled]}>
-                  Iniciar sesión
-                </Text>
-              )}
-            </LinearGradient>
-          </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [styles.footerLink, pressed && styles.pressed]}
-            onPress={goToCreateProfile}
-            accessibilityRole="button"
-            accessibilityLabel="Crear perfil">
-            <Text style={styles.footerLinkText}>Crear perfil</Text>
-          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
+const backdropStyles = StyleSheet.create({
+  leftRailWash: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '78%',
+    height: '75%',
+  },
+  bottomDepthWash: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '78%',
+  },
+  blurOrb: {
+    position: 'absolute',
+    borderRadius: 999,
+  },
+  orbTopRight: {
+    width: 160,
+    height: 160,
+    top: -40,
+    right: -48,
+    backgroundColor: 'rgba(69, 189, 183, 0.1)',
+  },
+  orbBottomLeft: {
+    width: 260,
+    height: 260,
+    bottom: -70,
+    left: -100,
+    backgroundColor: 'rgba(52, 171, 165, 0.12)',
+  },
+  arcBottom: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '36%',
+  },
+});
+
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: authPalette.screenBg,
+    backgroundColor: '#D8F2EE',
   },
   flex: { flex: 1 },
+  scrollView: {
+    flex: 1,
+  },
   scroll: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
     paddingBottom: spacing.xl,
+  },
+  page: {
+    flexGrow: 1,
+    width: '100%',
+  },
+  contentMain: {
+    width: '100%',
+  },
+  pageTailSpacer: {
+    flexGrow: 1,
+    minHeight: spacing.xl,
+  },
+  headerBar: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: 6,
+    paddingBottom: spacing.sm,
+    zIndex: 5,
+  },
+  headerShell: {
+    position: 'relative',
+    minHeight: HEADER_LOGO_CIRCLE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backBtn: {
+    position: 'absolute',
+    left: 0,
+    top: (HEADER_LOGO_CIRCLE - 36) / 2,
+    zIndex: 2,
+    width: 36,
+    height: 36,
+    borderRadius: wellnessRadii.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: wellness.card,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.18)',
+  },
+  headerBrandCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    width: '100%',
+    paddingHorizontal: 48,
+  },
+  headerLogoCircle: {
+    width: HEADER_LOGO_CIRCLE,
+    height: HEADER_LOGO_CIRCLE,
+    borderRadius: HEADER_LOGO_CIRCLE / 2,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.16)',
+    overflow: 'hidden',
+    ...wellnessShadows.soft,
+  },
+  headerLogoImage: {
+    width: HEADER_LOGO_IMAGE,
+    height: HEADER_LOGO_IMAGE,
+  },
+  headerBrandText: {
+    fontSize: 26,
+    fontWeight: '600',
+    color: wellness.primary,
+    letterSpacing: 0.45,
   },
   titleBlock: {
     alignItems: 'center',
     paddingHorizontal: spacing.sm,
-    marginBottom: spacing.lg,
+    marginTop: CONTENT_TITLE_TOP,
   },
   title: {
     fontSize: 27,
     fontWeight: '800',
-    color: '#2A3439',
+    color: TEXT_TITLE,
     textAlign: 'center',
     marginBottom: spacing.xs + 2,
     letterSpacing: -0.35,
@@ -207,11 +422,11 @@ const styles = StyleSheet.create({
     maxWidth: 320,
   },
   formCard: {
+    marginTop: CONTENT_FORM_TOP,
     backgroundColor: '#FFFFFF',
     borderRadius: wellnessRadii.cardLarge,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md + 2,
-    marginBottom: spacing.lg,
+    paddingVertical: spacing.md + 2,
+    paddingHorizontal: spacing.md + 4,
     borderWidth: 1,
     borderColor: 'rgba(52, 171, 165, 0.18)',
     shadowColor: '#1F7E7A',
@@ -224,37 +439,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: TEXT_SLATE,
-    marginBottom: spacing.xs + 2,
+    marginBottom: spacing.sm,
   },
   input: {
-    borderWidth: 1,
-    borderColor: 'rgba(52, 171, 165, 0.22)',
-    borderRadius: 14,
-    paddingVertical: spacing.sm + 4,
+    borderWidth: 1.5,
+    borderColor: 'rgba(52, 171, 165, 0.28)',
+    borderRadius: 16,
+    paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
     color: authPalette.text,
-    backgroundColor: 'rgba(250, 252, 251, 0.95)',
-    minHeight: 52,
-    letterSpacing: 2,
+    backgroundColor: 'rgba(240, 250, 249, 0.55)',
+    minHeight: 56,
+    letterSpacing: 2.5,
   },
   inputError: {
-    borderColor: 'rgba(140, 58, 66, 0.35)',
-    backgroundColor: authPalette.errorBg,
+    borderColor: 'rgba(124, 92, 140, 0.28)',
+    backgroundColor: 'rgba(248, 244, 252, 0.65)',
   },
   notice: {
-    marginTop: spacing.md,
-    backgroundColor: authPalette.errorBg,
-    borderRadius: 14,
-    padding: spacing.md,
+    marginTop: CONTENT_FORM_TO_NOTICE,
+    backgroundColor: NOTICE_BG,
+    borderRadius: wellnessRadii.cardLarge,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md + 2,
     borderWidth: 1,
-    borderColor: 'rgba(140, 58, 66, 0.14)',
+    borderColor: NOTICE_BORDER,
+    ...wellnessShadows.soft,
   },
   noticeTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: authPalette.errorText,
+    color: NOTICE_TITLE,
     marginBottom: spacing.xs,
   },
   noticeBody: {
@@ -273,7 +490,50 @@ const styles = StyleSheet.create({
     color: wellness.primary,
     textDecorationLine: 'underline',
   },
+  securityCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    width: '100%',
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.2)',
+    shadowColor: '#1F7E7A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  securityCardAfterForm: {
+    marginTop: CONTENT_FORM_TO_SECURITY,
+  },
+  securityCardAfterNotice: {
+    marginTop: CONTENT_NOTICE_TO_SECURITY,
+  },
+  securityIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(230, 244, 242, 1)',
+    borderWidth: 1,
+    borderColor: 'rgba(52, 171, 165, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  securityText: {
+    flex: 1,
+    flexShrink: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: TEXT_MUTED,
+    fontWeight: '500',
+  },
   btnPrimaryWrap: {
+    marginTop: CONTENT_SECURITY_TO_BUTTON,
     borderRadius: wellnessRadii.pill,
     overflow: 'hidden',
     shadowColor: '#1F7E7A',
@@ -300,10 +560,18 @@ const styles = StyleSheet.create({
   btnPrimaryTextDisabled: {
     color: 'rgba(255, 255, 255, 0.92)',
   },
-  footerLink: {
+  footerCreate: {
     alignItems: 'center',
-    paddingVertical: spacing.lg,
-    marginTop: spacing.sm,
+    marginTop: CONTENT_BUTTON_TO_FOOTER,
+    gap: spacing.xs,
+  },
+  footerHint: {
+    fontSize: 15,
+    color: TEXT_MUTED,
+    textAlign: 'center',
+  },
+  footerLink: {
+    paddingVertical: spacing.xs,
   },
   footerLinkText: {
     fontSize: 16,
@@ -313,26 +581,5 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.88,
-  },
-});
-
-const loginBackdropStyles = StyleSheet.create({
-  blobTop: {
-    position: 'absolute',
-    width: 280,
-    height: 280,
-    borderRadius: 999,
-    top: -120,
-    right: -80,
-    backgroundColor: 'rgba(52, 171, 165, 0.08)',
-  },
-  blobBottom: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 999,
-    bottom: -60,
-    left: -70,
-    backgroundColor: 'rgba(221, 232, 216, 0.65)',
   },
 });
