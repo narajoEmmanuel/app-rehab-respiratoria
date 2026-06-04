@@ -61,9 +61,11 @@ import {
   evaluateSensorAttemptVolume,
   type OfficialAttemptValidationResult,
 } from '@/src/modules/session/sensor-evaluation';
+import { useTouchPracticeGate } from '@/src/modules/session/hooks/use-touch-practice-gate';
 import {
   isTouchPracticeSession,
   parseSessionInputMode,
+  type SessionInputMode,
 } from '@/src/modules/session/session-input-mode';
 import { buildSessionResult } from '@/src/modules/session/session-result-factory';
 import { persistSessionResult, TARGET_ATTEMPTS, type LevelUnlockResult } from '@/src/modules/session/session-progress-service';
@@ -151,8 +153,20 @@ export function SessionScreen() {
     sessionRunId?: string;
     inputMode?: string;
   }>();
-  const sessionInputMode = useMemo(() => parseSessionInputMode(inputModeParam), [inputModeParam]);
-  const isTouchPractice = isTouchPracticeSession(sessionInputMode);
+  const routeSessionInputMode = useMemo(
+    () => parseSessionInputMode(inputModeParam),
+    [inputModeParam],
+  );
+  const [touchPracticeEnabled, setTouchPracticeEnabled] = useState(() =>
+    isTouchPracticeSession(routeSessionInputMode),
+  );
+
+  useEffect(() => {
+    if (isTouchPracticeSession(routeSessionInputMode)) {
+      setTouchPracticeEnabled(true);
+    }
+  }, [routeSessionInputMode]);
+
   const {
     isLoading,
     progress,
@@ -186,6 +200,20 @@ export function SessionScreen() {
   const sensorConnection = useSensorConnection();
   const sensorConnectionRef = useRef(sensorConnection);
   sensorConnectionRef.current = sensorConnection;
+
+  const sensorConnected =
+    sensorConnection.status === 'connected' ||
+    sensorConnection.status === 'receiving' ||
+    sensorConnection.mode === 'mock';
+
+  const { effectiveTouchPracticeEnabled } = useTouchPracticeGate({
+    sensorConnected,
+    touchPracticeEnabled,
+    setTouchPracticeEnabled,
+  });
+
+  const isTouchPractice = effectiveTouchPracticeEnabled;
+  const sessionInputMode: SessionInputMode = isTouchPractice ? 'touch_practice' : 'sensor';
 
   const levelSensor = useLevelSensorVolume({
     enabled: isFocused && isRunnerLevel && !isTouchPractice,

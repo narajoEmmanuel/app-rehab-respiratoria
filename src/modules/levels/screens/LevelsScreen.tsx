@@ -32,6 +32,8 @@ import {
   getLevelDisplayMeta,
 } from '@/src/modules/session/levels/level-difficulty-config';
 import { listLevels } from '@/src/modules/session/registry/level-registry';
+import { TouchPracticeFallbackPanel } from '@/src/modules/session/components/TouchPracticeFallbackPanel';
+import { useTouchPracticeGate } from '@/src/modules/session/hooks/use-touch-practice-gate';
 import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import {
@@ -143,6 +145,12 @@ export function LevelsScreen({
     Record<number, LevelDisplayStats>
   >({});
   const [startingLevelId, setStartingLevelId] = useState<LevelId | null>(null);
+  const [touchPracticeEnabled, setTouchPracticeEnabled] = useState(false);
+  const { canUseTouchPractice, effectiveTouchPracticeEnabled } = useTouchPracticeGate({
+    sensorConnected,
+    touchPracticeEnabled,
+    setTouchPracticeEnabled,
+  });
   const loadLevelsData = useCallback(async () => {
     if (!patient) {
       setPatientLevels([]);
@@ -220,7 +228,16 @@ export function LevelsScreen({
             );
             return;
           }
-          showTherapyReadinessAlert(readiness.gate, (route) => router.push(route));
+          showTherapyReadinessAlert(
+            readiness.gate,
+            (route) => router.push(route),
+            canUseTouchPractice
+              ? {
+                  onPracticeWithoutSensor: () => navigateToSession(levelId, 'touch_practice'),
+                  practiceButtonLabel: 'Practicar sin sensor',
+                }
+              : undefined,
+          );
           return;
         }
 
@@ -238,16 +255,36 @@ export function LevelsScreen({
       router,
       sensorConnected,
       sensorStatus,
+      canUseTouchPractice,
     ],
   );
 
   const onPlayLevel = useCallback(
     (levelId: LevelId, progressionLocked: boolean) => {
       if (progressionLocked || startingLevelId !== null) return;
+
+      if (sensorConnected) {
+        logLevelSensorModeSelected('sensor');
+        void beginOfficialSensorSession(levelId);
+        return;
+      }
+
+      if (effectiveTouchPracticeEnabled) {
+        logLevelSensorModeSelected('touch_practice');
+        navigateToSession(levelId, 'touch_practice');
+        return;
+      }
+
       logLevelSensorModeSelected('sensor');
       void beginOfficialSensorSession(levelId);
     },
-    [beginOfficialSensorSession, startingLevelId],
+    [
+      beginOfficialSensorSession,
+      effectiveTouchPracticeEnabled,
+      navigateToSession,
+      sensorConnected,
+      startingLevelId,
+    ],
   );
 
   const scrollBottom = dashboardScrollBottomPadding(insets.bottom);
@@ -334,6 +371,13 @@ export function LevelsScreen({
           title="Niveles disponibles"
           subtitle="Avanza paso a paso. Cada sesión debe sentirse controlada y segura."
         />
+
+        {canUseTouchPractice ? (
+          <TouchPracticeFallbackPanel
+            enabled={touchPracticeEnabled}
+            onEnabledChange={setTouchPracticeEnabled}
+          />
+        ) : null}
 
         {levels.map((level) => {
           const levelId = level.id as LevelId;

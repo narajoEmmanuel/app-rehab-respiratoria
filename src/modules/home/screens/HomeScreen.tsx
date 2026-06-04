@@ -42,6 +42,8 @@ import { getLevelDisplayMeta } from '@/src/modules/session/levels/level-difficul
 import { getLevelById } from '@/src/modules/session/registry/level-registry';
 import { logLevelSensorModeSelected } from '@/src/modules/session/sensor/level-sensor-debug';
 import { evaluateLevelSensorReadiness } from '@/src/modules/session/sensor/level-sensor-readiness';
+import { TouchPracticeFallbackPanel } from '@/src/modules/session/components/TouchPracticeFallbackPanel';
+import { useTouchPracticeGate } from '@/src/modules/session/hooks/use-touch-practice-gate';
 import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
 import { updateDailyProgress } from '@/src/modules/session/session-progress-service';
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
@@ -108,6 +110,7 @@ export function HomeScreen() {
   const [patientSessions, setPatientSessions] = useState<SessionRecord[]>([]);
   const [latestDiag, setLatestDiag] = useState<DiagnosticRecord | null>(null);
   const [startingLevel, setStartingLevel] = useState(false);
+  const [touchPracticeEnabled, setTouchPracticeEnabled] = useState(false);
   const bottomPad = dashboardScrollBottomPadding(insets.bottom);
 
   const loadProgress = useCallback(async () => {
@@ -186,6 +189,14 @@ export function HomeScreen() {
     [router, selectLevel],
   );
 
+  const sensorConnected =
+    sensorStatus === 'connected' || sensorStatus === 'receiving' || sensorMode === 'mock';
+  const { canUseTouchPractice, effectiveTouchPracticeEnabled } = useTouchPracticeGate({
+    sensorConnected,
+    touchPracticeEnabled,
+    setTouchPracticeEnabled,
+  });
+
   const beginOfficialSensorSession = useCallback(
     async (levelId: LevelId) => {
       setStartingLevel(true);
@@ -209,7 +220,16 @@ export function HomeScreen() {
             );
             return;
           }
-          showTherapyReadinessAlert(readiness.gate, (route) => router.push(route));
+          showTherapyReadinessAlert(
+            readiness.gate,
+            (route) => router.push(route),
+            canUseTouchPractice
+              ? {
+                  onPracticeWithoutSensor: () => navigateToSession(levelId, 'touch_practice'),
+                  practiceButtonLabel: 'Practicar sin sensor',
+                }
+              : undefined,
+          );
           return;
         }
 
@@ -219,12 +239,13 @@ export function HomeScreen() {
       }
     },
     [
+      canUseTouchPractice,
       lastReading,
       lastDataReceivedAt,
-      sensorStreamState,
       navigateToSession,
       patient?.paciente_id,
       router,
+      sensorStreamState,
       therapyGateSensorConnected,
       therapyGateSensorStatus,
     ],
@@ -262,6 +283,19 @@ export function HomeScreen() {
       return;
     }
     onLightImpact();
+
+    if (sensorConnected) {
+      logLevelSensorModeSelected('sensor');
+      void beginOfficialSensorSession(activeLevelId);
+      return;
+    }
+
+    if (effectiveTouchPracticeEnabled) {
+      logLevelSensorModeSelected('touch_practice');
+      navigateToSession(activeLevelId, 'touch_practice');
+      return;
+    }
+
     logLevelSensorModeSelected('sensor');
     void beginOfficialSensorSession(activeLevelId);
   }, [
@@ -269,8 +303,11 @@ export function HomeScreen() {
     beginOfficialSensorSession,
     consentActive,
     consentUiReady,
+    effectiveTouchPracticeEnabled,
     hasCompletedDiagnostic,
+    navigateToSession,
     router,
+    sensorConnected,
     startingLevel,
   ]);
 
@@ -286,8 +323,6 @@ export function HomeScreen() {
     router.push('/sensor-connection');
   }, [consentActive, consentUiReady, router]);
 
-  const sensorConnected =
-    sensorStatus === 'connected' || sensorStatus === 'receiving' || sensorMode === 'mock';
   const sensorStreamReceiving =
     sensorMode === 'mock' ? sensorConnected : isSensorStreamActivelyReceiving(sensorStreamState);
   const sensorSignalLive =
@@ -384,6 +419,13 @@ export function HomeScreen() {
             />
           </AppCard>
         ) : (
+          <>
+          {canUseTouchPractice ? (
+            <TouchPracticeFallbackPanel
+              enabled={touchPracticeEnabled}
+              onEnabledChange={setTouchPracticeEnabled}
+            />
+          ) : null}
           <AppCard style={styles.heroCardSpacing}>
             <Text style={styles.heroKicker}>Próxima acción</Text>
             <Text style={styles.heroTitle}>Continúa tu terapia guiada</Text>
@@ -410,6 +452,7 @@ export function HomeScreen() {
               disabled={therapyCtaDisabled}
             />
           </AppCard>
+          </>
         )}
 
         {!hasAnySession ? (
