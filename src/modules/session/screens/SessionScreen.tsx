@@ -1123,6 +1123,7 @@ export function SessionScreen() {
           volumeHudMessage={sessionVolumeHudMessage}
           showSensorDebugMetrics={isSensorDebugEnabled()}
           targetVolume={targetVolume}
+          suppressCoachBubble={pauseModalVisible || showLevelOnePreStartIntro}
         />
         {showLevelOnePreStartIntro ? (
           <LevelOnePreStartIntro onStart={handleIntroComplete} onBack={handleIntroExit} />

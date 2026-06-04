@@ -30,6 +30,8 @@ import {
   resolveRunnerInstruction,
   RunnerGameFeedbackBar,
 } from '@/src/modules/session/games/components/RunnerGameFeedbackBar';
+import { RunnerBunnyCoachBubble } from '@/src/modules/session/games/components/RunnerBunnyCoachBubble';
+import { resolveRunnerCoachCue } from '@/src/modules/session/games/components/resolve-runner-coach-cue';
 import { TouchInputPressFeedback } from '@/src/modules/session/games/components/TouchInputPressFeedback';
 import {
   DesertBackdropCactus,
@@ -137,6 +139,8 @@ type LevelOneGameViewProps = {
   showSceneTitle?: boolean;
   onIntroComplete?: () => void;
   onIntroExit?: () => void;
+  /** Visual-only: hide coach during pause modal, pre-start intro overlay, etc. */
+  suppressCoachBubble?: boolean;
 };
 
 export function LevelOneGameView({
@@ -180,6 +184,7 @@ export function LevelOneGameView({
   showSceneTitle = true,
   onIntroComplete,
   onIntroExit,
+  suppressCoachBubble = false,
 }: LevelOneGameViewProps) {
   const sceneTheme = SCENE_THEME_TOKENS[theme];
   const isDesert = theme === 'desert';
@@ -243,6 +248,36 @@ export function LevelOneGameView({
     phase !== 'session-complete' &&
     phase !== 'interrupted' &&
     phase !== 'level-complete';
+
+  const coachCue = useMemo(
+    () =>
+      resolveRunnerCoachCue({
+        phase,
+        attemptFeedback,
+        metaJustReached,
+        inhaleSoftHintVisible,
+        holdSecondsRemaining,
+        prepSecondsRemaining,
+        restSecondsRemaining,
+        sessionActive,
+        introMode,
+        suppressed: suppressCoachBubble || crashToastVisible || inValidFeedback,
+      }),
+    [
+      attemptFeedback,
+      crashToastVisible,
+      holdSecondsRemaining,
+      inhaleSoftHintVisible,
+      inValidFeedback,
+      introMode,
+      metaJustReached,
+      phase,
+      prepSecondsRemaining,
+      restSecondsRemaining,
+      sessionActive,
+      suppressCoachBubble,
+    ],
+  );
 
   const playCenterX = layoutW * 0.5;
   const rabbitLeft = Math.max(10, playCenterX - RABBIT_VISUAL_WIDTH_PX * 0.48);
@@ -588,6 +623,16 @@ export function LevelOneGameView({
               showPauseButton={sessionActive && Boolean(onPressPause)}
               onPressPause={onPressPause}
             />
+            <View style={styles.coachDock} pointerEvents="none">
+              <RunnerBunnyCoachBubble
+                visible={coachCue.visible}
+                message={coachCue.message}
+                pose={coachCue.pose}
+                tone={coachCue.tone}
+                size="compact"
+                accentColor={accentColor}
+              />
+            </View>
           </View>
         ) : showSceneTitle ? (
           <View style={styles.introTitleRow}>
@@ -1060,6 +1105,12 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     width: '100%',
     zIndex: 2,
+  },
+  coachDock: {
+    width: '100%',
+    marginTop: 6,
+    marginBottom: 2,
+    paddingHorizontal: 2,
   },
   hudOuter: {
     borderRadius: 14,
