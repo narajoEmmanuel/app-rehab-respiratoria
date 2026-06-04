@@ -23,22 +23,24 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   LEVEL1_DAILY_GOAL,
   attachBestHoldSeconds,
-  buildAchievements,
   buildDayAggregate,
   buildAttemptsBySessionId,
   classifyCalendarDay,
+  countCompletedToday,
   dayDetailMotivation,
   formatDisplayDateEs,
   globalMaxSensorVolumeMlForPatient,
   groupSessionsByDay,
   monthGridDates,
   computeStreakDays,
+  hadUnlockPerfectDayForLevel,
   therapeuticActivityDayKeys,
   practiceActivityDayKeys,
-  type AchievementDef,
   type CalendarDayKind,
   type DayAggregate,
 } from '@/src/modules/history/services/history-aggregates';
+import type { SessionRecord } from '@/src/modules/session/types/session-progress';
+import { isTherapeuticSessionRecord } from '@/src/modules/session/session-record-classification';
 import { getCurrentActiveLevel } from '@/src/modules/diagnostics/diagnostic-service';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
@@ -46,7 +48,7 @@ import { readAllAttempts, readAllSessions } from '@/src/modules/session/storage/
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppCard } from '@/src/shared/ui/AppCard';
 import { AppButton } from '@/src/shared/ui/AppButton';
-import { SectionHeader } from '@/src/shared/ui/SectionHeader';
+import { RespiraBunnyImage } from '@/src/shared/ui/RespiraBunnyImage';
 import { spacing } from '@/src/shared/theme/spacing';
 import {
   appScreenBackground,
@@ -56,33 +58,198 @@ import {
   wellnessShadows,
 } from '@/src/shared/theme/wellness-theme';
 import { dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
-import { addDaysLocal, getLocalDateKey } from '@/src/shared/utils/local-date-key';
+import { addDaysLocal, getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 
 /** Meta visual de sostén (2 s del juego); solo etiqueta UI. */
 const SUSTAIN_META_SECONDS = 2;
 
 const CAL_BG: Record<CalendarDayKind, string> = {
-  none: '#CFD8DC',
+  none: '#E8EDEA',
   perfect: '#43A047',
-  good: '#A5D6A7',
+  good: '#B8E0C0',
   incomplete: '#FFE082',
-  interrupted: '#EF9A9A',
+  interrupted: '#F5B4B4',
 };
-const CAL_BG_PRACTICE = '#81D4FA';
+const CAL_BG_PRACTICE = '#B3E5FC';
 
-const CALENDAR_LEGEND: { color: string; label: string }[] = [
-  { color: CAL_BG.perfect, label: 'Meta del día' },
-  { color: CAL_BG.good, label: 'Buen avance' },
-  { color: CAL_BG.incomplete, label: 'Sesión incompleta' },
-  { color: CAL_BG.interrupted, label: 'Interrumpida' },
-  { color: CAL_BG_PRACTICE, label: 'Práctica (sin sensor)' },
+const CALENDAR_LEGEND_PRIMARY: { color: string; label: string }[] = [
+  { color: CAL_BG.perfect, label: 'Completada' },
+  { color: CAL_BG.good, label: 'Parcial' },
   { color: CAL_BG.none, label: 'Sin actividad' },
 ];
 
-const STREAK_GRADIENT = ['#6AD4BC', '#3DB8A8', '#2A9E88'] as const;
+const CALENDAR_LEGEND_EXTRA: { color: string; label: string }[] = [
+  { color: CAL_BG.incomplete, label: 'Sesión incompleta' },
+  { color: CAL_BG.interrupted, label: 'Interrumpida' },
+  { color: CAL_BG_PRACTICE, label: 'Práctica (sin sensor)' },
+];
 
 const WEEK_LABELS = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
+
+const STREAK_ACTIVE_GRADIENT = ['#5CE0C8', '#34ABA5', '#1F7E7A'] as const;
+const STREAK_WARM_GRADIENT = ['#FFF6EE', '#FFE8D4', '#FFD9B8'] as const;
+
+/** Altura del bloque visual (fuego + Bunny) alineada con la card hero. */
+const STREAK_HERO_VISUAL_HEIGHT = 108;
+const STREAK_HERO_BUNNY_SIZE = STREAK_HERO_VISUAL_HEIGHT;
+
+const CALENDAR_DAY_HEIGHT = 34;
+
+const EMPTY_METRIC_PLACEHOLDER = 'Tras tu primera sesión';
+
+/** Quita celdas vacías al final del mes para no reservar filas en blanco. */
+function trimTrailingEmptyCalendarCells(cells: (string | null)[]): (string | null)[] {
+  let lastIndex = cells.length - 1;
+  while (lastIndex >= 0 && cells[lastIndex] == null) {
+    lastIndex -= 1;
+  }
+  return cells.slice(0, lastIndex + 1);
+}
+
+type ProgressAchievement = {
+  id: string;
+  title: string;
+  description: string;
+  unlocked: boolean;
+  icon: string;
+};
+
+function countCompletedTherapeuticSessions(sessions: SessionRecord[], patientId: number): number {
+  return sessions.filter(
+    (s) => s.patient_id === patientId && isTherapeuticSessionRecord(s) && s.completed,
+  ).length;
+}
+
+/** Logros de Historial derivados de sesiones y racha ya cargadas (sin persistencia nueva). */
+function buildHistoryProgressAchievements(input: {
+  sessions: SessionRecord[];
+  patientId: number;
+  streakDays: number;
+  activeDays: number;
+}): ProgressAchievement[] {
+  const { sessions, patientId, streakDays, activeDays } = input;
+  const totalCompleted = countCompletedTherapeuticSessions(sessions, patientId);
+  const firstLevelCompleted =
+    hadUnlockPerfectDayForLevel(sessions, patientId, 'level-1') ||
+    sessions.some((s) => s.patient_id === patientId && s.level_id !== 'level-1');
+
+  return [
+    {
+      id: 'first-session',
+      title: 'Primera sesión',
+      description: 'Completaste tu primera sesión.',
+      unlocked: totalCompleted >= 1,
+      icon: '🎯',
+    },
+    {
+      id: 'first-day',
+      title: 'Primer día',
+      description: 'Registraste tu primer día de práctica.',
+      unlocked: activeDays >= 1,
+      icon: '📅',
+    },
+    {
+      id: 'sessions-3',
+      title: '3 sesiones',
+      description: 'Completaste 3 sesiones.',
+      unlocked: totalCompleted >= 3,
+      icon: '✓',
+    },
+    {
+      id: 'sessions-5',
+      title: '5 sesiones',
+      description: 'Vas construyendo constancia.',
+      unlocked: totalCompleted >= 5,
+      icon: '✓',
+    },
+    {
+      id: 'sessions-10',
+      title: '10 sesiones',
+      description: 'Alcanzaste 10 sesiones registradas.',
+      unlocked: totalCompleted >= 10,
+      icon: '★',
+    },
+    {
+      id: 'sessions-15',
+      title: '15 sesiones',
+      description: 'Tu práctica ya tiene continuidad.',
+      unlocked: totalCompleted >= 15,
+      icon: '★',
+    },
+    {
+      id: 'sessions-20',
+      title: '20 sesiones',
+      description: 'Has sostenido tu progreso.',
+      unlocked: totalCompleted >= 20,
+      icon: '★',
+    },
+    {
+      id: 'sessions-30',
+      title: '30 sesiones',
+      description: 'Completaste una meta mayor de terapia.',
+      unlocked: totalCompleted >= 30,
+      icon: '🏆',
+    },
+    {
+      id: 'first-level',
+      title: 'Primer nivel',
+      description: 'Completaste tu primer nivel.',
+      unlocked: firstLevelCompleted,
+      icon: '⬆',
+    },
+    {
+      id: 'streak-3',
+      title: '3 días de racha',
+      description: 'Mantuviste 3 días de práctica.',
+      unlocked: streakDays >= 3,
+      icon: '🔥',
+    },
+    {
+      id: 'streak-7',
+      title: '7 días de racha',
+      description: 'Lograste una semana de constancia.',
+      unlocked: streakDays >= 7,
+      icon: '🔥',
+    },
+  ];
+}
+
+function formatMonthChip(year: number, monthIndex0: number): string {
+  const d = new Date(year, monthIndex0, 1);
+  const raw = d.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
+function countWeeklyCompletedSessions(sessions: SessionRecord[], todayKey: string): number {
+  const start = addDaysLocal(todayKey, -6);
+  return sessions.filter((s) => {
+    const k = sessionRecordLocalDayKey(s.session_date);
+    if (k == null || k < start || k > todayKey) return false;
+    return s.completed && s.interrupted !== true;
+  }).length;
+}
+
+function compareSessionRecency(a: SessionRecord, b: SessionRecord): number {
+  const ta = Date.parse(a.session_date);
+  const tb = Date.parse(b.session_date);
+  if (!Number.isNaN(ta) && !Number.isNaN(tb) && tb !== ta) {
+    return tb - ta;
+  }
+  return b.session_id - a.session_id;
+}
+
+function formatSessionDateTime(sessionDate: string): string {
+  const parsed = Date.parse(sessionDate);
+  if (Number.isNaN(parsed)) return 'Fecha no disponible';
+  return new Date(parsed).toLocaleString('es-MX', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 const BADGE_SLOT_SIZE = 40;
 
@@ -163,10 +330,14 @@ function SummaryBadgeIcon({ variant }: { variant: BadgeVariant }) {
   );
 }
 
-function StreakFireEmoji({ muted }: { muted: boolean }) {
+function StreakFireEmoji({ active, hero }: { active: boolean; hero?: boolean }) {
   return (
     <Text
-      style={[styles.streakFireEmoji, muted && styles.streakFireEmojiMuted]}
+      style={[
+        styles.streakFire,
+        hero && styles.streakFireHero,
+        active ? styles.streakFireActive : styles.streakFireDim,
+      ]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants">
       🔥
@@ -174,22 +345,72 @@ function StreakFireEmoji({ muted }: { muted: boolean }) {
   );
 }
 
-function StreakHeroCard({ streakDays }: { streakDays: number }) {
+function StreakHeroCard({
+  streakDays,
+  streakLost,
+  dailyGoalMet,
+}: {
+  streakDays: number;
+  streakLost: boolean;
+  dailyGoalMet: boolean;
+}) {
   const active = streakDays > 0;
+  const dayLabel = streakDays === 1 ? 'día' : 'días';
+
+  let title: string;
+  let body: string;
+  let gradientColors: readonly [string, string, string];
+  let fireActive = false;
+
+  if (active) {
+    fireActive = true;
+    gradientColors = STREAK_ACTIVE_GRADIENT;
+    title = `${streakDays} ${dayLabel} de racha activa`;
+    body = dailyGoalMet
+      ? 'Meta del día completada. Sigue así.'
+      : 'Completa tu sesión de hoy para mantener tu racha.';
+  } else if (streakLost) {
+    gradientColors = STREAK_WARM_GRADIENT;
+    title = 'Tu racha puede comenzar de nuevo';
+    body = 'Retoma tu práctica hoy para volver a activarla.';
+  } else {
+    gradientColors = STREAK_WARM_GRADIENT;
+    title = 'Tu primera racha empieza hoy';
+    body = 'Completa una sesión para encender tu progreso.';
+  }
+
+  const titleStyle = active ? styles.streakHeroTitleActive : styles.streakHeroTitleWarm;
+  const bodyStyle = active ? styles.streakHeroBodyActive : styles.streakHeroBodyWarm;
+
   return (
-    <LinearGradient
-      colors={[...STREAK_GRADIENT]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.streakHero}>
-      <View style={styles.streakHeroContent}>
-        <StreakFireEmoji muted={!active} />
-        <View style={styles.streakHeroText}>
-          <Text style={styles.streakHeroNumber}>{streakDays}</Text>
-          <Text style={styles.streakHeroLabel}>días de racha activa</Text>
+    <View style={styles.streakHeroWrap}>
+      <LinearGradient
+        colors={[...gradientColors]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0.85 }}
+        style={styles.streakHeroGradient}>
+        <View style={styles.streakHeroRow}>
+          <View style={styles.streakHeroVisual}>
+            <RespiraBunnyImage pose="presenting" size={STREAK_HERO_BUNNY_SIZE} />
+            <View style={styles.streakHeroFireSlot}>
+              <StreakFireEmoji active={fireActive} hero />
+            </View>
+          </View>
+          <View style={styles.streakHeroCopy}>
+            <Text style={titleStyle}>{title}</Text>
+            <Text style={bodyStyle}>{body}</Text>
+          </View>
         </View>
-      </View>
-    </LinearGradient>
+      </LinearGradient>
+    </View>
+  );
+}
+
+function MonthChip({ label }: { label: string }) {
+  return (
+    <View style={styles.monthChip}>
+      <Text style={styles.monthChipText}>{label}</Text>
+    </View>
   );
 }
 
@@ -217,40 +438,120 @@ function MetricProgressRow({
   label,
   valueText,
   progress,
+  showTrack,
 }: {
   label: string;
   valueText: string;
   progress: number;
+  showTrack: boolean;
 }) {
   const safeProgress = Math.max(0, Math.min(progress, 1));
   return (
     <View style={styles.metricRow}>
       <View style={styles.metricRowHeader}>
         <Text style={styles.metricLabel}>{label}</Text>
-        <Text style={styles.metricValue}>{valueText}</Text>
+        <Text
+          style={[
+            styles.metricValue,
+            !showTrack && valueText === EMPTY_METRIC_PLACEHOLDER && styles.metricValueMuted,
+          ]}>
+          {valueText}
+        </Text>
       </View>
-      <View style={styles.metricTrack}>
-        <View style={[styles.metricFill, { width: `${safeProgress * 100}%` }]} />
-      </View>
+      {showTrack ? (
+        <View style={styles.metricTrack}>
+          <View style={[styles.metricFill, { width: `${safeProgress * 100}%` }]} />
+        </View>
+      ) : null}
     </View>
   );
 }
 
-function AchievementRow({ item }: { item: AchievementDef }) {
+function AchievementCompactCard({ item }: { item: ProgressAchievement }) {
+  const { title, description, unlocked, icon } = item;
   return (
-    <View style={[styles.achievementRow, !item.unlocked && styles.achievementRowLocked]}>
-      <Text style={[styles.achievementIcon, !item.unlocked && styles.achievementIconLocked]}>
-        {item.unlocked ? '★' : '☆'}
+    <View style={[styles.achievementCompact, unlocked && styles.achievementCompactUnlocked]}>
+      <Text style={[styles.achievementCompactIcon, !unlocked && styles.achievementCompactIconLocked]}>
+        {icon}
       </Text>
-      <View style={styles.achievementTextWrap}>
-        <Text style={[styles.achievementTitle, !item.unlocked && styles.achievementTitleLocked]}>
-          {item.title}
-        </Text>
-        <Text style={[styles.achievementDesc, !item.unlocked && styles.achievementDescLocked]}>
-          {item.description}
-        </Text>
-      </View>
+      <Text
+        style={[styles.achievementCompactTitle, !unlocked && styles.achievementCompactTitleLocked]}
+        numberOfLines={2}>
+        {title}
+      </Text>
+      <Text
+        style={[styles.achievementCompactDesc, !unlocked && styles.achievementCompactDescLocked]}
+        numberOfLines={3}>
+        {description}
+      </Text>
     </View>
+  );
+}
+
+function CalendarLegend({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
+  return (
+    <View style={styles.legendContainer}>
+      <View style={styles.legendPrimaryRow}>
+        {CALENDAR_LEGEND_PRIMARY.map((item) => (
+          <LegendDot key={item.label} color={item.color} label={item.label} compact />
+        ))}
+      </View>
+      {expanded ? (
+        <View style={styles.legendExtraBlock}>
+          {CALENDAR_LEGEND_EXTRA.map((item) => (
+            <LegendDot key={item.label} color={item.color} label={item.label} compact />
+          ))}
+        </View>
+      ) : null}
+      <Pressable onPress={onToggle} accessibilityRole="button" hitSlop={8}>
+        <Text style={styles.legendMoreLink}>{expanded ? 'Ver menos estados' : 'Ver más estados'}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function LastSessionCard({
+  session,
+  bestHoldSeconds,
+  onViewDetail,
+}: {
+  session: SessionRecord;
+  bestHoldSeconds: number | null;
+  onViewDetail: () => void;
+}) {
+  const volMl =
+    session.max_sensor_estimated_volume_ml != null && session.max_sensor_estimated_volume_ml > 0
+      ? `${Math.round(session.max_sensor_estimated_volume_ml)} mL`
+      : session.max_volume > 0
+        ? `${Math.round(session.max_volume)} mL`
+        : '—';
+  const holdText =
+    bestHoldSeconds != null && bestHoldSeconds > 0
+      ? `${bestHoldSeconds.toFixed(1)} s`
+      : session.avg_hold_seconds > 0
+        ? `${session.avg_hold_seconds.toFixed(1)} s`
+        : '—';
+
+  return (
+    <AppCard style={styles.lastSessionCard}>
+      <Text style={styles.lastSessionTitle}>Última sesión</Text>
+      <Text style={styles.lastSessionDate}>{formatSessionDateTime(session.session_date)}</Text>
+      <View style={styles.lastSessionMetrics}>
+        <View style={styles.lastSessionMetric}>
+          <Text style={styles.lastSessionMetricLabel}>Repeticiones válidas</Text>
+          <Text style={styles.lastSessionMetricValue}>{session.valid_attempts}</Text>
+        </View>
+        <View style={styles.lastSessionMetric}>
+          <Text style={styles.lastSessionMetricLabel}>Mejor volumen</Text>
+          <Text style={styles.lastSessionMetricValue}>{volMl}</Text>
+        </View>
+        <View style={styles.lastSessionMetric}>
+          <Text style={styles.lastSessionMetricLabel}>Tiempo sostenido</Text>
+          <Text style={styles.lastSessionMetricValue}>{holdText}</Text>
+        </View>
+      </View>
+      <AppButton title="Ver detalle" onPress={onViewDetail} variant="secondary" />
+    </AppCard>
   );
 }
 
@@ -265,6 +566,7 @@ export function HistoryScreen() {
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
   const [selectedDay, setSelectedDay] = useState<DayAggregate | null>(null);
+  const [legendExpanded, setLegendExpanded] = useState(false);
 
   const load = useCallback(async () => {
     if (!patient) {
@@ -343,8 +645,6 @@ export function HistoryScreen() {
     [sessions, patientId],
   );
 
-  const historyLevelOrdinal = historyLevelId.replace('level-', '');
-
   const patientSessions = useMemo(
     () => (patientId >= 0 ? sessions.filter((s) => s.patient_id === patientId) : []),
     [sessions, patientId],
@@ -367,53 +667,89 @@ export function HistoryScreen() {
     for (let i = 0; i < 7; i++) {
       if (therapeuticDayKeys.has(addDaysLocal(todayKey, -i))) weeklyActiveDays++;
     }
+    const weeklySessions = countWeeklyCompletedSessions(patientSessions, todayKey);
     return {
-      totalSessions: patientSessions.length,
       totalValidReps,
-      levelLabel: `Nivel ${historyLevelOrdinal}`,
       avgHoldSeconds: holdCount > 0 ? holdSumMs / holdCount / 1000 : null,
       weeklyActiveDays,
+      weeklySessions,
     };
-  }, [patientSessions, attempts, therapeuticDayKeys, todayKey, historyLevelOrdinal]);
+  }, [patientSessions, attempts, therapeuticDayKeys, todayKey]);
 
   const monthCells = useMemo(() => monthGridDates(viewYear, viewMonth), [viewYear, viewMonth]);
 
-  const monthTitle = useMemo(() => {
-    const d = new Date(viewYear, viewMonth, 1);
-    const raw = d.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
-    return raw.charAt(0).toUpperCase() + raw.slice(1);
-  }, [viewYear, viewMonth]);
+  const compactMonthCells = useMemo(
+    () => trimTrailingEmptyCalendarCells(monthCells),
+    [monthCells],
+  );
 
-  const achievementsList = useMemo(() => {
+  const monthChipLabel = useMemo(
+    () => formatMonthChip(viewYear, viewMonth),
+    [viewYear, viewMonth],
+  );
+
+  const headerMonthChip = useMemo(() => formatMonthChip(new Date().getFullYear(), new Date().getMonth()), []);
+
+  const dailyGoalMet = useMemo(
+    () =>
+      patientId >= 0
+        ? countCompletedToday(sessions, patientId, historyLevelId, todayKey) >= LEVEL1_DAILY_GOAL
+        : false,
+    [sessions, patientId, historyLevelId, todayKey],
+  );
+
+  const lastSession = useMemo(() => {
+    if (patientSessions.length === 0) return null;
+    return [...patientSessions].sort(compareSessionRecency)[0] ?? null;
+  }, [patientSessions]);
+
+  const lastSessionHoldSeconds = useMemo(() => {
+    if (!lastSession) return null;
+    const dayKey = sessionRecordLocalDayKey(lastSession.session_date);
+    if (!dayKey) return null;
+    const agg = attachBestHoldSeconds(
+      buildDayAggregate(dayKey, byDay.get(dayKey) ?? [lastSession]),
+      attemptsBySession,
+    );
+    return agg.bestHoldSeconds;
+  }, [lastSession, byDay, attemptsBySession]);
+
+  const progressAchievements = useMemo(() => {
     if (!patient) return [];
-    return buildAchievements({
+    return buildHistoryProgressAchievements({
       sessions,
       patientId: patient.paciente_id,
-      levelId: historyLevelId,
       streakDays,
+      activeDays: therapeuticDayKeys.size,
     });
-  }, [patient, historyLevelId, sessions, streakDays]);
+  }, [patient, sessions, streakDays, therapeuticDayKeys.size]);
 
   const hasAnyHistory = therapeuticDayKeys.size > 0 || practiceDayKeys.size > 0;
+  const streakLost = streakDays === 0 && therapeuticDayKeys.size > 0;
   const selectedDateKey = selectedDay?.dateKey ?? null;
 
   const sensorDebug = isSensorDebugEnabled();
 
+  const hasRespiratoryMetrics =
+    (bestSensorVolumeMl != null && bestSensorVolumeMl > 0) || displayStats.avgHoldSeconds != null;
+
   const vimValueText =
     bestSensorVolumeMl != null && bestSensorVolumeMl > 0
       ? `${Math.round(bestSensorVolumeMl)} mL`
-      : 'Pendiente';
+      : EMPTY_METRIC_PLACEHOLDER;
   const vimProgress = bestSensorVolumeMl != null && bestSensorVolumeMl > 0 ? 1 : 0;
-  const adherenceValueText = `${displayStats.weeklyActiveDays}/7 días`;
+  const adherenceValueText = `${displayStats.weeklyActiveDays} de 7 días`;
   const adherenceProgress = displayStats.weeklyActiveDays / 7;
   const sustainValueText =
     displayStats.avgHoldSeconds != null
-      ? `${displayStats.avgHoldSeconds.toFixed(1)} s / ${SUSTAIN_META_SECONDS} s meta`
-      : 'Pendiente';
+      ? `${displayStats.avgHoldSeconds.toFixed(1)} s`
+      : EMPTY_METRIC_PLACEHOLDER;
   const sustainProgress =
     displayStats.avgHoldSeconds != null
       ? Math.min(displayStats.avgHoldSeconds / SUSTAIN_META_SECONDS, 1)
       : 0;
+
+  const streakMiniValue = `${streakDays} ${streakDays === 1 ? 'día' : 'días'}`;
 
   const shiftMonth = (delta: number) => {
     const d = new Date(viewYear, viewMonth + delta, 1);
@@ -430,6 +766,12 @@ export function HistoryScreen() {
     }
     const base = buildDayAggregate(dateKey, list);
     setSelectedDay(attachBestHoldSeconds(base, attemptsBySession));
+  };
+
+  const openLastSessionDay = () => {
+    if (!lastSession) return;
+    const dayKey = sessionRecordLocalDayKey(lastSession.session_date);
+    if (dayKey) openDay(dayKey);
   };
 
   const scrollBottom = dashboardScrollBottomPadding(insets.bottom);
@@ -458,10 +800,53 @@ export function HistoryScreen() {
           <>
             <View style={styles.pageHeader}>
               <Text style={styles.pageTitle}>Mi progreso</Text>
-              <Text style={styles.pageMonth}>{monthTitle}</Text>
+              <MonthChip label={headerMonthChip} />
             </View>
 
-            <StreakHeroCard streakDays={streakDays} />
+            <StreakHeroCard
+              streakDays={streakDays}
+              streakLost={streakLost}
+              dailyGoalMet={dailyGoalMet}
+            />
+
+            <View style={styles.statMiniRow}>
+              <StatMiniCard badgeVariant="yellow" label="Racha" value={streakMiniValue} />
+              <StatMiniCard
+                badgeVariant="teal"
+                label="Sesiones"
+                value={`${displayStats.weeklySessions} esta semana`}
+              />
+              <StatMiniCard
+                badgeVariant="blue"
+                label="Repeticiones válidas"
+                value={`${displayStats.totalValidReps} completadas`}
+              />
+            </View>
+
+            <AppCard style={styles.metricsCard}>
+              <Text style={styles.metricsTitle}>Progreso respiratorio</Text>
+              <MetricProgressRow
+                label="Mejor volumen estimado"
+                valueText={vimValueText}
+                progress={vimProgress}
+                showTrack={hasRespiratoryMetrics}
+              />
+              <MetricProgressRow
+                label="Tiempo sostenido promedio"
+                valueText={sustainValueText}
+                progress={sustainProgress}
+                showTrack={hasRespiratoryMetrics}
+              />
+              <MetricProgressRow
+                label="Cumplimiento semanal"
+                valueText={adherenceValueText}
+                progress={adherenceProgress}
+                showTrack
+              />
+            </AppCard>
+
+            <Text style={styles.sectionTitle}>Calendario de actividad</Text>
+            <Text style={styles.sectionSubtitle}>Revisa tus sesiones registradas por día.</Text>
 
             <AppCard style={styles.calendarCard}>
               <View style={styles.monthNav}>
@@ -472,7 +857,7 @@ export function HistoryScreen() {
                   accessibilityLabel="Mes anterior">
                   <Text style={styles.monthNavBtnText}>‹</Text>
                 </Pressable>
-                <Text style={styles.monthTitle}>{monthTitle}</Text>
+                <Text style={styles.monthTitle}>{monthChipLabel}</Text>
                 <Pressable
                   onPress={() => shiftMonth(1)}
                   style={styles.monthNavBtn}
@@ -489,7 +874,7 @@ export function HistoryScreen() {
                 ))}
               </View>
               <View style={styles.grid}>
-                {monthCells.map((dateKey, idx) => {
+                {compactMonthCells.map((dateKey, idx) => {
                   if (!dateKey) {
                     return <View key={`e-${idx}`} style={styles.dayCellEmpty} />;
                   }
@@ -498,6 +883,7 @@ export function HistoryScreen() {
                   const isToday = dateKey === todayKey;
                   const isSelected = dateKey === selectedDateKey;
                   const hasPracticeOnly = kind === 'none' && practiceDayKeys.has(dateKey);
+                  const inactive = kind === 'none' && !hasPracticeOnly;
                   return (
                     <Pressable
                       key={dateKey}
@@ -505,6 +891,7 @@ export function HistoryScreen() {
                       style={[
                         styles.dayCell,
                         { backgroundColor: hasPracticeOnly ? CAL_BG_PRACTICE : CAL_BG[kind] },
+                        inactive && styles.dayCellInactive,
                         isToday && styles.dayCellToday,
                         isSelected && styles.dayCellSelected,
                       ]}
@@ -513,7 +900,7 @@ export function HistoryScreen() {
                       <Text
                         style={[
                           styles.dayCellNum,
-                          kind === 'none' && !hasPracticeOnly && styles.dayCellNumMuted,
+                          inactive && styles.dayCellNumMuted,
                           (kind === 'perfect' || kind === 'good') && styles.dayCellNumOnColor,
                         ]}>
                         {Number(dateKey.slice(8, 10))}
@@ -522,73 +909,51 @@ export function HistoryScreen() {
                   );
                 })}
               </View>
-              <View style={styles.legendContainer}>
-                {CALENDAR_LEGEND.map((item) => (
-                  <LegendDot key={item.label} color={item.color} label={item.label} />
-                ))}
-              </View>
-            </AppCard>
-
-            <View style={styles.statMiniRow}>
-              <StatMiniCard
-                badgeVariant="yellow"
-                label="Sesiones totales"
-                value={String(displayStats.totalSessions)}
-              />
-              <StatMiniCard
-                badgeVariant="teal"
-                label="Repeticiones"
-                value={String(displayStats.totalValidReps)}
-              />
-              <StatMiniCard
-                badgeVariant="blue"
-                label="Nivel actual"
-                value={displayStats.levelLabel}
-              />
-            </View>
-
-            <AppCard style={styles.metricsCard}>
-              <Text style={styles.metricsTitle}>Progreso por métrica</Text>
-              <MetricProgressRow label="Mejor volumen" valueText={vimValueText} progress={vimProgress} />
-              <MetricProgressRow
-                label="Constancia semanal"
-                valueText={adherenceValueText}
-                progress={adherenceProgress}
-              />
-              <MetricProgressRow
-                label="Tiempo sostenido"
-                valueText={sustainValueText}
-                progress={sustainProgress}
+              <CalendarLegend
+                expanded={legendExpanded}
+                onToggle={() => setLegendExpanded((v) => !v)}
               />
             </AppCard>
 
             {!hasAnyHistory ? (
-              <View style={styles.inlineEmptyCard}>
+              <AppCard style={styles.emptySessionsCard}>
                 <Text style={styles.inlineEmptyTitle}>Aún no hay sesiones registradas</Text>
                 <Text style={styles.inlineEmptyText}>
-                  Completa tu primera sesión para ver tu progreso aquí.
+                  Tu historial se activará cuando completes tu primera práctica.
                 </Text>
-              </View>
+                <AppButton
+                  title="Comenzar primera sesión"
+                  onPress={() => router.push('/(tabs)/terapia')}
+                  variant="primary"
+                  style={styles.emptySessionsCta}
+                />
+              </AppCard>
+            ) : lastSession ? (
+              <LastSessionCard
+                session={lastSession}
+                bestHoldSeconds={lastSessionHoldSeconds}
+                onViewDetail={openLastSessionDay}
+              />
             ) : null}
 
-            {achievementsList.length > 0 ? (
-              <>
-                <SectionHeader title="Logros" />
-                <AppCard>
-                  {achievementsList.map((a) => (
-                    <AchievementRow key={a.id} item={a} />
-                  ))}
-                </AppCard>
-              </>
-            ) : null}
+            <Text style={styles.sectionTitle}>Logros</Text>
+            <Text style={styles.sectionSubtitle}>Desbloquéalos conforme avanzas en tu terapia.</Text>
+            <View style={styles.achievementGrid}>
+              {progressAchievements.map((a) => (
+                <AchievementCompactCard key={a.id} item={a} />
+              ))}
+            </View>
 
-            <SectionHeader title="Compartir resumen de progreso" />
+            <Text style={styles.sectionTitle}>Reporte para profesional</Text>
             <AppCard style={styles.exportSection}>
               <Text style={styles.exportSectionBody}>
-                Genera un archivo con tus sesiones para revisarlo con un profesional de la salud.
+                Exporta tus sesiones, cumplimiento y progreso.
               </Text>
+              {!hasAnyHistory ? (
+                <Text style={styles.exportHint}>Disponible después de tu primera sesión.</Text>
+              ) : null}
               <AppButton
-                title="Exportar resumen"
+                title="Exportar reporte"
                 onPress={() => router.push('/data-export')}
                 variant="secondary"
                 iconName="doc.text.fill"
@@ -703,7 +1068,15 @@ export function HistoryScreen() {
   );
 }
 
-function LegendDot({ color, label }: { color: string; label: string }) {
+function LegendDot({ color, label, compact }: { color: string; label: string; compact?: boolean }) {
+  if (compact) {
+    return (
+      <View style={styles.legendItemCompact}>
+        <View style={[styles.legendDot, { backgroundColor: color }]} />
+        <Text style={styles.legendLabelCompact}>{label}</Text>
+      </View>
+    );
+  }
   return (
     <View style={styles.legendItem}>
       <View style={styles.legendDotSlot}>
@@ -739,7 +1112,7 @@ const styles = StyleSheet.create({
   },
   pageHeader: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: spacing.md,
     gap: spacing.md,
@@ -751,56 +1124,123 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
     flexShrink: 0,
   },
-  pageMonth: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: wellness.textSecondary,
-    textAlign: 'right',
-    flex: 1,
+  monthChip: {
+    backgroundColor: '#F0F7F5',
+    borderRadius: wellnessRadii.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: wellness.border,
   },
-  streakHero: {
+  monthChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: wellness.primaryDark,
+  },
+  streakHeroWrap: {
+    marginBottom: spacing.lg,
     borderRadius: wellnessRadii.cardLarge,
-    paddingVertical: spacing.lg + 4,
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
+    overflow: 'hidden',
     ...wellnessShadows.card,
   },
-  streakHeroContent: {
+  streakHeroGradient: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    minHeight: STREAK_HERO_VISUAL_HEIGHT + spacing.md * 2,
+    justifyContent: 'center',
+  },
+  streakHeroRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
   },
-  streakHeroText: {
+  streakHeroVisual: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: STREAK_HERO_VISUAL_HEIGHT,
+    flexShrink: 0,
+    marginRight: spacing.xs,
+  },
+  streakHeroCopy: {
     flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
   },
-  streakFireEmoji: {
-    fontSize: 48,
-    lineHeight: 52,
+  streakHeroFireSlot: {
+    height: STREAK_HERO_VISUAL_HEIGHT,
+    justifyContent: 'center',
+    marginLeft: -8,
+    paddingTop: 10,
   },
-  streakFireEmojiMuted: {
-    opacity: 0.55,
+  streakFire: {
+    fontSize: 36,
+    lineHeight: 40,
   },
-  streakHeroNumber: {
-    fontSize: 42,
+  streakFireHero: {
+    fontSize: 58,
+    lineHeight: 62,
+  },
+  streakFireDim: {
+    opacity: 0.42,
+  },
+  streakFireActive: {
+    opacity: 1,
+    textShadowColor: 'rgba(255, 160, 60, 0.55)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+  streakHeroTitleWarm: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#5D4037',
+    letterSpacing: -0.3,
+    lineHeight: 28,
+  },
+  streakHeroBodyWarm: {
+    marginTop: 6,
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#795548',
+    fontWeight: '500',
+  },
+  streakHeroTitleActive: {
+    fontSize: 24,
     fontWeight: '800',
     color: '#FFFFFF',
-    lineHeight: 46,
+    letterSpacing: -0.35,
+    lineHeight: 30,
   },
-  streakHeroLabel: {
-    marginTop: 2,
-    fontSize: 17,
-    fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.92)',
+  streakHeroBodyActive: {
+    marginTop: 6,
+    fontSize: 15,
     lineHeight: 22,
+    color: 'rgba(255, 255, 255, 0.94)',
+    fontWeight: '600',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: wellness.text,
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: wellness.textSecondary,
+    marginBottom: spacing.sm,
   },
   calendarCard: {
     marginBottom: spacing.md,
+    paddingTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
   },
   monthNav: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.sm,
+    marginBottom: 6,
   },
   monthNavBtn: {
     width: 40,
@@ -817,14 +1257,14 @@ const styles = StyleSheet.create({
     lineHeight: 28,
   },
   monthTitle: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '700',
     color: wellness.text,
     textTransform: 'capitalize',
   },
   weekRow: {
     flexDirection: 'row',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   weekCell: {
     flex: 1,
@@ -833,24 +1273,28 @@ const styles = StyleSheet.create({
   weekCellText: {
     fontWeight: '700',
     color: wellness.textSecondary,
-    fontSize: 13,
+    fontSize: 11,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    alignContent: 'flex-start',
   },
   dayCell: {
     width: '14.28%',
-    aspectRatio: 1,
+    height: CALENDAR_DAY_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-    marginBottom: 4,
+    borderRadius: 8,
+    marginBottom: 2,
+  },
+  dayCellInactive: {
+    backgroundColor: '#EEF2F0',
   },
   dayCellEmpty: {
     width: '14.28%',
-    aspectRatio: 1,
-    marginBottom: 4,
+    height: CALENDAR_DAY_HEIGHT,
+    marginBottom: 2,
   },
   dayCellToday: {
     borderWidth: 2,
@@ -858,25 +1302,54 @@ const styles = StyleSheet.create({
   },
   dayCellSelected: {
     borderWidth: 2,
-    borderColor: '#1578A8',
-    transform: [{ scale: 1.06 }],
+    borderColor: wellness.primaryDark,
   },
   dayCellNum: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '700',
     color: '#37474F',
   },
   dayCellNumMuted: {
-    color: '#90A4AE',
+    color: '#B0BEC5',
+    fontWeight: '600',
   },
   dayCellNumOnColor: {
     color: '#1B5E20',
   },
   legendContainer: {
-    flexDirection: 'column',
-    marginTop: spacing.sm,
-    gap: 6,
+    marginTop: 6,
+    paddingTop: 4,
+    gap: 4,
     alignSelf: 'stretch',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: wellness.border,
+  },
+  legendPrimaryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'flex-start',
+  },
+  legendItemCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendLabelCompact: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+  },
+  legendExtraBlock: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  legendMoreLink: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: wellness.primaryDark,
+    marginTop: 2,
   },
   legendItem: {
     flexDirection: 'row',
@@ -926,18 +1399,19 @@ const styles = StyleSheet.create({
   },
   statMiniValue: {
     marginTop: 6,
-    fontSize: 20,
+    fontSize: 15,
     fontWeight: '800',
     color: wellness.text,
     textAlign: 'center',
+    lineHeight: 18,
   },
   statMiniLabel: {
     marginTop: 4,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: wellness.textSecondary,
     textAlign: 'center',
-    lineHeight: 16,
+    lineHeight: 14,
   },
   metricsCard: {
     marginBottom: spacing.md,
@@ -970,6 +1444,12 @@ const styles = StyleSheet.create({
     color: wellness.primaryDark,
     textAlign: 'right',
     flexShrink: 0,
+    maxWidth: '58%',
+  },
+  metricValueMuted: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: wellness.textSecondary,
   },
   metricTrack: {
     height: 6,
@@ -990,72 +1470,121 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: wellness.border,
   },
-  inlineEmptyCard: {
+  emptySessionsCard: {
     marginBottom: spacing.md,
-    padding: spacing.lg,
-    borderRadius: wellnessRadii.card,
-    backgroundColor: wellness.softGreen,
-    borderWidth: 1,
-    borderColor: wellness.border,
+    gap: spacing.sm,
+    alignItems: 'stretch',
+  },
+  emptySessionsCta: {
+    marginTop: spacing.xs,
   },
   inlineEmptyTitle: {
     fontSize: 17,
     fontWeight: '800',
     color: wellness.text,
-    textAlign: 'center',
   },
   inlineEmptyText: {
-    marginTop: spacing.sm,
     fontSize: 15,
     color: wellness.textSecondary,
-    textAlign: 'center',
     lineHeight: 22,
   },
-  achievementRow: {
+  lastSessionCard: {
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  lastSessionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: wellness.text,
+  },
+  lastSessionDate: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: wellness.primaryDark,
+  },
+  lastSessionMetrics: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: wellness.border,
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginVertical: spacing.xs,
   },
-  achievementRowLocked: {
-    opacity: 0.45,
+  lastSessionMetric: {
+    minWidth: '30%',
+    flexGrow: 1,
   },
-  achievementIcon: {
-    fontSize: 28,
-    marginRight: spacing.md,
-    color: '#F9A825',
-  },
-  achievementIconLocked: {
+  lastSessionMetricLabel: {
+    fontSize: 12,
     color: wellness.textSecondary,
+    marginBottom: 2,
   },
-  achievementTextWrap: {
-    flex: 1,
-  },
-  achievementTitle: {
-    fontSize: 17,
+  lastSessionMetricValue: {
+    fontSize: 16,
     fontWeight: '700',
     color: wellness.text,
   },
-  achievementTitleLocked: {
-    color: wellness.textSecondary,
+  achievementGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
-  achievementDesc: {
-    marginTop: 4,
-    fontSize: 15,
-    color: wellness.textSecondary,
-    lineHeight: 22,
+  achievementCompact: {
+    width: '48%',
+    backgroundColor: '#F7F9F8',
+    borderRadius: wellnessRadii.card,
+    padding: spacing.sm + 2,
+    borderWidth: 1,
+    borderColor: '#E0E6E3',
+    alignItems: 'center',
   },
-  achievementDescLocked: {
+  achievementCompactUnlocked: {
+    borderColor: 'rgba(52, 171, 165, 0.45)',
+    backgroundColor: '#F4FBFA',
+    ...wellnessShadows.soft,
+  },
+  achievementCompactIcon: {
+    fontSize: 24,
+    marginBottom: 6,
+  },
+  achievementCompactIconLocked: {
+    opacity: 0.55,
+  },
+  achievementCompactTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: wellness.primaryDark,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  achievementCompactTitleLocked: {
+    color: wellness.text,
+    fontWeight: '700',
+  },
+  achievementCompactDesc: {
+    fontSize: 11,
+    lineHeight: 15,
+    color: wellness.primaryDark,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  achievementCompactDescLocked: {
     color: wellness.textSecondary,
+    fontWeight: '500',
   },
   exportSection: {
-    marginTop: spacing.sm,
+    marginBottom: spacing.lg,
     gap: spacing.md,
   },
+  exportHint: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: wellness.textSecondary,
+    fontStyle: 'italic',
+  },
   exportSectionBody: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 20,
     color: wellnessColors.textSecondary,
   },
   loadingBox: {
