@@ -67,7 +67,8 @@ import { dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { addDaysLocal, getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 
 const ACCENT = wellnessColors.primary;
-const HOME_SENSOR_CONNECT_COPY = 'Conecta el sensor para medir tu volumen en vivo.';
+const HOME_SENSOR_CONNECT_COPY = 'Conecta el sensor para medir tu volumen.';
+const HOME_SENSOR_REVIEW_COPY = 'Revisa la conexión del sensor antes de iniciar.';
 
 function onLightImpact() {
   if (Platform.OS === 'ios') {
@@ -415,6 +416,7 @@ export function HomeScreen() {
       sensorConnected={sensorConnected}
       sensorSignalLive={sensorSignalLive}
       onPress={goSensorConnection}
+      homePresentation
     />
   );
 
@@ -463,16 +465,21 @@ export function HomeScreen() {
           onLightImpact();
           router.push('/data-export');
         }}
-        style={styles.secondaryCardSpacing}>
-        <View style={styles.exportCardHeader}>
+        style={styles.exportCardProminent}>
+        <View style={styles.exportCardTopRow}>
           <View style={styles.exportCardIconWrap}>
-            <IconSymbol name="doc.text.fill" size={20} color={ACCENT} />
+            <IconSymbol name="doc.text.fill" size={22} color={ACCENT} />
           </View>
           <View style={styles.exportCardTextCol}>
+            <Text style={styles.exportCardKicker}>Seguimiento clínico</Text>
             <Text style={styles.exportCardTitle}>Resumen para tu profesional</Text>
-            <Text style={styles.exportCardBody}>Comparte tus sesiones y progreso.</Text>
+            <Text style={styles.exportCardBody}>
+              Exporta tus sesiones y progreso para compartirlos.
+            </Text>
           </View>
-          <IconSymbol name="chevron.right" size={16} color={ACCENT} />
+        </View>
+        <View style={styles.exportCardCtaRow}>
+          <Text style={styles.exportCardCtaText}>Exportar resumen</Text>
         </View>
       </AppCard>
 
@@ -624,7 +631,7 @@ function HomeQuickAccessGrid({
           accessibilityRole="button"
           accessibilityLabel={item.label}>
           <View style={styles.quickAccessIconWrap}>
-            <IconSymbol name={item.icon} size={20} color={ACCENT} />
+            <IconSymbol name={item.icon} size={18} color={ACCENT} />
           </View>
           <Text style={styles.quickAccessLabel}>{item.label}</Text>
         </Pressable>
@@ -736,23 +743,55 @@ function describeDeviceState(
   };
 }
 
+function applyHomeDevicePresentation(
+  state: ReturnType<typeof describeDeviceState>,
+  sensorConnected: boolean,
+  technicalCalibrationEnabled: boolean,
+): ReturnType<typeof describeDeviceState> {
+  if (technicalCalibrationEnabled) {
+    return { ...state, showBadge: false };
+  }
+
+  let subtitle = state.subtitle;
+  if (state.variant === 'loading') {
+    subtitle = 'Verificando medición…';
+  } else if (state.variant === 'warn') {
+    subtitle = state.subtitle;
+  } else {
+    subtitle = sensorConnected ? HOME_SENSOR_REVIEW_COPY : HOME_SENSOR_CONNECT_COPY;
+  }
+
+  return {
+    ...state,
+    showBadge: false,
+    subtitle,
+    ctaLabel: 'Revisar sensor',
+  };
+}
+
 function DeviceCard({
   calibrationSnapshot,
   sensorConnected,
   sensorSignalLive,
   onPress,
+  homePresentation = false,
 }: {
   calibrationSnapshot: CalibrationSnapshot;
   sensorConnected: boolean;
   sensorSignalLive: boolean;
   onPress: () => void;
+  homePresentation?: boolean;
 }) {
-  const state = describeDeviceState(
+  const technicalCalibrationEnabled = isTechnicalCalibrationEnabled();
+  const baseState = describeDeviceState(
     calibrationSnapshot,
-    isTechnicalCalibrationEnabled(),
+    technicalCalibrationEnabled,
     sensorConnected,
     sensorSignalLive,
   );
+  const state = homePresentation
+    ? applyHomeDevicePresentation(baseState, sensorConnected, technicalCalibrationEnabled)
+    : baseState;
   const isReady = state.variant === 'ready';
   const isWarn = state.variant === 'warn';
   return (
@@ -787,7 +826,7 @@ function DeviceCard({
               </Text>
             </View>
           ) : null}
-          <Text style={[styles.deviceTitle, !state.showBadge && styles.deviceTitleNoBadge]}>{state.title}</Text>
+          <Text style={[styles.deviceTitle, styles.deviceTitleNoBadge]}>{state.title}</Text>
           <Text style={styles.deviceSubtitle}>{state.subtitle}</Text>
           <View style={styles.deviceCtaRow}>
             <Text style={styles.deviceCtaLabel}>{state.ctaLabel}</Text>
@@ -817,11 +856,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 22,
     color: wellnessColors.textSecondary,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   primaryActionCard: {
-    marginBottom: spacing.lg,
-    gap: spacing.md,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
   },
   primaryActionTitle: {
     fontSize: 24,
@@ -835,10 +874,10 @@ const styles = StyleSheet.create({
     color: wellnessColors.textSecondary,
   },
   progressCardSpacing: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   secondaryCardSpacing: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   quickAccessGrid: {
     flexDirection: 'row',
@@ -851,28 +890,28 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexBasis: '46%',
     backgroundColor: wellnessColors.card,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: wellnessColors.border,
-    paddingVertical: spacing.md,
+    paddingVertical: 10,
     paddingHorizontal: spacing.sm,
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: 4,
     ...wellnessShadows.soft,
   },
   quickAccessTilePressed: {
     opacity: 0.92,
   },
   quickAccessIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     backgroundColor: wellnessColors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   quickAccessLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: wellnessColors.textPrimary,
   },
@@ -882,7 +921,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: wellnessColors.border,
     padding: spacing.lg,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   consentTitle: {
     fontSize: 17,
@@ -941,7 +980,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: wellnessColors.border,
     padding: spacing.lg,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
     ...wellnessShadows.soft,
   },
   deviceCardPressed: { opacity: 0.94 },
@@ -993,58 +1032,89 @@ const styles = StyleSheet.create({
     borderTopColor: wellnessColors.border,
   },
   deviceCtaLabel: { fontSize: 15, fontWeight: '700', color: ACCENT },
-  exportCardHeader: {
+  exportCardProminent: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    gap: spacing.sm,
+  },
+  exportCardTopRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: spacing.md,
   },
   exportCardIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     backgroundColor: wellnessColors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   exportCardTextCol: {
     flex: 1,
+    minWidth: 0,
+    paddingTop: 2,
+  },
+  exportCardKicker: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: ACCENT,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
   },
   exportCardTitle: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '700',
     color: wellnessColors.textPrimary,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   exportCardBody: {
     fontSize: 14,
     lineHeight: 20,
     color: wellnessColors.textSecondary,
   },
-  claveRow: {
+  exportCardCtaRow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.xs,
     paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: wellnessColors.border,
+  },
+  exportCardCtaText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: ACCENT,
+    textAlign: 'center',
+  },
+  claveRow: {
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: wellnessColors.border,
   },
   claveLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: wellnessColors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   claveValue: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: wellnessColors.textPrimary,
-    letterSpacing: 1.2,
-    marginBottom: 6,
+    letterSpacing: 1,
+    marginBottom: 2,
   },
   claveHint: {
-    fontSize: 13,
+    fontSize: 12,
     color: wellnessColors.textMuted,
-    lineHeight: 18,
+    lineHeight: 16,
   },
   mutedBody: { fontSize: 16, color: wellnessColors.textSecondary, marginBottom: spacing.md },
   textLinkWrap: { padding: spacing.md },
