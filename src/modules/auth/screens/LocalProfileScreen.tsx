@@ -6,19 +6,16 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   Share,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 
+import { AuthCreateProfileView } from '@/src/modules/auth/components/AuthCreateProfileView';
 import { AuthWelcomeView } from '@/src/modules/auth/components/AuthWelcomeView';
 import {
-  AuthCard,
   AuthFlowChrome,
   AuthOutlineButton,
   AuthPrimaryButton,
@@ -245,65 +242,21 @@ export function LocalProfileScreen() {
 
   if (phase === 'create') {
     return (
-      <AuthFlowChrome step={{ current: 1, total: 4 }} showHeaderLogo>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.flex}>
-          <AuthTitleBlock
-            title="Creamos tu perfil"
-            subtitle="Necesitamos algunos datos básicos para personalizar tu experiencia."
-          />
-
-          <AuthCard>
-            <Text style={styles.fieldLabel}>Nombre completo</Text>
-            <TextInput
-              style={styles.input}
-              value={nombre}
-              onChangeText={setNombre}
-              placeholder="Ej. María González"
-              placeholderTextColor={authPalette.textMuted}
-              autoCapitalize="words"
-              accessibilityLabel="Nombre completo"
-            />
-
-            <Text style={styles.fieldLabel}>Edad (años)</Text>
-            <TextInput
-              style={styles.input}
-              value={edadText}
-              onChangeText={(t) => setEdadText(t.replace(/[^0-9]/g, ''))}
-              placeholder="Ej. 68"
-              placeholderTextColor={authPalette.textMuted}
-              keyboardType="number-pad"
-              maxLength={3}
-              accessibilityLabel="Edad en años"
-            />
-
-            {edadText.length > 0 && !edadValid ? (
-              <Text style={styles.helperError}>Indica una edad entre 1 y 120 años.</Text>
-            ) : null}
-          </AuthCard>
-
-          <Text style={styles.securityNote}>
-            Tu información está segura y solo será usada en la app.
-          </Text>
-
-          <AuthPrimaryButton
-            label="Continuar"
-            onPress={onSubmitCreate}
-            disabled={!canSubmit}
-            loading={busyId === 'create'}
-          />
-
-          <AuthSecondaryButton
-            label="Volver"
-            onPress={() => {
-              setPhase('welcome');
-              setNombre('');
-              setEdadText('');
-            }}
-          />
-        </KeyboardAvoidingView>
-      </AuthFlowChrome>
+      <AuthCreateProfileView
+        nombre={nombre}
+        onNombreChange={setNombre}
+        edadText={edadText}
+        onEdadChange={(t) => setEdadText(t.replace(/[^0-9]/g, ''))}
+        edadValid={edadValid}
+        canSubmit={canSubmit}
+        busy={busyId === 'create'}
+        onSubmit={onSubmitCreate}
+        onBack={() => {
+          setPhase('welcome');
+          setNombre('');
+          setEdadText('');
+        }}
+      />
     );
   }
 
@@ -318,36 +271,6 @@ export function LocalProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  fieldLabel: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: authPalette.text,
-    marginBottom: spacing.sm,
-  },
-  input: {
-    borderWidth: 2,
-    borderColor: authPalette.border,
-    borderRadius: wellnessRadii.card,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    fontSize: 20,
-    color: authPalette.text,
-    marginBottom: spacing.md,
-    backgroundColor: '#fff',
-  },
-  helperError: {
-    fontSize: 15,
-    color: authPalette.errorText,
-    marginBottom: spacing.sm,
-  },
-  securityNote: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: authPalette.textMuted,
-    textAlign: 'center',
-    marginBottom: spacing.md,
-  },
   keyCard: {
     backgroundColor: authPalette.successBg,
     borderRadius: wellnessRadii.cardLarge,

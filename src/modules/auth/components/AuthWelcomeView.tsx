@@ -15,9 +15,6 @@ import { RespiraBrandMark } from '@/src/shared/ui/RespiraBrandMark';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 
-const WELCOME_INTRO =
-  'RESPIRA+ te acompaña paso a paso para registrar tu terapia y entender tu progreso.';
-
 const BENEFIT_ICON_SIZE = 30;
 const BENEFIT_ICON_RING = 62;
 
@@ -204,8 +201,6 @@ export function AuthWelcomeView({
             <Text style={styles.btnOutlineText}>Ya tengo una clave</Text>
           </Pressable>
 
-          <Text style={styles.footerIntro}>{WELCOME_INTRO}</Text>
-
           {hasDeviceProfiles && onShowDeviceProfiles ? (
             <Pressable
               style={({ pressed }) => [styles.deviceProfilesLink, pressed && styles.btnPressed]}
@@ -224,7 +219,9 @@ export function AuthWelcomeView({
   );
 }
 
-const LOGO_CIRCLE = 118;
+const LOGO_SIZE = 118;
+/** Esquinas redondeadas tipo squircle (no círculo perfecto). */
+const LOGO_CORNER_RADIUS = 36;
 
 const styles = StyleSheet.create({
   safe: {
@@ -332,9 +329,9 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xs,
   },
   logoCircle: {
-    width: LOGO_CIRCLE,
-    height: LOGO_CIRCLE,
-    borderRadius: LOGO_CIRCLE / 2,
+    width: LOGO_SIZE,
+    height: LOGO_SIZE,
+    borderRadius: LOGO_CORNER_RADIUS,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -349,28 +346,19 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   brandName: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: '800',
     color: wellness.primary,
     letterSpacing: 0.5,
     marginBottom: spacing.sm,
   },
   heroLine: {
-    fontSize: 21,
+    fontSize: 18,
     fontWeight: '600',
     color: '#2A3439',
     textAlign: 'center',
-    lineHeight: 28,
-    letterSpacing: -0.15,
-  },
-  footerIntro: {
-    marginTop: spacing.md,
-    fontSize: 14,
-    lineHeight: 21,
-    color: '#6B7B86',
-    textAlign: 'center',
-    paddingHorizontal: spacing.sm,
-    fontWeight: '400',
+    lineHeight: 24,
+    letterSpacing: -0.1,
   },
   benefitsCard: {
     backgroundColor: '#FFFFFF',
