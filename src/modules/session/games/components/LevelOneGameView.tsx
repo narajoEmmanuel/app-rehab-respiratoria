@@ -953,7 +953,7 @@ export function LevelOneGameView({
                   </View>
                   <View style={styles.validCelebrationBadge}>
                     <Text style={styles.validCelebrationSparkle}>✦</Text>
-                    <Feather name="check-circle" size={20} color={wellness.primary} />
+                    <Feather name="check-circle" size={20} color={accentColor} />
                   </View>
                 </Animated.View>
               ) : null}

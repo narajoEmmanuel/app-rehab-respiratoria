@@ -51,7 +51,8 @@ import {
 } from '@/src/modules/session/engine/level-one/use-level-one-game';
 import { useTouchInputAdapter } from '@/src/modules/session/engine/touch/use-touch-input-adapter';
 import { LevelOneGameView } from '@/src/modules/session/games/components/LevelOneGameView';
-import { LevelOnePreStartIntro } from '@/src/modules/session/games/components/LevelOnePreStartIntro';
+import { SCENE_THEME_TOKENS } from '@/src/modules/session/games/components/level-runner-scene';
+import { RunnerLevelPreStartIntro } from '@/src/modules/session/games/components/RunnerLevelPreStartIntro';
 import { LevelAdvanceCelebrationModal } from '@/src/modules/session/games/components/LevelAdvanceCelebrationModal';
 import { AllLevelsCompleteCelebrationModal } from '@/src/modules/session/games/components/AllLevelsCompleteCelebrationModal';
 import { SessionCompleteMicroCelebration } from '@/src/modules/session/games/components/SessionCompleteMicroCelebration';
@@ -72,7 +73,7 @@ import {
 import { buildSessionResult } from '@/src/modules/session/session-result-factory';
 import { persistSessionResult, TARGET_ATTEMPTS, type LevelUnlockResult } from '@/src/modules/session/session-progress-service';
 import { navigateToInitialEvaluation } from '@/src/modules/diagnostics/navigate-to-initial-evaluation';
-import { getLevelVisualIdentity } from '@/src/theme/level-colors';
+import { getLevelVisualIdentity, parseLevelNumberFromId } from '@/src/theme/level-colors';
 import { describeSessionProgress } from '@/src/modules/session/patient-ui/session-progress-copy';
 import type { SessionAttemptResult } from '@/src/modules/session/types/session-result';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
@@ -1062,9 +1063,19 @@ export function SessionScreen() {
     }
   };
 
-  const runnerIntroActive =
-    isRunnerLevel && levelOneEngine.phase === 'not-started' && !introAcknowledged;
-  const showLevelOnePreStartIntro = selectedLevelId === 'level-1' && runnerIntroActive;
+  const showRunnerPreStartIntro =
+    isRunnerLevel &&
+    !introAcknowledged &&
+    !pauseModalVisible &&
+    summaryKind === null &&
+    !savingInterrupt &&
+    !savingSummary &&
+    celebrationKind === null &&
+    !sessionMicroCelebrationVisible;
+
+  const runnerSceneIntroMode = showRunnerPreStartIntro;
+  const runnerSceneTheme = levelGameplay?.theme ?? level.theme ?? 'forest';
+  const runnerPreStartOverlay = SCENE_THEME_TOKENS[runnerSceneTheme].introOverlay;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -1081,11 +1092,11 @@ export function SessionScreen() {
       ) : null}
       <View style={styles.gameWrap}>
         <LevelOneGameView
-          introMode={runnerIntroActive}
-          showRunnerRabbit={!showLevelOnePreStartIntro}
-          showSceneTitle={!showLevelOnePreStartIntro}
-          onIntroComplete={showLevelOnePreStartIntro ? undefined : handleIntroComplete}
-          onIntroExit={showLevelOnePreStartIntro ? undefined : handleIntroExit}
+          introMode={runnerSceneIntroMode}
+          showRunnerRabbit={!showRunnerPreStartIntro}
+          showSceneTitle={!showRunnerPreStartIntro}
+          onIntroComplete={showRunnerPreStartIntro ? undefined : handleIntroComplete}
+          onIntroExit={showRunnerPreStartIntro ? undefined : handleIntroExit}
           holdMs={levelOneEngine.holdMs}
           sustainMs={levelOneEngine.sustainMs}
           targetReached={levelOneEngine.targetReached}
@@ -1123,10 +1134,19 @@ export function SessionScreen() {
           volumeHudMessage={sessionVolumeHudMessage}
           showSensorDebugMetrics={isSensorDebugEnabled()}
           targetVolume={targetVolume}
-          suppressCoachBubble={pauseModalVisible || showLevelOnePreStartIntro}
+          suppressCoachBubble={pauseModalVisible || showRunnerPreStartIntro}
         />
-        {showLevelOnePreStartIntro ? (
-          <LevelOnePreStartIntro onStart={handleIntroComplete} onBack={handleIntroExit} />
+        {showRunnerPreStartIntro ? (
+          <RunnerLevelPreStartIntro
+            levelId={selectedLevelId}
+            levelNumber={parseLevelNumberFromId(selectedLevelId)}
+            levelTitle={levelDisplayMeta.humanName}
+            accentColor={levelVisual.accent}
+            secondaryAccentColor={levelVisual.accentSoft}
+            overlayBackgroundColor={runnerPreStartOverlay}
+            onStart={handleIntroComplete}
+            onBack={handleIntroExit}
+          />
         ) : null}
       </View>
       <LevelAdvanceCelebrationModal
