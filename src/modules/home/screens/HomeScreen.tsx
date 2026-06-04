@@ -20,7 +20,6 @@ import {
 import { navigateToInitialEvaluation } from '@/src/modules/diagnostics/navigate-to-initial-evaluation';
 import { isTechnicalCalibrationEnabled } from '@/src/modules/app-mode';
 import {
-  PATIENT_MEASUREMENT_CONNECT_SENSOR,
   PATIENT_MEASUREMENT_LOAD_ERROR,
   patientMeasurementStatusLabel,
   resolvePatientMeasurementPhase,
@@ -60,15 +59,15 @@ import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppCard } from '@/src/shared/ui/AppCard';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { SectionHeader } from '@/src/shared/ui/SectionHeader';
-import { InfoTile } from '@/src/shared/ui/InfoTile';
 import { MetricTile } from '@/src/shared/ui/MetricTile';
-import { IconSymbol } from '@/src/shared/ui/icon-symbol';
+import { IconSymbol, type IconSymbolName } from '@/src/shared/ui/icon-symbol';
 import { spacing } from '@/src/shared/theme/spacing';
 import { appScreenBackground, wellnessColors, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 import { dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { addDaysLocal, getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 
 const ACCENT = wellnessColors.primary;
+const HOME_SENSOR_CONNECT_COPY = 'Conecta el sensor para medir tu volumen en vivo.';
 
 function onLightImpact() {
   if (Platform.OS === 'ios') {
@@ -115,7 +114,7 @@ export function HomeScreen() {
   const [activeLevelId, setActiveLevelId] = useState<LevelId | null>(null);
   const [todayCompletedSessions, setTodayCompletedSessions] = useState(0);
   const [patientSessions, setPatientSessions] = useState<SessionRecord[]>([]);
-  const [latestDiag, setLatestDiag] = useState<DiagnosticRecord | null>(null);
+  const [, setLatestDiag] = useState<DiagnosticRecord | null>(null);
   const [startingLevel, setStartingLevel] = useState(false);
   const [welcomeVisible, setWelcomeVisible] = useState(false);
   const [welcomeCheckedPatientId, setWelcomeCheckedPatientId] = useState<number | null>(null);
@@ -382,11 +381,6 @@ export function HomeScreen() {
     navigateToInitialEvaluation(router);
   }, [router]);
 
-  const goEvaluationSummary = useCallback(() => {
-    onLightImpact();
-    router.push('/evaluacion-resumen');
-  }, [router]);
-
   if (!hydrated || !patient) {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -409,6 +403,86 @@ export function HomeScreen() {
     !hasCompletedDiagnostic || !consentUiReady || !consentActive;
   const dailyGoalMet = hasCompletedDiagnostic && todayCompletedSessions >= 6;
   const levelDisplayName = currentLevelHumanName || currentLevelLabel;
+  const homeLayoutState = !hasCompletedDiagnostic
+    ? 'pre_eval'
+    : !hasAnySession
+      ? 'eval_no_sessions'
+      : 'has_sessions';
+
+  const sensorCard = (
+    <DeviceCard
+      calibrationSnapshot={calibrationSnapshot}
+      sensorConnected={sensorConnected}
+      sensorSignalLive={sensorSignalLive}
+      onPress={goSensorConnection}
+    />
+  );
+
+  const quickAccessSection = (
+    <>
+      <SectionHeader title="Accesos rápidos" />
+      <HomeQuickAccessGrid
+        onTherapy={() => {
+          onLightImpact();
+          router.push('/(tabs)/terapia');
+        }}
+        onHistory={() => {
+          onLightImpact();
+          router.push('/(tabs)/historial');
+        }}
+        onSensor={goSensorConnection}
+        onProfile={() => {
+          onLightImpact();
+          router.push('/profile');
+        }}
+      />
+    </>
+  );
+
+  const footerSection = (
+    <>
+      {consentUiReady && !consentActive ? (
+        <View style={styles.consentCard} accessibilityRole="alert">
+          <Text style={styles.consentTitle}>Consentimiento pendiente</Text>
+          <Text style={styles.consentBody}>
+            Revisa y acepta los documentos para continuar con la terapia.
+          </Text>
+          <Pressable
+            style={styles.consentBtn}
+            onPress={() => router.push(LEGAL_ACCEPT_HREF)}
+            accessibilityRole="button"
+            accessibilityLabel="Revisar documentos legales">
+            <Text style={styles.consentBtnText}>Revisar documentos</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      <AppCard
+        pressable
+        onPress={() => {
+          onLightImpact();
+          router.push('/data-export');
+        }}
+        style={styles.secondaryCardSpacing}>
+        <View style={styles.exportCardHeader}>
+          <View style={styles.exportCardIconWrap}>
+            <IconSymbol name="doc.text.fill" size={20} color={ACCENT} />
+          </View>
+          <View style={styles.exportCardTextCol}>
+            <Text style={styles.exportCardTitle}>Resumen para tu profesional</Text>
+            <Text style={styles.exportCardBody}>Comparte tus sesiones y progreso.</Text>
+          </View>
+          <IconSymbol name="chevron.right" size={16} color={ACCENT} />
+        </View>
+      </AppCard>
+
+      <View style={styles.claveRow}>
+        <Text style={styles.claveLabel}>Tu clave de acceso</Text>
+        <Text style={styles.claveValue}>{patient.clave}</Text>
+        <Text style={styles.claveHint}>Guárdala para volver a entrar.</Text>
+      </View>
+    </>
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -419,65 +493,30 @@ export function HomeScreen() {
         <Text style={styles.greeting}>Hola, {firstName}</Text>
         <Text style={styles.tagline}>Tu resumen diario en RESPIRA+</Text>
 
-        {consentUiReady && !consentActive ? (
-          <View style={styles.consentCard} accessibilityRole="alert">
-            <Text style={styles.consentTitle}>Consentimiento pendiente</Text>
-            <Text style={styles.consentBody}>
-              Revisa y acepta los documentos para continuar con la terapia.
-            </Text>
-            <Pressable
-              style={styles.consentBtn}
-              onPress={() => router.push(LEGAL_ACCEPT_HREF)}
-              accessibilityRole="button"
-              accessibilityLabel="Revisar documentos legales">
-              <Text style={styles.consentBtnText}>Revisar documentos</Text>
-            </Pressable>
-          </View>
-        ) : null}
-
         {!hasCompletedDiagnostic ? (
-          <AppCard variant="highlight" style={styles.diagnosticHeroCard}>
-            <Text style={styles.diagnosticHeroKicker}>Evaluación inicial</Text>
-            <Text style={styles.diagnosticHeroTitle}>Conoce tu volumen de referencia</Text>
-            <Text style={styles.diagnosticHeroBody}>
-              Realiza tu evaluación inicial para personalizar tus niveles de terapia.
+          <AppCard variant="highlight" style={styles.primaryActionCard}>
+            <Text style={styles.primaryActionTitle}>Conoce tu volumen de referencia</Text>
+            <Text style={styles.primaryActionBody}>
+              Realiza tu evaluación inicial para personalizar tus niveles.
             </Text>
             <AppButton title="Comenzar evaluación" onPress={goInitialEvaluation} />
           </AppCard>
         ) : dailyGoalMet ? (
-          <AppCard style={styles.heroCardSpacing}>
-            <Text style={styles.heroKicker}>Progreso de hoy</Text>
-            <Text style={styles.heroTitle}>Sesiones de hoy completadas</Text>
-            <Text style={styles.heroSubtitle}>
-              Puedes revisar tu progreso o continuar según la indicación de tu profesional.
-            </Text>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: '100%' }]} />
-            </View>
+          <AppCard variant="highlight" style={styles.primaryActionCard}>
+            <Text style={styles.primaryActionTitle}>Meta diaria completada</Text>
+            <Text style={styles.primaryActionBody}>Revisa tu progreso en Historial.</Text>
             <AppButton
               title="Ver historial"
               onPress={() => {
                 onLightImpact();
                 router.push('/(tabs)/historial');
               }}
-              variant="secondary"
             />
           </AppCard>
         ) : (
-          <AppCard style={styles.heroCardSpacing}>
-            <Text style={styles.heroKicker}>Próxima acción</Text>
-            <Text style={styles.heroTitle}>Continúa tu terapia guiada</Text>
-            <Text style={styles.heroSubtitle}>
-              {`Nivel sugerido: ${levelDisplayName}\nHoy: ${todayCompletedSessions} de 6 sesiones`}
-            </Text>
-            <View style={styles.progressTrack}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${Math.min(100, (todayCompletedSessions / 6) * 100)}%` },
-                ]}
-              />
-            </View>
+          <AppCard variant="highlight" style={styles.primaryActionCard}>
+            <Text style={styles.primaryActionTitle}>Continúa tu terapia guiada</Text>
+            <Text style={styles.primaryActionBody}>Nivel sugerido: {levelDisplayName}</Text>
             <AppButton
               title={
                 !consentUiReady
@@ -492,138 +531,57 @@ export function HomeScreen() {
           </AppCard>
         )}
 
-        {!hasAnySession ? (
-          <AppCard>
-            <Text style={styles.emptyTitle}>Aún no hay sesiones registradas</Text>
-            <Text style={styles.emptyBody}>
-              Cuando completes tu primera sesión verás aquí un resumen con tu progreso y volumen. Empieza cuando te
-              sientas preparado.
-            </Text>
-          </AppCard>
+        {homeLayoutState === 'pre_eval' ? (
+          <>
+            {sensorCard}
+            {quickAccessSection}
+          </>
         ) : null}
 
-        {lastSession ? <HomeLastSessionCard session={lastSession} /> : null}
-
-        {hasAnySession ? (
-          <AppCard style={styles.weekCardSpacing}>
-            <SectionHeader title="Constancia" subtitle="Últimos 7 días" />
-            <View style={styles.weekMetricsRow}>
-              <MetricTile
-                label="Esta semana"
-                value={weeklyCompleted === 0 ? '0' : String(weeklyCompleted)}
-                helper={`sesión${weeklyCompleted === 1 ? '' : 'es'} completada${weeklyCompleted === 1 ? '' : 's'}`}
-              />
-              <MetricTile
-                label="Hoy"
-                value={`${todayCompletedSessions}/6`}
-                helper="meta diaria"
-              />
-            </View>
-            <Text style={styles.weekHint}>El historial completo está en la pestaña Historial.</Text>
-          </AppCard>
+        {homeLayoutState === 'eval_no_sessions' ? (
+          <>
+            {sensorCard}
+            <SectionHeader title="Progreso de hoy" />
+            <AppCard variant="soft" style={styles.progressCardSpacing}>
+              <Text style={styles.emptyTitle}>Sin sesiones completadas hoy</Text>
+              <Text style={styles.emptyBody}>Completa tu primera sesión para ver tu progreso.</Text>
+            </AppCard>
+            {quickAccessSection}
+          </>
         ) : null}
 
-        {hasCompletedDiagnostic ? (
-          <AppCard variant="soft" style={styles.evalCardSpacing}>
-            <View style={styles.evalCardHeader}>
-              <View style={styles.evalCardIconWrap}>
-                <IconSymbol name="lungs.fill" size={24} color={ACCENT} />
-              </View>
-              <View style={styles.evalCardHeaderText}>
-                <Text style={styles.evalCardTitle}>Evaluación inicial</Text>
-                <Text style={styles.evalCardSubtitle}>
-                  Actualiza tu volumen de referencia para personalizar tus metas de terapia.
-                </Text>
-              </View>
-            </View>
-            {latestDiag ? (
-              <View style={styles.evalCardMetrics}>
+        {homeLayoutState === 'has_sessions' ? (
+          <>
+            <SectionHeader title="Progreso de hoy" />
+            <AppCard style={styles.progressCardSpacing}>
+              <View style={styles.weekMetricsRow}>
                 <MetricTile
-                  label="Volumen de referencia"
-                  value={`${latestDiag.max_inspiratory_volume} mL`}
-                  iconName="lungs.fill"
+                  label="Hoy"
+                  value={`${todayCompletedSessions}/6`}
+                  helper="meta diaria"
                 />
-                <View style={styles.evalCardMetricRow}>
-                  <InfoTile
-                    label="Última evaluación"
-                    value={new Date(latestDiag.diagnostic_date).toLocaleDateString(undefined, {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric',
-                    })}
-                    tone="neutral"
-                  />
-                  {latestDiag.diagnostic_number != null ? (
-                    <MetricTile
-                      label="Evaluación"
-                      value={`#${latestDiag.diagnostic_number}`}
-                      size="compact"
-                    />
-                  ) : null}
-                </View>
+                <MetricTile
+                  label="Esta semana"
+                  value={weeklyCompleted === 0 ? '0' : String(weeklyCompleted)}
+                  helper={`sesión${weeklyCompleted === 1 ? '' : 'es'} completada${weeklyCompleted === 1 ? '' : 's'}`}
+                />
               </View>
-            ) : null}
-            <View style={styles.evalActionsRow}>
-              <Pressable
-                style={({ pressed }) => [styles.evalActionPill, pressed && styles.evalActionPillPressed]}
-                onPress={goEvaluationSummary}
-                accessibilityRole="button"
-                accessibilityLabel="Ver resumen de evaluación inicial">
-                <Text style={styles.evalActionPillText}>Ver resumen</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.evalActionPill,
-                  styles.evalActionPillSecondary,
-                  pressed && styles.evalActionPillPressed,
-                ]}
-                onPress={goInitialEvaluation}
-                accessibilityRole="button"
-                accessibilityLabel="Repetir evaluación inicial">
-                <Text style={[styles.evalActionPillText, styles.evalActionPillTextSecondary]}>
-                  Repetir evaluación
-                </Text>
-              </Pressable>
-            </View>
-          </AppCard>
+              <View style={styles.progressTrackNoMargin}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    { width: `${Math.min(100, (todayCompletedSessions / 6) * 100)}%` },
+                  ]}
+                />
+              </View>
+            </AppCard>
+            {sensorCard}
+            {lastSession ? <HomeLastSessionCard session={lastSession} /> : null}
+            {quickAccessSection}
+          </>
         ) : null}
 
-        <DeviceCard
-          calibrationSnapshot={calibrationSnapshot}
-          sensorConnected={sensorConnected}
-          sensorSignalLive={sensorSignalLive}
-          onPress={goSensorConnection}
-        />
-
-        <SectionHeader title="Resumen para tu profesional" />
-        <AppCard
-          pressable
-          onPress={() => {
-            onLightImpact();
-            router.push('/data-export');
-          }}
-          style={styles.exportCardSpacing}>
-          <View style={styles.exportCardHeader}>
-            <View style={styles.exportCardIconWrap}>
-              <IconSymbol name="doc.text.fill" size={22} color={ACCENT} />
-            </View>
-            <View style={styles.exportCardTextCol}>
-              <Text style={styles.exportCardBody}>
-                Comparte tus sesiones y progreso en un archivo exportable.
-              </Text>
-            </View>
-          </View>
-          <View style={styles.exportCardCtaRow}>
-            <Text style={styles.exportCardCtaText}>Exportar resumen</Text>
-            <IconSymbol name="chevron.right" size={16} color={ACCENT} />
-          </View>
-        </AppCard>
-
-        <View style={styles.claveRow}>
-          <Text style={styles.claveLabel}>Tu clave de acceso</Text>
-          <Text style={styles.claveValue}>{patient.clave}</Text>
-          <Text style={styles.claveHint}>Guárdala en un lugar seguro para volver a entrar.</Text>
-        </View>
+        {footerSection}
       </ScrollView>
       <RespiraWelcomeOnboarding visible={welcomeVisible} onContinue={handleWelcomeContinue} />
     </SafeAreaView>
@@ -631,6 +589,49 @@ export function HomeScreen() {
 }
 
 type CalibrationSnapshot = ReturnType<typeof useCalibrationSnapshot>['snapshot'];
+
+type QuickAccessItem = {
+  label: string;
+  icon: IconSymbolName;
+  onPress: () => void;
+};
+
+function HomeQuickAccessGrid({
+  onTherapy,
+  onHistory,
+  onSensor,
+  onProfile,
+}: {
+  onTherapy: () => void;
+  onHistory: () => void;
+  onSensor: () => void;
+  onProfile: () => void;
+}) {
+  const items: QuickAccessItem[] = [
+    { label: 'Terapia', icon: 'waveform.path.ecg', onPress: onTherapy },
+    { label: 'Historial', icon: 'clock.fill', onPress: onHistory },
+    { label: 'Sensor', icon: 'dot.radiowaves.left.and.right', onPress: onSensor },
+    { label: 'Perfil', icon: 'person.crop.circle', onPress: onProfile },
+  ];
+
+  return (
+    <View style={styles.quickAccessGrid}>
+      {items.map((item) => (
+        <Pressable
+          key={item.label}
+          style={({ pressed }) => [styles.quickAccessTile, pressed && styles.quickAccessTilePressed]}
+          onPress={item.onPress}
+          accessibilityRole="button"
+          accessibilityLabel={item.label}>
+          <View style={styles.quickAccessIconWrap}>
+            <IconSymbol name={item.icon} size={20} color={ACCENT} />
+          </View>
+          <Text style={styles.quickAccessLabel}>{item.label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
 
 function describeDeviceState(
   snapshot: CalibrationSnapshot,
@@ -689,7 +690,7 @@ function describeDeviceState(
         ? formatCalibrationCardSubtitle(profile, snapshot.therapy.activeModel)
         : sensorSignalLive
           ? `${snapshot.therapy.spirometerLabel ?? profile.name} · volumen en vivo`
-          : 'Conecta el sensor para ver tu volumen en vivo.',
+          : HOME_SENSOR_CONNECT_COPY,
       ctaLabel: 'Revisar sensor',
       variant: 'ready',
     };
@@ -717,7 +718,7 @@ function describeDeviceState(
         ? (snapshot.therapy.detailMessage ?? 'Completa la calibración verificada del espirómetro.')
         : sensorConnected
           ? 'Verificando medición…'
-          : PATIENT_MEASUREMENT_CONNECT_SENSOR,
+          : HOME_SENSOR_CONNECT_COPY,
       ctaLabel: technicalCalibrationEnabled ? 'Configurar espirómetro' : 'Conectar sensor',
       variant: 'pending',
     };
@@ -729,9 +730,9 @@ function describeDeviceState(
     title: 'Dispositivo RESPIRA+',
     subtitle: technicalCalibrationEnabled
       ? 'Conecta el sensor y verifica la calibración del espirómetro.'
-      : PATIENT_MEASUREMENT_CONNECT_SENSOR,
-    ctaLabel: technicalCalibrationEnabled ? 'Configurar sensor' : 'Conectar sensor',
+      : HOME_SENSOR_CONNECT_COPY,
     variant: 'pending',
+    ctaLabel: technicalCalibrationEnabled ? 'Configurar sensor' : 'Conectar sensor',
   };
 }
 
@@ -818,6 +819,63 @@ const styles = StyleSheet.create({
     color: wellnessColors.textSecondary,
     marginBottom: spacing.lg,
   },
+  primaryActionCard: {
+    marginBottom: spacing.lg,
+    gap: spacing.md,
+  },
+  primaryActionTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: wellnessColors.textPrimary,
+    lineHeight: 30,
+  },
+  primaryActionBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: wellnessColors.textSecondary,
+  },
+  progressCardSpacing: {
+    marginBottom: spacing.md,
+  },
+  secondaryCardSpacing: {
+    marginBottom: spacing.md,
+  },
+  quickAccessGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  quickAccessTile: {
+    width: '48%',
+    flexGrow: 1,
+    flexBasis: '46%',
+    backgroundColor: wellnessColors.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: wellnessColors.border,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    alignItems: 'center',
+    gap: spacing.xs,
+    ...wellnessShadows.soft,
+  },
+  quickAccessTilePressed: {
+    opacity: 0.92,
+  },
+  quickAccessIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: wellnessColors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickAccessLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: wellnessColors.textPrimary,
+  },
   consentCard: {
     backgroundColor: wellnessColors.card,
     borderRadius: 16,
@@ -850,57 +908,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  diagnosticHeroCard: {
-    marginBottom: spacing.lg,
-    gap: spacing.md,
-  },
-  diagnosticHeroKicker: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: ACCENT,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  diagnosticHeroTitle: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: wellnessColors.textPrimary,
-    lineHeight: 32,
-  },
-  diagnosticHeroBody: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: wellnessColors.textSecondary,
-  },
-  heroCardSpacing: {
-    marginBottom: spacing.lg,
-  },
-  heroKicker: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: wellnessColors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: spacing.xs,
-  },
-  heroTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: wellnessColors.textPrimary,
-    marginBottom: 6,
-  },
-  heroSubtitle: {
-    fontSize: 15,
-    lineHeight: 21,
-    color: wellnessColors.textSecondary,
-    marginBottom: spacing.md,
-  },
-  progressTrack: {
+  progressTrackNoMargin: {
     height: 6,
     borderRadius: 4,
     backgroundColor: wellnessColors.neutralSoft,
     overflow: 'hidden',
-    marginBottom: spacing.md,
   },
   progressFill: {
     height: '100%',
@@ -918,19 +930,10 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: wellnessColors.textSecondary,
   },
-  weekCardSpacing: {
-    marginBottom: spacing.lg,
-  },
   weekMetricsRow: {
     flexDirection: 'row',
     gap: spacing.sm,
     marginBottom: spacing.sm,
-  },
-  weekHint: {
-    fontSize: 13,
-    color: wellnessColors.textMuted,
-    lineHeight: 18,
-    marginTop: spacing.xs,
   },
   deviceCard: {
     backgroundColor: wellnessColors.card,
@@ -990,81 +993,10 @@ const styles = StyleSheet.create({
     borderTopColor: wellnessColors.border,
   },
   deviceCtaLabel: { fontSize: 15, fontWeight: '700', color: ACCENT },
-  evalCardSpacing: {
-    marginBottom: spacing.lg,
-  },
-  evalCardHeader: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginBottom: spacing.md,
-  },
-  evalCardIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: wellnessColors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  evalCardHeaderText: {
-    flex: 1,
-  },
-  evalCardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: wellnessColors.textPrimary,
-    marginBottom: 4,
-  },
-  evalCardSubtitle: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: wellnessColors.textSecondary,
-  },
-  evalCardMetrics: {
-    marginBottom: spacing.md,
-    gap: spacing.sm,
-  },
-  evalCardMetricRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  evalActionsRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  evalActionPill: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: spacing.sm,
-    borderRadius: 999,
-    backgroundColor: ACCENT,
-  },
-  evalActionPillSecondary: {
-    backgroundColor: wellnessColors.card,
-    borderWidth: 1,
-    borderColor: wellnessColors.border,
-  },
-  evalActionPillPressed: {
-    opacity: 0.88,
-  },
-  evalActionPillText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
-  evalActionPillTextSecondary: {
-    color: wellnessColors.primaryDark,
-  },
-  exportCardSpacing: {
-    marginBottom: spacing.lg,
-  },
   exportCardHeader: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.md,
-    marginBottom: spacing.md,
   },
   exportCardIconWrap: {
     width: 44,
@@ -1077,23 +1009,16 @@ const styles = StyleSheet.create({
   exportCardTextCol: {
     flex: 1,
   },
+  exportCardTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: wellnessColors.textPrimary,
+    marginBottom: 2,
+  },
   exportCardBody: {
     fontSize: 14,
     lineHeight: 20,
     color: wellnessColors.textSecondary,
-  },
-  exportCardCtaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: wellnessColors.border,
-  },
-  exportCardCtaText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: ACCENT,
   },
   claveRow: {
     paddingTop: spacing.sm,
