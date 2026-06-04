@@ -34,6 +34,9 @@ import {
   sessionSensorDataCardVisible,
 } from '@/src/modules/session/session-record-classification';
 import { describeSessionProgress } from '@/src/modules/session/patient-ui/session-progress-copy';
+import { SessionSuccessStreakCard } from '@/src/modules/session/patient-ui/SessionSuccessStreakCard';
+import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
+import { computeSuccessfulSessionStreak } from '@/src/modules/history/utils/session-success-streak';
 import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 
@@ -66,18 +69,21 @@ export function SummaryScreen() {
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [currentStreak, setCurrentStreak] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
       if (sessionId == null || sessionId === '') {
         setSessionDetail(null);
         setErrorMessage(null);
+        setCurrentStreak(0);
         setLoading(false);
         return;
       }
       if (parsedId == null || Number.isNaN(parsedId)) {
         setSessionDetail(null);
         setErrorMessage(null);
+        setCurrentStreak(0);
         setLoading(false);
         return;
       }
@@ -86,15 +92,24 @@ export function SummaryScreen() {
         setLoading(true);
         setErrorMessage(null);
         setSessionDetail(null);
+        setCurrentStreak(0);
         const detail = await getSessionDetail(parsedId);
         if (cancelled) return;
         if (!detail) {
           setSessionDetail(null);
           setErrorMessage('not_found');
+          setCurrentStreak(0);
           setLoading(false);
           return;
         }
+        const allSessions = await readAllSessions();
+        if (cancelled) return;
+        const patientSessions = allSessions.filter(
+          (item) => item.patient_id === detail.session.patient_id,
+        );
+        const streak = computeSuccessfulSessionStreak(patientSessions);
         setSessionDetail(detail);
+        setCurrentStreak(streak.currentStreak);
         setErrorMessage(null);
         setLoading(false);
       })();
@@ -213,6 +228,8 @@ export function SummaryScreen() {
           completed={session.completed}
           interrupted={session.interrupted}
         />
+
+        <SessionSuccessStreakCard currentStreak={currentStreak} />
 
         <SectionHeader title="Resultados" />
         <SessionSummaryProgressCard
