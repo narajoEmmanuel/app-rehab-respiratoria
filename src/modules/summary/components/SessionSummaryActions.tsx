@@ -14,7 +14,7 @@ export type SessionSummaryActionsProps = {
 
 export function SessionSummaryActions({ onBackToTherapy, onViewHistory }: SessionSummaryActionsProps) {
   return (
-    <View style={styles.actionsRow}>
+    <View style={styles.wrap}>
       <AppButton title="Volver a Terapia" onPress={onBackToTherapy} variant="primary" />
       <AppButton title="Ver Historial" onPress={onViewHistory} variant="secondary" />
     </View>
@@ -22,7 +22,9 @@ export function SessionSummaryActions({ onBackToTherapy, onViewHistory }: Sessio
 }
 
 const styles = StyleSheet.create({
-  actionsRow: {
+  wrap: {
     gap: spacing.sm,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
   },
 });

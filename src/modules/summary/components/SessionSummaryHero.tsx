@@ -1,11 +1,21 @@
 /**
- * Purpose: Presentational header for session summary (title, level, classification).
+ * Purpose: Celebratory hero for session summary (mascot, title, chips).
  * Module: summary
  */
 import { StyleSheet, Text, View } from 'react-native';
 
+import {
+  RespiraBunnyImage,
+  type BunnyImagePose,
+} from '@/src/shared/ui/RespiraBunnyImage';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellnessColors, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+import {
+  wellnessColors,
+  wellnessRadii,
+  wellnessShadows,
+} from '@/src/shared/theme/wellness-theme';
+
+const HERO_BUNNY_PX = 80;
 
 export type SessionSummaryHeroProps = {
   title: string;
@@ -18,67 +28,175 @@ export type SessionSummaryHeroProps = {
   interrupted?: boolean;
 };
 
+function resolveHeroPose(
+  perfect: boolean,
+  completed: boolean,
+  interrupted?: boolean,
+): BunnyImagePose {
+  if (interrupted && !completed) return 'softAlert';
+  if (completed || (perfect && completed)) return 'celebrate';
+  return 'wave';
+}
+
+function resolveHeroVariant(
+  perfect: boolean,
+  completed: boolean,
+  interrupted?: boolean,
+): 'celebrate' | 'neutral' | 'default' {
+  if (interrupted && !completed) return 'neutral';
+  if (completed || (perfect && completed)) return 'celebrate';
+  return 'default';
+}
+
+function SummaryChip({ label, variant }: { label: string; variant: 'celebrate' | 'neutral' | 'default' }) {
+  return (
+    <View
+      style={[
+        styles.chip,
+        variant === 'celebrate' && styles.chipCelebrate,
+        variant === 'neutral' && styles.chipNeutral,
+        variant === 'default' && styles.chipDefault,
+      ]}>
+      <Text
+        style={[
+          styles.chipText,
+          variant === 'celebrate' && styles.chipTextCelebrate,
+          variant === 'neutral' && styles.chipTextNeutral,
+        ]}
+        numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 export function SessionSummaryHero({
   title,
   subtitle,
   levelLabel,
   classificationTitle,
   classificationNote,
+  perfect,
+  completed,
+  interrupted,
 }: SessionSummaryHeroProps) {
+  const pose = resolveHeroPose(perfect, completed, interrupted);
+  const variant = resolveHeroVariant(perfect, completed, interrupted);
+  const classificationChipLabel = classificationNote ?? classificationTitle;
+
   return (
-    <>
-      <Text style={styles.screenTitle}>{title}</Text>
-      <Text style={styles.screenSubtitle}>{subtitle}</Text>
-      <Text style={styles.levelLine}>Nivel {levelLabel}</Text>
-      <View style={styles.classificationBanner}>
-        <Text style={styles.classificationTitle}>{classificationTitle}</Text>
-        {classificationNote ? (
-          <Text style={styles.classificationNote}>{classificationNote}</Text>
-        ) : null}
+    <View
+      style={[
+        styles.heroCard,
+        variant === 'celebrate' && styles.heroCardCelebrate,
+        variant === 'neutral' && styles.heroCardNeutral,
+        variant === 'default' && styles.heroCardDefault,
+      ]}>
+      <View style={styles.heroRow}>
+        <View style={styles.heroTextCol}>
+          <Text style={styles.screenTitle} numberOfLines={3}>
+            {title}
+          </Text>
+          <Text style={styles.screenSubtitle} numberOfLines={3}>
+            {subtitle}
+          </Text>
+          <View style={styles.chipRow}>
+            <SummaryChip label={`Nivel ${levelLabel}`} variant={variant} />
+            <SummaryChip label={classificationChipLabel} variant={variant} />
+          </View>
+        </View>
+        <View style={styles.bunnyCol} pointerEvents="none">
+          <RespiraBunnyImage pose={pose} size={HERO_BUNNY_PX} />
+        </View>
       </View>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  heroCard: {
+    marginBottom: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: wellnessRadii.cardLarge,
+    borderWidth: 1,
+    overflow: 'hidden',
+    ...wellnessShadows.soft,
+  },
+  heroCardCelebrate: {
+    backgroundColor: wellnessColors.card,
+    borderColor: wellnessColors.border,
+  },
+  heroCardNeutral: {
+    backgroundColor: wellnessColors.neutralSoft,
+    borderColor: wellnessColors.border,
+  },
+  heroCardDefault: {
+    backgroundColor: wellnessColors.primarySubtle,
+    borderColor: wellnessColors.border,
+  },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  heroTextCol: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: spacing.xs,
+  },
+  bunnyCol: {
+    marginTop: 2,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
   screenTitle: {
     color: wellnessColors.textPrimary,
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '800',
     letterSpacing: -0.3,
-    marginBottom: 6,
+    lineHeight: 30,
+    marginBottom: 4,
   },
   screenSubtitle: {
     color: wellnessColors.textSecondary,
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: spacing.sm,
-  },
-  levelLine: {
-    color: wellnessColors.primaryDark,
     fontSize: 14,
-    fontWeight: '700',
+    lineHeight: 20,
     marginBottom: spacing.sm,
   },
-  classificationBanner: {
-    marginBottom: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    borderRadius: wellnessRadii.card,
-    backgroundColor: wellnessColors.successSoft,
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  chip: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: wellnessRadii.pill,
     borderWidth: 1,
+    maxWidth: '100%',
+  },
+  chipCelebrate: {
+    backgroundColor: wellnessColors.successSoft,
+    borderColor: 'rgba(52, 171, 165, 0.18)',
+  },
+  chipNeutral: {
+    backgroundColor: wellnessColors.card,
     borderColor: wellnessColors.border,
   },
-  classificationTitle: {
-    fontSize: 13,
-    fontWeight: '800',
+  chipDefault: {
+    backgroundColor: wellnessColors.card,
+    borderColor: wellnessColors.border,
+  },
+  chipText: {
+    fontSize: 11,
+    fontWeight: '700',
     color: wellnessColors.primaryDark,
   },
-  classificationNote: {
-    marginTop: 4,
-    fontSize: 12,
-    fontWeight: '600',
+  chipTextCelebrate: {
+    color: wellnessColors.primaryDark,
+  },
+  chipTextNeutral: {
     color: wellnessColors.textSecondary,
-    lineHeight: 18,
   },
 });

@@ -214,6 +214,23 @@ export function SummaryScreen() {
           interrupted={session.interrupted}
         />
 
+        <SectionHeader title="Resultados" />
+        <SessionSummaryProgressCard
+          progressHeadline={sessionProgress.headline}
+          progressSupport={sessionProgress.support}
+          validAttempts={session.valid_attempts}
+          targetAttempts={TARGET_ATTEMPTS}
+          progressRatio={sessionProgress.progressRatio}
+        />
+        <SessionSummaryMetricsGrid
+          validAttempts={session.valid_attempts}
+          invalidAttempts={session.invalid_attempts}
+          maxVolume={session.max_volume}
+          avgVolume={session.avg_volume}
+          maxHoldSeconds={maxHoldSeconds}
+          avgHoldSeconds={session.avg_hold_seconds}
+        />
+
         {showSensorCard ? (
           <AppCard style={styles.sensorCard}>
             <Text style={styles.sensorCardTitle}>Datos del sensor (debug)</Text>
@@ -246,22 +263,6 @@ export function SummaryScreen() {
           </AppCard>
         ) : null}
 
-        <SectionHeader title="Resultados" />
-        <SessionSummaryProgressCard
-          progressHeadline={sessionProgress.headline}
-          progressSupport={sessionProgress.support}
-          validAttempts={session.valid_attempts}
-          targetAttempts={TARGET_ATTEMPTS}
-          progressRatio={sessionProgress.progressRatio}
-        />
-        <SessionSummaryMetricsGrid
-          validAttempts={session.valid_attempts}
-          invalidAttempts={session.invalid_attempts}
-          maxVolume={session.max_volume}
-          avgVolume={session.avg_volume}
-          maxHoldSeconds={maxHoldSeconds}
-          avgHoldSeconds={session.avg_hold_seconds}
-        />
         <SessionSummaryActions
           onBackToTherapy={() => router.replace('/(tabs)/terapia')}
           onViewHistory={() => router.replace('/(tabs)/historial')}
