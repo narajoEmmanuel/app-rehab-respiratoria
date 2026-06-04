@@ -890,28 +890,26 @@ export function SessionScreen() {
     };
   }
 
-  const sessionShowsSensorVolume =
-    !isTouchPractice &&
-    therapyHudShowsEstimatedVolume(volumeEstimateStatus, levelSensor.hasLiveReading);
+  const touchHasLiveInput = isTouchPractice && levelOneEngine.holdMs > 0;
+  const sessionShowsSensorVolume = isTouchPractice
+    ? touchHasLiveInput
+    : therapyHudShowsEstimatedVolume(volumeEstimateStatus, levelSensor.hasLiveReading);
 
   const sessionDisplayVolumeMl = isTouchPractice
     ? simulatedVolume
     : sessionShowsSensorVolume
       ? levelSensor.displayVolumeMl
       : 0;
-  const sessionDisplaySource: SessionDisplayVolumeSource = isTouchPractice
-    ? 'fallback'
-    : sessionShowsSensorVolume
-      ? 'sensor'
-      : 'fallback';
+  const sessionDisplaySource: SessionDisplayVolumeSource = sessionShowsSensorVolume
+    ? 'sensor'
+    : 'fallback';
   const sessionDisplayU95Ml =
-    isTouchPractice || !sessionShowsSensorVolume || !isSensorDebugEnabled()
+    !sessionShowsSensorVolume || !isSensorDebugEnabled() || isTouchPractice
       ? null
       : levelSensor.displayU95Ml;
   const sessionDisplayStatus = isTouchPractice ? undefined : volumeEstimateStatus;
-  const sessionVolumeHudMessage = isTouchPractice
-    ? null
-    : sessionShowsSensorVolume
+  const sessionVolumeHudMessage =
+    sessionShowsSensorVolume || isTouchPractice
       ? null
       : therapyVolumeHudMessage(
           volumeEstimateStatus,
@@ -1084,7 +1082,9 @@ export function SessionScreen() {
           targetReached={levelOneEngine.targetReached}
           obstacleActive={levelOneEngine.obstacleActive}
           metaJustReached={levelOneEngine.metaJustReached}
-          inhaleSoftHintVisible={levelOneEngine.inhaleSoftHintVisible}
+          inhaleSoftHintVisible={
+            isTouchPractice ? false : levelOneEngine.inhaleSoftHintVisible
+          }
           liveCrashSignal={levelOneEngine.liveCrashSignal}
           phase={levelOneEngine.phase}
           session={currentLevelProgress.currentSession}
@@ -1113,7 +1113,6 @@ export function SessionScreen() {
           displayVolumeStatus={sessionDisplayStatus}
           volumeHudMessage={sessionVolumeHudMessage}
           showSensorDebugMetrics={isSensorDebugEnabled()}
-          sessionInputMode={sessionInputMode}
           targetVolume={targetVolume}
         />
       </View>

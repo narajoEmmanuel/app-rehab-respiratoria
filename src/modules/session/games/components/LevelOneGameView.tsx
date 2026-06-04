@@ -24,14 +24,13 @@ import Animated, {
 
 import {
   LEVEL_ONE_CLEAR_MIN_NORM,
-  LEVEL_ONE_MAX_INHALE_MS,
   LEVEL_ONE_OBSTACLE_TOP_NORM,
-  LEVEL_ONE_OFFICIAL_EVAL_MS,
 } from '@/src/modules/session/engine/level-one/level-one-repetition-rules';
 import {
   resolveRunnerInstruction,
   RunnerGameFeedbackBar,
 } from '@/src/modules/session/games/components/RunnerGameFeedbackBar';
+import { TouchInputPressFeedback } from '@/src/modules/session/games/components/TouchInputPressFeedback';
 import {
   DesertBackdropCactus,
   DesertGroundSegment,
@@ -59,10 +58,6 @@ import {
 } from '@/src/modules/session/games/components/level-runner-scene';
 import type { LevelOnePhase } from '@/src/modules/session/engine/level-one/use-level-one-game';
 import type { LevelGameTheme, LevelObstacleType } from '@/src/modules/session/levels/level-gameplay-config';
-import {
-  isTouchPracticeSession,
-  type SessionInputMode,
-} from '@/src/modules/session/session-input-mode';
 import { RespiraBunny } from '@/src/shared/ui/RespiraBunny';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
@@ -74,8 +69,6 @@ const MAX_JUMP_PX = JUMP_BASE_PX + JUMP_RANGE_PX;
 const GAME_VISUAL_SCALE = 1.26;
 const RABBIT_ANCHOR_BOTTOM = 52;
 const OBSTACLE_TOP_NORM = LEVEL_ONE_OBSTACLE_TOP_NORM;
-/** Duración máxima esperada de una inspiración (visual touch fallback). */
-const MAX_INSPIRATION_MS = LEVEL_ONE_MAX_INHALE_MS + LEVEL_ONE_OFFICIAL_EVAL_MS;
 /** Ancho de la colina-meta (escala visual). */
 const META_HILL_WIDTH = Math.round(128 * GAME_VISUAL_SCALE);
 /** Altura visual de la colina: base + cima alineada al salto máximo del conejo. */
@@ -113,7 +106,7 @@ type LevelOneGameViewProps = {
   onPressIn: () => void;
   onPressOut: () => void;
   onPressPause?: () => void;
-  /** En modo sensor el juego no usa dedo; solo práctica táctil. */
+  /** Captura mantener/soltar pantalla como inspiración (entrada táctil). */
   touchInputEnabled?: boolean;
   simulatedVolume: number;
   displayVolumeMl: number;
@@ -124,7 +117,6 @@ type LevelOneGameViewProps = {
   volumeHudMessage?: string | null;
   /** Muestra U95 y detalle técnico solo en depuración del sensor. */
   showSensorDebugMetrics?: boolean;
-  sessionInputMode?: SessionInputMode;
   targetVolume: number;
   holdMs?: number;
   sustainMs?: number;
@@ -158,15 +150,14 @@ export function LevelOneGameView({
   onPressIn,
   onPressOut,
   onPressPause,
-  touchInputEnabled = true,
+  touchInputEnabled = false,
   simulatedVolume: _simulatedVolume,
   displayVolumeMl,
-  displayVolumeSource,
-  displayU95Ml = null,
-  displayVolumeStatus,
+  displayVolumeSource: _displayVolumeSource,
+  displayU95Ml: _displayU95Ml = null,
+  displayVolumeStatus: _displayVolumeStatus,
   volumeHudMessage = null,
-  showSensorDebugMetrics = false,
-  sessionInputMode = 'sensor',
+  showSensorDebugMetrics: _showSensorDebugMetrics = false,
   targetVolume,
   holdMs = 0,
   sustainMs = 0,
@@ -190,8 +181,18 @@ export function LevelOneGameView({
   const isOcean = theme === 'ocean';
   const isSpace = theme === 'space';
   const isThemedScene = isDesert || isSnow || isOcean || isSpace;
-  const isTouchPractice = isTouchPracticeSession(sessionInputMode);
+  const [touchPressActive, setTouchPressActive] = useState(false);
   const { width: layoutW, height: layoutH } = useWindowDimensions();
+
+  const handleTouchPressIn = useCallback(() => {
+    setTouchPressActive(true);
+    onPressIn();
+  }, [onPressIn]);
+
+  const handleTouchPressOut = useCallback(() => {
+    setTouchPressActive(false);
+    onPressOut();
+  }, [onPressOut]);
   const insets = useSafeAreaInsets();
   const gameSceneMinHeight = useMemo(() => {
     const jumpEnvelope = RABBIT_ANCHOR_BOTTOM + RABBIT_FIGURE_HEIGHT_PX + MAX_JUMP_PX + 24;
@@ -246,11 +247,8 @@ export function LevelOneGameView({
     if (targetVolume > 0 && displayVolumeMl > 0) {
       return Math.min(1.15, displayVolumeMl / targetVolume);
     }
-    if (isTouchPractice) {
-      return Math.min(1.15, holdMs / MAX_INSPIRATION_MS);
-    }
     return 0;
-  }, [displayVolumeMl, holdMs, isTouchPractice, rabbitIsInspiring, targetVolume]);
+  }, [displayVolumeMl, rabbitIsInspiring, targetVolume]);
 
   const rabbitClearsObstacle = inspirationNormTarget >= LEVEL_ONE_CLEAR_MIN_NORM;
   const isTouchingGoal = inEvaluating && !rabbitClearsObstacle;
@@ -850,13 +848,17 @@ export function LevelOneGameView({
             </Animated.View>
           ) : null}
 
+          {touchInputEnabled ? (
+            <TouchInputPressFeedback visible={touchPressActive} />
+          ) : null}
+
           {!introMode && touchInputEnabled ? (
             <Pressable
               style={styles.gameTouchLayer}
-              onPressIn={onPressIn}
-              onPressOut={onPressOut}
-              accessibilityRole="button"
-              accessibilityLabel="Mantén presionado para inspirar y sostener"
+              onPressIn={handleTouchPressIn}
+              onPressOut={handleTouchPressOut}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
             />
           ) : null}
 
@@ -1088,21 +1090,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: wellness.primaryDark,
-  },
-  practiceBadge: {
-    marginLeft: 8,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(61, 90, 74, 0.08)',
-    borderWidth: 1,
-    borderColor: wellness.border,
-  },
-  practiceBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: wellness.textSecondary,
-    letterSpacing: 0.3,
   },
   hudGrid: {
     gap: 5,

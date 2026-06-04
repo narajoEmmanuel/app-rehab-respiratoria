@@ -338,7 +338,7 @@ export function useLevelOneGame({
       const tick = tickLevelOneRepetition(runtime, norm, HOLD_TICK_MS);
       attemptRuntimeRef.current = tick.runtime;
 
-      if (tick.shouldShowInhaleSoftHint) {
+      if (tick.shouldShowInhaleSoftHint && sessionInputMode !== 'touch_practice') {
         setInhaleSoftHintVisible(true);
       }
 
@@ -372,6 +372,7 @@ export function useLevelOneGame({
     getInspirationNorm,
     officialEvalMs,
     resolveAndCloseAttempt,
+    sessionInputMode,
   ]);
 
   const resumeHoldTick = useCallback(() => {

@@ -62,17 +62,7 @@ export function SessionEstimatedVolumeCard({
   status,
   displaySource,
 }: SessionSensorStatusChipProps) {
-  if (sessionInputMode === 'touch_practice') {
-    const tone = chipToneStyles.muted;
-    return (
-      <View style={styles.wrap}>
-        <View style={[styles.chip, { backgroundColor: tone.bg, borderColor: tone.border }]}>
-          <Text style={[styles.chipText, { color: tone.text }]}>Modo práctica táctil</Text>
-        </View>
-        <Text style={styles.clinicalNote}>Sin medición del sensor</Text>
-      </View>
-    );
-  }
+  if (sessionInputMode === 'touch_practice') return null;
 
   if (displaySource !== 'sensor') return null;
 
