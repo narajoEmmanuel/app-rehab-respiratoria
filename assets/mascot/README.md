@@ -15,6 +15,15 @@ No usar en gameplay del runner; ahí va el conejo programado (`RespiraBunny.tsx`
 | `bunny-soft-alert.png` | `softAlert` |
 | `bunny-astronaut.png` | `astronaut` |
 
-## Placeholders actuales
+## Estado de assets
 
-Los PNG actuales son copias temporales de `assets/images/inicio.png` hasta pegar las ilustraciones definitivas. Sustituir cada archivo manteniendo el mismo nombre.
+| Archivo | Estado |
+|---------|--------|
+| `bunny-wave.png` | **Ilustración final** (445×445, RGBA) |
+| `bunny-wink.png` | **Ilustración final** (445×445, RGBA) |
+| `bunny-celebrate.png` | **Ilustración final** (445×445, RGBA) |
+| `bunny-idle.png` | Pendiente — placeholder (`inicio.png`) |
+| `bunny-soft-alert.png` | Pendiente — placeholder (`inicio.png`) |
+| `bunny-astronaut.png` | Pendiente — placeholder (`inicio.png`) |
+
+Sustituir los pendientes manteniendo el mismo nombre; no hace falta cambiar `RespiraBunnyImage.tsx` si el nombre coincide.

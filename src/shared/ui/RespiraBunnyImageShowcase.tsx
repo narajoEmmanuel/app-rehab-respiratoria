@@ -7,21 +7,23 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { wellness, wellnessTypography } from '@/src/shared/theme/wellness-theme';
-import {
-  RESPIRA_BUNNY_IMAGE_DEFAULT_SIZE,
-  RespiraBunnyImage,
-  type BunnyImagePose,
-} from '@/src/shared/ui/RespiraBunnyImage';
+import { RespiraBunnyImage, type BunnyImagePose } from '@/src/shared/ui/RespiraBunnyImage';
 
-const SHOWCASE_POSES: BunnyImagePose[] = ['wave', 'wink', 'celebrate', 'idle', 'astronaut', 'softAlert'];
+/** Final PNGs — larger preview size (445×445 source, contain in frame). */
+const FINAL_POSES: BunnyImagePose[] = ['wave', 'wink', 'celebrate'];
+const FINAL_SHOWCASE_SIZE = 140;
+
+/** Still using placeholder files in assets/mascot/. */
+const PENDING_POSES: BunnyImagePose[] = ['idle', 'astronaut', 'softAlert'];
+const PENDING_SHOWCASE_SIZE = 100;
 
 const POSE_LABELS: Record<BunnyImagePose, string> = {
-  idle: 'idle',
+  idle: 'idle (placeholder)',
   wave: 'wave',
   wink: 'wink',
   celebrate: 'celebrate',
-  softAlert: 'softAlert',
-  astronaut: 'astronaut',
+  softAlert: 'softAlert (placeholder)',
+  astronaut: 'astronaut (placeholder)',
 };
 
 export function RespiraBunnyImageShowcase() {
@@ -32,11 +34,22 @@ export function RespiraBunnyImageShowcase() {
         PNG mascot for pop-ups and onboarding. Gameplay uses RespiraBunny (programmatic).
       </Text>
 
+      <Text style={styles.sectionTitle}>Ilustraciones finales</Text>
       <View style={styles.grid}>
-        {SHOWCASE_POSES.map((pose) => (
+        {FINAL_POSES.map((pose) => (
           <View key={pose} style={styles.card}>
             <Text style={styles.poseLabel}>{POSE_LABELS[pose]}</Text>
-            <RespiraBunnyImage pose={pose} size={RESPIRA_BUNNY_IMAGE_DEFAULT_SIZE} />
+            <RespiraBunnyImage pose={pose} size={FINAL_SHOWCASE_SIZE} />
+          </View>
+        ))}
+      </View>
+
+      <Text style={styles.sectionTitle}>Pendientes (placeholder)</Text>
+      <View style={styles.grid}>
+        {PENDING_POSES.map((pose) => (
+          <View key={pose} style={[styles.card, styles.cardPending]}>
+            <Text style={styles.poseLabel}>{POSE_LABELS[pose]}</Text>
+            <RespiraBunnyImage pose={pose} size={PENDING_SHOWCASE_SIZE} />
           </View>
         ))}
       </View>
@@ -90,6 +103,10 @@ const styles = StyleSheet.create({
     borderColor: wellness.border,
     alignItems: 'center',
     gap: 8,
+  },
+  cardPending: {
+    opacity: 0.85,
+    borderStyle: 'dashed',
   },
   poseLabel: {
     ...wellnessTypography.caption,

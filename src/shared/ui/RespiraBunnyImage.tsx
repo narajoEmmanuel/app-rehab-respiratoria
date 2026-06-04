@@ -35,11 +35,13 @@ export type RespiraBunnyImageProps = {
   style?: StyleProp<ImageStyle>;
 };
 
-// Swap each require when final transparent PNGs land in assets/mascot/.
-const bunnyIdle = require('../../../assets/mascot/bunny-idle.png');
+// Production-ready PNGs: wave, wink, celebrate (RGBA in assets/mascot/).
 const bunnyWave = require('../../../assets/mascot/bunny-wave.png');
 const bunnyWink = require('../../../assets/mascot/bunny-wink.png');
 const bunnyCelebrate = require('../../../assets/mascot/bunny-celebrate.png');
+
+// Pending illustrations — still placeholder files until replaced in assets/mascot/.
+const bunnyIdle = require('../../../assets/mascot/bunny-idle.png');
 const bunnySoftAlert = require('../../../assets/mascot/bunny-soft-alert.png');
 const bunnyAstronaut = require('../../../assets/mascot/bunny-astronaut.png');
 
