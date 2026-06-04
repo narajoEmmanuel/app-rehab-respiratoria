@@ -33,6 +33,11 @@ import { useCalibrationSnapshot } from '@/src/modules/device/state/use-calibrati
 import { getCurrentActiveLevel, hasDiagnostic, getLatestDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
 import type { DiagnosticRecord } from '@/src/modules/diagnostics/types';
 import { HomeLastSessionCard } from '@/src/modules/home/components/HomeLastSessionCard';
+import { RespiraWelcomeOnboarding } from '@/src/modules/onboarding/components/RespiraWelcomeOnboarding';
+import {
+  hasSeenWelcomeOnboarding,
+  markWelcomeOnboardingSeen,
+} from '@/src/modules/onboarding/storage/onboarding-storage';
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { useConsentActive } from '@/src/modules/legal/use-consent-active';
 import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
@@ -112,6 +117,8 @@ export function HomeScreen() {
   const [patientSessions, setPatientSessions] = useState<SessionRecord[]>([]);
   const [latestDiag, setLatestDiag] = useState<DiagnosticRecord | null>(null);
   const [startingLevel, setStartingLevel] = useState(false);
+  const [welcomeVisible, setWelcomeVisible] = useState(false);
+  const [welcomeCheckedPatientId, setWelcomeCheckedPatientId] = useState<number | null>(null);
   const bottomPad = dashboardScrollBottomPadding(insets.bottom);
   const { reload: reloadTouchPracticePreference } = useTouchPracticePreference();
 
@@ -164,6 +171,56 @@ export function HomeScreen() {
   useEffect(() => {
     void loadProgress();
   }, [patient?.paciente_id, patient?.clave, loadProgress]);
+
+  useEffect(() => {
+    const patientId = patient?.paciente_id;
+    if (!hydrated || patientId == null || !Number.isFinite(patientId)) {
+      setWelcomeVisible(false);
+      setWelcomeCheckedPatientId(null);
+      return;
+    }
+    if (welcomeCheckedPatientId === patientId) {
+      return;
+    }
+
+    let cancelled = false;
+    setWelcomeVisible(false);
+    void (async () => {
+      try {
+        const seen = await hasSeenWelcomeOnboarding(patientId);
+        if (cancelled) return;
+        setWelcomeCheckedPatientId(patientId);
+        setWelcomeVisible(!seen);
+      } catch (error) {
+        console.warn('[HomeScreen] hasSeenWelcomeOnboarding failed', error);
+        if (!cancelled) {
+          setWelcomeCheckedPatientId(patientId);
+          setWelcomeVisible(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, patient?.paciente_id, welcomeCheckedPatientId]);
+
+  const handleWelcomeContinue = useCallback(() => {
+    const patientId = patient?.paciente_id;
+    if (patientId == null || !Number.isFinite(patientId)) {
+      setWelcomeVisible(false);
+      return;
+    }
+    void (async () => {
+      try {
+        await markWelcomeOnboardingSeen(patientId);
+      } catch (error) {
+        console.warn('[HomeScreen] markWelcomeOnboardingSeen failed', error);
+      } finally {
+        setWelcomeVisible(false);
+      }
+    })();
+  }, [patient?.paciente_id]);
 
   const lastSession = useMemo(() => {
     if (patientSessions.length === 0) return null;
@@ -568,6 +625,7 @@ export function HomeScreen() {
           <Text style={styles.claveHint}>Guárdala en un lugar seguro para volver a entrar.</Text>
         </View>
       </ScrollView>
+      <RespiraWelcomeOnboarding visible={welcomeVisible} onContinue={handleWelcomeContinue} />
     </SafeAreaView>
   );
 }
