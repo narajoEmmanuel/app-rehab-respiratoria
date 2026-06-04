@@ -6,7 +6,6 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AuthRegistrationHeader } from '@/src/modules/auth/components/AuthRegistrationHeader';
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
 import {
   WelcomeBenefitIcon,
@@ -145,15 +144,12 @@ function BenefitRow({
 export function AuthWelcomeView({
   onCreateProfile,
   onLoginWithKey,
-  onBack,
-  backAccessibilityLabel = 'Volver',
   hasDeviceProfiles,
   onShowDeviceProfiles,
 }: AuthWelcomeViewProps) {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <WelcomeWellnessBackdrop />
-      <AuthRegistrationHeader onBack={onBack} backAccessibilityLabel={backAccessibilityLabel} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.page}
@@ -163,7 +159,7 @@ export function AuthWelcomeView({
         <View style={styles.contentColumn}>
           <View style={styles.brandBlock}>
             <View style={styles.logoCircle}>
-              <RespiraBrandMark variant="icon" size="lg" />
+              <RespiraBrandMark variant="icon" size="lg" imageStyle={styles.logoMark} />
             </View>
             <Text style={styles.brandName} accessibilityRole="header">
               RESPIRA+
@@ -330,7 +326,10 @@ const styles = StyleSheet.create({
     opacity: 0.75,
   },
   brandBlock: {
+    alignSelf: 'center',
     alignItems: 'center',
+    width: '100%',
+    maxWidth: 340,
     marginBottom: spacing.lg,
     paddingTop: spacing.xs,
   },
@@ -341,6 +340,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'center',
     marginBottom: spacing.sm,
     borderWidth: 1,
     borderColor: '#E6F2EF',
@@ -351,18 +351,28 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 3,
   },
+  logoMark: {
+    width: 100,
+    height: 100,
+    alignSelf: 'center',
+  },
   brandName: {
     fontSize: 36,
     fontWeight: '800',
     color: wellness.primary,
     letterSpacing: 0.5,
     marginBottom: spacing.sm,
+    textAlign: 'center',
+    alignSelf: 'center',
+    width: '100%',
   },
   heroLine: {
     fontSize: 18,
     fontWeight: '600',
     color: '#2A3439',
     textAlign: 'center',
+    alignSelf: 'center',
+    width: '100%',
     lineHeight: 24,
     letterSpacing: -0.1,
   },

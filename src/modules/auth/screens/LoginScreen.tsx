@@ -21,8 +21,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AuthRegistrationHeader } from '@/src/modules/auth/components/AuthRegistrationHeader';
-import { AuthWellnessBackdrop } from '@/src/modules/auth/components/AuthFlowChrome';
 import { LOCAL_PROFILE_HREF } from '@/src/modules/auth/local-profile-hrefs';
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
 import { getPatientByClave, normalizeClave } from '@/src/modules/patient/patient-service';
@@ -36,6 +34,21 @@ const TEXT_SLATE = '#354656';
 const TEXT_PLACEHOLDER = '#B5BFC8';
 const BTN_GRADIENT_ACTIVE = ['#45BDB7', '#34ABA5', '#1F7E7A'] as const;
 const BTN_GRADIENT_DISABLED = ['#9DD9D2', '#8BCEC6', '#7ABFB8'] as const;
+
+function LoginBackdrop() {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <LinearGradient
+        colors={['#F5F7F3', '#F0FAF9', '#F5F7F3']}
+        start={{ x: 0.2, y: 0 }}
+        end={{ x: 0.8, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={loginBackdropStyles.blobTop} />
+      <View style={loginBackdropStyles.blobBottom} />
+    </View>
+  );
+}
 
 export function LoginScreen() {
   const router = useRouter();
@@ -73,17 +86,7 @@ export function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <AuthWellnessBackdrop />
-      <AuthRegistrationHeader
-        onBack={() => {
-          if (router.canGoBack()) {
-            router.back();
-          } else {
-            router.replace(LOCAL_PROFILE_HREF);
-          }
-        }}
-        backAccessibilityLabel="Volver a bienvenida"
-      />
+      <LoginBackdrop />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -310,5 +313,26 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.88,
+  },
+});
+
+const loginBackdropStyles = StyleSheet.create({
+  blobTop: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 999,
+    top: -120,
+    right: -80,
+    backgroundColor: 'rgba(52, 171, 165, 0.08)',
+  },
+  blobBottom: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 999,
+    bottom: -60,
+    left: -70,
+    backgroundColor: 'rgba(221, 232, 216, 0.65)',
   },
 });
