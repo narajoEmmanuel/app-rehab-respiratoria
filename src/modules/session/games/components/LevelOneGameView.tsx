@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Platform,
@@ -60,8 +61,9 @@ import {
 } from '@/src/modules/session/games/components/level-runner-scene';
 import type { LevelOnePhase } from '@/src/modules/session/engine/level-one/use-level-one-game';
 import type { LevelGameTheme, LevelObstacleType } from '@/src/modules/session/levels/level-gameplay-config';
+import { wellness, wellnessColors, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 import { RespiraBunny } from '@/src/shared/ui/RespiraBunny';
-import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+import { RespiraBunnyImage } from '@/src/shared/ui/RespiraBunnyImage';
 
 /** Altura mínima de salto (px) y rango adicional hasta la meta de inspiración. */
 const JUMP_BASE_PX = 14;
@@ -77,6 +79,9 @@ const META_HILL_WIDTH = Math.round(128 * GAME_VISUAL_SCALE);
 const META_HILL_VISUAL_H = Math.round((MAX_JUMP_PX + 28) * GAME_VISUAL_SCALE);
 /** Duración del mensaje «¡Ups!» y nube de impacto. */
 const CRASH_UPS_TOAST_MS = 1500;
+/** Celebración visual tras repetición válida (solo presentación; el motor no cambia). */
+const VALID_CELEBRATION_MS = 1900;
+const VALID_CELEBRATION_BUNNY_PX = 44;
 /** Fin del choque: conejo normal y obstáculo fuera antes de DESCANSA. */
 const CRASH_RECOVER_MS = 1900;
 /** Altura aproximada del sprite del conejo (cuerpo + orejas, escala visual). */
@@ -218,7 +223,10 @@ export function LevelOneGameView({
   const showGoalBarrier = obstacleActive;
   const inEvaluating = phase === 'evaluating';
   const inValidFeedback = phase === 'exhale' && attemptFeedback === 'valid';
-  const showGameFeedback = crashToastVisible || inValidFeedback;
+  const [validCelebrationVisible, setValidCelebrationVisible] = useState(false);
+  const validCelebrationAttemptRef = useRef('');
+  const validCelebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showGameFeedback = crashToastVisible || validCelebrationVisible;
 
   const introTitle = levelDisplayName ?? levelLabel;
 
@@ -261,7 +269,8 @@ export function LevelOneGameView({
         restSecondsRemaining,
         sessionActive,
         introMode,
-        suppressed: suppressCoachBubble || crashToastVisible || inValidFeedback,
+        suppressed:
+          suppressCoachBubble || crashToastVisible || inValidFeedback || validCelebrationVisible,
       }),
     [
       attemptFeedback,
@@ -276,6 +285,7 @@ export function LevelOneGameView({
       restSecondsRemaining,
       sessionActive,
       suppressCoachBubble,
+      validCelebrationVisible,
     ],
   );
 
@@ -410,13 +420,45 @@ export function LevelOneGameView({
     inspirationLevel.value = withSpring(0, restingDescent);
   }, [inspirationLevel, inValidFeedback, phase, rabbitIsInspiring]);
 
+  /** Reemplaza el toast legacy «Bien hecho» en el mismo instante (exhale + valid). */
   useEffect(() => {
-    if (!inValidFeedback) return;
+    if (!inValidFeedback) {
+      validCelebrationAttemptRef.current = '';
+      return;
+    }
+
+    const attemptKey = `${session}-${repetition}`;
+    if (validCelebrationAttemptRef.current === attemptKey) {
+      return;
+    }
+    validCelebrationAttemptRef.current = attemptKey;
+
+    if (validCelebrationTimerRef.current) {
+      clearTimeout(validCelebrationTimerRef.current);
+    }
+    setValidCelebrationVisible(true);
+    validCelebrationTimerRef.current = setTimeout(() => {
+      validCelebrationTimerRef.current = null;
+      setValidCelebrationVisible(false);
+    }, VALID_CELEBRATION_MS);
+  }, [inValidFeedback, repetition, session]);
+
+  useEffect(
+    () => () => {
+      if (validCelebrationTimerRef.current) {
+        clearTimeout(validCelebrationTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!validCelebrationVisible) return;
     feedbackPulse.value = withSequence(
       withTiming(1, { duration: 160, easing: Easing.out(Easing.quad) }),
       withTiming(0, { duration: 240, easing: Easing.in(Easing.quad) }),
     );
-  }, [feedbackPulse, inValidFeedback]);
+  }, [feedbackPulse, validCelebrationVisible]);
 
   useEffect(() => {
     feedbackOverlayOpacity.value = withTiming(showGameFeedback ? 1 : 0, {
@@ -631,6 +673,7 @@ export function LevelOneGameView({
                 tone={coachCue.tone}
                 size="compact"
                 accentColor={accentColor}
+                autoHideMs={3600}
               />
             </View>
           </View>
@@ -898,9 +941,20 @@ export function LevelOneGameView({
                   <Text style={styles.toastWarnText}>¡Ups! Sube un poco más la próxima</Text>
                 </View>
               ) : null}
-              {inValidFeedback ? (
-                <Animated.View style={[styles.toastOk, feedbackStyle]}>
-                  <Text style={styles.toastOkText}>Bien hecho</Text>
+              {validCelebrationVisible ? (
+                <Animated.View
+                  style={[styles.validCelebrationToast, feedbackStyle]}
+                  accessibilityRole="text"
+                  accessibilityLabel="¡Muy bien! Repetición válida">
+                  <RespiraBunnyImage pose="celebrate" size={VALID_CELEBRATION_BUNNY_PX} />
+                  <View style={styles.validCelebrationTextCol}>
+                    <Text style={styles.validCelebrationTitle}>¡Muy bien!</Text>
+                    <Text style={styles.validCelebrationSubtitle}>Repetición válida</Text>
+                  </View>
+                  <View style={styles.validCelebrationBadge}>
+                    <Text style={styles.validCelebrationSparkle}>✦</Text>
+                    <Feather name="check-circle" size={20} color={wellness.primary} />
+                  </View>
                 </Animated.View>
               ) : null}
             </Animated.View>
@@ -1682,18 +1736,47 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: wellness.errorText,
   },
-  toastOk: {
-    backgroundColor: wellness.successBg,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: wellness.border,
+  validCelebrationToast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    maxWidth: 340,
+    width: '100%',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: wellnessRadii.cardLarge,
+    backgroundColor: wellnessColors.primarySubtle,
+    borderWidth: 1.5,
+    borderColor: 'rgba(52, 171, 165, 0.32)',
+    ...wellnessShadows.soft,
   },
-  toastOkText: {
-    fontSize: 12,
+  validCelebrationTextCol: {
+    flex: 1,
+    gap: 2,
+  },
+  validCelebrationTitle: {
+    fontSize: 22,
     fontWeight: '800',
     color: wellness.primaryDark,
+    letterSpacing: 0.2,
+  },
+  validCelebrationSubtitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+    letterSpacing: 0.15,
+  },
+  validCelebrationBadge: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    paddingLeft: 2,
+  },
+  validCelebrationSparkle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: 'rgba(201, 162, 39, 0.75)',
+    letterSpacing: 1,
   },
   introOverlay: {
     ...StyleSheet.absoluteFillObject,

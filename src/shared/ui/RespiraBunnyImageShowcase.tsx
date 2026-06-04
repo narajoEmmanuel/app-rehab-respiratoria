@@ -75,24 +75,28 @@ export function RespiraBunnyImageShowcase() {
       <View style={styles.coachStack}>
         <RunnerBunnyCoachBubble
           visible
+          disableAutoHide
           pose="wink"
           tone="info"
           message="Cuando estés listo, inspira hacia la meta."
         />
         <RunnerBunnyCoachBubble
           visible
+          disableAutoHide
           pose="celebrate"
           tone="success"
           message="Buen trabajo. Repetición registrada."
         />
         <RunnerBunnyCoachBubble
           visible
+          disableAutoHide
           pose="wink"
           tone="rest"
           message="Exhala y deja que el cuerpo se relaje."
         />
         <RunnerBunnyCoachBubble
           visible
+          disableAutoHide
           pose="wink"
           tone="encourage"
           message="Ajusta en la siguiente. Vas bien."

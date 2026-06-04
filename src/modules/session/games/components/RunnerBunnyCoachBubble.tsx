@@ -2,10 +2,17 @@
  * Purpose: Isolated coach bubble for Level 1 runner (PNG mascot + short copy).
  * Module: session/games
  * Dependencies: RespiraBunnyImage, resolve-runner-coach-cue types, wellness tokens
- * Notes: Visual only — no timers, no gameplay. Integrate in LevelOneGameView in a later phase.
+ * Notes: Visual only — autoHide is internal; does not change parent `visible`.
  */
 
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import type { RunnerCoachPose, RunnerCoachTone } from '@/src/modules/session/games/components/resolve-runner-coach-cue';
 import {
@@ -21,6 +28,11 @@ const BUNNY_SIZE = {
   compact: 45,
   regular: 56,
 } as const;
+
+const DEFAULT_AUTO_HIDE_MS = 3500;
+const ENTER_MS = 180;
+const EXIT_MS = 200;
+const ENTER_TRANSLATE_Y = 4;
 
 /** Local tone surfaces — kept minimal; maps to wellness tokens where possible. */
 const COACH_TONE_SURFACES: Record<
@@ -65,6 +77,8 @@ export type RunnerBunnyCoachBubbleProps = {
   tone?: RunnerCoachTone;
   size?: 'compact' | 'regular';
   accentColor?: string;
+  autoHideMs?: number;
+  disableAutoHide?: boolean;
 };
 
 export function RunnerBunnyCoachBubble({
@@ -74,8 +88,75 @@ export function RunnerBunnyCoachBubble({
   tone = 'info',
   size = 'compact',
   accentColor,
+  autoHideMs = DEFAULT_AUTO_HIDE_MS,
+  disableAutoHide = false,
 }: RunnerBunnyCoachBubbleProps) {
-  if (!visible) {
+  const [revealed, setRevealed] = useState(false);
+  const opacity = useSharedValue(0);
+  const translateY = useSharedValue(ENTER_TRANSLATE_Y);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearTimers = () => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+    if (exitTimerRef.current) {
+      clearTimeout(exitTimerRef.current);
+      exitTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    clearTimers();
+
+    if (!visible) {
+      setRevealed(false);
+      opacity.value = 0;
+      translateY.value = ENTER_TRANSLATE_Y;
+      return;
+    }
+
+    setRevealed(true);
+    opacity.value = withTiming(1, {
+      duration: ENTER_MS,
+      easing: Easing.out(Easing.quad),
+    });
+    translateY.value = withTiming(0, {
+      duration: ENTER_MS,
+      easing: Easing.out(Easing.quad),
+    });
+
+    if (disableAutoHide) {
+      return clearTimers;
+    }
+
+    hideTimerRef.current = setTimeout(() => {
+      hideTimerRef.current = null;
+      opacity.value = withTiming(0, {
+        duration: EXIT_MS,
+        easing: Easing.in(Easing.quad),
+      });
+      translateY.value = withTiming(ENTER_TRANSLATE_Y, {
+        duration: EXIT_MS,
+        easing: Easing.in(Easing.quad),
+      });
+      exitTimerRef.current = setTimeout(() => {
+        exitTimerRef.current = null;
+        setRevealed(false);
+      }, EXIT_MS);
+    }, autoHideMs);
+
+    return clearTimers;
+  }, [autoHideMs, disableAutoHide, message, opacity, pose, tone, translateY, visible]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  if (!visible || !revealed) {
     return null;
   }
 
@@ -86,8 +167,8 @@ export function RunnerBunnyCoachBubble({
   const hasAccentBar = surface.accentBarColor != null;
 
   return (
-    <View
-      style={styles.root}
+    <Animated.View
+      style={[styles.root, animatedStyle]}
       pointerEvents="none"
       accessibilityRole="text"
       accessibilityLabel={message}>
@@ -120,7 +201,7 @@ export function RunnerBunnyCoachBubble({
           {message}
         </Text>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
