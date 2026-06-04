@@ -48,11 +48,16 @@ export const TODAY_PREVIEW_TITLE = 'Vista de hoy';
 export const TODAY_PREVIEW_DESCRIPTION =
   'Horarios programados para hoy dentro de tu horario despierto.';
 
+export const DAY_COMPLETED_TITLE = '✨ ¡Felicidades! ✨';
+
+export const DAY_COMPLETED_MESSAGE =
+  'Completaste los avisos de hoy. Descansa y nos vemos mañana.';
+
 export function formatAwakeWindowScheduleMessage(start: string, end: string, enabled: boolean): string {
   if (enabled) {
-    return `Recibirás recordatorios entre ${start} y ${end}.`;
+    return `Recibirás avisos entre ${start} y ${end}.`;
   }
-  return `Al activarlos, recibirás recordatorios entre ${start} y ${end}.`;
+  return `Al activarlos, recibirás avisos entre ${start} y ${end}.`;
 }
 
 /** @deprecated Use FREQUENCY_FIXED_DESCRIPTION. */
