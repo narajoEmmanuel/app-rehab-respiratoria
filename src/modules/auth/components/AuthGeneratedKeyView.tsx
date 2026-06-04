@@ -16,6 +16,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import {
   AUTH_REGISTRATION_HEADER_ESTIMATED_HEIGHT,
+  AUTH_REGISTRATION_STEP_COUNT,
   AuthRegistrationHeader,
 } from '@/src/modules/auth/components/AuthRegistrationHeader';
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
@@ -111,7 +112,7 @@ export function AuthGeneratedKeyView({
       <AuthRegistrationHeader
         onBack={onBackToLogin}
         backAccessibilityLabel="Volver al acceso con clave"
-        step={{ current: 2, total: 4 }}
+        step={{ current: 2, total: AUTH_REGISTRATION_STEP_COUNT }}
       />
       <ScrollView
         style={styles.scrollView}

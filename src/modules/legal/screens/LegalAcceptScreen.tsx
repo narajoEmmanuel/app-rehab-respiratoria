@@ -20,7 +20,10 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AuthRegistrationHeader } from '@/src/modules/auth/components/AuthRegistrationHeader';
+import {
+  AUTH_REGISTRATION_STEP_COUNT,
+  AuthRegistrationHeader,
+} from '@/src/modules/auth/components/AuthRegistrationHeader';
 import {
   LEGAL_DOCUMENT_TITLE,
   LEGAL_DOCUMENT_VERSION,
@@ -134,7 +137,7 @@ function LegalAcceptContent({
       <AuthRegistrationHeader
         onBack={onBack}
         backAccessibilityLabel={allowBack ? 'Volver al inicio' : 'Volver'}
-        step={{ current: 3, total: 4 }}
+        step={{ current: 3, total: AUTH_REGISTRATION_STEP_COUNT }}
       />
       <ScrollView
         contentContainerStyle={styles.scroll}

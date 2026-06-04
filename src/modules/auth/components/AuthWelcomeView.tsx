@@ -6,6 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AuthRegistrationHeader } from '@/src/modules/auth/components/AuthRegistrationHeader';
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
 import {
   WelcomeBenefitIcon,
@@ -29,6 +30,8 @@ const TEXT_SLATE = '#3F4F5C';
 type AuthWelcomeViewProps = {
   onCreateProfile: () => void;
   onLoginWithKey: () => void;
+  onBack?: () => void;
+  backAccessibilityLabel?: string;
   hasDeviceProfiles?: boolean;
   onShowDeviceProfiles?: () => void;
 };
@@ -142,12 +145,15 @@ function BenefitRow({
 export function AuthWelcomeView({
   onCreateProfile,
   onLoginWithKey,
+  onBack,
+  backAccessibilityLabel = 'Volver',
   hasDeviceProfiles,
   onShowDeviceProfiles,
 }: AuthWelcomeViewProps) {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <WelcomeWellnessBackdrop />
+      <AuthRegistrationHeader onBack={onBack} backAccessibilityLabel={backAccessibilityLabel} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.page}

@@ -17,11 +17,14 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import {
+  AUTH_REGISTRATION_STEP_COUNT,
+  AuthRegistrationHeader,
+} from '@/src/modules/auth/components/AuthRegistrationHeader';
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
-import { RespiraBrandMark } from '@/src/shared/ui/RespiraBrandMark';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellness, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
 const TEXT_SLATE = '#354656';
 const TEXT_MUTED = '#6B7B86';
@@ -140,64 +143,6 @@ function CreateProfileBackdrop() {
   );
 }
 
-/** Header fijo arriba (fuera del scroll) — flecha, marca y stepper de registro. */
-function CreateProfileHeader({ onBack }: { onBack: () => void }) {
-  return (
-    <View style={styles.headerBar}>
-      <View style={styles.headerShell}>
-        <Pressable
-          style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
-          onPress={onBack}
-          accessibilityRole="button"
-          accessibilityLabel="Volver a bienvenida">
-          <IconSymbol name="chevron.left" size={20} color={wellness.primary} />
-        </Pressable>
-        <View style={styles.headerBrandCenter}>
-          <View style={styles.headerLogoCircle}>
-            <RespiraBrandMark variant="icon" size="sm" imageStyle={styles.headerLogoImage} />
-          </View>
-          <Text style={styles.headerBrandText}>RESPIRA+</Text>
-        </View>
-      </View>
-      <AuthRegistrationStepper current={1} total={4} />
-    </View>
-  );
-}
-
-function AuthRegistrationStepper({ current, total = 4 }: { current: number; total?: number }) {
-  const progressFraction = total <= 1 ? 1 : (current - 1) / (total - 1);
-
-  return (
-    <View style={styles.stepperBlock} accessibilityRole="progressbar">
-      <View style={styles.stepperTrack}>
-        <View style={styles.stepperLineBase} />
-        <View style={[styles.stepperLineFill, { width: `${progressFraction * 100}%` }]} />
-        <View style={styles.stepperDots}>
-          {Array.from({ length: total }, (_, i) => {
-            const step = i + 1;
-            const isDone = step < current;
-            const isCurrent = step === current;
-            return (
-              <View
-                key={step}
-                style={[
-                  styles.stepperDot,
-                  isDone && styles.stepperDotDone,
-                  isCurrent && styles.stepperDotCurrent,
-                  !isDone && !isCurrent && styles.stepperDotUpcoming,
-                ]}
-              />
-            );
-          })}
-        </View>
-      </View>
-      <Text style={styles.stepperCaption}>
-        Paso {current} de {total}
-      </Text>
-    </View>
-  );
-}
-
 export function AuthCreateProfileView({
   nombre,
   onNombreChange,
@@ -221,7 +166,11 @@ export function AuthCreateProfileView({
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <CreateProfileHeader onBack={onBack} />
+        <AuthRegistrationHeader
+          onBack={onBack}
+          backAccessibilityLabel="Volver a bienvenida"
+          step={{ current: 1, total: AUTH_REGISTRATION_STEP_COUNT }}
+        />
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={[
@@ -317,11 +266,6 @@ export function AuthCreateProfileView({
   );
 }
 
-const HEADER_LOGO_CIRCLE = 60;
-const HEADER_LOGO_IMAGE = 48;
-const STEPPER_TRACK_WIDTH = '52%';
-const STEPPER_DOT_INACTIVE = 12;
-const STEPPER_DOT_ACTIVE = 17;
 const CONTENT_TITLE_TOP = 38;
 const CONTENT_FORM_TOP = 30;
 const CONTENT_FORM_TO_SECURITY = 20;
@@ -342,12 +286,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
     paddingBottom: spacing.xl,
-  },
-  headerBar: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: 6,
-    paddingBottom: spacing.sm,
-    zIndex: 5,
   },
   page: {
     flexGrow: 1,
@@ -445,139 +383,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: '36%',
-  },
-  headerShell: {
-    position: 'relative',
-    minHeight: HEADER_LOGO_CIRCLE,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backBtn: {
-    position: 'absolute',
-    left: 0,
-    top: (HEADER_LOGO_CIRCLE - 36) / 2,
-    zIndex: 2,
-    width: 36,
-    height: 36,
-    borderRadius: wellnessRadii.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: wellness.card,
-    borderWidth: 1,
-    borderColor: 'rgba(52, 171, 165, 0.18)',
-  },
-  headerBrandCenter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    width: '100%',
-    paddingHorizontal: 48,
-  },
-  headerLogoCircle: {
-    width: HEADER_LOGO_CIRCLE,
-    height: HEADER_LOGO_CIRCLE,
-    borderRadius: HEADER_LOGO_CIRCLE / 2,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(52, 171, 165, 0.16)',
-    overflow: 'hidden',
-    ...wellnessShadows.soft,
-  },
-  headerLogoImage: {
-    width: HEADER_LOGO_IMAGE,
-    height: HEADER_LOGO_IMAGE,
-  },
-  headerBrandText: {
-    fontSize: 26,
-    fontWeight: '600',
-    color: wellness.primary,
-    letterSpacing: 0.45,
-  },
-  stepperBlock: {
-    alignItems: 'center',
-    alignSelf: 'center',
-    width: '100%',
-    marginTop: spacing.sm + 2,
-  },
-  stepperTrack: {
-    width: STEPPER_TRACK_WIDTH,
-    height: STEPPER_DOT_ACTIVE + 10,
-    justifyContent: 'center',
-    marginBottom: spacing.xs + 2,
-  },
-  stepperLineBase: {
-    position: 'absolute',
-    left: STEPPER_DOT_ACTIVE / 2,
-    right: STEPPER_DOT_ACTIVE / 2,
-    top: '50%',
-    marginTop: -1.5,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.72)',
-  },
-  stepperLineFill: {
-    position: 'absolute',
-    left: STEPPER_DOT_ACTIVE / 2,
-    top: '50%',
-    marginTop: -1.5,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: 'rgba(52, 171, 165, 0.42)',
-    maxWidth: '100%',
-  },
-  stepperDots: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    zIndex: 1,
-  },
-  stepperDot: {
-    width: STEPPER_DOT_INACTIVE,
-    height: STEPPER_DOT_INACTIVE,
-    borderRadius: STEPPER_DOT_INACTIVE / 2,
-  },
-  stepperDotUpcoming: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: 'rgba(52, 171, 165, 0.3)',
-    shadowColor: '#FFFFFF',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.9,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  stepperDotDone: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderWidth: 2,
-    borderColor: 'rgba(52, 171, 165, 0.4)',
-    shadowColor: '#FFFFFF',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.7,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  stepperDotCurrent: {
-    width: STEPPER_DOT_ACTIVE,
-    height: STEPPER_DOT_ACTIVE,
-    borderRadius: STEPPER_DOT_ACTIVE / 2,
-    backgroundColor: wellness.primary,
-    borderColor: '#FFFFFF',
-    borderWidth: 3,
-    shadowColor: '#FFFFFF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.75,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  stepperCaption: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: wellness.primaryDark,
-    letterSpacing: 0.25,
-    textAlign: 'center',
   },
   titleBlock: {
     alignItems: 'center',

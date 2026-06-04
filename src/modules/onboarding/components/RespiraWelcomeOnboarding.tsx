@@ -1,14 +1,13 @@
 /**
  * Purpose: First-time welcome modal with RESPIRA+ bunny guide (controlled by parent).
  * Module: onboarding
- * Dependencies: RespiraBunnyImage, WelcomeBunnyBackdrop, wellness tokens, AppButton
+ * Dependencies: RespiraBunnyImage, IconSymbol, wellness tokens
  */
 
 import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
-import { WelcomeBunnyBackdrop } from '@/src/modules/onboarding/components/WelcomeBunnyBackdrop';
-import { AppButton } from '@/src/shared/ui/AppButton';
 import { RespiraBunnyImage } from '@/src/shared/ui/RespiraBunnyImage';
+import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { spacing } from '@/src/shared/theme/spacing';
 import {
   wellnessColors,
@@ -19,6 +18,12 @@ import {
 
 const BUNNY_SIZE = 152;
 const CARD_MAX_WIDTH = 400;
+
+/** Acento guía — contrasta con el teal principal de RESPIRA+. */
+const LAVENDER_PRIMARY = '#8F7CF6';
+const LAVENDER_SOFT = '#F1EEFF';
+const LAVENDER_BORDER = '#DED6FF';
+const COPY_MUTED = '#5B6B7A';
 
 export type RespiraWelcomeOnboardingProps = {
   visible: boolean;
@@ -36,31 +41,39 @@ export function RespiraWelcomeOnboarding({ visible, onContinue }: RespiraWelcome
       animationType="fade"
       statusBarTranslucent
       accessibilityViewIsModal
-      onRequestClose={onContinue}>
+      onRequestClose={() => {}}>
       <View style={styles.backdrop}>
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={onContinue}
-          accessibilityRole="button"
-          accessibilityLabel="Cerrar bienvenida y continuar"
-        />
         <View
           style={[styles.card, { width: cardWidth }, wellnessShadows.elevated]}
           accessibilityRole="summary"
-          accessibilityLabel="Bienvenida a RESPIRA+">
+          accessibilityLabel="Presentación de Respira Bunny, tu guía respiratoria">
+          <Pressable
+            style={({ pressed }) => [styles.closeBtn, pressed && styles.closeBtnPressed]}
+            onPress={onContinue}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar bienvenida">
+            <IconSymbol name="xmark" size={18} color={COPY_MUTED} />
+          </Pressable>
+
           <View style={styles.heroStage}>
-            <View style={styles.heroBackdrop} pointerEvents="none">
-              <WelcomeBunnyBackdrop width={cardWidth} />
-            </View>
+            <View style={styles.heroWash} pointerEvents="none" />
+            <View style={[styles.lavenderHaloOuter, styles.haloCentered]} pointerEvents="none" />
+            <View style={[styles.lavenderHaloInner, styles.haloCentered]} pointerEvents="none" />
             <View style={styles.bunnyForeground} pointerEvents="none">
               <RespiraBunnyImage pose="happy" size={BUNNY_SIZE} />
             </View>
           </View>
 
           <View style={styles.copyBlock}>
-            <Text style={styles.title}>Bienvenido a RESPIRA+</Text>
-            <Text style={styles.message}>Te acompañaré en tus sesiones respiratorias.</Text>
-            <AppButton title="Comenzar" onPress={onContinue} variant="primary" style={styles.cta} />
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>Tu guía respiratoria</Text>
+            </View>
+
+            <Text style={styles.title}>Soy Respira Bunny</Text>
+            <Text style={styles.subtitle}>y te acompañaré en cada sesión.</Text>
+            <Text style={styles.hint}>
+              Te daré indicaciones, ánimo y recordatorios para que avances con calma.
+            </Text>
           </View>
         </View>
       </View>
@@ -80,50 +93,108 @@ const styles = StyleSheet.create({
     backgroundColor: wellnessColors.card,
     borderRadius: wellnessRadii.cardLarge,
     borderWidth: 1,
-    borderColor: wellnessColors.border,
+    borderColor: LAVENDER_BORDER,
     overflow: 'hidden',
     maxWidth: '100%',
+    position: 'relative',
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: spacing.md,
+    right: spacing.md,
+    zIndex: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderWidth: 1,
+    borderColor: LAVENDER_BORDER,
+  },
+  closeBtnPressed: {
+    opacity: 0.82,
   },
   heroStage: {
     width: '100%',
-    minHeight: 200,
+    minHeight: 212,
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingBottom: spacing.sm,
+    position: 'relative',
   },
-  heroBackdrop: {
+  heroWash: {
     ...StyleSheet.absoluteFillObject,
-    bottom: undefined,
-    height: '100%',
+    backgroundColor: LAVENDER_SOFT,
+  },
+  haloCentered: {
+    position: 'absolute',
+    alignSelf: 'center',
+    bottom: spacing.md + 8,
+  },
+  lavenderHaloOuter: {
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(143, 124, 246, 0.14)',
+  },
+  lavenderHaloInner: {
+    width: 148,
+    height: 148,
+    borderRadius: 74,
+    backgroundColor: 'rgba(143, 124, 246, 0.22)',
+    bottom: spacing.lg + 20,
   },
   bunnyForeground: {
-    zIndex: 1,
+    zIndex: 2,
     alignItems: 'center',
     marginBottom: spacing.xs,
   },
   copyBlock: {
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl,
-    paddingTop: spacing.md,
+    paddingBottom: spacing.xl + spacing.sm,
+    paddingTop: spacing.sm,
     alignItems: 'center',
     width: '100%',
   },
+  badge: {
+    backgroundColor: LAVENDER_SOFT,
+    borderWidth: 1,
+    borderColor: LAVENDER_BORDER,
+    borderRadius: wellnessRadii.pill,
+    paddingVertical: spacing.xs + 2,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.md,
+  },
+  badgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: LAVENDER_PRIMARY,
+    letterSpacing: 0.35,
+  },
   title: {
     ...wellnessTypography.screenTitle,
-    fontSize: 24,
+    fontSize: 26,
     color: wellnessColors.textPrimary,
     textAlign: 'center',
     marginBottom: spacing.xs,
+    letterSpacing: -0.4,
   },
-  message: {
-    ...wellnessTypography.body,
-    color: wellnessColors.textSecondary,
+  subtitle: {
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: '600',
+    color: '#2A3439',
     textAlign: 'center',
-    marginBottom: spacing.xl,
+    marginBottom: spacing.sm,
   },
-  cta: {
-    alignSelf: 'stretch',
-    width: '100%',
-    minHeight: 54,
+  hint: {
+    ...wellnessTypography.body,
+    fontSize: 15,
+    lineHeight: 22,
+    color: COPY_MUTED,
+    textAlign: 'center',
+    marginBottom: 0,
+    maxWidth: 300,
   },
 });
