@@ -33,7 +33,7 @@ function resolveHeroPose(
   completed: boolean,
   interrupted?: boolean,
 ): BunnyImagePose {
-  if (interrupted && !completed) return 'softAlert';
+  if (interrupted && !completed) return 'neutral';
   if (completed || (perfect && completed)) return 'celebrate';
   return 'wave';
 }

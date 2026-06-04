@@ -4,26 +4,25 @@ Ilustraciones con fondo transparente para **onboarding, pop-ups, celebraciones y
 
 No usar en gameplay del runner; ahí va el conejo programado (`RespiraBunny.tsx`).
 
-## Archivos esperados
+## Archivos oficiales
 
-| Archivo | Pose (`RespiraBunnyImage`) |
-|---------|----------------------------|
-| `bunny-idle.png` | `idle` |
-| `bunny-wave.png` | `wave` |
-| `bunny-wink.png` | `wink` |
-| `bunny-celebrate.png` | `celebrate` |
-| `bunny-soft-alert.png` | `softAlert` |
-| `bunny-astronaut.png` | `astronaut` |
+| Archivo | Pose (`RespiraBunnyImage`) | Uso recomendado |
+|---------|----------------------------|-----------------|
+| `bunny-presenting.png` | `presenting` | Tutoriales y explicación |
+| `bunny-wave.png` | `wave` | Bienvenida |
+| `bunny-wink.png` | `wink` | Consejos |
+| `bunny-celebrate.png` | `celebrate` | Logros |
+| `bunny-happy.png` | `happy` | Progreso positivo |
+| `bunny-neutral.png` | `neutral` | Estados calmados / **default** |
+| `bunny-astronaut.png` | `astronaut` | Nivel espacial |
+| `bunny-error.png` | `error` | Solo errores técnicos o casos no clínicos |
 
-## Estado de assets
+## Notas de producto
 
-| Archivo | Estado |
-|---------|--------|
-| `bunny-wave.png` | **Ilustración final** (445×445, RGBA) |
-| `bunny-wink.png` | **Ilustración final** (445×445, RGBA) |
-| `bunny-celebrate.png` | **Ilustración final** (445×445, RGBA) |
-| `bunny-idle.png` | Pendiente — placeholder (`inicio.png`) |
-| `bunny-soft-alert.png` | Pendiente — placeholder (`inicio.png`) |
-| `bunny-astronaut.png` | Pendiente — placeholder (`inicio.png`) |
+- **No** usar `error` para fallos del paciente ni sesiones detenidas; en esos casos usar `neutral`.
+- El default del componente es `pose="neutral"`.
+- Sustituir PNGs manteniendo el mismo nombre de archivo; no hace falta cambiar el mapa en `RespiraBunnyImage.tsx` si el nombre coincide.
 
-Sustituir los pendientes manteniendo el mismo nombre; no hace falta cambiar `RespiraBunnyImage.tsx` si el nombre coincide.
+## Retirados
+
+`bunny-idle.png` y `bunny-soft-alert.png` ya no forman parte de la librería. Sustitutos: `neutral`.

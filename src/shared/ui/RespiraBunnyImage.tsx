@@ -20,12 +20,14 @@ import {
 export const RESPIRA_BUNNY_IMAGE_DEFAULT_SIZE = 120;
 
 export type BunnyImagePose =
-  | 'idle'
+  | 'presenting'
   | 'wave'
   | 'wink'
+  | 'error'
+  | 'astronaut'
   | 'celebrate'
-  | 'softAlert'
-  | 'astronaut';
+  | 'happy'
+  | 'neutral';
 
 export type RespiraBunnyImageProps = {
   pose?: BunnyImagePose;
@@ -35,30 +37,36 @@ export type RespiraBunnyImageProps = {
   style?: StyleProp<ImageStyle>;
 };
 
-// Production-ready PNGs: wave, wink, celebrate (RGBA in assets/mascot/).
+const bunnyPresenting = require('../../../assets/mascot/bunny-presenting.png');
 const bunnyWave = require('../../../assets/mascot/bunny-wave.png');
 const bunnyWink = require('../../../assets/mascot/bunny-wink.png');
-const bunnyCelebrate = require('../../../assets/mascot/bunny-celebrate.png');
-
-// Pending illustrations — still placeholder files until replaced in assets/mascot/.
-const bunnyIdle = require('../../../assets/mascot/bunny-idle.png');
-const bunnySoftAlert = require('../../../assets/mascot/bunny-soft-alert.png');
+const bunnyError = require('../../../assets/mascot/bunny-error.png');
 const bunnyAstronaut = require('../../../assets/mascot/bunny-astronaut.png');
+const bunnyCelebrate = require('../../../assets/mascot/bunny-celebrate.png');
+const bunnyHappy = require('../../../assets/mascot/bunny-happy.png');
+const bunnyNeutral = require('../../../assets/mascot/bunny-neutral.png');
 
-/** Fallback when a pose key is unknown — wave reads well in coach / welcome contexts. */
-const bunnyImageFallback: ImageSourcePropType = bunnyWave;
+/** Fallback when a pose key is unknown — calm default for guide UI. */
+const bunnyImageFallback: ImageSourcePropType = bunnyNeutral;
 
 const bunnyImageMap: Record<BunnyImagePose, ImageSourcePropType> = {
-  idle: bunnyIdle,
+  presenting: bunnyPresenting,
   wave: bunnyWave,
   wink: bunnyWink,
-  celebrate: bunnyCelebrate,
-  softAlert: bunnySoftAlert,
+  error: bunnyError,
   astronaut: bunnyAstronaut,
+  celebrate: bunnyCelebrate,
+  happy: bunnyHappy,
+  neutral: bunnyNeutral,
 };
 
-export function resolveBunnyImageSource(pose: BunnyImagePose): ImageSourcePropType {
-  return bunnyImageMap[pose] ?? bunnyImageFallback;
+const BUNNY_IMAGE_POSE_SET = new Set<string>(Object.keys(bunnyImageMap));
+
+export function resolveBunnyImageSource(pose: BunnyImagePose | string): ImageSourcePropType {
+  if (BUNNY_IMAGE_POSE_SET.has(pose)) {
+    return bunnyImageMap[pose as BunnyImagePose];
+  }
+  return bunnyImageFallback;
 }
 
 /**
@@ -66,7 +74,7 @@ export function resolveBunnyImageSource(pose: BunnyImagePose): ImageSourcePropTy
  * Not for runner gameplay — use RespiraBunny there.
  */
 export function RespiraBunnyImage({
-  pose = 'idle',
+  pose = 'neutral',
   size = RESPIRA_BUNNY_IMAGE_DEFAULT_SIZE,
   opacity = 1,
   style,

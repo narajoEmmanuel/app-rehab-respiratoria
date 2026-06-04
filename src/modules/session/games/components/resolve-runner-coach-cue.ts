@@ -1,6 +1,6 @@
 import type { LevelOnePhase } from '@/src/modules/session/engine/level-one/use-level-one-game';
 
-export type RunnerCoachPose = 'wink' | 'celebrate' | 'softAlert';
+export type RunnerCoachPose = 'wink' | 'celebrate';
 
 export type RunnerCoachTone = 'info' | 'success' | 'encourage' | 'rest';
 
