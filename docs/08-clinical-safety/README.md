@@ -102,12 +102,13 @@ Clasificación UI: `src/modules/session/session-record-classification.ts` — et
 ## Consentimiento y privacidad
 
 - Consentimiento digital requerido para Terapia, Historial, sensor, exportación y notificaciones (`ConsentTabGuard`, `ConsentStackGuard`).
+- **Arranque local-first:** `app/index.tsx` redirige a `/legal/accept` si `!isConsentActive()` antes de abrir tabs.
 - Exportación etiquetada para revisión con profesional (`DataExportScreen.tsx`).
 - Modo local-first: datos en dispositivo (AsyncStorage). Borrado en `patient-delete-service.ts`.
 
-**Requiere revisión manual:** en local-first, `app/index.tsx` no fuerza re-aceptación legal al cold start si el consent fue retirado (solo cloud revalida). Documentar al usuario interno hasta corregirse.
+**Requiere revisión manual:** si falla la lectura de consentimiento en arranque, `app/index.tsx` permite tabs (fail-open). No usar en estudios con personas reales sin manejo de error acordado.
 
-**Requiere revisión manual:** `seedLocalPrototypeConsentForPatient` en `consent-service.ts` puede omitir flujo legal en desarrollo — no usar en pruebas con usuarios reales sin acuerdo ético.
+**Requiere revisión manual:** `seedLocalPrototypeConsentForPatient` en `consent-service.ts` — bypass dev disponible pero **no invocado** desde `app/index.tsx`; no usar en pruebas con usuarios reales sin acuerdo ético.
 
 ## Recomendaciones de lenguaje para futuras pantallas y READMEs
 

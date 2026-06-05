@@ -27,7 +27,8 @@ Documento equipo: [../legal/README-terminos-y-condiciones.md](../legal/README-te
 ## Entradas del flujo
 
 - Cloud: gate en `app/index.tsx` si `needsConsent()`.
-- Local-first: tras crear perfil (`local-profile`) o retiro desde Perfil.
+- Local-first: gate en `app/index.tsx` si `!isConsentActive()` (consent retirado, ausente o versión distinta).
+- Tras crear/seleccionar perfil: `LocalProfileScreen` también redirige a legal si no hay consent activo.
 - Tab/stack guards interceptan Terapia, Historial, sensor, export, notificaciones.
 
 ## Salidas del flujo
@@ -53,19 +54,20 @@ Documento equipo: [../legal/README-terminos-y-condiciones.md](../legal/README-te
 ## Riesgos clínicos o técnicos
 
 - Declaraciones incluyen prototipo académico y no sustitución médica.
-- `seedLocalPrototypeConsentForPatient` — bypass dev — **no usar con usuarios reales** sin acuerdo ético.
+- `seedLocalPrototypeConsentForPatient` — bypass dev (no invocado desde index); **no usar con usuarios reales** sin acuerdo ético.
 - PDF duplicado `assets/docs/respira-legal-v1.pdf` no referenciado en código.
 
 ## Pendientes
 
-- Consent no revalidado cold start local-first.
+- Cloud: `needsConsent()` no detecta consent **retirado** con misma versión — **requiere revisión manual** para paridad con local-first.
 - README dev `src/modules/legal/README.md` no existe.
 
 ## Checklist manual mínimo
 
 - [ ] 7 checkboxes + master requeridos para aceptar.
 - [ ] Tras aceptar: Terapia/Historial accesibles.
-- [ ] Retiro consent: tabs protegidos bloqueados.
+- [ ] Retiro consent: cold start local-first redirige a `/legal/accept`.
+- [ ] Retiro consent: tabs protegidos bloqueados al pulsar.
 - [ ] PDF abre desde document screen.
 - [ ] Versión 1.0 persistida en registro.
 

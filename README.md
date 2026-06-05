@@ -188,13 +188,13 @@ flowchart TD
 | Etapa | Requisito principal |
 |-------|---------------------|
 | Perfil local | Crear paciente en `/auth/local-profile` |
-| Consentimiento | Activo para Terapia, Historial, sensor, export, notificaciones |
+| Consentimiento | Activo para tabs al arranque (`app/index.tsx`) y para Terapia, Historial, sensor, export, notificaciones |
 | Evaluación inicial | `hasDiagnostic()` para CTAs de terapia |
 | Sesión oficial | Sensor conectado, calibración RESPIRA+ 3000 mL, readiness OK |
 | Desbloqueo de nivel | 6 sesiones **perfectas** acumuladas con sensor en nivel activo |
 | Práctica táctil | Flag env + preferencia en Perfil; **no desbloquea** niveles |
 
-**Requiere revisión manual:** en modo local-first, el arranque no revalida consentimiento retirado (solo cloud). Ver [docs/08-clinical-safety/README.md](docs/08-clinical-safety/README.md).
+**Nota:** en cloud, retiro de consentimiento con misma versión de documento puede no redirigir al arranque (`needsConsent()` vs `isConsentActive()`) — **requiere revisión manual**.
 
 ---
 

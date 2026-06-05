@@ -59,7 +59,6 @@ Servicios: `diagnostic-service`, `session-progress-repository`, `navigate-to-ini
 
 - `HomeScreen.tsx` ~1100+ líneas — candidato a refactor (extraer `DeviceCard`, launch controller).
 - Lógica `beginOfficialSensorSession` / `navigateToSession` duplicada con Terapia.
-- Consent no revalidado al arranque local-first (`app/index.tsx`).
 
 ## Checklist manual mínimo
 

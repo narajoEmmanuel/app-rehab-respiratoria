@@ -138,9 +138,12 @@ ThemeProvider (React Navigation)
 | Cloud | Paciente sin consent | `/legal/accept` |
 | Cloud | Paciente + consent | `/(tabs)` |
 | Local-first (default) | Sin paciente | `/auth/local-profile` |
-| Local-first | Con paciente | `/(tabs)` |
+| Local-first | Paciente sin consent vigente | `/legal/accept` |
+| Local-first | Paciente + consent activo | `/(tabs)` |
 
-**Nota de auditoría:** en modo local-first, el gate de arranque no revalida consentimiento al cold start (solo cloud). Comportamiento actual documentado; corrección pendiente de fase futura.
+En **local-first**, `app/index.tsx` consulta `isConsentActive()` antes de redirigir a tabs (incluye consent retirado o documento desactualizado). En **cloud**, sigue usando `needsConsent()`.
+
+**Fail-open:** si la consulta de consentimiento falla, el gate permite tabs (comportamiento previo); revisar en entornos clínicos reales.
 
 ## Dependencias entre gates funcionales
 
@@ -207,7 +210,7 @@ Definidas en `src/modules/patient/storage-keys.ts`:
 |--------|-----------|-----------|
 | Pantallas monolíticas difíciles de mantener | `HistoryScreen`, `SessionScreen`, `HomeScreen`, `SensorCalibrationTechnicalCaptureScreen` | Alta |
 | Tipografía hardcoded fuera de tokens | ~70 archivos con `fontSize` inline | Alta |
-| Consent no revalidado al arranque local-first | `app/index.tsx` | Media-Alta |
+| Consent fail-open en error AsyncStorage | `app/index.tsx` | Media |
 | Lógica duplicada de lanzamiento de terapia | `HomeScreen`, `LevelsScreen` (parcialmente centralizada en `resolve-therapy-session-launch.ts`) | Media |
 | Dos sistemas de tokens (`shared/theme` vs `src/theme`) | Varios imports | Media |
 | `src/docs/architecture.md` anterior describía device como placeholder | Corregido en este documento | — |
