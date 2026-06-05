@@ -123,11 +123,20 @@ import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 - No se fuerza color por defecto: el color lo define el contenedor o `style`.
 - Soporta todas las props nativas de `Text` (`numberOfLines`, `accessibilityRole`, etc.).
 
+## Adopción en pantallas (Fase 4B)
+
+**Primera pantalla migrada:** `DataExportScreen` (`src/modules/export/screens/DataExportScreen.tsx`).
+
+- Todos los `Text` directos reemplazados por `AppText`.
+- Variantes usadas: `bodySmall`, `titleSmall`, `statusValue`, `caption` (+ overrides mínimos en `emptyHint`, `technicalSectionTitle`, `disclaimer`).
+- `SectionHeader`, `AppButton`, `MetricTile`, `InfoTile` y `StatusPill` ya usaban tokens desde Fase 4A.
+- Sin cambios de layout, colores ni lógica de exportación.
+
 ## Qué queda pendiente
 
 | Ámbito | Motivo |
 |--------|--------|
-| `HomeScreen`, `HistoryScreen`, `SessionScreen` | Pantallas grandes — fuera de alcance Fase 4A |
+| `HomeScreen`, `HistoryScreen`, `SessionScreen` | Pantallas grandes — pendiente Fase 4C+ |
 | `SensorCalibrationTechnicalCaptureScreen` | Restricción explícita de auditoría |
 | `therapy-level-card.tsx` | Componente grande con muchos estilos contextuales |
 | `AppTopBar`, `AppCard` | Sin texto propio o solo layout |
