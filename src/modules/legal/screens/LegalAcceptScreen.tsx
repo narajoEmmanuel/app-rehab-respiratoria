@@ -14,7 +14,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
@@ -34,6 +33,7 @@ import { acceptConsent, needsConsent } from '@/src/modules/legal/consent-service
 import { LEGAL_DOCUMENT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
+import { AppText } from '@/src/shared/ui/AppText';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessColors, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
@@ -145,7 +145,9 @@ function LegalAcceptContent({
         keyboardShouldPersistTaps="handled">
         {!hasPatient ? (
           <View style={styles.center}>
-            <Text style={styles.emptyBody}>Inicia sesión para continuar.</Text>
+            <AppText variant="bodyLarge" style={styles.emptyBody}>
+              Inicia sesión para continuar.
+            </AppText>
             <Pressable
               style={({ pressed }) => [styles.btnPrimaryWrap, pressed && styles.pressed]}
               onPress={onGoLogin}
@@ -157,17 +159,21 @@ function LegalAcceptContent({
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.btnPrimaryGradient}>
-                <Text style={styles.btnPrimaryText}>Ir al acceso</Text>
+                <AppText variant="button" style={styles.btnPrimaryText}>
+                  Ir al acceso
+                </AppText>
               </LinearGradient>
             </Pressable>
           </View>
         ) : (
           <>
             <View style={styles.titleBlock}>
-              <Text style={styles.title}>Revisa y acepta</Text>
-              <Text style={styles.subtitle}>
+              <AppText variant="titleLarge" style={styles.title}>
+                Revisa y acepta
+              </AppText>
+              <AppText variant="bodyLarge" style={styles.subtitle}>
                 Lee los documentos legales para continuar con tu registro.
-              </Text>
+              </AppText>
             </View>
 
             <View style={styles.documentsCard}>
@@ -185,7 +191,9 @@ function LegalAcceptContent({
                         color={wellness.primaryDark}
                       />
                     </View>
-                    <Text style={styles.docTitle}>{doc.title}</Text>
+                    <AppText variant="bodyLarge" style={styles.docTitle}>
+                      {doc.title}
+                    </AppText>
                     <IconSymbol name="chevron.right" size={18} color={wellnessColors.textMuted} />
                   </Pressable>
                   {index < DOCUMENT_BLOCKS.length - 1 ? <View style={styles.docDivider} /> : null}
@@ -200,9 +208,15 @@ function LegalAcceptContent({
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: masterChecked }}>
                 <View style={[styles.checkbox, masterChecked && styles.checkboxOn]}>
-                  {masterChecked ? <Text style={styles.checkMark}>✓</Text> : null}
+                  {masterChecked ? (
+                    <AppText variant="chip" style={styles.checkMark}>
+                      ✓
+                    </AppText>
+                  ) : null}
                 </View>
-                <Text style={styles.checkLabel}>{MASTER_CHECK_LABEL}</Text>
+                <AppText variant="bodyMedium" style={styles.checkLabel}>
+                  {MASTER_CHECK_LABEL}
+                </AppText>
               </Pressable>
             </View>
 
@@ -225,10 +239,11 @@ function LegalAcceptContent({
                 {busy ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text
+                  <AppText
+                    variant="button"
                     style={[styles.btnPrimaryText, !canSubmit && styles.btnPrimaryTextDisabled]}>
                     Aceptar y continuar
-                  </Text>
+                  </AppText>
                 )}
               </LinearGradient>
             </Pressable>
@@ -239,7 +254,9 @@ function LegalAcceptContent({
                 onPress={onGoHome}
                 accessibilityRole="button"
                 accessibilityLabel="Volver al inicio">
-                <Text style={styles.backLinkText}>Volver al inicio</Text>
+                <AppText variant="bodyLarge" style={styles.backLinkText}>
+                  Volver al inicio
+                </AppText>
               </Pressable>
             ) : null}
           </>
@@ -388,15 +405,12 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 27,
-    fontWeight: '800',
     color: '#2A3439',
     textAlign: 'center',
     marginBottom: spacing.xs + 2,
     letterSpacing: -0.35,
   },
   subtitle: {
-    fontSize: 16,
-    lineHeight: 23,
     color: TEXT_MUTED,
     textAlign: 'center',
     maxWidth: 320,
@@ -441,10 +455,8 @@ const styles = StyleSheet.create({
   },
   docTitle: {
     flex: 1,
-    fontSize: 16,
     fontWeight: '600',
     color: '#2A3439',
-    lineHeight: 22,
   },
   masterCheckCard: {
     backgroundColor: '#FFFFFF',
@@ -483,13 +495,10 @@ const styles = StyleSheet.create({
   },
   checkMark: {
     fontSize: 15,
-    fontWeight: '800',
     color: wellness.primaryDark,
   },
   checkLabel: {
     flex: 1,
-    fontSize: 15,
-    lineHeight: 22,
     color: '#354656',
     fontWeight: '500',
   },
@@ -514,7 +523,6 @@ const styles = StyleSheet.create({
   },
   btnPrimaryText: {
     fontSize: 18,
-    fontWeight: '700',
     color: '#FFFFFF',
   },
   btnPrimaryTextDisabled: {
@@ -526,7 +534,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   backLinkText: {
-    fontSize: 16,
     fontWeight: '600',
     color: wellness.primary,
     textDecorationLine: 'underline',
@@ -537,8 +544,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xl,
   },
   emptyBody: {
-    fontSize: 16,
-    lineHeight: 23,
     color: TEXT_MUTED,
     textAlign: 'center',
   },

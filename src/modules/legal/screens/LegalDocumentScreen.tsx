@@ -4,13 +4,14 @@
  */
 
 import { useCallback } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { openLegalDocument } from '@/src/modules/legal/open-legal-document';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { AppCard } from '@/src/shared/ui/AppCard';
+import { AppText } from '@/src/shared/ui/AppText';
 import { SectionHeader } from '@/src/shared/ui/SectionHeader';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -28,16 +29,24 @@ function DocumentSection({ number, title, summary, highlights }: DocumentSection
     <AppCard style={styles.sectionCard}>
       <View style={styles.sectionHeader}>
         <View style={styles.sectionNumberBadge}>
-          <Text style={styles.sectionNumberText}>{number}</Text>
+          <AppText variant="statusValue" style={styles.sectionNumberText}>
+            {number}
+          </AppText>
         </View>
-        <Text style={styles.sectionTitle}>{title}</Text>
+        <AppText variant="titleSmall" style={styles.sectionTitle}>
+          {title}
+        </AppText>
       </View>
-      <Text style={styles.sectionSummary}>{summary}</Text>
+      <AppText variant="bodyMedium" style={styles.sectionSummary}>
+        {summary}
+      </AppText>
       <View style={styles.highlightsList}>
         {highlights.map((item) => (
           <View key={item} style={styles.highlightRow}>
             <View style={styles.bulletDot} />
-            <Text style={styles.highlightText}>{item}</Text>
+            <AppText variant="bodySmall" style={styles.highlightText}>
+              {item}
+            </AppText>
           </View>
         ))}
       </View>
@@ -128,12 +137,14 @@ export function LegalDocumentScreen() {
         <View style={styles.introCard}>
           <View style={styles.introIconRow}>
             <IconSymbol name="doc.text.fill" size={20} color={wellnessColors.primary} />
-            <Text style={styles.introLabel}>Versión 1.0</Text>
+            <AppText variant="label" style={styles.introLabel}>
+              Versión 1.0
+            </AppText>
           </View>
-          <Text style={styles.introText}>
+          <AppText variant="bodyMedium" style={styles.introText}>
             Lee esta información antes de aceptar y continuar con la terapia. El documento completo
             está disponible en formato PDF.
-          </Text>
+          </AppText>
         </View>
 
         {SECTIONS.map((s) => (
@@ -175,14 +186,11 @@ const styles = StyleSheet.create({
   },
   introLabel: {
     fontSize: 13,
-    fontWeight: '700',
     color: wellnessColors.primaryDark,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
   introText: {
-    fontSize: 15,
-    lineHeight: 22,
     color: wellnessColors.textSecondary,
   },
   sectionCard: {
@@ -203,20 +211,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sectionNumberText: {
-    fontSize: 15,
-    fontWeight: '800',
     color: wellnessColors.primaryDark,
   },
   sectionTitle: {
     flex: 1,
     fontSize: 17,
-    fontWeight: '700',
     color: wellnessColors.textPrimary,
     lineHeight: 22,
   },
   sectionSummary: {
-    fontSize: 15,
-    lineHeight: 22,
     color: wellnessColors.textSecondary,
     marginBottom: spacing.md,
   },
@@ -238,8 +241,6 @@ const styles = StyleSheet.create({
   },
   highlightText: {
     flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
     color: wellnessColors.textPrimary,
   },
   pdfBtn: {

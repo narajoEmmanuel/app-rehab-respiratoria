@@ -169,6 +169,15 @@ import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 - Lógica de desbloqueo, `resolveTherapySessionLaunchInputMode`, navegación a `/sesion`, readiness y práctica táctil intacta.
 - Sin cambios de copy clínico, colores, layout ni progreso.
 
+### Fase 4H — Legal / Consentimiento
+
+- `LegalAcceptScreen` + `LegalDocumentScreen` migrados a `AppText`.
+- Variantes: `titleLarge`, `titleSmall`, `bodyLarge`, `bodyMedium`, `bodySmall`, `label`, `chip`, `button`, `statusValue`.
+- Rutas `app/legal/accept.tsx` y `app/legal/document.tsx` sin cambios (solo re-export).
+- `ConsentTabGuard`, `ConsentStackGuard`, `acceptConsent`, `needsConsent` y contenido legal (`SECTIONS`, `CHECK_LABELS`) intactos.
+- `SectionHeader` y `AuthRegistrationHeader` fuera de alcance (shared/auth).
+- Sin cambios de copy legal, colores, layout ni storage.
+
 ## Qué queda pendiente
 
 | Ámbito | Motivo |
