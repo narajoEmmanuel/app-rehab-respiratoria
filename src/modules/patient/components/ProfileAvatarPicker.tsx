@@ -22,13 +22,13 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ProfileAvatarView } from '@/src/modules/patient/components/ProfileAvatarView';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
+import { AppText } from '@/src/shared/ui/AppText';
 import { spacing } from '@/src/shared/theme/spacing';
 
 const ACCENT_DARK = '#168C86';
@@ -357,13 +357,17 @@ export function ProfileAvatarPicker({
         ]}
         accessibilityRole="button"
         accessibilityLabel={editButtonLabel}>
-        <Text style={styles.editPillText}>{editButtonLabel}</Text>
+        <AppText variant="chip" style={styles.editPillText}>
+          {editButtonLabel}
+        </AppText>
       </Pressable>
 
       {feedbackLabel ? (
         <View style={styles.feedbackChip}>
           <ActivityIndicator size="small" color={ACCENT_DARK} />
-          <Text style={styles.feedbackChipText}>{feedbackLabel}</Text>
+          <AppText variant="chip" style={styles.feedbackChipText}>
+            {feedbackLabel}
+          </AppText>
         </View>
       ) : null}
 
@@ -382,10 +386,12 @@ export function ProfileAvatarPicker({
             onPress={(e) => e.stopPropagation()}>
             <View style={styles.handle} />
 
-            <Text style={styles.sheetTitle}>Foto de perfil</Text>
-            <Text style={styles.sheetSubtitle}>
+            <AppText variant="titleMedium" style={styles.sheetTitle}>
+              Foto de perfil
+            </AppText>
+            <AppText variant="chip" style={styles.sheetSubtitle}>
               Personaliza cómo apareces en RESPIRA+.
-            </Text>
+            </AppText>
 
             <View style={styles.optionsList}>
               {sheetOptions.map((opt) => (
@@ -409,13 +415,14 @@ export function ProfileAvatarPicker({
                       color={opt.destructive ? '#B91C1C' : ACCENT_DARK}
                     />
                   </View>
-                  <Text
+                  <AppText
+                    variant="bodyLarge"
                     style={[
                       styles.optionLabel,
                       opt.destructive && styles.optionLabelDestructive,
                     ]}>
                     {opt.label}
-                  </Text>
+                  </AppText>
                 </Pressable>
               ))}
             </View>
@@ -430,7 +437,9 @@ export function ProfileAvatarPicker({
               onPress={closeSheet}
               accessibilityRole="button"
               accessibilityLabel="Cancelar">
-              <Text style={styles.cancelBtnText}>Cancelar</Text>
+              <AppText variant="bodyLarge" style={styles.cancelBtnText}>
+                Cancelar
+              </AppText>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -485,7 +494,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F8F7',
   },
   editPillText: {
-    fontSize: 13,
     fontWeight: '600',
     color: ACCENT_DARK,
     letterSpacing: 0.1,
@@ -509,7 +517,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   feedbackChipText: {
-    fontSize: 13,
     fontWeight: '500',
     color: '#6B7280',
   },
@@ -535,13 +542,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   sheetTitle: {
-    fontSize: 18,
-    fontWeight: '700',
     color: '#111827',
     textAlign: 'center',
   },
   sheetSubtitle: {
-    fontSize: 13,
     fontWeight: '400',
     color: '#6B7280',
     textAlign: 'center',
@@ -575,7 +579,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(185, 28, 28, 0.06)',
   },
   optionLabel: {
-    fontSize: 16,
     fontWeight: '500',
     color: '#111827',
   },
@@ -598,7 +601,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
   },
   cancelBtnText: {
-    fontSize: 16,
     fontWeight: '600',
     color: '#6B7280',
   },

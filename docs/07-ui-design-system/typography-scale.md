@@ -145,6 +145,14 @@ import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 - `SessionSummaryMetricsGrid` usa `MetricTile` (Fase 4A); labels de volumen aclarados como estimados.
 - `SessionSummaryActions` sin texto propio; `SessionSuccessStreakCard` fuera de alcance (módulo `session/`).
 
+### Fase 4E — `ProfileScreen`
+
+- Pantalla + 5 componentes del módulo `patient/` migrados a `AppText`: `ProfileSection`, `ProfileInfoCard`, `ProfileAvatarPicker`, `ProfileAvatarView`, `DeletePatientConfirmModal`.
+- Variantes: `titleSmall`, `titleMedium`, `bodyLarge`, `bodySmall`, `caption`, `label`, `chip`, `statusValue`, `metricLarge`, `metric`, `button`.
+- Tarjeta **Recordatorios de terapia** (`useIsFocused`, `readNotificationSettingsForDisplay`, `StatusPill`) sin cambios de lógica.
+- `TextInput` del modal de borrado conserva estilos propios; `MetricTile` y `StatusPill` ya usaban tokens (Fase 4A).
+- Sin cambios de layout, colores, copy clínico ni navegación.
+
 ## Qué queda pendiente
 
 | Ámbito | Motivo |
