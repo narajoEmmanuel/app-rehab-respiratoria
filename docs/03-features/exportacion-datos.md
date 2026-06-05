@@ -68,5 +68,8 @@ Versión export: `CLINICAL_EXPORT_FORMAT_VERSION = '2.4.0'`, schema `1.0.0` (`cl
 ## Docs relacionados
 
 - [Inicio](../02-tabs/inicio.md)
-- [CSV técnico](../calibration/README-csv-tecnico-calibracion.md)
+- [Export schema v2.4.0](../06-data-and-storage/export-schema-v2.4.0.md)
+- [Datos y almacenamiento](../06-data-and-storage/README.md)
+- [CSV técnico calibración](../05-calibration/csv-tecnico.md)
+- [CSV diccionario](../calibration/README-csv-tecnico-calibracion.md)
 - [Seguridad clínica](../08-clinical-safety/README.md)

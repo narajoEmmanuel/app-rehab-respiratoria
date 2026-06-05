@@ -86,6 +86,9 @@ Basado en tipos en `src/modules/session/types/session-progress.ts`, `src/modules
 - [Arquitectura técnica detallada](../../src/docs/architecture.md)
 - [Pestañas](../02-tabs/README.md)
 - [Funciones](../03-features/README.md)
+- [Dispositivo y sensor](../04-device-and-sensor/README.md)
+- [Calibración](../05-calibration/README.md)
+- [Datos y almacenamiento](../06-data-and-storage/README.md)
 - [Seguridad clínica](../08-clinical-safety/README.md)
 - [Módulo device](../../src/modules/device/README.md)
 - [Módulo session](../../src/modules/session/README.md)
@@ -98,5 +101,8 @@ docs/
 ├── 01-app-architecture/  ← Índice técnico, rutas, providers
 ├── 02-tabs/              ← Inicio, Terapia, Historial, Perfil
 ├── 03-features/          ← Evaluación, sesión, export, legal, etc.
+├── 04-device-and-sensor/ ← ESP32, WebSocket, flujo sensor
+├── 05-calibration/       ← RESPIRA+ 3000 mL, flujo técnico, CSV
+├── 06-data-and-storage/  ← Claves, modelos, export schema
 └── 08-clinical-safety/   ← Lenguaje clínico y límites del producto
 ```
