@@ -3,16 +3,16 @@
  * Module: shared/ui
  * Dependencies: AppButton, AppCard, MetricTile, StatusPill, spacing, typography, wellness-theme
  */
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { MetricTile } from '@/src/shared/ui/MetricTile';
 import { StatusPill } from '@/src/shared/ui/StatusPill';
+import { AppText } from '@/src/shared/ui/AppText';
 import { spacing } from '@/src/shared/theme/spacing';
 import {
   wellnessColors,
   wellnessRadius,
   wellnessShadows,
-  wellnessTypography,
 } from '@/src/shared/theme/wellness-theme';
 
 export type TherapyLevelStatusChip =
@@ -141,28 +141,36 @@ export function TherapyLevelCard({
                 styles.levelBadge,
                 { backgroundColor: locked ? '#E0E0E0' : accentColor },
               ]}>
-              <Text style={[styles.levelBadgeText, locked && styles.levelBadgeTextLocked]}>
+              <AppText
+                variant="titleSmall"
+                style={[styles.levelBadgeText, locked && styles.levelBadgeTextLocked]}>
                 {levelNumber}
-              </Text>
+              </AppText>
             </View>
             <View style={styles.headerMeta}>
-              <Text style={[styles.levelLabel, !locked && { color: accentDark }]}>
+              <AppText variant="chip" style={[styles.levelLabel, !locked && { color: accentDark }]}>
                 Nivel {levelNumber}
-              </Text>
+              </AppText>
               <StatusPill label={config.label} tone={config.tone} size="sm" />
             </View>
           </View>
         </View>
 
         {/* Title — dominant */}
-        <Text style={[styles.humanName, locked && styles.humanNameLocked]} numberOfLines={1}>
+        <AppText
+          variant="titleSmall"
+          style={[styles.humanName, locked && styles.humanNameLocked]}
+          numberOfLines={1}>
           {humanName}
-        </Text>
+        </AppText>
 
         {/* Purpose */}
-        <Text style={[styles.purpose, locked && styles.purposeLocked]} numberOfLines={2}>
+        <AppText
+          variant="bodySmall"
+          style={[styles.purpose, locked && styles.purposeLocked]}
+          numberOfLines={2}>
           {purpose}
-        </Text>
+        </AppText>
 
         {/* Metrics grid */}
         {!locked && (
@@ -207,17 +215,21 @@ export function TherapyLevelCard({
           <View style={styles.progressSection}>
             <View style={styles.progressCounts}>
               <View style={styles.progressItem}>
-                <Text style={styles.progressLabel}>Completadas hoy</Text>
-                <Text style={[styles.progressValue, { color: accentDark }]}>
+                <AppText variant="label" style={styles.progressLabel}>
+                  Completadas hoy
+                </AppText>
+                <AppText variant="statusValue" style={[styles.progressValue, { color: accentDark }]}>
                   {completedSessionsDisplay}
-                </Text>
+                </AppText>
               </View>
               <View style={[styles.progressDivider, { backgroundColor: accentBorder }]} />
               <View style={styles.progressItem}>
-                <Text style={styles.progressLabel}>Dentro de meta</Text>
-                <Text style={[styles.progressValue, { color: accentDark }]}>
+                <AppText variant="label" style={styles.progressLabel}>
+                  Dentro de meta
+                </AppText>
+                <AppText variant="statusValue" style={[styles.progressValue, { color: accentDark }]}>
                   {perfectSessionsDisplay}
-                </Text>
+                </AppText>
               </View>
             </View>
             <View style={[styles.progressTrack, { backgroundColor: hexToRgba(accentColor, 0.10) }]}>
@@ -236,17 +248,17 @@ export function TherapyLevelCard({
 
         {/* Helper text */}
         {helperText ? (
-          <Text style={styles.helper} numberOfLines={2}>
+          <AppText variant="chip" style={styles.helper} numberOfLines={2}>
             {helperText}
-          </Text>
+          </AppText>
         ) : null}
 
         {/* Locked message or CTA */}
         {locked ? (
           <View style={styles.lockedMessage}>
-            <Text style={styles.lockedMessageText}>
+            <AppText variant="chip" style={styles.lockedMessageText}>
               Completa el nivel anterior para desbloquear este nivel.
-            </Text>
+            </AppText>
           </View>
         ) : (
           <View style={styles.buttonWrap}>
@@ -269,13 +281,14 @@ export function TherapyLevelCard({
                 ]}
                 onPress={onPress}
                 accessibilityRole="button">
-                <Text
+                <AppText
+                  variant="button"
                   style={[
                     styles.ctaButtonText,
                     statusChip === 'completed' && { color: accentDark },
                   ]}>
                   {config.buttonLabel}
-                </Text>
+                </AppText>
               </Pressable>
             )}
           </View>
@@ -332,9 +345,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   levelBadgeText: {
-    color: '#FFFFFF',
     fontSize: 17,
-    fontWeight: '800',
+    color: '#FFFFFF',
   },
   levelBadgeTextLocked: {
     color: wellnessColors.textMuted,
@@ -347,15 +359,11 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   levelLabel: {
-    fontSize: 13,
-    fontWeight: '700',
     color: wellnessColors.textSecondary,
     letterSpacing: 0.2,
   },
   humanName: {
-    ...wellnessTypography.cardTitle,
     fontSize: 20,
-    fontWeight: '800',
     color: wellnessColors.textPrimary,
     letterSpacing: -0.3,
     marginBottom: 4,
@@ -364,8 +372,6 @@ const styles = StyleSheet.create({
     color: wellnessColors.textMuted,
   },
   purpose: {
-    fontSize: 14,
-    lineHeight: 20,
     color: wellnessColors.textSecondary,
     marginBottom: spacing.md,
   },
@@ -391,14 +397,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   progressLabel: {
-    fontSize: 11,
     fontWeight: '600',
     color: wellnessColors.textSecondary,
     marginBottom: 2,
   },
   progressValue: {
     fontSize: 16,
-    fontWeight: '800',
   },
   progressDivider: {
     width: 1,
@@ -416,7 +420,6 @@ const styles = StyleSheet.create({
     minWidth: 4,
   },
   helper: {
-    fontSize: 13,
     lineHeight: 18,
     color: wellnessColors.textSecondary,
     fontWeight: '600',
@@ -430,7 +433,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   lockedMessageText: {
-    fontSize: 13,
     lineHeight: 18,
     color: wellnessColors.textMuted,
     fontWeight: '600',
@@ -456,8 +458,6 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   ctaButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
     color: '#FFFFFF',
   },
 });

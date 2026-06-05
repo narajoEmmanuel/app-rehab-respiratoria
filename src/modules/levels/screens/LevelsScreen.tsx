@@ -6,7 +6,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -47,6 +47,7 @@ import { TARGET_PERFECT_SESSIONS } from '@/src/modules/session/session-progress-
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppCard } from '@/src/shared/ui/AppCard';
 import { AppButton } from '@/src/shared/ui/AppButton';
+import { AppText } from '@/src/shared/ui/AppText';
 import { SectionHeader } from '@/src/shared/ui/SectionHeader';
 import { MetricTile } from '@/src/shared/ui/MetricTile';
 import { TherapyLevelCard } from '@/src/shared/ui/therapy-level-card';
@@ -54,7 +55,7 @@ import type { TherapyLevelStatusChip } from '@/src/shared/ui/therapy-level-card'
 import { isLevelEntryLockedForUi } from '@/src/config/dev-level-flags';
 import { getLocalDateKey } from '@/src/shared/utils/local-date-key';
 import { spacing } from '@/src/shared/theme/spacing';
-import { wellnessColors, wellnessTypography } from '@/src/shared/theme/wellness-theme';
+import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 import { dashboardScreen, dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { getLevelVisualIdentity, parseLevelNumberFromId } from '@/src/theme/level-colors';
 
@@ -305,8 +306,12 @@ export function LevelsScreen({
       <SafeAreaView style={styles.safe} edges={['top']}>
         <AppTopBar onPressProfile={() => router.push('/profile')} />
         <View style={styles.blockedContainer}>
-          <Text style={styles.screenTitle}>Terapia guiada</Text>
-          <Text style={styles.tagline}>Cargando niveles…</Text>
+          <AppText variant="titleLarge" style={styles.screenTitle}>
+            Terapia guiada
+          </AppText>
+          <AppText variant="bodyLarge" style={styles.tagline}>
+            Cargando niveles…
+          </AppText>
         </View>
       </SafeAreaView>
     );
@@ -318,15 +323,21 @@ export function LevelsScreen({
       <ScrollView
         contentContainerStyle={[styles.container, { paddingBottom: scrollBottom }]}
         showsVerticalScrollIndicator={false}>
-        <Text style={styles.screenTitle}>Terapia guiada</Text>
-        <Text style={styles.tagline}>{headerSubtitle}</Text>
+        <AppText variant="titleLarge" style={styles.screenTitle}>
+          Terapia guiada
+        </AppText>
+        <AppText variant="bodyLarge" style={styles.tagline}>
+          {headerSubtitle}
+        </AppText>
 
         {!hasEvaluation ? (
           <AppCard variant="highlight" style={styles.evaluationCard}>
-            <Text style={styles.evaluationTitle}>Completa tu evaluación inicial</Text>
-            <Text style={styles.evaluationText}>
+            <AppText variant="titleMedium" style={styles.evaluationTitle}>
+              Completa tu evaluación inicial
+            </AppText>
+            <AppText variant="bodyMedium" style={styles.evaluationText}>
               Necesitamos tu volumen de referencia para personalizar tus metas de terapia.
-            </Text>
+            </AppText>
             <AppButton
               title="Comenzar evaluación"
               onPress={() => navigateToInitialEvaluation(router)}
@@ -335,7 +346,9 @@ export function LevelsScreen({
           </AppCard>
         ) : (
           <AppCard variant="soft" style={styles.referenceCard}>
-            <Text style={styles.referenceTitle}>Tu referencia actual</Text>
+            <AppText variant="titleSmall" style={styles.referenceTitle}>
+              Tu referencia actual
+            </AppText>
             <View style={styles.referenceMetrics}>
               <MetricTile
                 label="Volumen de referencia"
@@ -420,16 +433,18 @@ export function LevelsScreen({
         })}
 
         <AppCard style={styles.unlockInfoCard}>
-          <Text style={styles.unlockInfoTitle}>Desbloqueo del siguiente nivel</Text>
-          <Text style={styles.unlockInfoText}>
+          <AppText variant="titleSmall" style={styles.unlockInfoTitle}>
+            Desbloqueo del siguiente nivel
+          </AppText>
+          <AppText variant="bodyMedium" style={styles.unlockInfoText}>
             Completa 6 sesiones del nivel activo con 10 repeticiones válidas en cada una.
-          </Text>
+          </AppText>
           {showPerfectGapWarning ? (
-            <Text style={styles.warningText}>
+            <AppText variant="bodyMedium" style={styles.warningText}>
               Hoy completaste {TARGET_PERFECT_SESSIONS} sesiones en tu nivel activo, pero faltan{' '}
               {TARGET_PERFECT_SESSIONS - perfectSessionsOnActive} perfectas para desbloquear el
               siguiente. Cada una debe tener 10 repeticiones válidas.
-            </Text>
+            </AppText>
           ) : null}
         </AppCard>
 
@@ -437,9 +452,9 @@ export function LevelsScreen({
           <View style={styles.safetyIconWrap}>
             <MaterialIcons name="warning" size={18} color="#92400E" />
           </View>
-          <Text style={styles.safetyNoteText}>
+          <AppText variant="bodySmall" style={styles.safetyNoteText}>
             Detén la sesión si sientes dolor, mareo, falta de aire intensa o malestar.
-          </Text>
+          </AppText>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -462,13 +477,10 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
   },
   screenTitle: {
-    ...wellnessTypography.screenTitle,
     color: dashboardScreen.textPrimaryStrong,
     marginBottom: 2,
   },
   tagline: {
-    fontSize: 16,
-    lineHeight: 22,
     color: dashboardScreen.textSecondary,
     marginBottom: spacing.lg,
   },
@@ -476,14 +488,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   evaluationTitle: {
-    fontSize: 18,
-    fontWeight: '800',
     color: wellnessColors.textPrimary,
     marginBottom: spacing.xs,
   },
   evaluationText: {
-    fontSize: 15,
-    lineHeight: 22,
     color: wellnessColors.textSecondary,
     marginBottom: spacing.md,
   },
@@ -494,8 +502,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   referenceTitle: {
-    fontSize: 16,
-    fontWeight: '700',
     color: wellnessColors.primaryDark,
     marginBottom: spacing.sm,
   },
@@ -509,21 +515,15 @@ const styles = StyleSheet.create({
   },
   unlockInfoTitle: {
     color: dashboardScreen.textPrimary,
-    fontWeight: '700',
-    fontSize: 16,
     marginBottom: spacing.xs,
   },
   unlockInfoText: {
     color: dashboardScreen.textSecondary,
-    fontSize: 15,
-    lineHeight: 22,
   },
   warningText: {
     marginTop: spacing.sm,
     color: dashboardScreen.textPrimary,
     fontWeight: '700',
-    fontSize: 15,
-    lineHeight: 22,
   },
   safetyNote: {
     marginTop: spacing.lg,
@@ -549,8 +549,6 @@ const styles = StyleSheet.create({
   },
   safetyNoteText: {
     flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
     fontWeight: '600',
     color: '#92400E',
   },

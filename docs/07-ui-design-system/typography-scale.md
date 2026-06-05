@@ -161,13 +161,20 @@ import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 - `Animated.Text` del countdown conservado para animación Reanimated; lógica VIM, intentos, persistencia y readiness intacta.
 - Sin cambios de copy clínico, colores, layout ni navegación.
 
+### Fase 4G — `LevelsScreen` (Terapia / Menú de niveles)
+
+- `LevelsScreen` + `TherapyLevelCard` migrados a `AppText`.
+- Variantes: `titleLarge`, `titleMedium`, `titleSmall`, `bodyLarge`, `bodyMedium`, `bodySmall`, `label`, `chip`, `button`, `statusValue`.
+- `SectionHeader`, `MetricTile`, `StatusPill` y `AppButton` sin cambios (ya usan tokens o no tienen `Text` directo).
+- Lógica de desbloqueo, `resolveTherapySessionLaunchInputMode`, navegación a `/sesion`, readiness y práctica táctil intacta.
+- Sin cambios de copy clínico, colores, layout ni progreso.
+
 ## Qué queda pendiente
 
 | Ámbito | Motivo |
 |--------|--------|
 | `HomeScreen`, `HistoryScreen`, `SessionScreen` | Pantallas grandes — pendiente fases posteriores |
 | `SensorCalibrationTechnicalCaptureScreen` | Restricción explícita de auditoría |
-| `therapy-level-card.tsx` | Componente grande con muchos estilos contextuales |
 | `AppTopBar`, `AppCard` | Sin texto propio o solo layout |
 | HUD de juego | Tokens definidos; migración requiere revisión visual del gameplay |
 | Módulos `device/`, `session/games/` | Alto volumen de `fontSize` hardcoded |
