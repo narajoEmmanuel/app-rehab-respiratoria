@@ -195,6 +195,15 @@ import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 - Lógica de captura, regresión, exportación CSV técnico, persistencia, flags y navegación intacta.
 - Sin cambios de copy clínico, colores, layout ni modelo RESPIRA+ 3000 mL.
 
+### Fase 4K — Auth / Acceso local
+
+- 3 pantallas + 5 componentes del módulo `auth/` migrados a `AppText`: `LoginScreen`, `LocalProfileScreen`, `RegistroScreen`, `AuthWelcomeView`, `AuthCreateProfileView`, `AuthGeneratedKeyView`, `AuthFlowChrome`, `AuthRegistrationHeader`.
+- Variantes: `display`, `titleLarge`, `titleMedium`, `titleSmall`, `bodyLarge`, `bodyMedium`, `bodySmall`, `caption`, `label`, `chip`, `link`, `button`, `statusValue`, `metricLarge`.
+- Rutas `app/auth/login.tsx`, `app/auth/local-profile.tsx`, `app/auth/registro.tsx` sin cambios (solo re-export).
+- `TextInput` de login/registro conserva estilos propios; `AuthPrimaryButton` / botones gradiente usan `AppText variant="button"` con overrides.
+- Flujo local-first, paciente activo, consentimiento, storage y validaciones intactos.
+- Sin cambios de copy, colores, layout ni navegación.
+
 ## Qué queda pendiente
 
 | Ámbito | Motivo |

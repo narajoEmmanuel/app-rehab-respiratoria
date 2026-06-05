@@ -5,7 +5,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
   type StyleProp,
   type ViewStyle,
@@ -16,6 +15,7 @@ import { AuthRegistrationHeader } from '@/src/modules/auth/components/AuthRegist
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessColors, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import { AppText } from '@/src/shared/ui/AppText';
 
 type AuthFlowChromeProps = {
   children: ReactNode;
@@ -61,9 +61,9 @@ export function AuthStepper({ current, total = 4 }: { current: number; total?: n
           </View>
         );
       })}
-      <Text style={styles.stepperLabel}>
+      <AppText variant="chip" style={styles.stepperLabel}>
         Paso {current} de {total}
-      </Text>
+      </AppText>
     </View>
   );
 }
@@ -118,8 +118,8 @@ export function AuthFlowChrome({
 export function AuthTitleBlock({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <View style={styles.titleBlock}>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.subtitle}>{subtitle}</Text>
+      <AppText variant="titleLarge" style={styles.title}>{title}</AppText>
+      <AppText variant="bodyLarge" style={styles.subtitle}>{subtitle}</AppText>
     </View>
   );
 }
@@ -210,14 +210,14 @@ function PressableAuthButton({
       {loading ? (
         <ActivityIndicator color={isPrimary ? '#fff' : authPalette.primary} />
       ) : (
-        <Text
+        <AppText variant="button"
           style={[
             styles.btnText,
             isPrimary && styles.btnTextPrimary,
             (isOutline || variant === 'secondary') && styles.btnTextOutline,
           ]}>
           {label}
-        </Text>
+        </AppText>
       )}
     </Pressable>
   );
@@ -229,7 +229,7 @@ export function AuthBulletList({ items }: { items: readonly string[] }) {
       {items.map((item) => (
         <View key={item} style={styles.bulletRow}>
           <View style={styles.bulletDot} />
-          <Text style={styles.bulletText}>{item}</Text>
+          <AppText variant="bodyLarge" style={styles.bulletText}>{item}</AppText>
         </View>
       ))}
     </View>

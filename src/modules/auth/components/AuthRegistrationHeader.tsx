@@ -1,9 +1,14 @@
 /**
  * Barra superior del flujo de registro: botón atrás, marca RESPIRA+ y stepper opcional.
  */
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  View,
+} from 'react-native';
 
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
+import { AppText } from '@/src/shared/ui/AppText';
 import { RespiraBrandMark } from '@/src/shared/ui/RespiraBrandMark';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
@@ -52,9 +57,9 @@ export function AuthRegistrationStepper({
           })}
         </View>
       </View>
-      <Text style={styles.stepperCaption}>
+      <AppText variant="statusValue" style={styles.stepperCaption}>
         Paso {current} de {total}
-      </Text>
+      </AppText>
     </View>
   );
 }
@@ -91,7 +96,7 @@ export function AuthRegistrationHeader({
             <View style={styles.headerLogoCircle}>
               <RespiraBrandMark variant="icon" size="sm" imageStyle={styles.headerLogoImage} />
             </View>
-            <Text style={styles.headerBrandText}>RESPIRA+</Text>
+            <AppText variant="titleLarge" style={styles.headerBrandText}>RESPIRA+</AppText>
           </View>
         ) : null}
       </View>

@@ -7,7 +7,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -21,6 +20,7 @@ import {
 } from '@/src/modules/auth/components/AuthRegistrationHeader';
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
+import { AppText } from '@/src/shared/ui/AppText';
 import { spacing } from '@/src/shared/theme/spacing';
 import {
   wellness,
@@ -122,17 +122,17 @@ export function AuthGeneratedKeyView({
         <View style={styles.page}>
           <View style={styles.contentMain}>
             <View style={styles.titleBlock}>
-              <Text style={styles.title}>¡Todo listo!</Text>
-              <Text style={styles.subtitle}>
+              <AppText variant="titleLarge" style={styles.title}>¡Todo listo!</AppText>
+              <AppText variant="bodyLarge" style={styles.subtitle}>
                 Guarda tu clave de acceso. La necesitarás cada vez que entres a la app.
-              </Text>
+              </AppText>
             </View>
 
             <View style={styles.keyCard} accessibilityRole="summary">
-              <Text style={styles.keyLabel}>Tu clave de acceso</Text>
-              <Text style={styles.keyValue} accessibilityLabel={`Clave ${clave}`}>
+              <AppText variant="label" style={styles.keyLabel}>Tu clave de acceso</AppText>
+              <AppText variant="metricLarge" style={styles.keyValue} accessibilityLabel={`Clave ${clave}`}>
                 {clave}
-              </Text>
+              </AppText>
             </View>
 
             <Pressable
@@ -146,9 +146,9 @@ export function AuthGeneratedKeyView({
               accessibilityRole="button"
               accessibilityLabel={copyAck ? 'Clave lista para compartir' : 'Copiar clave'}>
               <IconSymbol name="square.and.arrow.up" size={20} color={wellness.primary} />
-              <Text style={styles.btnOutlineText}>
+              <AppText variant="button" style={styles.btnOutlineText}>
                 {copyAck ? 'Clave lista para compartir' : 'Copiar clave'}
-              </Text>
+              </AppText>
             </Pressable>
 
             <Pressable
@@ -170,7 +170,7 @@ export function AuthGeneratedKeyView({
                 {busy ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.btnPrimaryText}>Revisar documentos legales</Text>
+                  <AppText variant="button" style={styles.btnPrimaryText}>Revisar documentos legales</AppText>
                 )}
               </LinearGradient>
             </Pressable>
@@ -185,7 +185,7 @@ export function AuthGeneratedKeyView({
               disabled={busy}
               accessibilityRole="button"
               accessibilityLabel="Volver al acceso con clave">
-              <Text style={styles.btnSecondaryText}>Volver al acceso con clave</Text>
+              <AppText variant="bodyLarge" style={styles.btnSecondaryText}>Volver al acceso con clave</AppText>
             </Pressable>
           </View>
         </View>

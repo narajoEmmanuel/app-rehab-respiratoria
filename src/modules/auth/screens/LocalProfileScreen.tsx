@@ -9,7 +9,6 @@ import {
   Pressable,
   Share,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 
@@ -35,6 +34,7 @@ import type { PatientRecord } from '@/src/modules/patient/types';
 import { getErrorMessage } from '@/src/shared/utils/get-error-message';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import { AppText } from '@/src/shared/ui/AppText';
 
 type LocalPhase = 'welcome' | 'create' | 'profiles';
 
@@ -193,15 +193,15 @@ export function LocalProfileScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={`Usar perfil ${normalizePatientDisplayName(p.nombre_completo)}`}>
                   <View style={styles.profileRowText}>
-                    <Text style={styles.profileName}>
+                    <AppText variant="titleSmall" style={styles.profileName}>
                       {normalizePatientDisplayName(p.nombre_completo)}
-                    </Text>
-                    <Text style={styles.profileMeta}>Clave · {p.clave}</Text>
+                    </AppText>
+                    <AppText variant="bodySmall" style={styles.profileMeta}>Clave · {p.clave}</AppText>
                   </View>
                   {busy ? (
                     <ActivityIndicator color={authPalette.primary} />
                   ) : (
-                    <Text style={styles.profileAction}>Usar</Text>
+                    <AppText variant="bodyLarge" style={styles.profileAction}>Usar</AppText>
                   )}
                 </Pressable>
               );
