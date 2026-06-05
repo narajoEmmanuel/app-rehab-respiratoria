@@ -182,16 +182,24 @@ import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 
 - `SensorConnectionScreen`, `SensorCalibrationPatientScreen` (sin `Text` propio) + 5 componentes migrados: `CalibrationStatusHeroCard`, `CalibrationQuickActions`, `MeasuredVolumeHero`, `LiveVolumeCard`, `SensorLivePreview`.
 - Variantes: `titleMedium`, `titleSmall`, `bodyLarge`, `bodySmall`, `caption`, `label`, `chip`, `statusValue`, `metricLarge`, `metricSmall`.
-- Flujo técnico avanzado **no tocado**: `SensorCalibrationTechnicalCaptureScreen`, `CalibrationTechnicalSummaryScreen`, `SensorCalibrationTechnicalScreen`, `TechnicalCalibrationUnavailableScreen`.
+- Flujo técnico avanzado **no tocado** en 4I (migrado en Fase 4J).
 - `SensorCalibrationScreen` (router) sin cambios de lógica; WebSocket, calibración RESPIRA+ 3000 mL, readiness y storage intactos.
 - Copy: label por defecto en `MeasuredVolumeHero` aclarado como «Volumen estimado».
+
+### Fase 4J — Calibración técnica avanzada
+
+- 4 pantallas + `TechnicalSummaryLink` migrados a `AppText`: `SensorCalibrationTechnicalScreen`, `SensorCalibrationTechnicalCaptureScreen`, `CalibrationTechnicalSummaryScreen`, `TechnicalCalibrationUnavailableScreen`.
+- Variantes: `titleLarge`, `titleMedium`, `titleSmall`, `bodyMedium`, `bodySmall`, `caption`, `label`, `chip`, `chipSmall`, `link`, `button`, `statusValue`, `metric`.
+- `SectionHeader`, `MetricTile`, `StatusPill`, `MeasuredVolumeHero`, `AppButton` sin cambios (ya usaban tokens o no tienen `Text` directo).
+- `TextInput` de identificación y volumen conserva estilos propios.
+- Lógica de captura, regresión, exportación CSV técnico, persistencia, flags y navegación intacta.
+- Sin cambios de copy clínico, colores, layout ni modelo RESPIRA+ 3000 mL.
 
 ## Qué queda pendiente
 
 | Ámbito | Motivo |
 |--------|--------|
 | `HomeScreen`, `HistoryScreen`, `SessionScreen` | Pantallas grandes — pendiente fases posteriores |
-| `SensorCalibrationTechnicalCaptureScreen` | Restricción explícita de auditoría |
 | `AppTopBar`, `AppCard` | Sin texto propio o solo layout |
 | HUD de juego | Tokens definidos; migración requiere revisión visual del gameplay |
 | Módulos `device/`, `session/games/` | Alto volumen de `fontSize` hardcoded |

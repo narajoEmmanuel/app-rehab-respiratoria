@@ -1,12 +1,13 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { Platform, ScrollView, StyleSheet, Text } from 'react-native';
+import { Platform, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessColors, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { AppCard } from '@/src/shared/ui/AppCard';
+import { AppText } from '@/src/shared/ui/AppText';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 
 export type TechnicalCalibrationUnavailableScreenProps = {
@@ -51,10 +52,12 @@ export function TechnicalCalibrationUnavailableScreen({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <AppCard style={styles.card}>
-          <Text style={styles.title}>Configuración técnica no disponible</Text>
-          <Text style={styles.body}>
+          <AppText variant="titleMedium" style={styles.title}>
+            Configuración técnica no disponible
+          </AppText>
+          <AppText variant="bodyMedium" style={styles.body}>
             La calibración RESPIRA+ validada está activa.
-          </Text>
+          </AppText>
         </AppCard>
 
         <AppButton title="Volver" onPress={onBack} variant="primary" />
@@ -83,8 +86,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   body: {
-    fontSize: 15,
-    lineHeight: 22,
     color: wellnessColors.textSecondary,
   },
 });
