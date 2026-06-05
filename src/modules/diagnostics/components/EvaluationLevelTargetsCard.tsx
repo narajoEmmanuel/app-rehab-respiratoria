@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { previewDiagnosticLevelTargets } from '@/src/modules/diagnostics/diagnostic-service';
 import {
@@ -9,6 +9,7 @@ import {
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 import { AppCard } from '@/src/shared/ui/AppCard';
+import { AppText } from '@/src/shared/ui/AppText';
 
 type EvaluationLevelTargetsCardProps = {
   referenceVolumeMl: number;
@@ -24,18 +25,22 @@ export function EvaluationLevelTargetsCard({ referenceVolumeMl }: EvaluationLeve
 
   return (
     <AppCard>
-      <Text style={styles.sectionTitle}>Niveles personalizados</Text>
-      <Text style={styles.sectionHint}>
+      <AppText variant="titleSmall" style={styles.sectionTitle}>
+        Niveles personalizados
+      </AppText>
+      <AppText variant="bodySmall" style={styles.sectionHint}>
         Metas de volumen según tu volumen de referencia actual.
-      </Text>
+      </AppText>
       {targets.map(({ levelNumber, targetVolumeMl }, index) => (
         <View key={levelNumber}>
           {index > 0 ? <View style={styles.divider} /> : null}
           <View style={styles.row}>
-            <Text style={styles.levelLabel}>
+            <AppText variant="statusValue" style={styles.levelLabel}>
               Nivel {levelNumber} · {getLevelFactorLabel(levelNumber)}
-            </Text>
-            <Text style={styles.levelValue}>{formatEvaluationVolumeMl(targetVolumeMl)}</Text>
+            </AppText>
+            <AppText variant="metricSmall" style={styles.levelValue}>
+              {formatEvaluationVolumeMl(targetVolumeMl)}
+            </AppText>
           </View>
         </View>
       ))}
@@ -45,14 +50,10 @@ export function EvaluationLevelTargetsCard({ referenceVolumeMl }: EvaluationLeve
 
 const styles = StyleSheet.create({
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: '800',
     color: wellnessColors.textPrimary,
     marginBottom: spacing.xs,
   },
   sectionHint: {
-    fontSize: 14,
-    lineHeight: 20,
     color: wellnessColors.textSecondary,
     marginBottom: spacing.md,
   },
@@ -64,15 +65,11 @@ const styles = StyleSheet.create({
   },
   levelLabel: {
     flex: 1,
-    fontSize: 15,
-    lineHeight: 20,
     fontWeight: '600',
     color: wellnessColors.textSecondary,
     marginRight: spacing.sm,
   },
   levelValue: {
-    fontSize: 18,
-    fontWeight: '800',
     color: wellnessColors.primaryDark,
   },
   divider: {

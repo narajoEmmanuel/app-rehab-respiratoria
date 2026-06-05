@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { InitialEvaluationCountdownView } from '@/src/modules/diagnostics/components/InitialEvaluationCountdownView';
@@ -25,6 +25,7 @@ import { useInitialEvaluationReadiness } from '@/src/modules/diagnostics/use-ini
 import type { DiagnosticAttemptNumber, DiagnosticEvaluationSession } from '@/src/modules/diagnostics/types';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
+import { AppText } from '@/src/shared/ui/AppText';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
@@ -555,27 +556,34 @@ export function DiagnosticExamScreen() {
             phaseCommandVariant === 'rest' && styles.phaseCommandRest,
           ]}
           accessibilityRole="header">
-          <Text
+          <AppText
+            variant="metric"
             style={[
               styles.phaseCommandText,
               phaseCommandVariant === 'rest' && styles.phaseCommandTextRest,
             ]}>
             {phaseActionLabel}
-          </Text>
-          <Text style={styles.phaseCommandHint}>{phaseHint}</Text>
+          </AppText>
+          <AppText variant="chip" style={styles.phaseCommandHint}>
+            {phaseHint}
+          </AppText>
         </View>
 
         <View style={styles.timerRow}>
           <View style={styles.timerBlock}>
-            <Text style={styles.timerLabel}>Tiempo</Text>
-            <Text style={styles.timerValueCompact}>{secondsLeft}s</Text>
+            <AppText variant="label" style={styles.timerLabel}>
+              Tiempo
+            </AppText>
+            <AppText variant="metricLarge" style={styles.timerValueCompact}>
+              {secondsLeft}s
+            </AppText>
           </View>
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${progressRatio * 100}%` }]} />
           </View>
         </View>
 
-        <Text style={styles.activeCardMeta}>
+        <AppText variant="caption" style={styles.activeCardMeta}>
           {isTouchPractice
             ? 'Mantén presionado en el globo'
             : inAttempt && !hasLiveReading
@@ -583,7 +591,7 @@ export function DiagnosticExamScreen() {
               : liveLabel
                 ? `Medición en vivo · ${liveLabel}`
                 : 'Medición en vivo'}
-        </Text>
+        </AppText>
       </View>
 
       <View style={styles.balloonZone}>
@@ -598,27 +606,47 @@ export function DiagnosticExamScreen() {
       <View style={styles.cardBottomSection}>
         <View style={styles.metricsRow}>
           <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Volumen actual</Text>
-            <Text style={styles.metricValue}>{Math.round(currentVolume)} mL</Text>
+            <AppText variant="label" style={styles.metricLabel}>
+              Volumen actual
+            </AppText>
+            <AppText variant="metricSmall" style={styles.metricValue}>
+              {Math.round(currentVolume)} mL
+            </AppText>
           </View>
           <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Máximo intento</Text>
-            <Text style={styles.metricValue}>{Math.round(maxVolume)} mL</Text>
+            <AppText variant="label" style={styles.metricLabel}>
+              Máximo intento
+            </AppText>
+            <AppText variant="metricSmall" style={styles.metricValue}>
+              {Math.round(maxVolume)} mL
+            </AppText>
           </View>
         </View>
 
         <View style={styles.attemptsRow}>
           <View style={[styles.attemptChip, phase === 'attempt-1' && styles.attemptChipActive]}>
-            <Text style={styles.attemptChipLabel}>Intento 1</Text>
-            <Text style={styles.attemptChipValue}>{Math.round(attemptOneMax)} mL</Text>
+            <AppText variant="chipSmall" style={styles.attemptChipLabel}>
+              Intento 1
+            </AppText>
+            <AppText variant="bodySmall" style={styles.attemptChipValue}>
+              {Math.round(attemptOneMax)} mL
+            </AppText>
           </View>
           <View style={[styles.attemptChip, phase === 'attempt-2' && styles.attemptChipActive]}>
-            <Text style={styles.attemptChipLabel}>Intento 2</Text>
-            <Text style={styles.attemptChipValue}>{Math.round(attemptTwoMax)} mL</Text>
+            <AppText variant="chipSmall" style={styles.attemptChipLabel}>
+              Intento 2
+            </AppText>
+            <AppText variant="bodySmall" style={styles.attemptChipValue}>
+              {Math.round(attemptTwoMax)} mL
+            </AppText>
           </View>
           <View style={[styles.attemptChip, phase === 'attempt-3' && styles.attemptChipActive]}>
-            <Text style={styles.attemptChipLabel}>Intento 3</Text>
-            <Text style={styles.attemptChipValue}>{Math.round(attemptThreeMax)} mL</Text>
+            <AppText variant="chipSmall" style={styles.attemptChipLabel}>
+              Intento 3
+            </AppText>
+            <AppText variant="bodySmall" style={styles.attemptChipValue}>
+              {Math.round(attemptThreeMax)} mL
+            </AppText>
           </View>
         </View>
       </View>
@@ -649,15 +677,17 @@ export function DiagnosticExamScreen() {
       <View style={styles.contentArea}>
         <View style={styles.gameCardShell}>{gameCard}</View>
 
-        <Text style={styles.safetyHint}>
+        <AppText variant="chip" style={styles.safetyHint}>
           Respira con calma. Puedes cancelar si te sientes mal.
-        </Text>
+        </AppText>
         <Pressable
           style={({ pressed }) => [styles.cancelLink, pressed && styles.cancelLinkPressed]}
           onPress={confirmCancelEvaluation}
           accessibilityRole="button"
           accessibilityLabel="Cancelar evaluación">
-          <Text style={styles.cancelLinkText}>Cancelar evaluación</Text>
+          <AppText variant="link" style={styles.cancelLinkText}>
+            Cancelar evaluación
+          </AppText>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -679,14 +709,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   activeCardMeta: {
-    fontSize: 12,
-    fontWeight: '600',
     color: wellness.textSecondary,
     textAlign: 'center',
   },
   safetyHint: {
     marginTop: spacing.sm,
-    fontSize: 13,
+    fontWeight: '400',
     lineHeight: 18,
     color: wellness.textSecondary,
     textAlign: 'center',
@@ -700,8 +728,6 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   cancelLinkText: {
-    fontSize: 14,
-    fontWeight: '700',
     color: wellness.primaryDark,
   },
   gameCardShell: {
@@ -756,8 +782,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(210, 150, 50, 0.35)',
   },
   phaseCommandText: {
-    fontSize: 22,
-    fontWeight: '800',
     color: wellness.primaryDark,
     textAlign: 'center',
     letterSpacing: 0.3,
@@ -767,7 +791,6 @@ const styles = StyleSheet.create({
   },
   phaseCommandHint: {
     marginTop: 2,
-    fontSize: 13,
     fontWeight: '600',
     color: wellness.textSecondary,
     textAlign: 'center',
@@ -791,7 +814,6 @@ const styles = StyleSheet.create({
   timerValueCompact: {
     fontSize: 28,
     lineHeight: 32,
-    fontWeight: '800',
     color: wellness.primaryDark,
   },
   progressTrack: {
@@ -858,14 +880,11 @@ const styles = StyleSheet.create({
     borderColor: wellness.border,
   },
   metricLabel: {
-    fontSize: 11,
     fontWeight: '600',
     color: wellness.textSecondary,
     marginBottom: 2,
   },
   metricValue: {
-    fontSize: 18,
-    fontWeight: '800',
     color: wellness.text,
   },
   attemptsRow: {
@@ -894,7 +913,6 @@ const styles = StyleSheet.create({
   },
   attemptChipValue: {
     marginTop: 1,
-    fontSize: 14,
     fontWeight: '800',
     color: wellness.primaryDark,
   },

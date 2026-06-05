@@ -153,6 +153,14 @@ import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 - `TextInput` del modal de borrado conserva estilos propios; `MetricTile` y `StatusPill` ya usaban tokens (Fase 4A).
 - Sin cambios de layout, colores, copy clínico ni navegación.
 
+### Fase 4F — Evaluación inicial / Diagnóstico
+
+- 3 pantallas + 5 componentes del módulo `diagnostics/` migrados a `AppText`: `DiagnosticExamScreen`, `DiagnosticSummaryScreen`, `InitialEvaluationSummaryScreen`, `InitialEvaluationWelcomeView`, `InitialEvaluationCountdownView`, `EvaluationAttemptsCard`, `EvaluationComparisonCard`, `EvaluationLevelTargetsCard`.
+- Variantes: `titleLarge`, `titleMedium`, `titleSmall`, `bodyLarge`, `bodyMedium`, `bodySmall`, `caption`, `label`, `chip`, `chipSmall`, `link`, `button`, `statusValue`, `metric`, `metricLarge`, `metricSmall`.
+- Rutas `app/diagnostico*.tsx` y `app/evaluacion-resumen.tsx` sin cambios (solo `ConsentStackGuard` + screen).
+- `Animated.Text` del countdown conservado para animación Reanimated; lógica VIM, intentos, persistencia y readiness intacta.
+- Sin cambios de copy clínico, colores, layout ni navegación.
+
 ## Qué queda pendiente
 
 | Ámbito | Motivo |
