@@ -8,6 +8,16 @@ import { fontBold, fontRegular } from '@/src/shared/theme/typography';
 import { wellness, wellnessColors, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 
+/** Degradado hero: teal de marca con paso claro (#45BDB7, botones RESPIRA+). */
+const EVAL_WELCOME_GRADIENT = [
+  wellnessColors.primaryDark,
+  wellness.primary,
+  '#45BDB7',
+] as const;
+
+const EVAL_MINT_GLOW = '#B8F0E8';
+const EVAL_MINT_WASH = wellnessColors.primarySubtle;
+
 type InitialEvaluationWelcomeViewProps = {
   canStart: boolean;
   loading: boolean;
@@ -35,7 +45,7 @@ export function InitialEvaluationWelcomeView({
   return (
     <View style={styles.screen}>
       <LinearGradient
-        colors={['#055E59', '#078B83', '#34aba5']}
+        colors={[...EVAL_WELCOME_GRADIENT]}
         locations={[0, 0.45, 1]}
         style={StyleSheet.absoluteFill}
       />
@@ -72,12 +82,10 @@ export function InitialEvaluationWelcomeView({
         </View>
 
         <Animated.View entering={FadeInUp.duration(680).delay(140)} style={styles.contentCard}>
-          <View style={styles.blockIntro}>
-            <Text style={styles.cardTitle}>Evaluación inicial</Text>
-            <Text style={styles.cardLead}>
-              Personalizaremos tus niveles de terapia con base en tu resultado.
-            </Text>
-          </View>
+          <Text style={styles.cardTitle}>Evaluación inicial</Text>
+          <Text style={styles.cardLead}>
+            Personalizaremos tus niveles de terapia con base en tu resultado.
+          </Text>
 
           <View style={styles.safetyBox}>
             <Text style={styles.safetyText}>
@@ -85,59 +93,51 @@ export function InitialEvaluationWelcomeView({
             </Text>
           </View>
 
-          {showReadyHint || showSensorHint ? (
-            <View style={styles.blockSensor}>
-              {showReadyHint ? (
-                <Text style={styles.readyHint}>
-                  Sensor listo.
-                  {spirometerLabel ? ` · ${spirometerLabel}` : ''}
-                </Text>
-              ) : null}
-
-              {showSensorHint ? (
-                waitingForSignal ? (
-                  <View style={styles.sensorStatusBlock} accessibilityRole="alert">
-                    <Text style={styles.sensorStatusTitle}>Esperando señal del sensor</Text>
-                    <Text style={styles.sensorStatusSubtext}>
-                      Conecta el espirómetro para continuar.
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={styles.statusMessage} accessibilityRole="alert">
-                    {statusMessage || 'Conecta y calibra el espirómetro para continuar.'}
-                  </Text>
-                )
-              ) : null}
-            </View>
+          {showReadyHint ? (
+            <Text style={styles.readyHint}>
+              Sensor listo.
+              {spirometerLabel ? ` · ${spirometerLabel}` : ''}
+            </Text>
           ) : null}
 
-          <View style={styles.blockActions}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.primaryBtn,
-                buttonDisabled && styles.primaryBtnDisabled,
-                pressed && !buttonDisabled && styles.primaryBtnPressed,
-              ]}
-              onPress={onStart}
-              disabled={buttonDisabled}
-              accessibilityRole="button"
-              accessibilityLabel="Comenzar evaluación"
-              accessibilityState={{ disabled: buttonDisabled }}>
-              <Text style={styles.primaryBtnText}>
-                {loading ? 'Verificando sensor…' : 'Comenzar evaluación'}
+          {showSensorHint ? (
+            waitingForSignal ? (
+              <View style={styles.sensorStatusBlock} accessibilityRole="alert">
+                <Text style={styles.sensorStatusTitle}>Esperando señal del sensor</Text>
+                <Text style={styles.sensorStatusSubtext}>Conecta el espirómetro para continuar.</Text>
+              </View>
+            ) : (
+              <Text style={styles.statusMessage} accessibilityRole="alert">
+                {statusMessage || 'Conecta y calibra el espirómetro para continuar.'}
               </Text>
-            </Pressable>
+            )
+          ) : null}
 
-            {showSensorHint ? (
-              <Pressable
-                style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
-                onPress={onGoToSensor}
-                accessibilityRole="button"
-                accessibilityLabel="Revisar sensor">
-                <Text style={styles.secondaryBtnText}>Revisar sensor</Text>
-              </Pressable>
-            ) : null}
-          </View>
+          <Pressable
+            style={({ pressed }) => [
+              styles.primaryBtn,
+              buttonDisabled && styles.primaryBtnDisabled,
+              pressed && !buttonDisabled && styles.primaryBtnPressed,
+            ]}
+            onPress={onStart}
+            disabled={buttonDisabled}
+            accessibilityRole="button"
+            accessibilityLabel="Comenzar evaluación"
+            accessibilityState={{ disabled: buttonDisabled }}>
+            <Text style={styles.primaryBtnText}>
+              {loading ? 'Verificando sensor…' : 'Comenzar evaluación'}
+            </Text>
+          </Pressable>
+
+          {showSensorHint ? (
+            <Pressable
+              style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
+              onPress={onGoToSensor}
+              accessibilityRole="button"
+              accessibilityLabel="Revisar sensor">
+              <Text style={styles.secondaryBtnText}>Revisar sensor</Text>
+            </Pressable>
+          ) : null}
         </Animated.View>
       </SafeAreaView>
     </View>
@@ -147,7 +147,7 @@ export function InitialEvaluationWelcomeView({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#078B83',
+    backgroundColor: wellness.primary,
   },
   safe: {
     flex: 1,
@@ -161,9 +161,9 @@ const styles = StyleSheet.create({
     borderRadius: wellnessRadii.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.16)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.22)',
+    borderColor: 'rgba(184, 240, 232, 0.35)',
     marginBottom: spacing.sm,
   },
   backBtnPressed: {
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     width: 220,
     height: 220,
     borderRadius: 110,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.11)',
   },
   decorCircleBottomLeft: {
     position: 'absolute',
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     width: 260,
     height: 260,
     borderRadius: 130,
-    backgroundColor: 'rgba(184, 240, 232, 0.12)',
+    backgroundColor: `${EVAL_MINT_GLOW}33`,
   },
   decorGlow: {
     position: 'absolute',
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
     width: 280,
     height: 140,
     borderRadius: 140,
-    backgroundColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: `${EVAL_MINT_WASH}2E`,
   },
   decorWave: {
     position: 'absolute',
@@ -204,14 +204,14 @@ const styles = StyleSheet.create({
     height: 120,
     borderTopLeftRadius: 120,
     borderTopRightRadius: 120,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(255,255,255,0.09)',
   },
   heroSection: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingTop: spacing.md,
-    paddingBottom: spacing.lg,
+    paddingBottom: 0,
   },
   heroContent: {
     alignItems: 'center',
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
   },
   brandPlus: {
     fontFamily: fontRegular,
-    color: '#B8F0E8',
+    color: EVAL_MINT_GLOW,
     letterSpacing: 1,
   },
   heroTagline: {
@@ -246,17 +246,15 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 24,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.88)',
+    color: 'rgba(240, 250, 249, 0.92)',
     textAlign: 'center',
     letterSpacing: 0.1,
   },
   contentCard: {
     backgroundColor: 'rgba(255,255,255,0.97)',
     borderRadius: 28,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    gap: spacing.xs,
+    padding: spacing.lg,
+    gap: spacing.sm,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.65)',
     shadowColor: '#023632',
@@ -264,87 +262,80 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 24,
     elevation: 8,
-    marginBottom: spacing.sm,
-  },
-  blockIntro: {
-    gap: 2,
-  },
-  blockSensor: {
-    gap: 2,
-    alignItems: 'center',
-  },
-  blockActions: {
-    marginTop: 2,
-    gap: spacing.sm,
+    marginTop: -spacing.xxl,
+    marginBottom: spacing.xl,
   },
   cardTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
     color: wellness.text,
     letterSpacing: -0.3,
-    textAlign: 'center',
   },
   cardLead: {
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 16,
+    lineHeight: 23,
     fontWeight: '600',
     color: wellness.text,
   },
   safetyBox: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm + 2,
+    marginTop: spacing.xs,
+    padding: spacing.md,
     borderRadius: wellnessRadii.card,
     backgroundColor: 'rgba(255, 193, 94, 0.12)',
     borderWidth: 1,
     borderColor: 'rgba(210, 150, 50, 0.28)',
   },
   safetyText: {
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 13,
+    lineHeight: 19,
     fontWeight: '600',
     color: '#7A5A10',
   },
   readyHint: {
     fontSize: 14,
-    lineHeight: 19,
+    lineHeight: 20,
     fontWeight: '700',
     color: wellness.primaryDark,
     textAlign: 'center',
+    marginTop: spacing.xs,
   },
   sensorStatusBlock: {
-    gap: 1,
+    marginTop: spacing.xs,
+    gap: 2,
     alignItems: 'center',
   },
   sensorStatusTitle: {
     fontSize: 14,
-    lineHeight: 19,
+    lineHeight: 20,
     fontWeight: '700',
     color: wellness.primaryDark,
     textAlign: 'center',
   },
   sensorStatusSubtext: {
-    fontSize: 13,
-    lineHeight: 17,
-    fontWeight: '600',
-    color: wellness.textSecondary,
-    textAlign: 'center',
-  },
-  statusMessage: {
     fontSize: 14,
-    lineHeight: 19,
+    lineHeight: 20,
     fontWeight: '600',
     color: wellness.primaryDark,
     textAlign: 'center',
   },
+  statusMessage: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '600',
+    color: wellness.primaryDark,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+  },
   primaryBtn: {
-    backgroundColor: wellnessColors.primary,
+    marginTop: spacing.md,
+    backgroundColor: '#45BDB7',
     borderRadius: wellnessRadii.pill,
-    paddingVertical: spacing.sm + 2,
+    paddingVertical: spacing.md,
     alignItems: 'center',
-    minHeight: 46,
+    minHeight: 52,
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderColor: 'rgba(255,255,255,0.4)',
   },
   primaryBtnDisabled: {
     opacity: 0.45,
@@ -358,7 +349,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   secondaryBtn: {
-    paddingVertical: spacing.xs,
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
     alignItems: 'center',
   },
   secondaryBtnPressed: {
