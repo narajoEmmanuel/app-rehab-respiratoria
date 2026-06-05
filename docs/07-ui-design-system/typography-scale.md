@@ -178,6 +178,14 @@ import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 - `SectionHeader` y `AuthRegistrationHeader` fuera de alcance (shared/auth).
 - Sin cambios de copy legal, colores, layout ni storage.
 
+### Fase 4I — Sensor / Conexión / Calibración básica
+
+- `SensorConnectionScreen`, `SensorCalibrationPatientScreen` (sin `Text` propio) + 5 componentes migrados: `CalibrationStatusHeroCard`, `CalibrationQuickActions`, `MeasuredVolumeHero`, `LiveVolumeCard`, `SensorLivePreview`.
+- Variantes: `titleMedium`, `titleSmall`, `bodyLarge`, `bodySmall`, `caption`, `label`, `chip`, `statusValue`, `metricLarge`, `metricSmall`.
+- Flujo técnico avanzado **no tocado**: `SensorCalibrationTechnicalCaptureScreen`, `CalibrationTechnicalSummaryScreen`, `SensorCalibrationTechnicalScreen`, `TechnicalCalibrationUnavailableScreen`.
+- `SensorCalibrationScreen` (router) sin cambios de lógica; WebSocket, calibración RESPIRA+ 3000 mL, readiness y storage intactos.
+- Copy: label por defecto en `MeasuredVolumeHero` aclarado como «Volumen estimado».
+
 ## Qué queda pendiente
 
 | Ámbito | Motivo |

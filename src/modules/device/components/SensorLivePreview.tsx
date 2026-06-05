@@ -1,9 +1,10 @@
 /** Vista previa de distancia (barra 0–100 %); no representa volumen clínico. */
 import { useEffect, useMemo, useRef } from 'react';
-import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import { AppText } from '@/src/shared/ui/AppText';
 
 /** Rango de distancia (mm) mapeado al 0–100 % visual. Ajusta según tu montaje mecánico. */
 export const MIN_DISTANCE_MM = 30;
@@ -104,18 +105,24 @@ export function SensorLivePreview({
 
   return (
     <View style={styles.card}>
-      <Text style={styles.sectionLabel}>Vista previa en vivo (distancia)</Text>
+      <AppText variant="label" style={styles.sectionLabel}>
+        Vista previa en vivo (distancia)
+      </AppText>
 
       {streamStateMessage ? (
-        <Text style={styles.streamStateBanner}>{streamStateMessage}</Text>
+        <AppText variant="bodySmall" style={styles.streamStateBanner}>
+          {streamStateMessage}
+        </AppText>
       ) : null}
 
       {!hasValidSignal ? (
-        <Text style={styles.noSignal}>
+        <AppText variant="titleSmall" style={styles.noSignal}>
           {streamStateMessage ? 'Sin señal activa (dato no actualizado)' : 'Sin señal válida'}
-        </Text>
+        </AppText>
       ) : (
-        <Text style={styles.percentLabel}>{visualPercent} %</Text>
+        <AppText variant="metricLarge" style={styles.percentLabel}>
+          {visualPercent} %
+        </AppText>
       )}
 
       <View style={styles.barsRow}>
@@ -126,54 +133,84 @@ export function SensorLivePreview({
           <View style={styles.horizontalTrack}>
             <Animated.View style={[styles.horizontalFill, { width: hFill }]} />
           </View>
-          <Text style={styles.barHint}>Barra vertical y horizontal (mismo valor)</Text>
+          <AppText variant="caption" style={styles.barHint}>
+            Barra vertical y horizontal (mismo valor)
+          </AppText>
         </View>
       </View>
 
       <View style={styles.diagRow}>
-        <Text style={styles.diagKey}>distanceMm (filtrado)</Text>
-        <Text style={styles.diagValue}>
+        <AppText variant="chip" style={styles.diagKey}>
+          distanceMm (filtrado)
+        </AppText>
+        <AppText variant="bodySmall" style={styles.diagValue}>
           {distanceMm !== undefined && Number.isFinite(distanceMm) ? `${distanceMm} mm` : '—'}
-        </Text>
+        </AppText>
       </View>
       <View style={styles.diagRow}>
-        <Text style={styles.diagKey}>rawDistanceMm</Text>
-        <Text style={styles.diagValue}>
+        <AppText variant="chip" style={styles.diagKey}>
+          rawDistanceMm
+        </AppText>
+        <AppText variant="bodySmall" style={styles.diagValue}>
           {rawDistanceMm !== undefined && Number.isFinite(rawDistanceMm)
             ? `${rawDistanceMm} mm`
             : '—'}
-        </Text>
+        </AppText>
       </View>
       <View style={styles.diagRow}>
-        <Text style={styles.diagKey}>distanceValid</Text>
-        <Text style={styles.diagValue}>{distanceValid === undefined ? '—' : distanceValid ? 'sí' : 'no'}</Text>
+        <AppText variant="chip" style={styles.diagKey}>
+          distanceValid
+        </AppText>
+        <AppText variant="bodySmall" style={styles.diagValue}>
+          {distanceValid === undefined ? '—' : distanceValid ? 'sí' : 'no'}
+        </AppText>
       </View>
       <View style={styles.diagRow}>
-        <Text style={styles.diagKey}>source</Text>
-        <Text style={styles.diagValue}>{source ?? '—'}</Text>
+        <AppText variant="chip" style={styles.diagKey}>
+          source
+        </AppText>
+        <AppText variant="bodySmall" style={styles.diagValue}>
+          {source ?? '—'}
+        </AppText>
       </View>
       <View style={styles.diagRow}>
-        <Text style={styles.diagKey}>timestamp</Text>
-        <Text style={styles.diagValue} numberOfLines={2}>
+        <AppText variant="chip" style={styles.diagKey}>
+          timestamp
+        </AppText>
+        <AppText variant="bodySmall" style={styles.diagValue} numberOfLines={2}>
           {timestamp !== undefined && Number.isFinite(timestamp)
             ? `${timestamp} · ${formatTimestamp(timestamp)}`
             : '—'}
-        </Text>
+        </AppText>
       </View>
       <View style={styles.diagRow}>
-        <Text style={styles.diagKey}>sensorStatus</Text>
-        <Text style={styles.diagValue}>{sensorStatus ?? '—'}</Text>
+        <AppText variant="chip" style={styles.diagKey}>
+          sensorStatus
+        </AppText>
+        <AppText variant="bodySmall" style={styles.diagValue}>
+          {sensorStatus ?? '—'}
+        </AppText>
       </View>
       <View style={styles.diagRow}>
-        <Text style={styles.diagKey}>firmware</Text>
-        <Text style={styles.diagValue}>{firmwareVersion ?? '—'}</Text>
+        <AppText variant="chip" style={styles.diagKey}>
+          firmware
+        </AppText>
+        <AppText variant="bodySmall" style={styles.diagValue}>
+          {firmwareVersion ?? '—'}
+        </AppText>
       </View>
       <View style={styles.diagRow}>
-        <Text style={styles.diagKey}>deviceId</Text>
-        <Text style={styles.diagValue}>{deviceId ?? '—'}</Text>
+        <AppText variant="chip" style={styles.diagKey}>
+          deviceId
+        </AppText>
+        <AppText variant="bodySmall" style={styles.diagValue}>
+          {deviceId ?? '—'}
+        </AppText>
       </View>
 
-      <Text style={styles.disclaimer}>Vista de distancia (no es volumen estimado)</Text>
+      <AppText variant="caption" style={styles.disclaimer}>
+        Vista de distancia (no es volumen estimado)
+      </AppText>
     </View>
   );
 }
@@ -194,28 +231,22 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 13,
-    fontWeight: '700',
     color: wellness.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: spacing.sm,
   },
   streamStateBanner: {
-    fontSize: 14,
     fontWeight: '600',
     color: wellness.textSecondary,
     marginBottom: spacing.sm,
-    lineHeight: 20,
   },
   noSignal: {
-    fontSize: 16,
-    fontWeight: '700',
     color: wellness.errorText,
     marginBottom: spacing.sm,
   },
   percentLabel: {
     fontSize: 28,
-    fontWeight: '800',
     color: wellness.primaryDark,
     marginBottom: spacing.sm,
   },
@@ -261,7 +292,6 @@ const styles = StyleSheet.create({
   },
   barHint: {
     marginTop: spacing.xs,
-    fontSize: 12,
     color: wellness.textSecondary,
   },
   diagRow: {
@@ -272,12 +302,10 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   diagKey: {
-    fontSize: 13,
     fontWeight: '600',
     color: wellness.textSecondary,
   },
   diagValue: {
-    fontSize: 14,
     fontWeight: '700',
     color: wellness.text,
     flexShrink: 1,
@@ -285,7 +313,6 @@ const styles = StyleSheet.create({
   },
   disclaimer: {
     marginTop: spacing.md,
-    fontSize: 12,
     lineHeight: 17,
     color: wellness.textSecondary,
     fontStyle: 'italic',

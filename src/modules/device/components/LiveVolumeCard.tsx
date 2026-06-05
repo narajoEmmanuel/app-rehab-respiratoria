@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedProps,
@@ -12,6 +12,7 @@ import Animated, {
 import Svg, { Circle, G, Path } from 'react-native-svg';
 
 import { RESPIRA_3000_CLAMP_MAX_ML } from '@/src/modules/device/calibration/predefined-calibration-models';
+import { AppText } from '@/src/shared/ui/AppText';
 
 export type LiveVolumeCardProps = {
   volumeMl?: number | null;
@@ -158,8 +159,12 @@ function VolumeRing({
         </G>
       </Svg>
       <View style={styles.ringCenter} pointerEvents="none">
-        <Text style={[styles.volumeValue, !isLive && styles.volumeValueMuted]}>{displayValue}</Text>
-        <Text style={styles.volumeUnit}>mL</Text>
+        <AppText variant="metricLarge" style={[styles.volumeValue, !isLive && styles.volumeValueMuted]}>
+          {displayValue}
+        </AppText>
+        <AppText variant="metricSmall" style={styles.volumeUnit}>
+          mL
+        </AppText>
       </View>
     </Animated.View>
   );
@@ -197,9 +202,9 @@ function VerticalScaleBar({ progress, isLive }: { progress: number; isLive: bool
       </View>
       <View style={styles.barLabels}>
         {BAR_LABELS.map((label) => (
-          <Text key={label} style={styles.barLabel}>
+          <AppText key={label} variant="bodySmall" style={styles.barLabel}>
             {label.toLocaleString('en-US')}
-          </Text>
+          </AppText>
         ))}
       </View>
     </View>
@@ -221,11 +226,15 @@ export function LiveVolumeCard({
     <View style={styles.card}>
       <WaveDecoration animated={statusLive} />
 
-      <Text style={styles.title}>Volumen estimado</Text>
+      <AppText variant="titleMedium" style={styles.title}>
+        Volumen estimado
+      </AppText>
 
       <View style={styles.statusRow}>
         <View style={[styles.statusDot, statusLive ? styles.statusDotLive : styles.statusDotIdle]} />
-        <Text style={styles.statusText}>{statusLive ? 'En vivo' : 'Sin lectura'}</Text>
+        <AppText variant="statusValue" style={styles.statusText}>
+          {statusLive ? 'En vivo' : 'Sin lectura'}
+        </AppText>
       </View>
 
       <View style={styles.visualRow}>
@@ -262,8 +271,6 @@ const styles = StyleSheet.create({
     zIndex: 0,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '800',
     color: '#101828',
     textAlign: 'center',
     zIndex: 1,
@@ -288,7 +295,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#A8B0B8',
   },
   statusText: {
-    fontSize: 15,
     color: '#667085',
     fontWeight: '500',
   },
@@ -318,7 +324,6 @@ const styles = StyleSheet.create({
   },
   volumeValue: {
     fontSize: 48,
-    fontWeight: '800',
     color: '#101828',
     lineHeight: 52,
     letterSpacing: -1,
@@ -328,8 +333,6 @@ const styles = StyleSheet.create({
     color: '#A8B0B8',
   },
   volumeUnit: {
-    fontSize: 20,
-    fontWeight: '700',
     color: '#667085',
     marginTop: -2,
   },
@@ -385,7 +388,6 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   barLabel: {
-    fontSize: 14,
     color: '#7A8594',
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
