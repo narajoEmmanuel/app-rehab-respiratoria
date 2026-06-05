@@ -119,6 +119,8 @@ El archivo [src/docs/architecture.md](../../src/docs/architecture.md) contiene:
 ## Otras referencias
 
 - [Overview del producto](../00-overview/README.md)
+- [Pestañas principales](../02-tabs/README.md)
+- [Funciones y flujos](../03-features/README.md)
 - [Seguridad clínica](../08-clinical-safety/README.md)
 - [Flujo del sensor](../sensor-flow.md)
 - [Calibración](../calibration/README.md)

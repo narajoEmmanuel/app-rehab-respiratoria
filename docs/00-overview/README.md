@@ -84,6 +84,19 @@ Basado en tipos en `src/modules/session/types/session-progress.ts`, `src/modules
 - [README raíz](../../README.md)
 - [Arquitectura (índice)](../01-app-architecture/README.md)
 - [Arquitectura técnica detallada](../../src/docs/architecture.md)
+- [Pestañas](../02-tabs/README.md)
+- [Funciones](../03-features/README.md)
 - [Seguridad clínica](../08-clinical-safety/README.md)
 - [Módulo device](../../src/modules/device/README.md)
 - [Módulo session](../../src/modules/session/README.md)
+
+## Mapa de navegación documental
+
+```
+docs/
+├── 00-overview/          ← Este documento
+├── 01-app-architecture/  ← Índice técnico, rutas, providers
+├── 02-tabs/              ← Inicio, Terapia, Historial, Perfil
+├── 03-features/          ← Evaluación, sesión, export, legal, etc.
+└── 08-clinical-safety/   ← Lenguaje clínico y límites del producto
+```

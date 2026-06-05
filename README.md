@@ -430,6 +430,8 @@ docs/                         # sensor-flow, calibración, Supabase
 
 - [Overview del producto](docs/00-overview/README.md)
 - [Índice de arquitectura](docs/01-app-architecture/README.md)
+- [Pestañas principales](docs/02-tabs/README.md)
+- [Funciones y flujos](docs/03-features/README.md)
 - [Seguridad clínica y lenguaje](docs/08-clinical-safety/README.md)
 - [Congelación de nube](README_CLOUD_FREEZE.md)
 - [Seguridad Supabase (desarrollo)](docs/supabase-security-notes.md)
