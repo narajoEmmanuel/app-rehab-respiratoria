@@ -124,6 +124,7 @@ El archivo [src/docs/architecture.md](../../src/docs/architecture.md) contiene:
 - [Dispositivo y sensor](../04-device-and-sensor/README.md)
 - [Calibración](../05-calibration/README.md)
 - [Datos y almacenamiento](../06-data-and-storage/README.md)
+- [Design system / tipografía](../07-ui-design-system/README.md)
 - [Legacy y limpieza](../12-legacy/README.md)
 - [Seguridad clínica](../08-clinical-safety/README.md)
 - [Flujo del sensor](../sensor-flow.md)

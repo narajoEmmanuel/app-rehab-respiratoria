@@ -77,20 +77,55 @@ export const wellnessRadius = {
   full: 9999,
 } as const;
 
+/**
+ * Canonical typography scale (Fase 4A).
+ * Legacy keys (`screenTitle`, `sectionTitle`, etc.) remain for backward compatibility.
+ */
 export const wellnessTypography = {
-  screenTitle: { fontSize: 26, fontWeight: '800' as const, letterSpacing: -0.3 },
-  screenSubtitle: { fontSize: 16, lineHeight: 23, fontWeight: '400' as const },
-  sectionTitle: { fontSize: 18, fontWeight: '800' as const },
-  cardTitle: { fontSize: 16, fontWeight: '700' as const },
-  body: { fontSize: 15, lineHeight: 22, fontWeight: '400' as const },
+  // —— Canonical scale ——
+  display: { fontSize: 30, fontWeight: '800' as const, letterSpacing: -0.3, lineHeight: 36 },
+  titleLarge: { fontSize: 26, fontWeight: '800' as const, letterSpacing: -0.3 },
+  titleMedium: { fontSize: 18, fontWeight: '800' as const },
+  titleSmall: { fontSize: 16, fontWeight: '700' as const },
+  bodyLarge: { fontSize: 16, lineHeight: 23, fontWeight: '400' as const },
+  bodyMedium: { fontSize: 15, lineHeight: 22, fontWeight: '400' as const },
+  bodySmall: { fontSize: 14, lineHeight: 20, fontWeight: '400' as const },
   caption: { fontSize: 12, lineHeight: 17, fontWeight: '600' as const, letterSpacing: 0.2 },
-  label: { fontSize: 11, fontWeight: '700' as const, letterSpacing: 0.3 },
+  button: { fontSize: 16, fontWeight: '700' as const },
+  metric: { fontSize: 22, fontWeight: '800' as const, letterSpacing: -0.2 },
   metricLarge: { fontSize: 30, fontWeight: '800' as const, letterSpacing: -0.3 },
   metricMedium: { fontSize: 22, fontWeight: '800' as const, letterSpacing: -0.2 },
   metricSmall: { fontSize: 18, fontWeight: '800' as const },
-  statusValue: { fontSize: 15, fontWeight: '700' as const },
-  /** @deprecated Use metricMedium instead */
-  metric: { fontSize: 22, fontWeight: '800' as const, letterSpacing: -0.2 },
+  label: { fontSize: 11, fontWeight: '700' as const, letterSpacing: 0.3 },
+  chip: { fontSize: 13, fontWeight: '700' as const },
+  chipSmall: { fontSize: 11, fontWeight: '700' as const },
+  tabLabel: { fontSize: 10, fontWeight: '600' as const, letterSpacing: 0.25 },
+  input: { fontSize: 16, lineHeight: 22, fontWeight: '400' as const },
+  link: { fontSize: 14, fontWeight: '700' as const },
+  statusValue: { fontSize: 15, fontWeight: '700' as const, lineHeight: 20 },
+
+  /** Specialized tokens for in-game HUD (LevelOneGameView, RunnerGameFeedbackBar). */
+  gameHud: {
+    titleMini: { fontSize: 10, fontWeight: '700' as const, letterSpacing: 0.35 },
+    pauseText: { fontSize: 11, fontWeight: '800' as const },
+    cellLabel: { fontSize: 11, fontWeight: '600' as const },
+    cellLabelCompact: { fontSize: 9, fontWeight: '600' as const, letterSpacing: 0.2 },
+    cellValue: { fontSize: 15, fontWeight: '800' as const },
+    cellValueCompact: { fontSize: 12, fontWeight: '800' as const },
+    cellUnit: { fontSize: 10, fontWeight: '700' as const },
+  },
+
+  // —— Legacy aliases (do not remove — used across modules) ——
+  /** @deprecated Use titleLarge */
+  screenTitle: { fontSize: 26, fontWeight: '800' as const, letterSpacing: -0.3 },
+  /** @deprecated Use bodyLarge */
+  screenSubtitle: { fontSize: 16, lineHeight: 23, fontWeight: '400' as const },
+  /** @deprecated Use titleMedium */
+  sectionTitle: { fontSize: 18, fontWeight: '800' as const },
+  /** @deprecated Use titleSmall */
+  cardTitle: { fontSize: 16, fontWeight: '700' as const },
+  /** @deprecated Use bodyMedium */
+  body: { fontSize: 15, lineHeight: 22, fontWeight: '400' as const },
 } as const;
 
 /** Canonical root background for tab screens and dashboards. */

@@ -1,5 +1,6 @@
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { AppText } from '@/src/shared/ui/AppText';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { wellnessColors, wellnessRadius } from '@/src/shared/theme/wellness-theme';
 
@@ -62,13 +63,11 @@ export function AppButton({
           />
         </View>
       ) : null}
-      <Text
-        style={[
-          styles.label,
-          { color: disabled ? wellnessColors.textMuted : textColor[variant] },
-        ]}>
+      <AppText
+        variant="button"
+        style={{ color: disabled ? wellnessColors.textMuted : textColor[variant] }}>
         {title}
-      </Text>
+      </AppText>
     </Pressable>
   );
 }
@@ -82,10 +81,6 @@ const styles = StyleSheet.create({
     borderRadius: wellnessRadius.md,
     paddingVertical: 14,
     paddingHorizontal: 24,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '700',
   },
   iconWrap: {
     marginRight: 8,

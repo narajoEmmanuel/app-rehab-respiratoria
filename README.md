@@ -132,6 +132,7 @@ Documentación de módulos y arquitectura:
 - [Dispositivo y sensor](docs/04-device-and-sensor/README.md)
 - [Calibración (índice central)](docs/05-calibration/README.md)
 - [Datos y almacenamiento](docs/06-data-and-storage/README.md)
+- [Design system / tipografía](docs/07-ui-design-system/README.md)
 - [Módulo device (sensor)](src/modules/device/README.md)
 - [Módulo session (terapia)](src/modules/session/README.md)
 - [Flujo del sensor (legacy)](docs/sensor-flow.md) · [versión central](docs/04-device-and-sensor/sensor-flow.md)

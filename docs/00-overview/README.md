@@ -76,7 +76,7 @@ Basado en tipos en `src/modules/session/types/session-progress.ts`, `src/modules
 | Historial + export clínico v2.4.0 | Operativa |
 | Niveles 2–6 | Registrados; gameplay parcial / coming soon en README de sesión |
 | Módulo clinician | Scaffold |
-| Design system / tipografía | Tokens definidos; adopción parcial en UI |
+| Design system / tipografía | Escala canónica + `AppText` (Fase 4A); adopción parcial en pantallas |
 | Cloud auth | Congelado por defecto |
 
 ## Documentación relacionada
@@ -89,6 +89,7 @@ Basado en tipos en `src/modules/session/types/session-progress.ts`, `src/modules
 - [Dispositivo y sensor](../04-device-and-sensor/README.md)
 - [Calibración](../05-calibration/README.md)
 - [Datos y almacenamiento](../06-data-and-storage/README.md)
+- [Design system / tipografía](../07-ui-design-system/README.md)
 - [Seguridad clínica](../08-clinical-safety/README.md)
 - [Módulo device](../../src/modules/device/README.md)
 - [Módulo session](../../src/modules/session/README.md)
@@ -104,5 +105,6 @@ docs/
 ├── 04-device-and-sensor/ ← ESP32, WebSocket, flujo sensor
 ├── 05-calibration/       ← RESPIRA+ 3000 mL, flujo técnico, CSV
 ├── 06-data-and-storage/  ← Claves, modelos, export schema
+├── 07-ui-design-system/  ← Tipografía, tokens UI, AppText
 └── 08-clinical-safety/   ← Lenguaje clínico y límites del producto
 ```

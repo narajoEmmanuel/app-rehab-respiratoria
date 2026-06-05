@@ -1,5 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { AppText } from '@/src/shared/ui/AppText';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { wellnessColors, wellnessRadius } from '@/src/shared/theme/wellness-theme';
 
@@ -46,15 +47,23 @@ export function InfoTile({ label, value, helper, tone = 'neutral', iconName, com
           <IconSymbol name={iconName as any} size={compact ? 14 : 15} color={toneIconFg[tone]} />
         </View>
       ) : null}
-      <Text
+      <AppText
+        variant="statusValue"
         style={[styles.value, { color: toneFg[tone] }, compact && styles.valueCompact]}
         numberOfLines={2}>
         {value}
-      </Text>
-      <Text style={[styles.label, compact && styles.labelCompact]} numberOfLines={2}>
+      </AppText>
+      <AppText
+        variant="label"
+        style={[styles.label, compact && styles.labelCompact]}
+        numberOfLines={2}>
         {label}
-      </Text>
-      {helper ? <Text style={styles.helper} numberOfLines={2}>{helper}</Text> : null}
+      </AppText>
+      {helper ? (
+        <AppText variant="label" style={styles.helper} numberOfLines={2}>
+          {helper}
+        </AppText>
+      ) : null}
     </View>
   );
 }
@@ -77,17 +86,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   value: {
-    fontSize: 15,
-    fontWeight: '700',
     marginBottom: 2,
-    lineHeight: 20,
   },
   valueCompact: {
     fontSize: 14,
     lineHeight: 19,
   },
   label: {
-    fontSize: 11,
     fontWeight: '600',
     color: wellnessColors.textSecondary,
     letterSpacing: 0.1,
@@ -97,7 +102,7 @@ const styles = StyleSheet.create({
   },
   helper: {
     marginTop: 3,
-    fontSize: 11,
+    fontWeight: '400',
     color: wellnessColors.textMuted,
     lineHeight: 15,
   },

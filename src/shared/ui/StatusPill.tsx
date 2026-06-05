@@ -1,5 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { AppText } from '@/src/shared/ui/AppText';
 import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 
 type StatusPillTone = 'success' | 'warning' | 'danger' | 'neutral' | 'info';
@@ -31,7 +32,11 @@ export function StatusPill({ label, tone = 'neutral', size = 'md' }: StatusPillP
   const isSm = size === 'sm';
   return (
     <View style={[styles.pill, { backgroundColor: toneBg[tone] }, isSm && styles.pillSm]}>
-      <Text style={[styles.label, { color: toneFg[tone] }, isSm && styles.labelSm]}>{label}</Text>
+      <AppText
+        variant={isSm ? 'chipSmall' : 'chip'}
+        style={{ color: toneFg[tone] }}>
+        {label}
+      </AppText>
     </View>
   );
 }
@@ -46,12 +51,5 @@ const styles = StyleSheet.create({
   pillSm: {
     paddingHorizontal: 10,
     paddingVertical: 3,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  labelSm: {
-    fontSize: 11,
   },
 });

@@ -1,5 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { AppText } from '@/src/shared/ui/AppText';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { wellnessColors, wellnessRadius } from '@/src/shared/theme/wellness-theme';
 
@@ -75,7 +76,8 @@ export function MetricTile({
           <IconSymbol name={iconName as any} size={isCompact ? 15 : 17} color={resolvedAccent} />
         </View>
       ) : null}
-      <Text
+      <AppText
+        variant={isStatus ? 'statusValue' : 'metricMedium'}
         style={[
           styles.value,
           { color: resolvedAccent, fontSize: valueFontSize },
@@ -85,13 +87,22 @@ export function MetricTile({
         numberOfLines={valueNumberOfLines}
         adjustsFontSizeToFit={isCompact}>
         {value}
-      </Text>
-      <Text
-        style={[styles.label, isCompact && styles.labelCompact, isLarge && styles.labelLarge]}
+      </AppText>
+      <AppText
+        variant="label"
+        style={[
+          styles.label,
+          isCompact && styles.labelCompact,
+          isLarge && styles.labelLarge,
+        ]}
         numberOfLines={labelNumberOfLines}>
         {label}
-      </Text>
-      {helper ? <Text style={styles.helper} numberOfLines={2}>{helper}</Text> : null}
+      </AppText>
+      {helper ? (
+        <AppText variant="label" style={styles.helper} numberOfLines={2}>
+          {helper}
+        </AppText>
+      ) : null}
     </View>
   );
 }
@@ -118,7 +129,6 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   value: {
-    fontWeight: '800',
     marginBottom: 3,
     letterSpacing: -0.2,
   },
@@ -130,7 +140,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   label: {
-    fontSize: 11,
     fontWeight: '600',
     color: wellnessColors.textSecondary,
     letterSpacing: 0.1,
@@ -144,7 +153,7 @@ const styles = StyleSheet.create({
   },
   helper: {
     marginTop: 3,
-    fontSize: 11,
+    fontWeight: '400',
     color: wellnessColors.textMuted,
     lineHeight: 15,
   },
