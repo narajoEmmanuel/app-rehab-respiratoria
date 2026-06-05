@@ -41,6 +41,21 @@ Settings por paciente en AsyncStorage (`notification-settings.storage.ts` — cl
 | Consent | Requerido al abrir pantalla |
 | Sensor/touch | Sin relación directa |
 | Profesional | Copy: ajustar según indicación profesional |
+| Perfil | Lee el mismo `NotificationSettings` en AsyncStorage; estado visible vía `resolveProfileReminderStatus` (Fase 4C.1) |
+
+## Estado compartido Perfil ↔ Notificaciones
+
+- Fuente de verdad: `loadNotificationSettings` / `saveNotificationSettings` por `paciente_id`.
+- `NotificationSettingsScreen` persiste `enabled` con `useNotificationSettings`.
+- `ProfileScreen` recarga settings y permiso nativo al recuperar foco (`useIsFocused` + `readNotificationSettingsForDisplay`), independiente del resto de datos del perfil.
+- Etiquetas Perfil: **Activas**, **Pausadas**, **Sin permiso**, **Requiere revisión**, **Solo en app** (web).
+
+## Mensajes sin repetición consecutiva
+
+- Clave estable `lastReminderMessageKey` (`title + body`) en `NotificationSettings`.
+- Prueba (`sendTestNotification`) y reprogramación (`scheduleDailyReminders`) eligen un mensaje distinto al anterior cuando hay más de una variante.
+- Si solo hay un mensaje en el pool, se permite repetir.
+- **Limitación:** cada aviso programado conserva el texto fijado al programar; no se re-rota en el momento de entrega del SO. La rotación aplica al emparejar slots adyacentes y entre prueba ↔ siguiente programación.
 
 ## Riesgos clínicos o técnicos
 
@@ -50,11 +65,15 @@ Settings por paciente en AsyncStorage (`notification-settings.storage.ts` — cl
 
 ## Pendientes
 
-- Paleta UI propia (`reminder-ui-tokens.ts`) diverge de wellness tokens.
+- Paleta UI propia (`reminder-ui-tokens.ts`) diverge de wellness tokens (colores sin migrar; tipografía sí — Fase 4C).
 - README módulo notifications no existe.
 
 ## Checklist manual mínimo
 
+- [ ] Tipografía: textos legibles tras migración Fase 4C (`AppText` en pantalla y componentes).
+- [ ] Perfil y Notificaciones muestran el mismo estado tras activar/pausar.
+- [ ] Perfil muestra **Sin permiso** si el SO denegó notificaciones.
+- [ ] Prueba consecutiva no repite el mismo mensaje cuando hay alternativas.
 - [ ] Sin consent: redirige a `/legal/accept`.
 - [ ] Cambiar ventana vigilia reprograma recordatorios.
 - [ ] Test notification llega en dispositivo nativo.

@@ -6,6 +6,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
+  readNotificationPermissionStatus,
+  supportsNativeLocalNotifications,
+} from '@/src/modules/notifications/notification-permissions';
+import {
   applyNotificationDefaults,
   createDefaultNotificationSettings,
   normalizePauseUntil,
@@ -62,6 +66,9 @@ function isStoredNotificationSettings(value: unknown): value is Record<string, u
     (o.pauseUntil === null || typeof o.pauseUntil === 'string') &&
     isStringArray(o.scheduledNotificationIds) &&
     (o.lastScheduledAt === null || typeof o.lastScheduledAt === 'string') &&
+    (o.lastReminderMessageKey === null ||
+      o.lastReminderMessageKey === undefined ||
+      typeof o.lastReminderMessageKey === 'string') &&
     hasInterval
   );
 }
@@ -82,6 +89,8 @@ function normalizeSettings(raw: unknown): NotificationSettings {
     pauseUntil: null,
     scheduledNotificationIds: [...(o.scheduledNotificationIds as string[])],
     lastScheduledAt: (o.lastScheduledAt as string | null) ?? null,
+    lastReminderMessageKey:
+      typeof o.lastReminderMessageKey === 'string' ? o.lastReminderMessageKey : null,
     scheduleMode: 'interval',
     intervalHours: resolveIntervalHoursFromRaw(o),
     activeWindowStart:
@@ -115,6 +124,23 @@ function migrateLegacyPreferences(raw: unknown): NotificationSettings | null {
     next.scheduledNotificationIds = [...legacy.scheduledNotificationIds];
   }
   return next;
+}
+
+/** Read-only snapshot for UI (Perfil, etc.) — same storage key as NotificationSettingsScreen. */
+export async function readNotificationSettingsForDisplay(
+  patientId: string,
+): Promise<NotificationSettings> {
+  let stored = applyNotificationDefaults(await loadNotificationSettings(patientId));
+  if (supportsNativeLocalNotifications()) {
+    const permissionStatus = await readNotificationPermissionStatus();
+    if (permissionStatus !== stored.permissionStatus) {
+      stored = applyNotificationDefaults({
+        ...stored,
+        permissionStatus,
+      });
+    }
+  }
+  return stored;
 }
 
 export async function loadNotificationSettings(patientId: string): Promise<NotificationSettings> {

@@ -20,7 +20,7 @@ Gestión del perfil del paciente activo: datos personales, avatar, evaluación i
 
 1. Muestra datos paciente, stats de sesiones y evaluación.
 2. Navega a `/evaluacion-resumen` o `/diagnostico` según estado evaluación.
-3. Recordatorios → `/notification-settings`.
+3. Recordatorios → `/notification-settings`; tarjeta **Recordatorios de terapia** muestra título de estado + `StatusPill` (Activas / Pausadas / Sin permiso / Requiere revisión / Solo en app), recargado con `useIsFocused` y `readNotificationSettingsForDisplay`.
 4. Privacidad → `/legal/document`, `/legal/accept`.
 5. Toggle práctica táctil (si `EXPO_PUBLIC_ENABLE_TOUCH_PRACTICE_MODE`).
 6. Retiro consent, borrar perfil, logout.
@@ -33,7 +33,7 @@ Gestión del perfil del paciente activo: datos personales, avatar, evaluación i
 |-----|---------|
 | `@rehab/profile_preferences_v1` | Prefs perfil (touch practice) |
 | sessions, diagnostics, consent | Borrado vía `patient-delete-service` |
-| notification settings | — |
+| notification settings | Lee `enabled`, permiso y resumen; no escribe (toggle en pantalla Notificaciones) |
 
 ## Dependencias y gates
 
@@ -64,6 +64,7 @@ Hooks: `usePatientSession`, `useTouchPracticePreference`, `loadNotificationSetti
 - [ ] Borrar perfil limpia AsyncStorage del paciente.
 - [ ] Retiro consent redirige a flujo legal.
 - [ ] Enlaces evaluación, notificaciones y legal funcionan.
+- [ ] Estado de recordatorios en Perfil coincide tras pausar/activar en Notificaciones.
 
 ## Docs relacionados
 

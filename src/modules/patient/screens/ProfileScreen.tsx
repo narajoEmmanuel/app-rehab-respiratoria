@@ -3,7 +3,7 @@
  * Module: patient
  * Dependencies: expo-router, patient session, legal/export navigation (behavior unchanged).
  */
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -26,11 +26,16 @@ import {
   withdrawConsent,
 } from '@/src/modules/legal/consent-service';
 import { LEGAL_ACCEPT_HREF, LEGAL_DOCUMENT_HREF } from '@/src/modules/legal/legal-hrefs';
-import { loadNotificationSettings } from '@/src/modules/notifications/notification-settings.storage';
+import { readNotificationSettingsForDisplay } from '@/src/modules/notifications/notification-settings.storage';
+import { supportsNativeLocalNotifications } from '@/src/modules/notifications/notification-permissions';
 import {
-  formatProfileReminderSummary,
+  profileReminderStatusHint,
+  profileReminderStatusLabel,
+  resolveProfileReminderStatus,
   type NotificationSettings,
+  type ProfileReminderStatus,
 } from '@/src/modules/notifications/notification-settings.types';
+import { StatusPill } from '@/src/shared/ui/StatusPill';
 import { DeletePatientConfirmModal } from '@/src/modules/patient/components/DeletePatientConfirmModal';
 import { ProfileAvatarPicker } from '@/src/modules/patient/components/ProfileAvatarPicker';
 import { ProfileInfoCard } from '@/src/modules/patient/components/ProfileInfoCard';
@@ -116,7 +121,9 @@ export function ProfileScreen() {
   const [consentActive, setConsentActive] = useState(false);
   const [prefs, setPrefs] = useState<ProfilePreferences>(DEFAULT_PROFILE_PREFERENCES);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings | null>(null);
+  const [notificationSettingsLoading, setNotificationSettingsLoading] = useState(false);
   const [sessionQuickStats, setSessionQuickStats] = useState<SessionQuickStats | null>(null);
+  const isFocused = useIsFocused();
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const touchPracticeFeatureEnabled = isTouchPracticeModeEnabled();
@@ -138,8 +145,33 @@ export function ProfileScreen() {
     setSessionQuickStats(null);
     setPrefs(DEFAULT_PROFILE_PREFERENCES);
     setNotificationSettings(null);
+    setNotificationSettingsLoading(false);
     setConsentActive(false);
   }, []);
+
+  const reloadNotificationSettings = useCallback(async () => {
+    const patientId = patient?.paciente_id;
+    if (patientId == null) {
+      setNotificationSettings(null);
+      setNotificationSettingsLoading(false);
+      return;
+    }
+
+    setNotificationSettingsLoading(true);
+    try {
+      const stored = await readNotificationSettingsForDisplay(String(patientId));
+      setNotificationSettings(stored);
+    } catch {
+      setNotificationSettings(null);
+    } finally {
+      setNotificationSettingsLoading(false);
+    }
+  }, [patient?.paciente_id]);
+
+  useEffect(() => {
+    if (!isFocused) return;
+    void reloadNotificationSettings();
+  }, [isFocused, reloadNotificationSettings]);
 
   useFocusEffect(
     useCallback(() => {
@@ -155,16 +187,14 @@ export function ProfileScreen() {
           setNotificationSettings(null);
           return;
         }
-        const [diagnostic, prefsResult, sessions, notifSettingsResult] = await Promise.all([
+        const [diagnostic, prefsResult, sessions] = await Promise.all([
           getLatestDiagnostic(patient.paciente_id),
           getProfilePreferences(patient.paciente_id),
           readAllSessions(),
-          loadNotificationSettings(String(patient.paciente_id)),
         ]);
         if (!active) return;
         setLatestDiagnostic(diagnostic);
         setPrefs(prefsResult);
-        setNotificationSettings(notifSettingsResult);
         setSessionQuickStats(buildSessionQuickStats(sessions, patient.paciente_id));
         await reloadTouchPracticePreference();
       })();
@@ -267,7 +297,25 @@ export function ProfileScreen() {
   };
 
   const hasEvaluation = latestDiagnostic != null;
-  const remindersActive = notificationSettings?.enabled === true;
+  const nativeNotificationsSupported = supportsNativeLocalNotifications();
+  const reminderStatus = resolveProfileReminderStatus(
+    notificationSettings,
+    nativeNotificationsSupported,
+  );
+  const remindersActive = reminderStatus === 'active';
+  const reminderStatusPillTone = (status: ProfileReminderStatus | null) => {
+    switch (status) {
+      case 'active':
+        return 'success' as const;
+      case 'no_permission':
+      case 'requires_review':
+        return 'warning' as const;
+      case 'web_only':
+        return 'info' as const;
+      default:
+        return 'neutral' as const;
+    }
+  };
   const lastPracticeLabel =
     metrics.completedCount === 0 ? 'Sin registro' : (metrics.lastSessionDateLabel ?? 'Sin registro');
   const planLabel = planStatusLabel(hasEvaluation);
@@ -393,34 +441,26 @@ export function ProfileScreen() {
 
         <ProfileSection title="Recordatorios de terapia">
           <AppCard style={styles.reminderCard}>
-            <View style={styles.statusChipRow}>
-              <View
-                style={[
-                  styles.statusChip,
-                  remindersActive ? styles.statusChipActive : styles.statusChipInactive,
-                ]}>
-                <Text
-                  style={[
-                    styles.statusChipText,
-                    remindersActive ? styles.statusChipTextActive : styles.statusChipTextInactive,
-                  ]}>
-                  {notificationSettings == null
-                    ? '—'
-                    : remindersActive
-                      ? 'Activos'
-                      : 'Inactivos'}
-                </Text>
-              </View>
+            <View style={styles.reminderStatusRow}>
+              <Text style={styles.reminderStatusTitle}>
+                {notificationSettingsLoading && notificationSettings == null
+                  ? 'Cargando…'
+                  : profileReminderStatusLabel(reminderStatus)}
+              </Text>
+              {!notificationSettingsLoading && notificationSettings != null ? (
+                <StatusPill
+                  key={`reminder-${reminderStatus}-${notificationSettings.enabled}-${notificationSettings.permissionStatus}`}
+                  label={profileReminderStatusLabel(reminderStatus)}
+                  tone={reminderStatusPillTone(reminderStatus)}
+                  size="sm"
+                />
+              ) : null}
             </View>
-            {notificationSettings != null && remindersActive ? (
-              <Text style={styles.reminderSummary}>
-                {formatProfileReminderSummary(notificationSettings)}
-              </Text>
-            ) : (
-              <Text style={styles.reminderHint}>
-                Configura horarios para mantener tu rutina.
-              </Text>
-            )}
+            <Text style={remindersActive ? styles.reminderSummary : styles.reminderHint}>
+              {notificationSettingsLoading && notificationSettings == null
+                ? 'Actualizando estado de recordatorios…'
+                : profileReminderStatusHint(reminderStatus, notificationSettings)}
+            </Text>
             <View style={styles.cardAction}>
               <AppButton
                 title={remindersActive ? 'Editar recordatorios' : 'Configurar recordatorios'}
@@ -727,31 +767,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFBF5',
     borderColor: 'rgba(245, 158, 11, 0.16)',
   },
-  statusChipRow: {
+  reminderStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
     marginBottom: spacing.xs,
   },
-  statusChip: {
-    alignSelf: 'flex-start',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: wellnessRadii.pill,
-  },
-  statusChipActive: {
-    backgroundColor: 'rgba(52, 171, 165, 0.12)',
-  },
-  statusChipInactive: {
-    backgroundColor: wellnessColors.neutralSoft,
-  },
-  statusChipText: {
-    fontSize: 12,
+  reminderStatusTitle: {
+    fontSize: 16,
     fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  statusChipTextActive: {
-    color: wellnessColors.primaryDark,
-  },
-  statusChipTextInactive: {
-    color: wellnessColors.textSecondary,
+    color: wellnessColors.textPrimary,
+    flex: 1,
   },
   reminderSummary: {
     fontSize: 14,
