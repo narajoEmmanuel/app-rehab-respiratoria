@@ -29,7 +29,7 @@ Documento equipo: [../legal/README-terminos-y-condiciones.md](../legal/README-te
 - Cloud: gate en `app/index.tsx` si `needsConsent()`.
 - Local-first: gate en `app/index.tsx` si `!isConsentActive()` (consent retirado, ausente o versión distinta).
 - Tras crear/seleccionar perfil: `LocalProfileScreen` también redirige a legal si no hay consent activo.
-- Tab/stack guards interceptan Terapia, Historial, sensor, export, notificaciones.
+- Tab/stack guards interceptan Terapia, Historial, sensor, export, notificaciones y **evaluación inicial** (`/diagnostico`, resúmenes).
 
 ## Salidas del flujo
 
@@ -49,7 +49,8 @@ Documento equipo: [../legal/README-terminos-y-condiciones.md](../legal/README-te
 | Sensor stack | Sí (`ConsentStackGuard`) |
 | Export | Sí (pantalla) |
 | Notificaciones | Sí |
-| Inicio | No (tab siempre accesible con paciente) |
+| Inicio | No (tab siempre accesible con paciente); CTA evaluación redirige a legal si consent inactivo |
+| Evaluación inicial | Sí (`ConsentStackGuard` en rutas diagnóstico + `navigateToInitialEvaluation`) |
 
 ## Riesgos clínicos o técnicos
 
@@ -68,6 +69,7 @@ Documento equipo: [../legal/README-terminos-y-condiciones.md](../legal/README-te
 - [ ] Tras aceptar: Terapia/Historial accesibles.
 - [ ] Retiro consent: cold start local-first redirige a `/legal/accept`.
 - [ ] Retiro consent: tabs protegidos bloqueados al pulsar.
+- [ ] Retiro consent: “Comenzar evaluación” y `/diagnostico` → `/legal/accept`.
 - [ ] PDF abre desde document screen.
 - [ ] Versión 1.0 persistida en registro.
 

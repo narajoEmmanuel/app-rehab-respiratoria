@@ -50,7 +50,7 @@ Componentes: `InitialEvaluationWelcomeView`, `InitialEvaluationCountdownView`, `
 | Aspecto | Detalle |
 |---------|---------|
 | Paciente activo | Filtra por `patient_id` |
-| Consent | Stack routes protegidas según guards |
+| Consent | Rutas `/diagnostico`, `/diagnostico-resumen`, `/evaluacion-resumen` envueltas en `ConsentStackGuard` → `/legal/accept` si inactivo; CTA vía `navigateToInitialEvaluation` verifica `isConsentActive()` |
 | Sensor | Flujo oficial vía `navigateToInitialEvaluation` (`inputMode: sensor`) |
 | Touch | Tipos permiten touch con flag; **no** es flujo principal documentado en nav |
 
@@ -67,6 +67,7 @@ Componentes: `InitialEvaluationWelcomeView`, `InitialEvaluationCountdownView`, `
 
 ## Checklist manual mínimo
 
+- [ ] Sin consent activo: CTA “Comenzar evaluación” y `/diagnostico` redirigen a `/legal/accept`.
 - [ ] Sin evaluación: Terapia bloqueada para jugar.
 - [ ] 3 intentos + descansos registrados.
 - [ ] VIM y targets visibles en resumen con disclaimer médico.

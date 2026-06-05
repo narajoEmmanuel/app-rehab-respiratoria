@@ -101,7 +101,7 @@ Clasificación UI: `src/modules/session/session-record-classification.ts` — et
 
 ## Consentimiento y privacidad
 
-- Consentimiento digital requerido para Terapia, Historial, sensor, exportación y notificaciones (`ConsentTabGuard`, `ConsentStackGuard`).
+- Consentimiento digital requerido para Terapia, Historial, sensor, exportación, notificaciones y **evaluación inicial** (`ConsentTabGuard`, `ConsentStackGuard`, `navigateToInitialEvaluation`).
 - **Arranque local-first:** `app/index.tsx` redirige a `/legal/accept` si `!isConsentActive()` antes de abrir tabs.
 - Exportación etiquetada para revisión con profesional (`DataExportScreen.tsx`).
 - Modo local-first: datos en dispositivo (AsyncStorage). Borrado en `patient-delete-service.ts`.

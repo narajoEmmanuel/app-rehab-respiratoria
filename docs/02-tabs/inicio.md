@@ -20,7 +20,7 @@ Subcomponentes inline en `HomeScreen.tsx`: `DeviceCard`, `HomeQuickAccessGrid`.
 
 1. Carga paciente, consent, evaluación, sesiones y estado sensor/calibración.
 2. Determina layout: `pre_eval` | `eval_no_sessions` | `has_sessions`.
-3. CTA principal: evaluación → `/diagnostico`, o terapia → gates sensor/touch → `/(tabs)/sesion`.
+3. CTA principal: evaluación → `/diagnostico` (solo con consent activo), o terapia → gates sensor/touch → `/(tabs)/sesion`.
 4. Quick access: Terapia, Historial, Sensor (`/sensor-connection`), Perfil (`/profile`).
 5. Card exportación → `/data-export` (requiere consent).
 6. Primera visita: modal `RespiraWelcomeOnboarding` (AsyncStorage por paciente).
@@ -40,7 +40,7 @@ Muestra volumen **estimado** en card de dispositivo; no presión inspiratoria.
 | Gate | Efecto en Inicio |
 |------|------------------|
 | Paciente | Requerido (redirect en tab layout si falta) |
-| Consent | Banner/alertas; tab Inicio siempre accesible |
+| Consent | Tab Inicio siempre accesible; CTA “Comenzar evaluación” exige consent (`navigateToInitialEvaluation` → `/legal/accept` si inactivo) |
 | Evaluación (`hasDiagnostic`) | Cambia CTA y copy |
 | Sensor + calibración | Card dispositivo; readiness para terapia oficial |
 | Touch practice | Flag env + pref perfil (`useTouchPracticeGate`) |
