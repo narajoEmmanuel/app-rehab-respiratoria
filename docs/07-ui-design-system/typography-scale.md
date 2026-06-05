@@ -138,6 +138,13 @@ import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 - `TextInput` de horarios conserva estilos propios (no es `AppText`).
 - Colores `reminderUi.*` sin cambios; overrides mínimos en métricas grandes (36px) y título pantalla (28px).
 
+### Fase 4D — `SummaryScreen`
+
+- Pantalla + 3 componentes del módulo `summary/` migrados a `AppText`.
+- Variantes: `titleLarge`, `titleSmall`, `bodyLarge`, `bodySmall`, `caption`, `label`, `chip`.
+- `SessionSummaryMetricsGrid` usa `MetricTile` (Fase 4A); labels de volumen aclarados como estimados.
+- `SessionSummaryActions` sin texto propio; `SessionSuccessStreakCard` fuera de alcance (módulo `session/`).
+
 ## Qué queda pendiente
 
 | Ámbito | Motivo |

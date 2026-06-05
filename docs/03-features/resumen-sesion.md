@@ -47,10 +47,12 @@ Solo lectura de sesión/intentos ya guardados. No escribe nuevos registros clín
 ## Pendientes
 
 - README módulo `summary/` no existe.
-- Tipografía hardcoded en componentes summary.
+- `SessionSuccessStreakCard` (módulo `session/`) aún sin migrar a `AppText`.
 
 ## Checklist manual mínimo
 
+- [ ] Tipografía Fase 4D: hero, progreso y estados vacío/error legibles con `AppText`.
+- [ ] Tiles de volumen muestran “estimado” en etiqueta.
 - [ ] Tras sesión sensor: métricas y clasificación “Sesión completada”.
 - [ ] Tras touch: copy “Modo práctica”.
 - [ ] sessionId inválido: manejo de error/empty.

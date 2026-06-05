@@ -2,8 +2,9 @@
  * Purpose: Session achievement progress card (headline, bar, valid count).
  * Module: summary
  */
-import { StyleSheet, Text, View, type DimensionValue } from 'react-native';
+import { StyleSheet, View, type DimensionValue } from 'react-native';
 
+import { AppText } from '@/src/shared/ui/AppText';
 import { spacing } from '@/src/shared/theme/spacing';
 import {
   wellnessColors,
@@ -30,14 +31,20 @@ export function SessionSummaryProgressCard({
 
   return (
     <View style={styles.card}>
-      <Text style={styles.progressHeadline}>{progressHeadline}</Text>
-      {progressSupport ? <Text style={styles.progressSupport}>{progressSupport}</Text> : null}
+      <AppText variant="titleSmall" style={styles.progressHeadline}>
+        {progressHeadline}
+      </AppText>
+      {progressSupport ? (
+        <AppText variant="bodySmall" style={styles.progressSupport}>
+          {progressSupport}
+        </AppText>
+      ) : null}
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: fillWidth }]} />
       </View>
-      <Text style={styles.progressMeta}>
+      <AppText variant="chip" style={styles.progressMeta}>
         {validAttempts} repeticiones válidas de {targetAttempts}
-      </Text>
+      </AppText>
     </View>
   );
 }
@@ -61,10 +68,8 @@ const styles = StyleSheet.create({
   },
   progressSupport: {
     marginTop: 4,
-    fontSize: 14,
     fontWeight: '600',
     color: wellnessColors.textSecondary,
-    lineHeight: 20,
   },
   progressTrack: {
     marginTop: spacing.md,

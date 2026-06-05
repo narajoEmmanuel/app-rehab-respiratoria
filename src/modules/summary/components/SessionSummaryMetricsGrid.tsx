@@ -50,12 +50,12 @@ export function SessionSummaryMetricsGrid({
       tone: 'default',
     },
     {
-      label: 'Volumen máximo',
+      label: 'Volumen máx. estimado',
       value: `${maxVolume} mL`,
       iconName: 'lungs.fill',
     },
     {
-      label: 'Volumen promedio',
+      label: 'Volumen prom. estimado',
       value: `${avgVolume} mL`,
       iconName: 'chart.bar.fill',
     },
