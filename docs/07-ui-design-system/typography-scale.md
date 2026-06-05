@@ -123,25 +123,31 @@ import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 - No se fuerza color por defecto: el color lo define el contenedor o `style`.
 - Soporta todas las props nativas de `Text` (`numberOfLines`, `accessibilityRole`, etc.).
 
-## Adopción en pantallas (Fase 4B)
+## Adopción en pantallas
 
-**Primera pantalla migrada:** `DataExportScreen` (`src/modules/export/screens/DataExportScreen.tsx`).
+### Fase 4B — `DataExportScreen`
 
 - Todos los `Text` directos reemplazados por `AppText`.
-- Variantes usadas: `bodySmall`, `titleSmall`, `statusValue`, `caption` (+ overrides mínimos en `emptyHint`, `technicalSectionTitle`, `disclaimer`).
-- `SectionHeader`, `AppButton`, `MetricTile`, `InfoTile` y `StatusPill` ya usaban tokens desde Fase 4A.
+- Variantes: `bodySmall`, `titleSmall`, `statusValue`, `caption` (+ overrides mínimos).
 - Sin cambios de layout, colores ni lógica de exportación.
+
+### Fase 4C — `NotificationSettingsScreen`
+
+- Pantalla + 6 componentes del módulo `notifications/` migrados a `AppText`.
+- Variantes: `titleLarge`, `titleSmall`, `bodyMedium`, `bodySmall`, `caption`, `label`, `button`, `statusValue`, `metricLarge`, `chip`.
+- `TextInput` de horarios conserva estilos propios (no es `AppText`).
+- Colores `reminderUi.*` sin cambios; overrides mínimos en métricas grandes (36px) y título pantalla (28px).
 
 ## Qué queda pendiente
 
 | Ámbito | Motivo |
 |--------|--------|
-| `HomeScreen`, `HistoryScreen`, `SessionScreen` | Pantallas grandes — pendiente Fase 4C+ |
+| `HomeScreen`, `HistoryScreen`, `SessionScreen` | Pantallas grandes — pendiente fases posteriores |
 | `SensorCalibrationTechnicalCaptureScreen` | Restricción explícita de auditoría |
 | `therapy-level-card.tsx` | Componente grande con muchos estilos contextuales |
 | `AppTopBar`, `AppCard` | Sin texto propio o solo layout |
 | HUD de juego | Tokens definidos; migración requiere revisión visual del gameplay |
-| Módulos `device/`, `notifications/`, `session/games/` | Alto volumen de `fontSize` hardcoded |
+| Módulos `device/`, `session/games/` | Alto volumen de `fontSize` hardcoded |
 
 ## Reglas
 

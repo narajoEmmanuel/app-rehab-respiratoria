@@ -3,9 +3,10 @@
  * Module: notifications
  */
 
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 
 import { reminderUi } from '@/src/modules/notifications/components/reminder-ui-tokens';
+import { AppText } from '@/src/shared/ui/AppText';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { wellness } from '@/src/shared/theme/wellness-theme';
 
@@ -27,7 +28,9 @@ export function TestNotificationButton({ onPress, disabled }: TestNotificationBu
       accessibilityRole="button"
       accessibilityLabel="Enviar notificación de prueba">
       <IconSymbol name="paperplane.fill" size={20} color={reminderUi.teal} />
-      <Text style={styles.label}>Enviar notificación de prueba</Text>
+      <AppText variant="button" style={styles.label}>
+        Enviar notificación de prueba
+      </AppText>
     </Pressable>
   );
 }
@@ -47,8 +50,6 @@ const styles = StyleSheet.create({
     backgroundColor: wellness.card,
   },
   label: {
-    fontSize: 16,
-    fontWeight: '700',
     color: reminderUi.teal,
   },
   pressed: { opacity: 0.88 },
