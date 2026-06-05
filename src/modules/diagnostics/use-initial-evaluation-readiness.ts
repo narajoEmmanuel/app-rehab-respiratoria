@@ -17,9 +17,9 @@ export type InitialEvaluationReadiness = {
   spirometerLabel: string | null;
 };
 
-const NOT_READY_MESSAGE = 'Conecta el sensor para realizar la evaluación inicial.';
+const NOT_READY_MESSAGE = 'Conecta y calibra el espirómetro para continuar.';
 const WAITING_SIGNAL_MESSAGE =
-  'Esperando señal del sensor. Conecta tu espirómetro para continuar.';
+  'Esperando señal del sensor. Conecta el espirómetro para continuar.';
 const POLL_MS = 1500;
 const STABLE_READY_MS = 800;
 const STABLE_NOT_READY_MS = 500;
