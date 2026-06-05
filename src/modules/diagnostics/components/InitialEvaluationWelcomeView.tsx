@@ -3,7 +3,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { appBrand } from '@/src/shared/branding/app-brand';
 import { spacing } from '@/src/shared/theme/spacing';
 import { fontBold, fontRegular } from '@/src/shared/theme/typography';
 import { wellness, wellnessColors, wellnessRadii } from '@/src/shared/theme/wellness-theme';
@@ -31,6 +30,7 @@ export function InitialEvaluationWelcomeView({
   const showSensorHint = !canStart && !loading;
   const buttonDisabled = !canStart || loading;
   const showReadyHint = canStart && !loading;
+  const waitingForSignal = statusMessage.includes('Esperando señal del sensor');
 
   return (
     <View style={styles.screen}>
@@ -61,7 +61,7 @@ export function InitialEvaluationWelcomeView({
             entering={FadeInDown.duration(620).delay(60)}
             style={styles.heroContent}
             accessibilityRole="header"
-            accessibilityLabel={appBrand.name}>
+            accessibilityLabel="Bienvenido a RESPIRA+">
             <Text style={styles.welcomeLine}>Bienvenido a</Text>
             <Text style={styles.brandTitle}>
               <Text style={styles.brandWord}>RESPIRA</Text>
@@ -72,59 +72,72 @@ export function InitialEvaluationWelcomeView({
         </View>
 
         <Animated.View entering={FadeInUp.duration(680).delay(140)} style={styles.contentCard}>
-          <Text style={styles.cardTitle}>Evaluación inicial</Text>
-          <Text style={styles.cardLead}>
-            Esta evaluación nos ayuda a personalizar tus niveles respiratorios con base en tu
-            volumen de referencia.
-          </Text>
-          <Text style={styles.cardBody}>
-            Siéntate con calma, conecta tu espirómetro y sigue las indicaciones en pantalla.
-          </Text>
-
-          <View style={styles.safetyBox}>
-            <Text style={styles.safetyText}>
-              Detente si presentas dolor, mareo, tos intensa, falta de aire importante o malestar.
+          <View style={styles.blockIntro}>
+            <Text style={styles.cardTitle}>Evaluación inicial</Text>
+            <Text style={styles.cardLead}>
+              Personalizaremos tus niveles de terapia con base en tu resultado.
             </Text>
           </View>
 
-          {showReadyHint ? (
-            <Text style={styles.readyHint}>
-              Sensor listo para comenzar.
-              {spirometerLabel ? ` · ${spirometerLabel}` : ''}
+          <View style={styles.safetyBox}>
+            <Text style={styles.safetyText}>
+              Detente si presentas dolor, mareo, tos intensa, falta de aire marcada o malestar.
             </Text>
+          </View>
+
+          {showReadyHint || showSensorHint ? (
+            <View style={styles.blockSensor}>
+              {showReadyHint ? (
+                <Text style={styles.readyHint}>
+                  Sensor listo.
+                  {spirometerLabel ? ` · ${spirometerLabel}` : ''}
+                </Text>
+              ) : null}
+
+              {showSensorHint ? (
+                waitingForSignal ? (
+                  <View style={styles.sensorStatusBlock} accessibilityRole="alert">
+                    <Text style={styles.sensorStatusTitle}>Esperando señal del sensor</Text>
+                    <Text style={styles.sensorStatusSubtext}>
+                      Conecta el espirómetro para continuar.
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.statusMessage} accessibilityRole="alert">
+                    {statusMessage || 'Conecta y calibra el espirómetro para continuar.'}
+                  </Text>
+                )
+              ) : null}
+            </View>
           ) : null}
 
-          {showSensorHint ? (
-            <Text style={styles.statusMessage} accessibilityRole="alert">
-              {statusMessage || 'Conecta el sensor para realizar la evaluación inicial.'}
-            </Text>
-          ) : null}
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.primaryBtn,
-              buttonDisabled && styles.primaryBtnDisabled,
-              pressed && !buttonDisabled && styles.primaryBtnPressed,
-            ]}
-            onPress={onStart}
-            disabled={buttonDisabled}
-            accessibilityRole="button"
-            accessibilityLabel="Comenzar evaluación"
-            accessibilityState={{ disabled: buttonDisabled }}>
-            <Text style={styles.primaryBtnText}>
-              {loading ? 'Verificando sensor…' : 'Comenzar evaluación'}
-            </Text>
-          </Pressable>
-
-          {showSensorHint ? (
+          <View style={styles.blockActions}>
             <Pressable
-              style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
-              onPress={onGoToSensor}
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                buttonDisabled && styles.primaryBtnDisabled,
+                pressed && !buttonDisabled && styles.primaryBtnPressed,
+              ]}
+              onPress={onStart}
+              disabled={buttonDisabled}
               accessibilityRole="button"
-              accessibilityLabel="Ir a Sensor y medición">
-              <Text style={styles.secondaryBtnText}>Ir a Sensor y medición</Text>
+              accessibilityLabel="Comenzar evaluación"
+              accessibilityState={{ disabled: buttonDisabled }}>
+              <Text style={styles.primaryBtnText}>
+                {loading ? 'Verificando sensor…' : 'Comenzar evaluación'}
+              </Text>
             </Pressable>
-          ) : null}
+
+            {showSensorHint ? (
+              <Pressable
+                style={({ pressed }) => [styles.secondaryBtn, pressed && styles.secondaryBtnPressed]}
+                onPress={onGoToSensor}
+                accessibilityRole="button"
+                accessibilityLabel="Revisar sensor">
+                <Text style={styles.secondaryBtnText}>Revisar sensor</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </Animated.View>
       </SafeAreaView>
     </View>
@@ -240,8 +253,10 @@ const styles = StyleSheet.create({
   contentCard: {
     backgroundColor: 'rgba(255,255,255,0.97)',
     borderRadius: 28,
-    padding: spacing.lg,
-    gap: spacing.sm,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.xs,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.65)',
     shadowColor: '#023632',
@@ -251,60 +266,82 @@ const styles = StyleSheet.create({
     elevation: 8,
     marginBottom: spacing.sm,
   },
+  blockIntro: {
+    gap: 2,
+  },
+  blockSensor: {
+    gap: 2,
+    alignItems: 'center',
+  },
+  blockActions: {
+    marginTop: 2,
+    gap: spacing.sm,
+  },
   cardTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
     color: wellness.text,
     letterSpacing: -0.3,
+    textAlign: 'center',
   },
   cardLead: {
-    fontSize: 16,
-    lineHeight: 23,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: '600',
     color: wellness.text,
   },
-  cardBody: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: wellness.textSecondary,
-  },
   safetyBox: {
-    marginTop: spacing.xs,
-    padding: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm + 2,
     borderRadius: wellnessRadii.card,
     backgroundColor: 'rgba(255, 193, 94, 0.12)',
     borderWidth: 1,
     borderColor: 'rgba(210, 150, 50, 0.28)',
   },
   safetyText: {
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 12,
+    lineHeight: 17,
     fontWeight: '600',
     color: '#7A5A10',
   },
   readyHint: {
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 19,
     fontWeight: '700',
     color: wellness.primaryDark,
     textAlign: 'center',
-    marginTop: spacing.xs,
+  },
+  sensorStatusBlock: {
+    gap: 1,
+    alignItems: 'center',
+  },
+  sensorStatusTitle: {
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: '700',
+    color: wellness.primaryDark,
+    textAlign: 'center',
+  },
+  sensorStatusSubtext: {
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: '600',
+    color: wellness.textSecondary,
+    textAlign: 'center',
   },
   statusMessage: {
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 19,
     fontWeight: '600',
     color: wellness.primaryDark,
     textAlign: 'center',
-    marginTop: spacing.xs,
   },
   primaryBtn: {
-    marginTop: spacing.md,
     backgroundColor: wellnessColors.primary,
     borderRadius: wellnessRadii.pill,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm + 2,
     alignItems: 'center',
-    minHeight: 52,
+    minHeight: 46,
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
@@ -321,8 +358,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   secondaryBtn: {
-    marginTop: spacing.sm,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs,
     alignItems: 'center',
   },
   secondaryBtnPressed: {
