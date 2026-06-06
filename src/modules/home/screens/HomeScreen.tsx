@@ -12,12 +12,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Platform, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import {
-  showTherapyReadinessAlert,
-  useTherapyReadinessGate,
-} from '@/src/modules/device/volume-estimation';
+import { useTherapyReadinessGate } from '@/src/modules/device/volume-estimation';
 import { navigateToInitialEvaluation } from '@/src/modules/diagnostics/navigate-to-initial-evaluation';
-import { isRealSensorTransportConnected } from '@/src/modules/device/sensor-real-connection';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import { isSensorStreamActivelyReceiving } from '@/src/modules/device/stream/sensor-stream-state';
 import { useCalibrationSnapshot } from '@/src/modules/device/state/use-calibration-snapshot';
@@ -43,18 +39,13 @@ import {
 } from '@/src/modules/onboarding/storage/onboarding-storage';
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { useConsentActive } from '@/src/modules/legal/use-consent-active';
-import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
 import { getLevelDisplayMeta } from '@/src/modules/session/levels/level-difficulty-config';
 import { getLevelById } from '@/src/modules/session/registry/level-registry';
-import { logLevelSensorModeSelected } from '@/src/modules/session/sensor/level-sensor-debug';
-import { evaluateLevelSensorReadiness } from '@/src/modules/session/sensor/level-sensor-readiness';
-import { resolveTherapySessionLaunchInputMode } from '@/src/modules/session/hooks/resolve-therapy-session-launch';
-import { useTouchPracticeGate } from '@/src/modules/session/hooks/use-touch-practice-gate';
+import { useTherapySessionLauncher } from '@/src/modules/session/hooks/use-therapy-session-launcher';
 import { useTouchPracticePreference } from '@/src/modules/session/hooks/use-touch-practice-preference';
-import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
 import { updateDailyProgress } from '@/src/modules/session/session-progress-service';
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
@@ -96,14 +87,9 @@ export function HomeScreen() {
   const { patient, hydrated } = usePatientSession();
   const { ready: consentUiReady, active: consentActive } = useConsentActive();
   const { snapshot: calibrationSnapshot } = useCalibrationSnapshot();
-  const { selectLevel } = useLevelsProgress();
-  const {
-    refresh: refreshTherapyGate,
-    lastReading,
-    sensorConnected: therapyGateSensorConnected,
-    sensorStatus: therapyGateSensorStatus,
-  } = useTherapyReadinessGate();
-  const { lastDataReceivedAt, sensorStreamState, status: sensorStatus, mode: sensorMode } =
+  const { refresh: refreshTherapyGate } = useTherapyReadinessGate();
+  const { launchingLevelId, launchTherapySession } = useTherapySessionLauncher();
+  const { lastReading, sensorStreamState, status: sensorStatus, mode: sensorMode } =
     useSensorConnection();
   const [hasCompletedDiagnostic, setHasCompletedDiagnostic] = useState(false);
   const [currentLevelLabel, setCurrentLevelLabel] = useState('Nivel 1');
@@ -112,7 +98,6 @@ export function HomeScreen() {
   const [todayCompletedSessions, setTodayCompletedSessions] = useState(0);
   const [patientSessions, setPatientSessions] = useState<SessionRecord[]>([]);
   const [, setLatestDiag] = useState<DiagnosticRecord | null>(null);
-  const [startingLevel, setStartingLevel] = useState(false);
   const [welcomeVisible, setWelcomeVisible] = useState(false);
   const [welcomeCheckedPatientId, setWelcomeCheckedPatientId] = useState<number | null>(null);
   const bottomPad = dashboardScrollBottomPadding(insets.bottom);
@@ -230,71 +215,8 @@ export function HomeScreen() {
     return countWeeklyCompleted(patientSessions, getLocalDateKey());
   }, [patientSessions]);
 
-  const navigateToSession = useCallback(
-    (levelId: LevelId, inputMode: SessionInputMode) => {
-      selectLevel(levelId);
-      router.push({
-        pathname: '/(tabs)/sesion',
-        params: {
-          levelId,
-          sessionRunId: `${levelId}-${Date.now()}`,
-          inputMode,
-        },
-      });
-    },
-    [router, selectLevel],
-  );
-
-  const sensorTransportConnected = isRealSensorTransportConnected(sensorStatus, sensorMode);
-  const { effectiveTouchPracticeEnabled } = useTouchPracticeGate({
-    sensorConnected: sensorTransportConnected,
-  });
   const sensorConnected =
     sensorStatus === 'connected' || sensorStatus === 'receiving' || sensorMode === 'mock';
-
-  const beginOfficialSensorSession = useCallback(
-    async (levelId: LevelId) => {
-      setStartingLevel(true);
-      try {
-        const readiness = await evaluateLevelSensorReadiness({
-          inputMode: 'sensor',
-          sensorConnected: therapyGateSensorConnected,
-          sensorStatus: therapyGateSensorStatus,
-          lastReading,
-          receivedAtMs: lastDataReceivedAt,
-          sensorStreamState,
-          patientId: patient?.paciente_id ?? null,
-        });
-
-        if (!readiness.canStart) {
-          if (readiness.blockReason === 'no_live_reading') {
-            Alert.alert(
-              'Esperando datos del sensor',
-              'Conecta el sensor y verifica que esté enviando lecturas antes de comenzar.',
-              [{ text: 'Entendido', style: 'default' }],
-            );
-            return;
-          }
-          showTherapyReadinessAlert(readiness.gate, (route) => router.push(route));
-          return;
-        }
-
-        navigateToSession(levelId, 'sensor');
-      } finally {
-        setStartingLevel(false);
-      }
-    },
-    [
-      lastReading,
-      lastDataReceivedAt,
-      navigateToSession,
-      patient?.paciente_id,
-      router,
-      sensorStreamState,
-      therapyGateSensorConnected,
-      therapyGateSensorStatus,
-    ],
-  );
 
   const goStartRecommendedLevel = useCallback(() => {
     if (!hasCompletedDiagnostic) {
@@ -316,7 +238,7 @@ export function HomeScreen() {
       );
       return;
     }
-    if (!activeLevelId || startingLevel) {
+    if (!activeLevelId || launchingLevelId !== null) {
       onLightImpact();
       router.push('/(tabs)/terapia');
       return;
@@ -328,28 +250,15 @@ export function HomeScreen() {
       return;
     }
     onLightImpact();
-
-    const launchMode = resolveTherapySessionLaunchInputMode({
-      sensorTransportConnected,
-      effectiveTouchPracticeEnabled,
-    });
-    logLevelSensorModeSelected(launchMode);
-    if (launchMode === 'touch_practice') {
-      navigateToSession(activeLevelId, 'touch_practice');
-      return;
-    }
-    void beginOfficialSensorSession(activeLevelId);
+    launchTherapySession(activeLevelId);
   }, [
     activeLevelId,
-    beginOfficialSensorSession,
     consentActive,
     consentUiReady,
-    effectiveTouchPracticeEnabled,
     hasCompletedDiagnostic,
-    navigateToSession,
+    launchTherapySession,
+    launchingLevelId,
     router,
-    sensorTransportConnected,
-    startingLevel,
   ]);
 
   const goSensorConnection = useCallback(() => {

@@ -43,7 +43,7 @@ Dashboard principal del paciente: CTA de terapia, estado del sensor, última ses
 
 - Hooks: `usePatientSession`, `useConsentActive`, `useCalibrationSnapshot`, `useTherapyReadinessGate`, `useSensorConnection`, `useLevelsProgress`, `useTouchPracticeGate`, `useTouchPracticePreference`.
 - Carga de progreso (`loadProgress`), layout `pre_eval` | `eval_no_sessions` | `has_sessions`.
-- Lanzamiento de terapia: `goStartRecommendedLevel`, `beginOfficialSensorSession`, `navigateToSession`.
+- Lanzamiento de terapia: `goStartRecommendedLevel` (gates locales) → `useTherapySessionLauncher().launchTherapySession` (Fase 5B).
 - Gates de consentimiento en CTAs y sensor.
 - Onboarding: `hasSeenWelcomeOnboarding` / `markWelcomeOnboardingSeen` + `RespiraWelcomeOnboarding`.
 - Derivados: `lastSession`, `weeklyCompleted`, `therapyCtaDisabled`, `sensorSignalLive`.
