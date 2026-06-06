@@ -9,7 +9,8 @@ Ejecutar una sesión gamificada de ejercicios respiratorios (10 intentos en nive
 | Rol | Ruta |
 |-----|------|
 | Ruta | `app/(tabs)/sesion.tsx` |
-| Pantalla | `src/modules/session/screens/SessionScreen.tsx` |
+| Pantalla (orquestación) | `src/modules/session/screens/SessionScreen.tsx` |
+| UI externa al juego | `src/modules/session/components/` — ver [session/README.md](../../src/modules/session/README.md) |
 | Motor | `src/modules/session/engine/level-one/use-level-one-game.ts` |
 | Reglas | `src/modules/session/engine/level-one/level-one-repetition-rules.ts` |
 | Touch | `src/modules/session/engine/touch/use-touch-input-adapter.ts` |
@@ -61,7 +62,8 @@ Tipografía: sesión activa y juego usan `Text` nativo con estilos locales (exce
 
 ## Pendientes
 
-- Refactor `SessionScreen`; prop legacy `showRunnerRabbit`.
+- Fase 5D completada: modales y estados en `components/`; motor/HUD en `games/` y `engine/`.
+- Prop legacy `showRunnerRabbit`.
 - Niveles 2+ — gameplay según registry.
 
 ## Checklist manual mínimo

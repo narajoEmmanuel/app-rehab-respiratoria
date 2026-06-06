@@ -7,15 +7,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import {
-  ActivityIndicator,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
@@ -50,6 +42,12 @@ import {
   type OfficialAttemptReleasePayload,
 } from '@/src/modules/session/engine/level-one/use-level-one-game';
 import { useTouchInputAdapter } from '@/src/modules/session/engine/touch/use-touch-input-adapter';
+import { SessionErrorState } from '@/src/modules/session/components/SessionErrorState';
+import { SessionGoalAdjustmentNotice } from '@/src/modules/session/components/SessionGoalAdjustmentNotice';
+import { SessionLoadingState } from '@/src/modules/session/components/SessionLoadingState';
+import { SessionPauseModal } from '@/src/modules/session/components/SessionPauseModal';
+import { SessionSavingOverlay } from '@/src/modules/session/components/SessionSavingOverlay';
+import { SessionSummaryModal } from '@/src/modules/session/components/SessionSummaryModal';
 import { LevelOneGameView } from '@/src/modules/session/games/components/LevelOneGameView';
 import { SCENE_THEME_TOKENS } from '@/src/modules/session/games/components/level-runner-scene';
 import { RunnerLevelPreStartIntro } from '@/src/modules/session/games/components/RunnerLevelPreStartIntro';
@@ -76,7 +74,7 @@ import { navigateToInitialEvaluation } from '@/src/modules/diagnostics/navigate-
 import { getLevelVisualIdentity, parseLevelNumberFromId } from '@/src/theme/level-colors';
 import { describeSessionProgress } from '@/src/modules/session/patient-ui/session-progress-copy';
 import type { SessionAttemptResult } from '@/src/modules/session/types/session-result';
-import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+import { wellness } from '@/src/shared/theme/wellness-theme';
 
 type SessionSummaryKind = 'completed' | 'interrupted' | null;
 /** Ramp de volumen simulado en práctica táctil (sin límite de fallo por tiempo). */
@@ -139,12 +137,6 @@ function attemptFromOfficialValidation(
     activeModelId: traceMeta?.activeModelId,
     modelKind: traceMeta?.modelKind,
   };
-}
-
-function sessionSummaryModalTitle(kind: SessionSummaryKind, sessionNumber: number): string {
-  return kind === 'interrupted'
-    ? `Sesión ${sessionNumber} detenida`
-    : `Sesión ${sessionNumber} completada`;
 }
 
 export function SessionScreen() {
@@ -930,30 +922,20 @@ export function SessionScreen() {
 
   if (isLoading || !activeLevelLoaded || (!isTouchPractice && !sensorEntryReady)) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={wellness.primary} />
-        {!isTouchPractice && !sensorEntryReady ? (
-          <Text style={styles.loadingHint}>Verificando sensor y calibración…</Text>
-        ) : null}
-      </SafeAreaView>
+      <SessionLoadingState showSensorHint={!isTouchPractice && !sensorEntryReady} />
     );
   }
 
   if (!level) {
-    return (
-      <SafeAreaView style={styles.centered}>
-        <Text style={styles.title}>Sesión guiada</Text>
-        <Text style={styles.detail}>Nivel no encontrado.</Text>
-      </SafeAreaView>
-    );
+    return <SessionErrorState title="Sesión guiada" detail="Nivel no encontrado." />;
   }
 
   if (!isRunnerLevel) {
     return (
-      <SafeAreaView style={styles.centered}>
-        <Text style={styles.title}>Sesión guiada: {level.title}</Text>
-        <Text style={styles.detail}>Este nivel estará disponible próximamente.</Text>
-      </SafeAreaView>
+      <SessionErrorState
+        title={`Sesión guiada: ${level.title}`}
+        detail="Este nivel estará disponible próximamente."
+      />
     );
   }
 
@@ -1079,16 +1061,9 @@ export function SessionScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {savingInterrupt ? (
-        <View style={styles.savingOverlay} pointerEvents="auto">
-          <ActivityIndicator size="large" color={wellness.primary} />
-          <Text style={styles.savingOverlayText}>Guardando tu sesión…</Text>
-        </View>
-      ) : null}
+      {savingInterrupt ? <SessionSavingOverlay /> : null}
       {targetWasAdjusted && targetAdjustmentReason ? (
-        <View style={styles.adjustmentNote}>
-          <Text style={styles.adjustmentNoteText}>{targetAdjustmentReason}</Text>
-        </View>
+        <SessionGoalAdjustmentNotice message={targetAdjustmentReason} />
       ) : null}
       <View style={styles.gameWrap}>
         <LevelOneGameView
@@ -1169,147 +1144,45 @@ export function SessionScreen() {
           pendingSummarySessionId != null ? handleCelebrationViewSummary : undefined
         }
       />
-      <Modal
+      <SessionPauseModal
         visible={pauseModalVisible && isFocused}
-        transparent
-        animationType="fade"
-        onRequestClose={handlePauseContinue}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.pauseModalCard}>
-            <Text style={styles.pauseModalTitle}>Sesión en pausa</Text>
-            <Text style={styles.pauseModalSubtitle}>
-              Tómate un momento. Tu progreso de esta repetición queda en espera.
-            </Text>
-            <Pressable style={styles.modalPrimaryButton} onPress={handlePauseContinue}>
-              <Text style={styles.modalPrimaryButtonText}>Continuar</Text>
-            </Pressable>
-            <Pressable style={styles.modalSecondaryButton} onPress={handlePauseSaveAndExit}>
-              <Text style={styles.modalSecondaryButtonText}>Guardar y salir</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+        onContinue={handlePauseContinue}
+        onSaveAndExit={handlePauseSaveAndExit}
+      />
       <SessionCompleteMicroCelebration
         visible={isFocused && sessionMicroCelebrationVisible}
       />
-      <Modal
+      <SessionSummaryModal
         visible={
           isFocused &&
           summaryKind !== null &&
           summaryDismissedKind !== summaryKind &&
           !sessionMicroCelebrationVisible
         }
-        transparent
-        animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCardShell}>
-            <ScrollView
-              style={styles.modalScroll}
-              contentContainerStyle={styles.modalScrollContent}
-              showsVerticalScrollIndicator={false}
-              bounces={false}>
-              <Text style={styles.modalTitle}>
-                {sessionSummaryModalTitle(summaryKind, currentLevelProgress.currentSession)}
-              </Text>
-              <View style={styles.modalMetaRow}>
-                <Text style={styles.modalMetaChip}>{levelGameplay?.title ?? level.title}</Text>
-                <Text style={styles.modalMetaChip}>Sesión {currentLevelProgress.currentSession}/6</Text>
-              </View>
-              <View style={styles.modalGrid}>
-                <View style={styles.modalTile}>
-                  <Text style={styles.modalTileLabel}>Repeticiones válidas</Text>
-                  <Text style={styles.modalTileValue}>{validAttempts}</Text>
-                </View>
-                <View style={styles.modalTile}>
-                  <Text style={styles.modalTileLabel}>No completadas</Text>
-                  <Text style={styles.modalTileValue}>{failedAttempts}</Text>
-                </View>
-              </View>
-              <View style={styles.modalComplianceBlock}>
-                <Text style={styles.modalComplianceLabel}>Progreso de sesión</Text>
-                <Text style={styles.modalProgressHeadline}>{sessionProgress.headline}</Text>
-                {sessionProgress.support ? (
-                  <Text style={styles.modalProgressSupport}>{sessionProgress.support}</Text>
-                ) : null}
-                <View style={styles.modalComplianceTrack}>
-                  <View
-                    style={[
-                      styles.modalComplianceFill,
-                      { width: `${Math.round(sessionProgress.progressRatio * 100)}%` },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.modalProgressMeta}>
-                  {validAttempts} repeticiones válidas de {TARGET_ATTEMPTS}
-                </Text>
-              </View>
-              {perfectSession ? (
-                <View style={styles.modalBadgeRow}>
-                  <Text style={styles.modalBadgeStar}>★</Text>
-                  <Text style={styles.modalBadgeText}>Sesión completada con buen control</Text>
-                </View>
-              ) : null}
-              <View style={styles.modalGrid}>
-                <View style={styles.modalTileWide}>
-                  <Text style={styles.modalTileLabel}>Vol. máx. / prom. estimado</Text>
-                  <Text style={styles.modalTileValueSmall}>
-                    {maxVolume} mL · {avgVolume} mL
-                  </Text>
-                </View>
-                <View style={styles.modalTileWide}>
-                  <Text style={styles.modalTileLabel}>Tiempo máx. / prom. sostenido</Text>
-                  <Text style={styles.modalTileValueSmall}>
-                    {maxHoldSeconds.toFixed(1)} s · {avgHoldSeconds.toFixed(1)} s
-                  </Text>
-                </View>
-              </View>
-              <Text style={styles.modalMotivation}>
-                {perfectSession
-                  ? 'Tu progreso se construye sesión a sesión. Buen control.'
-                  : 'Sigue a tu ritmo. Cada sesión cuenta para tu avance.'}
-              </Text>
-            </ScrollView>
-            <View style={styles.modalFooter}>
-              <Pressable
-                style={[styles.modalPrimaryButton, savingSummary && { opacity: 0.7 }]}
-                disabled={savingSummary}
-                onPress={() => {
-                  void handleSessionCompleteViewSummary();
-                }}>
-                <Text style={styles.modalPrimaryButtonText}>
-                  {savingSummary ? 'Guardando…' : 'Ver resumen'}
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalSecondaryButton, savingSummary && { opacity: 0.7 }]}
-                disabled={savingSummary}
-                onPress={() => {
-                  void handleSessionCompleteExitToTherapy();
-                }}>
-                <Text style={styles.modalSecondaryButtonText}>Volver a terapia</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        summaryKind={summaryKind ?? 'completed'}
+        sessionNumber={currentLevelProgress.currentSession}
+        levelTitle={levelGameplay?.title ?? level.title}
+        validAttempts={validAttempts}
+        failedAttempts={failedAttempts}
+        sessionProgress={sessionProgress}
+        perfectSession={perfectSession}
+        maxVolume={maxVolume}
+        avgVolume={avgVolume}
+        maxHoldSeconds={maxHoldSeconds}
+        avgHoldSeconds={avgHoldSeconds}
+        savingSummary={savingSummary}
+        onViewSummary={() => {
+          void handleSessionCompleteViewSummary();
+        }}
+        onExitToTherapy={() => {
+          void handleSessionCompleteExitToTherapy();
+        }}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: wellness.screenBg,
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    backgroundColor: wellness.screenBg,
-  },
   container: {
     flex: 1,
     position: 'relative',
@@ -1321,282 +1194,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 400,
     position: 'relative',
-  },
-  title: {
-    color: wellness.text,
-    fontSize: 26,
-    fontWeight: '800',
-  },
-  detail: {
-    marginTop: 10,
-    color: wellness.textSecondary,
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(46, 74, 62, 0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 18,
-  },
-  modalCardShell: {
-    width: '100%',
-    maxHeight: '88%',
-    borderRadius: wellnessRadii.cardLarge,
-    backgroundColor: wellness.card,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    overflow: 'hidden',
-  },
-  modalScroll: {
-    flexGrow: 0,
-    flexShrink: 1,
-  },
-  modalScrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 8,
-  },
-  modalFooter: {
-    flexShrink: 0,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 18,
-    borderTopWidth: 1,
-    borderTopColor: wellness.border,
-    backgroundColor: wellness.card,
-  },
-  modalTitle: {
-    color: wellness.textSecondary,
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  modalMetaRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-    marginBottom: 14,
-  },
-  modalMetaChip: {
-    backgroundColor: wellness.softGreen,
-    borderRadius: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    overflow: 'hidden',
-    fontSize: 12,
-    fontWeight: '700',
-    color: wellness.primaryDark,
-    borderWidth: 1,
-    borderColor: wellness.border,
-  },
-  modalGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 12,
-  },
-  modalTile: {
-    flex: 1,
-    minWidth: '42%',
-    backgroundColor: wellness.softGreen,
-    borderRadius: wellnessRadii.card,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: wellness.border,
-  },
-  modalTileWide: {
-    flex: 1,
-    minWidth: '100%',
-    backgroundColor: wellness.softGreen,
-    borderRadius: wellnessRadii.card,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: wellness.border,
-  },
-  modalTileLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: wellness.textSecondary,
-    marginBottom: 4,
-  },
-  modalTileValue: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: wellness.primaryDark,
-  },
-  modalTileValueSmall: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: wellness.text,
-  },
-  modalComplianceBlock: {
-    marginBottom: 12,
-  },
-  modalComplianceLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: wellness.textSecondary,
-    marginBottom: 6,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  modalProgressHeadline: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: wellness.primaryDark,
-    marginBottom: 4,
-  },
-  modalProgressSupport: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: wellness.textSecondary,
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  modalProgressMeta: {
-    marginTop: 8,
-    fontSize: 13,
-    fontWeight: '600',
-    color: wellness.textSecondary,
-  },
-  modalComplianceTrack: {
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: wellness.border,
-    overflow: 'hidden',
-  },
-  modalComplianceFill: {
-    height: '100%',
-    borderRadius: 5,
-    backgroundColor: wellness.primary,
-  },
-  modalCompliancePct: {
-    marginTop: 6,
-    fontSize: 14,
-    fontWeight: '800',
-    color: wellness.primaryDark,
-  },
-  modalBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-    backgroundColor: 'rgba(212, 175, 55, 0.12)',
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(212, 175, 55, 0.35)',
-  },
-  modalBadgeStar: {
-    fontSize: 18,
-    color: '#C9A227',
-  },
-  modalBadgeText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: wellness.primaryDark,
-  },
-  modalMotivation: {
-    color: wellness.text,
-    fontSize: 15,
-    marginTop: 6,
-    marginBottom: 4,
-    fontWeight: '600',
-    lineHeight: 22,
-  },
-  modalPrimaryButton: {
-    backgroundColor: wellness.primary,
-    paddingVertical: 14,
-    borderRadius: wellnessRadii.pill,
-    marginBottom: 8,
-  },
-  modalPrimaryButtonText: {
-    color: '#FFFFFF',
-    textAlign: 'center',
-    fontWeight: '800',
-    fontSize: 16,
-  },
-  modalSecondaryButton: {
-    borderWidth: 1,
-    borderColor: wellness.borderStrong,
-    paddingVertical: 12,
-    borderRadius: wellnessRadii.pill,
-    backgroundColor: wellness.softGreen,
-  },
-  modalSecondaryButtonText: {
-    color: wellness.primaryDark,
-    textAlign: 'center',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  savingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 50,
-  },
-  savingOverlayText: {
-    marginTop: 12,
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  savingOverlaySubtext: {
-    marginTop: 8,
-    color: 'rgba(255,255,255,0.88)',
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
-    paddingHorizontal: 24,
-  },
-  loadingHint: {
-    marginTop: 12,
-    color: wellness.textSecondary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  adjustmentNote: {
-    backgroundColor: 'rgba(212, 175, 55, 0.12)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(212, 175, 55, 0.25)',
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-  },
-  adjustmentNoteText: {
-    color: '#9A7B1A',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  pauseModalCard: {
-    width: '100%',
-    maxWidth: 360,
-    borderRadius: wellnessRadii.cardLarge,
-    backgroundColor: wellness.card,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    padding: 22,
-  },
-  pauseModalTitle: {
-    color: wellness.text,
-    fontSize: 22,
-    fontWeight: '800',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  pauseModalSubtitle: {
-    color: wellness.textSecondary,
-    fontSize: 15,
-    fontWeight: '600',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 18,
   },
 });
 

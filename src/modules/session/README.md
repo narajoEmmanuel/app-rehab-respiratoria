@@ -8,7 +8,8 @@ Orquesta la **sesión guiada**, el motor del nivel 1, la **validación de intent
 
 | Carpeta | Rol |
 |---------|-----|
-| `screens/` | `SessionScreen` — entrada de sesión por nivel |
+| `screens/` | `SessionScreen` — orquestación de sesión por nivel |
+| `components/` | UI presentacional externa al juego (Fase 5D) |
 | `engine/` | `use-level-one-game`, `use-touch-input-adapter` |
 | `games/` | UI del minijuego (`LevelOneGameView`, hints de volumen) |
 | `sensor-evaluation/` | Evaluación y validación oficial de intentos con sensor |
@@ -88,9 +89,33 @@ La validación conservadora con sensor exige, entre otros criterios, **`lowerBou
 
 ---
 
+## SessionScreen — orquestación (Fase 5D)
+
+`SessionScreen` conserva motor, sensor, persistencia, pausa y navegación. Los componentes en `components/` son **UI externa al juego** — también usan `Text` nativo (no `AppText`), alineado con modales de sesión.
+
+| Componente | Renderiza | Props principales |
+|------------|-----------|-------------------|
+| `SessionLoadingState` | Carga / readiness | `showSensorHint` |
+| `SessionErrorState` | Nivel no encontrado / próximamente | `title`, `detail` |
+| `SessionSavingOverlay` | Guardando sesión interrumpida | — |
+| `SessionGoalAdjustmentNotice` | Banner meta ajustada | `message` |
+| `SessionPauseModal` | Pausa | `visible`, `onContinue`, `onSaveAndExit` |
+| `SessionSummaryModal` | Resumen previo a `/resumen` | métricas, `savingSummary`, callbacks |
+
+**No extraído (Fase 5D):** `LevelOneGameView`, `RunnerLevelPreStartIntro`, celebraciones en `games/`, motor, sensor, HUD.
+
+### Lógica que permanece en SessionScreen
+
+- Params `levelId`, `sessionRunId`, `inputMode`; hooks sensor y juego.
+- `useLevelOneGame`, `useTouchInputAdapter`, `useLevelSensorVolume`.
+- Pausa, cancelación, `persistSessionResult`, `buildSessionResult`, navegación a resumen.
+- Readiness de entrada, carga de nivel activo, trazas de calibración.
+
+---
+
 ## Tipografía (excepción HUD)
 
-Sesión activa y componentes de juego (`LevelOneGameView`, `RunnerGameFeedbackBar`, intro, coach, celebraciones) usan **`Text` nativo** con estilos locales — no `AppText`. Motivo: pesos 800/900 del HUD y celdas compactas; migración Fase 4O revertida por regresión visual. Detalle: [docs/07-ui-design-system/typography-scale.md](../../../docs/07-ui-design-system/typography-scale.md).
+Sesión activa y componentes de juego (`LevelOneGameView`, `RunnerGameFeedbackBar`, intro, coach, celebraciones) usan **`Text` nativo** con estilos locales — no `AppText`. Motivo: pesos 800/900 del HUD y celdas compactas; migración Fase 4O revertida por regresión visual. Los componentes Fase 5D en `components/` **también** conservan `Text` nativo. Detalle: [docs/07-ui-design-system/typography-scale.md](../../../docs/07-ui-design-system/typography-scale.md).
 
 Copy volumen en HUD: «Volumen» / abreviaciones; en modal de resumen de sesión: «Vol. máx. / prom. estimado».
 
