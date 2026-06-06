@@ -3,7 +3,7 @@
  * Module: home
  */
 
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 import { formatDisplayDateEs } from '@/src/modules/history/services/history-aggregates';
@@ -12,6 +12,7 @@ import { describeSessionProgress } from '@/src/modules/session/patient-ui/sessio
 import { sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness } from '@/src/shared/theme/wellness-theme';
+import { AppText } from '@/src/shared/ui/AppText';
 
 type Props = {
   session: SessionRecord;
@@ -33,32 +34,52 @@ export function HomeLastSessionCard({ session }: Props) {
 
   return (
     <View style={styles.card} accessibilityRole="summary">
-      <Text style={styles.kicker}>Última sesión</Text>
-      <Text style={styles.title}>{dateLabel}</Text>
-      <Text style={styles.status}>{statusLabel}</Text>
+      <AppText variant="caption" style={styles.kicker}>
+        Última sesión
+      </AppText>
+      <AppText variant="titleMedium" style={styles.title}>
+        {dateLabel}
+      </AppText>
+      <AppText variant="bodySmall" style={styles.status}>
+        {statusLabel}
+      </AppText>
       <View style={styles.progressBlock}>
-        <Text style={styles.progressHeadline}>{progress.headline}</Text>
+        <AppText variant="bodyLarge" style={styles.progressHeadline}>
+          {progress.headline}
+        </AppText>
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: `${Math.round(progress.progressRatio * 100)}%` }]} />
         </View>
-        <Text style={styles.progressMeta}>
+        <AppText variant="caption" style={styles.progressMeta}>
           {session.valid_attempts} repeticiones válidas de {TARGET_ATTEMPTS}
-        </Text>
+        </AppText>
       </View>
       <View style={styles.metrics}>
         <View style={styles.metric}>
-          <Text style={styles.metricLabel}>Repeticiones válidas</Text>
-          <Text style={styles.metricValue}>{session.valid_attempts}</Text>
+          <AppText variant="label" style={styles.metricLabel}>
+            Repeticiones válidas
+          </AppText>
+          <AppText variant="titleSmall" style={styles.metricValue}>
+            {session.valid_attempts}
+          </AppText>
         </View>
         <View style={styles.metric}>
-          <Text style={styles.metricLabel}>Volumen máximo</Text>
-          <Text style={styles.metricValue}>{volMax}</Text>
+          <AppText variant="label" style={styles.metricLabel}>
+            Volumen máx. estimado
+          </AppText>
+          <AppText variant="titleSmall" style={styles.metricValue}>
+            {volMax}
+          </AppText>
         </View>
       </View>
       <View style={styles.metrics}>
         <View style={styles.metric}>
-          <Text style={styles.metricLabel}>Volumen promedio</Text>
-          <Text style={styles.metricValue}>{volAvg}</Text>
+          <AppText variant="label" style={styles.metricLabel}>
+            Volumen prom. estimado
+          </AppText>
+          <AppText variant="titleSmall" style={styles.metricValue}>
+            {volAvg}
+          </AppText>
         </View>
       </View>
     </View>
@@ -75,21 +96,17 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   kicker: {
-    fontSize: 12,
-    fontWeight: '600',
     color: wellness.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: spacing.xs,
   },
   title: {
-    fontSize: 18,
     fontWeight: '700',
     color: wellness.text,
     marginBottom: 2,
   },
   status: {
-    fontSize: 14,
     color: wellness.primary,
     fontWeight: '600',
     marginBottom: spacing.md,
@@ -98,7 +115,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   progressHeadline: {
-    fontSize: 16,
     fontWeight: '800',
     color: wellness.text,
     marginBottom: spacing.sm,
@@ -116,8 +132,6 @@ const styles = StyleSheet.create({
   },
   progressMeta: {
     marginTop: spacing.sm,
-    fontSize: 12,
-    fontWeight: '600',
     color: wellness.textSecondary,
   },
   metrics: {
@@ -132,8 +146,6 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   metricValue: {
-    fontSize: 16,
-    fontWeight: '700',
     color: wellness.text,
   },
 });

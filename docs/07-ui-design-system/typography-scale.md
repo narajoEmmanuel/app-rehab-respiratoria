@@ -212,11 +212,19 @@ import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 - Storage `hasSeenWelcomeOnboarding` / `markWelcomeOnboardingSeen`, dismiss y condiciones de visibilidad intactos.
 - Sin cambios de copy, colores, layout ni navegación.
 
+### Fase 4M — `HomeScreen` (Inicio)
+
+- `HomeScreen` + `HomeLastSessionCard` migrados a `AppText`.
+- Variantes: `titleLarge`, `titleMedium`, `titleSmall`, `bodyLarge`, `bodyMedium`, `bodySmall`, `caption`, `label`, `chip`, `button`, `link`, `statusValue`.
+- `SectionHeader`, `MetricTile`, `AppButton`, `AppTopBar` y `RespiraWelcomeOnboarding` sin cambios (ya usaban tokens o no tienen `Text` directo en alcance).
+- Copy clínico: labels de volumen en última sesión y card sensor alineados con «estimado».
+- Lógica de gates, CTAs, onboarding, consent, sensor, terapia y exportación intacta.
+
 ## Qué queda pendiente
 
 | Ámbito | Motivo |
 |--------|--------|
-| `HomeScreen`, `HistoryScreen`, `SessionScreen` | Pantallas grandes — pendiente fases posteriores |
+| `HistoryScreen`, `SessionScreen` | Pantallas grandes — pendiente fases posteriores |
 | `AppTopBar`, `AppCard` | Sin texto propio o solo layout |
 | HUD de juego | Tokens definidos; migración requiere revisión visual del gameplay |
 | Módulos `device/`, `session/games/` | Alto volumen de `fontSize` hardcoded |

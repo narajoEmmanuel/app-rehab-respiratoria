@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
@@ -58,6 +58,7 @@ import { isLevelEntryLockedForUi } from '@/src/config/dev-level-flags';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppCard } from '@/src/shared/ui/AppCard';
 import { AppButton } from '@/src/shared/ui/AppButton';
+import { AppText } from '@/src/shared/ui/AppText';
 import { SectionHeader } from '@/src/shared/ui/SectionHeader';
 import { MetricTile } from '@/src/shared/ui/MetricTile';
 import { IconSymbol, type IconSymbolName } from '@/src/shared/ui/icon-symbol';
@@ -67,7 +68,7 @@ import { dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { addDaysLocal, getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 
 const ACCENT = wellnessColors.primary;
-const HOME_SENSOR_CONNECT_COPY = 'Conecta el sensor para medir tu volumen.';
+const HOME_SENSOR_CONNECT_COPY = 'Conecta el sensor para medir tu volumen estimado.';
 const HOME_SENSOR_REVIEW_COPY = 'Revisa la conexión del sensor antes de iniciar.';
 
 function onLightImpact() {
@@ -386,12 +387,16 @@ export function HomeScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.center}>
-          <Text style={styles.mutedBody}>Cargando tu información…</Text>
+          <AppText variant="bodyLarge" style={styles.mutedBody}>
+            Cargando tu información…
+          </AppText>
           <Pressable
             style={styles.textLinkWrap}
             onPress={() => router.replace('/auth/login')}
             accessibilityRole="button">
-            <Text style={styles.textLink}>Ir al acceso</Text>
+            <AppText variant="link" style={styles.textLink}>
+              Ir al acceso
+            </AppText>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -445,16 +450,20 @@ export function HomeScreen() {
     <>
       {consentUiReady && !consentActive ? (
         <View style={styles.consentCard} accessibilityRole="alert">
-          <Text style={styles.consentTitle}>Consentimiento pendiente</Text>
-          <Text style={styles.consentBody}>
+          <AppText variant="titleSmall" style={styles.consentTitle}>
+            Consentimiento pendiente
+          </AppText>
+          <AppText variant="bodyMedium" style={styles.consentBody}>
             Revisa y acepta los documentos para continuar con la terapia.
-          </Text>
+          </AppText>
           <Pressable
             style={styles.consentBtn}
             onPress={() => router.push(LEGAL_ACCEPT_HREF)}
             accessibilityRole="button"
             accessibilityLabel="Revisar documentos legales">
-            <Text style={styles.consentBtnText}>Revisar documentos</Text>
+            <AppText variant="button" style={styles.consentBtnText}>
+              Revisar documentos
+            </AppText>
           </Pressable>
         </View>
       ) : null}
@@ -471,22 +480,34 @@ export function HomeScreen() {
             <IconSymbol name="doc.text.fill" size={22} color={ACCENT} />
           </View>
           <View style={styles.exportCardTextCol}>
-            <Text style={styles.exportCardKicker}>Seguimiento clínico</Text>
-            <Text style={styles.exportCardTitle}>Resumen para tu profesional</Text>
-            <Text style={styles.exportCardBody}>
+            <AppText variant="label" style={styles.exportCardKicker}>
+              Seguimiento clínico
+            </AppText>
+            <AppText variant="titleSmall" style={styles.exportCardTitle}>
+              Resumen para tu profesional
+            </AppText>
+            <AppText variant="bodySmall" style={styles.exportCardBody}>
               Exporta tus sesiones y progreso para compartirlos.
-            </Text>
+            </AppText>
           </View>
         </View>
         <View style={styles.exportCardCtaRow}>
-          <Text style={styles.exportCardCtaText}>Exportar resumen</Text>
+          <AppText variant="statusValue" style={styles.exportCardCtaText}>
+            Exportar resumen
+          </AppText>
         </View>
       </AppCard>
 
       <View style={styles.claveRow}>
-        <Text style={styles.claveLabel}>Tu clave de acceso</Text>
-        <Text style={styles.claveValue}>{patient.clave}</Text>
-        <Text style={styles.claveHint}>Guárdala para volver a entrar.</Text>
+        <AppText variant="label" style={styles.claveLabel}>
+          Tu clave de acceso
+        </AppText>
+        <AppText variant="titleSmall" style={styles.claveValue}>
+          {patient.clave}
+        </AppText>
+        <AppText variant="caption" style={styles.claveHint}>
+          Guárdala para volver a entrar.
+        </AppText>
       </View>
     </>
   );
@@ -497,21 +518,31 @@ export function HomeScreen() {
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]}
         showsVerticalScrollIndicator={false}>
-        <Text style={styles.greeting}>Hola, {firstName}</Text>
-        <Text style={styles.tagline}>Tu resumen diario en RESPIRA+</Text>
+        <AppText variant="titleLarge" style={styles.greeting}>
+          Hola, {firstName}
+        </AppText>
+        <AppText variant="bodyLarge" style={styles.tagline}>
+          Tu resumen diario en RESPIRA+
+        </AppText>
 
         {!hasCompletedDiagnostic ? (
           <AppCard variant="highlight" style={styles.primaryActionCard}>
-            <Text style={styles.primaryActionTitle}>Conoce tu volumen de referencia</Text>
-            <Text style={styles.primaryActionBody}>
+            <AppText variant="titleLarge" style={styles.primaryActionTitle}>
+              Conoce tu volumen de referencia
+            </AppText>
+            <AppText variant="bodyMedium" style={styles.primaryActionBody}>
               Realiza tu evaluación inicial para personalizar tus niveles.
-            </Text>
+            </AppText>
             <AppButton title="Comenzar evaluación" onPress={goInitialEvaluation} />
           </AppCard>
         ) : dailyGoalMet ? (
           <AppCard variant="highlight" style={styles.primaryActionCard}>
-            <Text style={styles.primaryActionTitle}>Meta diaria completada</Text>
-            <Text style={styles.primaryActionBody}>Revisa tu progreso en Historial.</Text>
+            <AppText variant="titleLarge" style={styles.primaryActionTitle}>
+              Meta diaria completada
+            </AppText>
+            <AppText variant="bodyMedium" style={styles.primaryActionBody}>
+              Revisa tu progreso en Historial.
+            </AppText>
             <AppButton
               title="Ver historial"
               onPress={() => {
@@ -522,8 +553,12 @@ export function HomeScreen() {
           </AppCard>
         ) : (
           <AppCard variant="highlight" style={styles.primaryActionCard}>
-            <Text style={styles.primaryActionTitle}>Continúa tu terapia guiada</Text>
-            <Text style={styles.primaryActionBody}>Nivel sugerido: {levelDisplayName}</Text>
+            <AppText variant="titleLarge" style={styles.primaryActionTitle}>
+              Continúa tu terapia guiada
+            </AppText>
+            <AppText variant="bodyMedium" style={styles.primaryActionBody}>
+              Nivel sugerido: {levelDisplayName}
+            </AppText>
             <AppButton
               title={
                 !consentUiReady
@@ -550,8 +585,12 @@ export function HomeScreen() {
             {sensorCard}
             <SectionHeader title="Progreso de hoy" />
             <AppCard variant="soft" style={styles.progressCardSpacing}>
-              <Text style={styles.emptyTitle}>Sin sesiones completadas hoy</Text>
-              <Text style={styles.emptyBody}>Completa tu primera sesión para ver tu progreso.</Text>
+              <AppText variant="titleSmall" style={styles.emptyTitle}>
+                Sin sesiones completadas hoy
+              </AppText>
+              <AppText variant="bodyMedium" style={styles.emptyBody}>
+                Completa tu primera sesión para ver tu progreso.
+              </AppText>
             </AppCard>
             {quickAccessSection}
           </>
@@ -633,7 +672,9 @@ function HomeQuickAccessGrid({
           <View style={styles.quickAccessIconWrap}>
             <IconSymbol name={item.icon} size={18} color={ACCENT} />
           </View>
-          <Text style={styles.quickAccessLabel}>{item.label}</Text>
+          <AppText variant="chip" style={styles.quickAccessLabel}>
+            {item.label}
+          </AppText>
         </Pressable>
       ))}
     </View>
@@ -696,7 +737,7 @@ function describeDeviceState(
       subtitle: technicalCalibrationEnabled
         ? formatCalibrationCardSubtitle(profile, snapshot.therapy.activeModel)
         : sensorSignalLive
-          ? `${snapshot.therapy.spirometerLabel ?? profile.name} · volumen en vivo`
+          ? `${snapshot.therapy.spirometerLabel ?? profile.name} · volumen estimado en vivo`
           : HOME_SENSOR_CONNECT_COPY,
       ctaLabel: 'Revisar sensor',
       variant: 'ready',
@@ -813,7 +854,8 @@ function DeviceCard({
                 styles.deviceBadge,
                 isReady ? styles.deviceBadgeReady : isWarn ? styles.deviceBadgeWarn : styles.deviceBadgePending,
               ]}>
-              <Text
+              <AppText
+                variant="caption"
                 style={[
                   styles.deviceBadgeText,
                   isReady
@@ -823,13 +865,19 @@ function DeviceCard({
                       : styles.deviceBadgeTextPending,
                 ]}>
                 {state.badge}
-              </Text>
+              </AppText>
             </View>
           ) : null}
-          <Text style={[styles.deviceTitle, styles.deviceTitleNoBadge]}>{state.title}</Text>
-          <Text style={styles.deviceSubtitle}>{state.subtitle}</Text>
+          <AppText variant="titleMedium" style={[styles.deviceTitle, styles.deviceTitleNoBadge]}>
+            {state.title}
+          </AppText>
+          <AppText variant="bodySmall" style={styles.deviceSubtitle}>
+            {state.subtitle}
+          </AppText>
           <View style={styles.deviceCtaRow}>
-            <Text style={styles.deviceCtaLabel}>{state.ctaLabel}</Text>
+            <AppText variant="statusValue" style={styles.deviceCtaLabel}>
+              {state.ctaLabel}
+            </AppText>
             <IconSymbol name="chevron.right" size={18} color={ACCENT} />
           </View>
         </View>
@@ -846,15 +894,10 @@ const styles = StyleSheet.create({
   },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
   greeting: {
-    fontSize: 26,
-    fontWeight: '800',
     color: wellnessColors.textPrimary,
-    letterSpacing: -0.3,
     marginBottom: 2,
   },
   tagline: {
-    fontSize: 16,
-    lineHeight: 22,
     color: wellnessColors.textSecondary,
     marginBottom: spacing.md,
   },
@@ -864,13 +907,10 @@ const styles = StyleSheet.create({
   },
   primaryActionTitle: {
     fontSize: 24,
-    fontWeight: '800',
-    color: wellnessColors.textPrimary,
     lineHeight: 30,
+    color: wellnessColors.textPrimary,
   },
   primaryActionBody: {
-    fontSize: 15,
-    lineHeight: 22,
     color: wellnessColors.textSecondary,
   },
   progressCardSpacing: {
@@ -911,8 +951,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   quickAccessLabel: {
-    fontSize: 13,
-    fontWeight: '700',
     color: wellnessColors.textPrimary,
   },
   consentCard: {
@@ -925,13 +963,10 @@ const styles = StyleSheet.create({
   },
   consentTitle: {
     fontSize: 17,
-    fontWeight: '700',
     color: wellnessColors.textPrimary,
     marginBottom: spacing.sm,
   },
   consentBody: {
-    fontSize: 15,
-    lineHeight: 22,
     color: wellnessColors.textSecondary,
     marginBottom: spacing.md,
   },
@@ -944,8 +979,6 @@ const styles = StyleSheet.create({
   },
   consentBtnText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
   },
   progressTrackNoMargin: {
     height: 6,
@@ -960,13 +993,10 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 17,
-    fontWeight: '700',
     color: wellnessColors.textPrimary,
     marginBottom: spacing.sm,
   },
   emptyBody: {
-    fontSize: 15,
-    lineHeight: 22,
     color: wellnessColors.textSecondary,
   },
   weekMetricsRow: {
@@ -1010,16 +1040,14 @@ const styles = StyleSheet.create({
   deviceBadgeReady: { backgroundColor: wellnessColors.primarySoft, borderColor: 'rgba(52, 171, 165, 0.32)' },
   deviceBadgePending: { backgroundColor: wellnessColors.neutralSoft, borderColor: wellnessColors.border },
   deviceBadgeWarn: { backgroundColor: wellnessColors.dangerSoft, borderColor: '#FECACA' },
-  deviceBadgeText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
+  deviceBadgeText: { fontWeight: '700', letterSpacing: 0.2 },
   deviceBadgeTextReady: { color: wellnessColors.primaryDark },
   deviceBadgeTextPending: { color: wellnessColors.textSecondary },
   deviceBadgeTextWarn: { color: wellnessColors.danger },
-  deviceTitle: { fontSize: 20, fontWeight: '800', color: wellnessColors.textPrimary, marginTop: 8 },
+  deviceTitle: { fontSize: 20, color: wellnessColors.textPrimary, marginTop: 8 },
   deviceTitleNoBadge: { marginTop: 0 },
   deviceSubtitle: {
     marginTop: 6,
-    fontSize: 14,
-    lineHeight: 20,
     color: wellnessColors.textSecondary,
   },
   deviceCtaRow: {
@@ -1031,7 +1059,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: wellnessColors.border,
   },
-  deviceCtaLabel: { fontSize: 15, fontWeight: '700', color: ACCENT },
+  deviceCtaLabel: { color: ACCENT },
   exportCardProminent: {
     marginTop: spacing.sm,
     marginBottom: spacing.sm,
@@ -1058,8 +1086,6 @@ const styles = StyleSheet.create({
     paddingTop: 2,
   },
   exportCardKicker: {
-    fontSize: 11,
-    fontWeight: '700',
     color: ACCENT,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -1067,13 +1093,10 @@ const styles = StyleSheet.create({
   },
   exportCardTitle: {
     fontSize: 17,
-    fontWeight: '700',
     color: wellnessColors.textPrimary,
     marginBottom: 4,
   },
   exportCardBody: {
-    fontSize: 14,
-    lineHeight: 20,
     color: wellnessColors.textSecondary,
   },
   exportCardCtaRow: {
@@ -1085,8 +1108,6 @@ const styles = StyleSheet.create({
     borderTopColor: wellnessColors.border,
   },
   exportCardCtaText: {
-    fontSize: 15,
-    fontWeight: '700',
     color: ACCENT,
     textAlign: 'center',
   },
@@ -1097,7 +1118,6 @@ const styles = StyleSheet.create({
     borderTopColor: wellnessColors.border,
   },
   claveLabel: {
-    fontSize: 11,
     fontWeight: '600',
     color: wellnessColors.textMuted,
     textTransform: 'uppercase',
@@ -1106,17 +1126,16 @@ const styles = StyleSheet.create({
   },
   claveValue: {
     fontSize: 18,
-    fontWeight: '700',
     color: wellnessColors.textPrimary,
     letterSpacing: 1,
     marginBottom: 2,
   },
   claveHint: {
-    fontSize: 12,
     color: wellnessColors.textMuted,
     lineHeight: 16,
+    fontWeight: '400',
   },
-  mutedBody: { fontSize: 16, color: wellnessColors.textSecondary, marginBottom: spacing.md },
+  mutedBody: { color: wellnessColors.textSecondary, marginBottom: spacing.md },
   textLinkWrap: { padding: spacing.md },
-  textLink: { fontSize: 16, fontWeight: '700', color: authPalette.link, textDecorationLine: 'underline' },
+  textLink: { fontSize: 16, color: authPalette.link, textDecorationLine: 'underline' },
 });

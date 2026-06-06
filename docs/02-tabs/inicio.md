@@ -14,6 +14,8 @@ Dashboard principal del paciente: saludo, estado de evaluación/sesiones, acceso
 | Onboarding | `src/modules/onboarding/components/RespiraWelcomeOnboarding.tsx` |
 | Top bar | `src/shared/ui/AppTopBar.tsx` |
 
+Tipografía: `HomeScreen` y `HomeLastSessionCard` usan `AppText` + tokens (Fase 4M). Labels de volumen en última sesión dicen «estimado».
+
 Subcomponentes inline en `HomeScreen.tsx`: `DeviceCard`, `HomeQuickAccessGrid`.
 
 ## Flujo funcional
