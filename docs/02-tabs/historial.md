@@ -9,7 +9,8 @@ Vista motivacional del progreso: racha, calendario de días, logros y detalle po
 | Tipo | Ruta |
 |------|------|
 | Ruta | `app/(tabs)/historial.tsx` (`ConsentTabGuard`) |
-| Pantalla | `src/modules/history/screens/HistoryScreen.tsx` |
+| Pantalla (orquestación) | `src/modules/history/screens/HistoryScreen.tsx` |
+| Componentes UI | `src/modules/history/components/` — ver [history/README.md](../../src/modules/history/README.md) |
 | Agregados | `src/modules/history/services/history-aggregates.ts` |
 | Racha | `src/modules/history/utils/session-success-streak.ts` |
 | Clasificación | `src/modules/session/session-record-classification.ts` |
@@ -53,7 +54,7 @@ Hooks: `usePatientSession`, `useFocusEffect` para recarga.
 
 ## Pendientes o revisión manual
 
-- Refactor en subcomponentes (StreakHero, CalendarGrid, DayDetailModal).
+- Fase 5C completada: bloques visuales en `components/`; agregados y modal state en `HistoryScreen`.
 - Unificar colores calendario con `wellnessColors`.
 - Leyenda práctica vs terapéutica — validar comprensión con usuarios.
 
