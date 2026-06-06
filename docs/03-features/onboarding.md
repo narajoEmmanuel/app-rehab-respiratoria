@@ -13,6 +13,8 @@ Mostrar modal de bienvenida (`RespiraWelcomeOnboarding`) en la primera visita de
 | Clave | `src/modules/onboarding/constants.ts` (`getWelcomeOnboardingStorageKey`) |
 | Integración | `src/modules/home/screens/HomeScreen.tsx` |
 
+Tipografía: `RespiraWelcomeOnboarding` usa `AppText` + tokens (Fase 4L); sin cambio de copy ni lógica de primera visita.
+
 ## Rutas relacionadas
 
 - Modal en `/(tabs)/index` — no ruta dedicada.

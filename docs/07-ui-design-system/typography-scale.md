@@ -204,6 +204,14 @@ import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 - Flujo local-first, paciente activo, consentimiento, storage y validaciones intactos.
 - Sin cambios de copy, colores, layout ni navegación.
 
+### Fase 4L — Onboarding / Bienvenida
+
+- `RespiraWelcomeOnboarding` migrado a `AppText`.
+- Variantes: `titleLarge`, `bodyLarge`, `bodyMedium`, `chip`.
+- Integración en `HomeScreen` sin cambios (solo import del componente).
+- Storage `hasSeenWelcomeOnboarding` / `markWelcomeOnboardingSeen`, dismiss y condiciones de visibilidad intactos.
+- Sin cambios de copy, colores, layout ni navegación.
+
 ## Qué queda pendiente
 
 | Ámbito | Motivo |
