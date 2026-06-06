@@ -25,6 +25,7 @@ Documentación del sistema visual compartido de RESPIRA+. Esta carpeta centraliz
 ## Documentos
 
 - [Escala tipográfica](./typography-scale.md) — variantes, jerarquía, pantallas migradas y excepción HUD
+- [Auditoría final Text restantes](./text-migration-audit.md) — inventario post-migración, categorías A–G, pendientes y excepciones (jun 2026)
 
 ## Reglas de adopción
 
@@ -34,13 +35,16 @@ Documentación del sistema visual compartido de RESPIRA+. Esta carpeta centraliz
 4. **Copy clínico de volumen:** en cards, resumen, historial y export usar «volumen estimado»; en HUD compacto permitir «Volumen» / abreviaciones.
 5. **Tokens legacy** (`screenTitle`, `sectionTitle`, `cardTitle`, `body`) siguen válidos; preferir nombres canónicos en código nuevo.
 
-## Pendiente real (post migración 4N)
+## Pendiente real (post auditoría jun 2026)
+
+Ver detalle en [text-migration-audit.md](./text-migration-audit.md).
 
 | Ámbito | Motivo |
 |--------|--------|
-| HUD / juego sesión activa | Excepción deliberada — `Text` nativo |
-| `SessionSuccessStreakCard` | Sin migrar a `AppText` |
-| `therapy-level-card.tsx` | Componente shared con estilos inline |
+| HUD / juego sesión activa | Excepción deliberada — `Text` nativo (10 archivos) |
+| `ProfileStatusBadge`, `ProfileActionRow` | Perfil — pendiente Fase 4P |
+| `SessionSuccessStreakCard` | Resumen — pendiente Fase 4P |
+| `VolumeThermometer.tsx` | Componente sin consumidores; evaluar deprecar o migrar |
 | Paleta `reminder-ui-tokens.ts` | Colores fuera de wellness (tipografía sí migrada) |
 | Estilos HUD legacy en `LevelOneGameView` | Dead styles; render usa `RunnerGameFeedbackBar` |
 | Auditar `fontWeight: '800'` suelto fuera de sesión activa | Consolidar con tokens |
