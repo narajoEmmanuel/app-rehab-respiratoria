@@ -2,14 +2,14 @@
 
 Documentación del sistema visual compartido de RESPIRA+. Esta carpeta centraliza tokens, tipografía y reglas de adopción progresiva.
 
-## Estado actual (Fase 4 — jun 2026)
+## Estado actual (Fase 4P — jun 2026)
 
 | Área | Estado |
 |------|--------|
 | Paleta (`wellness`, `wellnessColors`) | Definida en `src/shared/theme/wellness-theme.ts` |
 | Tipografía (`wellnessTypography`) | Escala canónica ampliada (Fase 4A) |
 | Componente `AppText` | `src/shared/ui/AppText.tsx` |
-| Adopción en pantallas grandes | **Migradas** (Fases 4B–4N): export, notificaciones, resumen, perfil, diagnóstico, terapia, legal, sensor, calibración técnica, auth, onboarding, inicio, historial |
+| Adopción en pantallas grandes | **Migradas** (Fases 4B–4P): export, notificaciones, resumen, perfil, diagnóstico, terapia, legal, sensor, calibración técnica, auth, onboarding, inicio, historial, cierre producto 4P |
 | Excepción HUD / juego sesión activa | **`Text` nativo** en `SessionScreen` y componentes de juego (Fase 4O revertida) — ver [typography-scale.md](./typography-scale.md) |
 | Adopción en `src/shared/ui/` | Parcial (botones, tiles, headers, pills) |
 
@@ -35,16 +35,14 @@ Documentación del sistema visual compartido de RESPIRA+. Esta carpeta centraliz
 4. **Copy clínico de volumen:** en cards, resumen, historial y export usar «volumen estimado»; en HUD compacto permitir «Volumen» / abreviaciones.
 5. **Tokens legacy** (`screenTitle`, `sectionTitle`, `cardTitle`, `body`) siguen válidos; preferir nombres canónicos en código nuevo.
 
-## Pendiente real (post auditoría jun 2026)
+## Pendiente real (post Fase 4P — jun 2026)
 
 Ver detalle en [text-migration-audit.md](./text-migration-audit.md).
 
 | Ámbito | Motivo |
 |--------|--------|
 | HUD / juego sesión activa | Excepción deliberada — `Text` nativo (10 archivos) |
-| `ProfileStatusBadge`, `ProfileActionRow` | Perfil — pendiente Fase 4P |
-| `SessionSuccessStreakCard` | Resumen — pendiente Fase 4P |
-| `VolumeThermometer.tsx` | Componente sin consumidores; evaluar deprecar o migrar |
+| `VolumeThermometer.tsx` | Componente sin consumidores; evaluar deprecar o migrar (prioridad baja) |
 | Paleta `reminder-ui-tokens.ts` | Colores fuera de wellness (tipografía sí migrada) |
 | Estilos HUD legacy en `LevelOneGameView` | Dead styles; render usa `RunnerGameFeedbackBar` |
 | Auditar `fontWeight: '800'` suelto fuera de sesión activa | Consolidar con tokens |

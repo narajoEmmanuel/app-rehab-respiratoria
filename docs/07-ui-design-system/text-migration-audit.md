@@ -1,70 +1,78 @@
 # Auditoría final de Text restantes
 
-**Fecha:** 6 jun 2026  
-**Alcance:** `app/`, `src/` — post migración tipográfica Fases 4A–4O  
-**Método:** búsqueda estática de `<Text`, `<Animated.Text`, imports de `Text` desde `react-native`  
-**Restricción:** solo auditoría; sin cambios de runtime
+**Fecha:** 6 jun 2026
+**Alcance:** `app/`, `src/` — post migración tipográfica Fases 4A–4P
+**Método:** búsqueda estática de `<Text`, `<Animated.Text`, imports de `Text` desde `react-native`
+**Última actualización:** Fase 4P — cierre tipográfico producto (perfil + racha resumen)
 
 ---
 
 ## Resumen ejecutivo
 
-Tras la migración masiva a `AppText` (Fases 4B–4N) y la excepción documentada para HUD/juego (Fase 4O), quedan **21 archivos** con dependencia activa de `Text` nativo en `app/` y `src/`.
+Tras la migración masiva a `AppText` (Fases 4B–4N), la excepción HUD/juego (Fase 4O) y el cierre producto (Fase 4P), quedan **18 archivos** con dependencia activa de `Text` nativo en `app/` y `src/`.
 
-| Hallazgo | Valor |
-|----------|-------|
-| Archivos con JSX `Text` / `Animated.Text` | **20** |
+| Hallazgo | Valor (post 4P) |
+|----------|-----------------|
+| Archivos con JSX `Text` / `Animated.Text` | **17** |
 | Archivos con `Text` solo en infraestructura (sin JSX) | **1** (`app/_layout.tsx`) |
-| Instancias JSX `<Text>` | **144** |
+| Instancias JSX `<Text>` | **132** |
 | Instancias JSX `<Animated.Text>` | **1** |
 | Imports muertos de `Text` | **0** |
 | SVG `Text` (`react-native-svg`) | **0** |
 
-La mayoría del volumen restante (**~63 %** de instancias JSX) corresponde a la **excepción aceptada HUD/juego** (Fase 4O). Los **pendientes reales de migración** son **4 archivos** y **12 instancias JSX**, concentrados en perfil (`ProfileStatusBadge`, `ProfileActionRow`), resumen (`SessionSuccessStreakCard`) y un componente huérfano (`VolumeThermometer`).
+La mayoría del volumen restante (**~69 %** de instancias JSX) corresponde a la **excepción aceptada HUD/juego** (Fase 4O). El **único pendiente real de producto** es **`VolumeThermometer.tsx`** (6 instancias, sin consumidores — prioridad baja, fuera de alcance 4P).
 
-Módulos revisados explícitamente (`session/`, `home/`, `history/`, `device/`, `auth/`, `legal/`, `diagnostics/`, `patient/`, `shared/ui/`, `app/`): **home, history, auth y legal no tienen `Text` nativo restante** — migración completa en esos ámbitos.
+**Fase 4P completada (jun 2026):** `ProfileStatusBadge`, `ProfileActionRow`, `SessionSuccessStreakCard` migrados a `AppText` con paridad visual.
+
+Módulos de producto (`home`, `history`, `auth`, `legal`, `patient`, `summary`): **sin `Text` nativo restante** en flujos activos.
 
 ---
 
 ## Conteo total
 
-| Métrica | Cantidad |
-|---------|----------|
-| Archivos con `Text` restante (runtime o infra) | 21 |
-| Archivos con `<Text>` JSX | 20 |
-| Instancias `<Text>` | 144 |
-| Instancias `<Animated.Text>` | 1 |
-| Archivos con `TextInput` (excluidos del conteo principal) | 9 |
-| Imports muertos `Text` | 0 |
+| Métrica | Pre-4P | Post-4P |
+|---------|--------|---------|
+| Archivos con `Text` restante (runtime o infra) | 21 | **18** |
+| Archivos con `<Text>` JSX | 20 | **17** |
+| Instancias `<Text>` | 144 | **132** |
+| Instancias `<Animated.Text>` | 1 | **1** |
+| Archivos con `TextInput` (excluidos del conteo principal) | 9 | 9 |
+| Imports muertos `Text` | 0 | 0 |
 
 ---
 
 ## Conteo por categoría
 
-| Cat. | Descripción | Archivos | Instancias JSX aprox. |
-|------|-------------|----------|------------------------|
-| **A** | Pendiente real de migración a `AppText` | 4 | 12 |
+| Cat. | Descripción | Archivos (post 4P) | Instancias JSX aprox. |
+|------|-------------|--------------------|------------------------|
+| **A** | Pendiente real de migración a `AppText` | 1 | 6 |
 | **B** | Excepción aceptada HUD/juego | 10 | 91 |
 | **C** | `TextInput` / input — no aplica | 9 | — |
 | **D** | SVG, ícono o ilustración — no aplica | 0 | 0 |
 | **E** | Debug / dev interno | 3 | 37 |
 | **F** | Wrapper especial o caso técnico | 4 | 5 |
 | **G** | Import `Text` muerto | 0 | 0 |
+| **—** | Migrado Fase 4P | 3 | 0 (`AppText`) |
 
-> **Nota:** las categorías B, E y F no son deuda de migración. A es la única cola activa de producto.
+> **Nota:** categoría A reducida a `VolumeThermometer.tsx` (sin consumidores). B, E y F no son deuda de migración producto.
 
 ---
 
 ## Inventario por archivo
 
+### Migrado — Fase 4P (jun 2026)
+
+| Ruta | Variantes `AppText` | Notas |
+|------|---------------------|-------|
+| `src/modules/patient/components/ProfileStatusBadge.tsx` | `chip` | Override `fontSize: 14` + color dinámico por variante |
+| `src/modules/patient/components/ProfileActionRow.tsx` | `bodyMedium` (label + chevron) | Overrides de peso, color y `textDecorationLine` por variante link/primary/neutral |
+| `src/modules/session/patient-ui/SessionSuccessStreakCard.tsx` | `bodyMedium` (emoji), `statusValue` (título), `bodySmall` (subtítulo) | Overrides `fontWeight: '800'`, `letterSpacing`, `lineHeight` para paridad |
+
 ### Categoría A — Pendiente real de migración a AppText
 
 | Ruta | Usos | Prioridad | Riesgo migrar | Motivo | Recomendación |
 |------|------|-----------|---------------|--------|---------------|
-| `src/modules/patient/components/ProfileStatusBadge.tsx` | 1 | **Alta** | Bajo | Pill de consentimiento en perfil; estilos inline (`fontSize: 14`, `fontWeight: '700'`). Resto del módulo `patient/` ya usa `AppText` (Fase 4E). | Migrar a `AppText variant="chip"` o `chipSmall` + override de color dinámico por variante. |
-| `src/modules/patient/components/ProfileActionRow.tsx` | 2 | **Alta** | Bajo | Filas de navegación en perfil; label + chevron `›`. Variantes link/primary/neutral con pesos 600/700. | Label → `AppText variant="bodyMedium"` / `link`; chevron → `AppText` con `fontWeight: '300'` override o símbolo en `caption`. |
-| `src/modules/session/patient-ui/SessionSuccessStreakCard.tsx` | 3 | **Media** | Medio | Card de racha en `SummaryScreen`; usa `fontWeight: '800'` en título. Documentado como pendiente en `typography-scale.md`. No es HUD activo. | Migrar título/subtítulo a `AppText`; emoji 🔥 puede quedar en `Text` mínimo o `AppText` sin variant. Validar peso 800 con token `titleSmall` / override. |
-| `src/modules/device/components/VolumeThermometer.tsx` | 6 | **Baja** | Bajo | Termómetro visual legacy; **sin imports en el codebase** (reemplazado por `LiveVolumeCard` en `SensorConnectionScreen`). | Migrar solo si se reactiva el componente; si no, considerar eliminación en fase de limpieza (fuera de esta auditoría). |
+| `src/modules/device/components/VolumeThermometer.tsx` | 6 | **Baja** | Bajo | Termómetro visual legacy; **sin imports en el codebase** (reemplazado por `LiveVolumeCard` en `SensorConnectionScreen`). Fuera de alcance 4P. | Migrar solo si se reactiva el componente; si no, considerar eliminación en fase de limpieza. |
 
 ### Categoría B — Excepción aceptada HUD/juego
 
@@ -128,14 +136,11 @@ No se auditan como deuda `Text`. Conservan estilos propios (`wellnessTypography.
 
 ## Pendientes reales de migración
 
-Orden sugerido (Fase 4P):
+**Post Fase 4P:** solo queda backlog de baja prioridad.
 
-1. **`ProfileStatusBadge.tsx`** — Alta, 1 uso, bajo riesgo  
-2. **`ProfileActionRow.tsx`** — Alta, 2 usos, bajo riesgo  
-3. **`SessionSuccessStreakCard.tsx`** — Media, 3 usos, validar peso 800  
-4. **`VolumeThermometer.tsx`** — Baja; evaluar si el componente sigue vigente (actualmente sin consumidores)
+1. **`VolumeThermometer.tsx`** — Baja, 6 usos, sin consumidores; evaluar deprecar vs. migrar si se reactiva.
 
-**Total pendiente:** 4 archivos · 12 instancias JSX
+**Total pendiente producto:** 1 archivo · 6 instancias JSX (componente huérfano)
 
 ---
 
@@ -193,12 +198,11 @@ Búsqueda incluyó imports agrupados (`View, Text, Pressable`) y alias `type Tex
 
 ## Recomendaciones
 
-1. **Fase 4P (siguiente):** migrar solo categoría A — perfil (2 archivos) y `SessionSuccessStreakCard`.  
-2. **No tocar** los 10 archivos de categoría B sin plan visual y extensión de `AppText` / tokens `gameHud`.  
-3. **Actualizar** `docs/07-ui-design-system/README.md`: `therapy-level-card.tsx` ya usa `AppText` (pendiente obsoleto en índice previo).  
-4. **Evaluar** destino de `VolumeThermometer.tsx` (componente sin imports).  
-5. **Mantener** `app/_layout.tsx` y `AppText.tsx` como únicos puntos de acoplamiento a `Text` nativo en infraestructura.  
-6. **Dev screens:** migración opcional y baja prioridad.
+1. **Fase 4P completada** — perfil y racha resumen en `AppText`.
+2. **No tocar** los 10 archivos de categoría B sin plan visual y extensión de `AppText` / tokens `gameHud`.
+3. **Evaluar** destino de `VolumeThermometer.tsx` (componente sin imports).
+4. **Mantener** `app/_layout.tsx` y `AppText.tsx` como puntos de acoplamiento a `Text` nativo en infraestructura.
+5. **Dev screens:** migración opcional y baja prioridad.
 
 ---
 
@@ -206,11 +210,10 @@ Búsqueda incluyó imports agrupados (`View, Text, Pressable`) y alias `type Tex
 
 | Paso | Acción | Esfuerzo |
 |------|--------|----------|
-| 1 | Migrar `ProfileStatusBadge` + `ProfileActionRow` | ~30 min |
-| 2 | Migrar `SessionSuccessStreakCard` con QA en `SummaryScreen` | ~45 min |
-| 3 | Decidir sobre `VolumeThermometer` (migrar vs. deprecar) | Revisión |
-| 4 | Revisar `AppBrandWordmark` en fase branding | Opcional |
-| 5 | Consolidar `fontWeight: '800'` suelto fuera de sesión (auditoría separada) | Backlog |
+| 1 | Decidir sobre `VolumeThermometer` (migrar vs. deprecar) | Revisión |
+| 2 | Revisar `AppBrandWordmark` en fase branding | Opcional |
+| 3 | Consolidar `fontWeight: '800'` suelto fuera de sesión (auditoría separada) | Backlog |
+| 4 | Dev screens (`esp32-raw-test`, `HardwareLabScreen`, showcase) | Opcional |
 
 ---
 
@@ -218,14 +221,14 @@ Búsqueda incluyó imports agrupados (`View, Text, Pressable`) y alias `type Tex
 
 | Módulo / área | `Text` nativo restante | Estado |
 |---------------|------------------------|--------|
-| `src/modules/session/` | Sí (HUD/juego + 1 pendiente streak card) | Excepción + 1 pendiente |
+| `src/modules/session/` | Sí (HUD/juego) | Excepción 4O; `SessionSuccessStreakCard` migrado 4P |
 | `src/modules/home/` | No | Migrado (4M) |
 | `src/modules/history/` | No | Migrado (4N) |
-| `src/modules/device/` | Sí (lab dev + termómetro huérfano) | Parcial |
+| `src/modules/device/` | Sí (lab dev + termómetro huérfano) | Parcial; `VolumeThermometer` sin consumidores |
 | `src/modules/auth/` | No | Migrado (4J) |
 | `src/modules/legal/` | No | Migrado (4H) |
 | `src/modules/diagnostics/` | Solo `Animated.Text` | Migrado (4F) |
-| `src/modules/patient/` | Sí (2 componentes) | Casi completo |
+| `src/modules/patient/` | No | Migrado (4E + 4P) |
 | `src/shared/ui/` | `AppText`, showcase dev | Infra + dev |
 | `app/` | `_layout`, `esp32-raw-test` | Infra + dev |
 

@@ -3,10 +3,11 @@
  * Module: patient
  */
 
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+import { AppText } from '@/src/shared/ui/AppText';
 
 export type ProfileActionRowVariant = 'link' | 'primary' | 'neutral';
 
@@ -38,7 +39,8 @@ export function ProfileActionRow({
         pressed && !isLink && styles.pressed,
       ]}>
       <View style={styles.row}>
-        <Text
+        <AppText
+          variant="bodyMedium"
           style={[
             styles.label,
             isLink && styles.labelLink,
@@ -46,8 +48,12 @@ export function ProfileActionRow({
             variant === 'neutral' && styles.labelNeutral,
           ]}>
           {label}
-        </Text>
-        {showChevron ? <Text style={[styles.chevron, isLink && styles.chevronLink]}>›</Text> : null}
+        </AppText>
+        {showChevron ? (
+          <AppText variant="bodyMedium" style={[styles.chevron, isLink && styles.chevronLink]}>
+            ›
+          </AppText>
+        ) : null}
       </View>
     </Pressable>
   );
