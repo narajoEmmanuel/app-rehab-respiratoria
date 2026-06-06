@@ -6,18 +6,11 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { isRealSensorTransportConnected } from '@/src/modules/device/sensor-real-connection';
-import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
-import {
-  showTherapyReadinessAlert,
-  useTherapyReadinessGate,
-} from '@/src/modules/device/volume-estimation';
-import { logLevelSensorModeSelected } from '@/src/modules/session/sensor/level-sensor-debug';
-import { evaluateLevelSensorReadiness } from '@/src/modules/session/sensor/level-sensor-readiness';
+import { useTherapyReadinessGate } from '@/src/modules/device/volume-estimation';
 import { getLatestDiagnostic, getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
 import { navigateToInitialEvaluation } from '@/src/modules/diagnostics/navigate-to-initial-evaluation';
 import type { DiagnosticRecord, PatientLevelRecord } from '@/src/modules/diagnostics/types';
@@ -33,10 +26,8 @@ import {
   getLevelDisplayMeta,
 } from '@/src/modules/session/levels/level-difficulty-config';
 import { listLevels } from '@/src/modules/session/registry/level-registry';
-import { resolveTherapySessionLaunchInputMode } from '@/src/modules/session/hooks/resolve-therapy-session-launch';
-import { useTouchPracticeGate } from '@/src/modules/session/hooks/use-touch-practice-gate';
+import { useTherapySessionLauncher } from '@/src/modules/session/hooks/use-therapy-session-launcher';
 import { useTouchPracticePreference } from '@/src/modules/session/hooks/use-touch-practice-preference';
-import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import {
   lifetimeStatsForPatientLevelRow,
@@ -133,34 +124,16 @@ export function LevelsScreen({
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { patient } = usePatientSession();
-  const { isLoading, selectLevel } = useLevelsProgress();
-  const {
-    refresh: refreshTherapyGate,
-    lastReading,
-    sensorConnected: therapyGateSensorConnected,
-    sensorStatus: therapyGateSensorStatus,
-  } = useTherapyReadinessGate();
-  const {
-    lastDataReceivedAt,
-    sensorStreamState,
-    status: connectionStatus,
-    mode: sensorSourceMode,
-  } = useSensorConnection();
-  const sensorTransportConnected = isRealSensorTransportConnected(
-    connectionStatus,
-    sensorSourceMode,
-  );
+  const { isLoading } = useLevelsProgress();
+  const { refresh: refreshTherapyGate } = useTherapyReadinessGate();
+  const { launchingLevelId, launchTherapySession } = useTherapySessionLauncher();
   const levels = listLevels();
   const [patientLevels, setPatientLevels] = useState<PatientLevelRecord[]>([]);
   const [latestDiagnostic, setLatestDiagnostic] = useState<DiagnosticRecord | null>(null);
   const [levelStatsByPatientLevelId, setLevelStatsByPatientLevelId] = useState<
     Record<number, LevelDisplayStats>
   >({});
-  const [startingLevelId, setStartingLevelId] = useState<LevelId | null>(null);
   const { reload: reloadTouchPracticePreference } = useTouchPracticePreference();
-  const { effectiveTouchPracticeEnabled } = useTouchPracticeGate({
-    sensorConnected: sensorTransportConnected,
-  });
   const loadLevelsData = useCallback(async () => {
     if (!patient) {
       setPatientLevels([]);
@@ -201,87 +174,12 @@ export function LevelsScreen({
     }, [loadLevelsData, refreshTherapyGate, reloadTouchPracticePreference]),
   );
 
-  const navigateToSession = useCallback(
-    (levelId: LevelId, inputMode: SessionInputMode) => {
-      selectLevel(levelId);
-      router.push({
-        pathname: '/(tabs)/sesion',
-        params: {
-          levelId,
-          sessionRunId: `${levelId}-${Date.now()}`,
-          inputMode,
-        },
-      });
-    },
-    [router, selectLevel],
-  );
-
-  const beginOfficialSensorSession = useCallback(
-    async (levelId: LevelId) => {
-      setStartingLevelId(levelId);
-      try {
-        const readiness = await evaluateLevelSensorReadiness({
-          inputMode: 'sensor',
-          sensorConnected: therapyGateSensorConnected,
-          sensorStatus: therapyGateSensorStatus,
-          lastReading,
-          receivedAtMs: lastDataReceivedAt,
-          sensorStreamState,
-          patientId: patient?.paciente_id ?? null,
-        });
-
-        if (!readiness.canStart) {
-          if (readiness.blockReason === 'no_live_reading') {
-            Alert.alert(
-              'Esperando datos del sensor',
-              'Conecta el sensor y verifica que esté enviando lecturas antes de comenzar.',
-              [{ text: 'Entendido', style: 'default' }],
-            );
-            return;
-          }
-          showTherapyReadinessAlert(readiness.gate, (route) => router.push(route));
-          return;
-        }
-
-        navigateToSession(levelId, 'sensor');
-      } finally {
-        setStartingLevelId(null);
-      }
-    },
-    [
-      lastReading,
-      lastDataReceivedAt,
-      sensorStreamState,
-      navigateToSession,
-      patient?.paciente_id,
-      router,
-      therapyGateSensorConnected,
-      therapyGateSensorStatus,
-    ],
-  );
-
   const onPlayLevel = useCallback(
     (levelId: LevelId, progressionLocked: boolean) => {
-      if (progressionLocked || startingLevelId !== null) return;
-
-      const launchMode = resolveTherapySessionLaunchInputMode({
-        sensorTransportConnected,
-        effectiveTouchPracticeEnabled,
-      });
-      logLevelSensorModeSelected(launchMode);
-      if (launchMode === 'touch_practice') {
-        navigateToSession(levelId, 'touch_practice');
-        return;
-      }
-      void beginOfficialSensorSession(levelId);
+      if (progressionLocked || launchingLevelId !== null) return;
+      launchTherapySession(levelId);
     },
-    [
-      beginOfficialSensorSession,
-      effectiveTouchPracticeEnabled,
-      navigateToSession,
-      sensorTransportConnected,
-      startingLevelId,
-    ],
+    [launchTherapySession, launchingLevelId],
   );
 
   const scrollBottom = dashboardScrollBottomPadding(insets.bottom);
@@ -424,7 +322,7 @@ export function LevelsScreen({
                     : 'Completa 6 sesiones con 10 repeticiones válidas para avanzar.'
               }
               locked={locked}
-              starting={startingLevelId === levelId}
+              starting={launchingLevelId === levelId}
               onPress={() => {
                 onPlayLevel(levelId, locked);
               }}

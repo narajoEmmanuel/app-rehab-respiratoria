@@ -9,29 +9,29 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { authPalette } from '@/src/modules/auth/theme/auth-palette';
-import {
-  showTherapyReadinessAlert,
-  useTherapyReadinessGate,
-} from '@/src/modules/device/volume-estimation';
+import { useTherapyReadinessGate } from '@/src/modules/device/volume-estimation';
 import { navigateToInitialEvaluation } from '@/src/modules/diagnostics/navigate-to-initial-evaluation';
-import { isTechnicalCalibrationEnabled } from '@/src/modules/app-mode';
-import {
-  PATIENT_MEASUREMENT_LOAD_ERROR,
-  patientMeasurementStatusLabel,
-  resolvePatientMeasurementPhase,
-} from '@/src/modules/device/calibration/patient-measurement-copy';
-import { formatCalibrationCardSubtitle } from '@/src/modules/device/calibration/calibration-display-utils';
-import { isRealSensorTransportConnected } from '@/src/modules/device/sensor-real-connection';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import { isSensorStreamActivelyReceiving } from '@/src/modules/device/stream/sensor-stream-state';
 import { useCalibrationSnapshot } from '@/src/modules/device/state/use-calibration-snapshot';
 import { getCurrentActiveLevel, hasDiagnostic, getLatestDiagnostic } from '@/src/modules/diagnostics/diagnostic-service';
 import type { DiagnosticRecord } from '@/src/modules/diagnostics/types';
+import { HomeAccessKeyCard } from '@/src/modules/home/components/HomeAccessKeyCard';
+import { HomeConsentNoticeCard } from '@/src/modules/home/components/HomeConsentNoticeCard';
+import { HomeDailyGoalCtaCard } from '@/src/modules/home/components/HomeDailyGoalCtaCard';
+import { HomeDeviceCard } from '@/src/modules/home/components/HomeDeviceCard';
+import { HomeEvaluationCtaCard } from '@/src/modules/home/components/HomeEvaluationCtaCard';
+import { HomeExportCard } from '@/src/modules/home/components/HomeExportCard';
+import { HomeHeaderGreeting } from '@/src/modules/home/components/HomeHeaderGreeting';
 import { HomeLastSessionCard } from '@/src/modules/home/components/HomeLastSessionCard';
+import { HomeLoadingState } from '@/src/modules/home/components/HomeLoadingState';
+import { HomeProgressEmptyState } from '@/src/modules/home/components/HomeProgressEmptyState';
+import { HomeProgressTodayCard } from '@/src/modules/home/components/HomeProgressTodayCard';
+import { HomeQuickAccessGrid } from '@/src/modules/home/components/HomeQuickAccessGrid';
+import { HomeTherapyCtaCard } from '@/src/modules/home/components/HomeTherapyCtaCard';
 import { RespiraWelcomeOnboarding } from '@/src/modules/onboarding/components/RespiraWelcomeOnboarding';
 import {
   hasSeenWelcomeOnboarding,
@@ -39,37 +39,23 @@ import {
 } from '@/src/modules/onboarding/storage/onboarding-storage';
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { useConsentActive } from '@/src/modules/legal/use-consent-active';
-import { useLevelsProgress } from '@/src/modules/levels/state/use-levels-progress';
 import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
 import { getLevelDisplayMeta } from '@/src/modules/session/levels/level-difficulty-config';
 import { getLevelById } from '@/src/modules/session/registry/level-registry';
-import { logLevelSensorModeSelected } from '@/src/modules/session/sensor/level-sensor-debug';
-import { evaluateLevelSensorReadiness } from '@/src/modules/session/sensor/level-sensor-readiness';
-import { resolveTherapySessionLaunchInputMode } from '@/src/modules/session/hooks/resolve-therapy-session-launch';
-import { useTouchPracticeGate } from '@/src/modules/session/hooks/use-touch-practice-gate';
+import { useTherapySessionLauncher } from '@/src/modules/session/hooks/use-therapy-session-launcher';
 import { useTouchPracticePreference } from '@/src/modules/session/hooks/use-touch-practice-preference';
-import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
 import { updateDailyProgress } from '@/src/modules/session/session-progress-service';
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 import { isLevelEntryLockedForUi } from '@/src/config/dev-level-flags';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
-import { AppCard } from '@/src/shared/ui/AppCard';
-import { AppButton } from '@/src/shared/ui/AppButton';
-import { AppText } from '@/src/shared/ui/AppText';
 import { SectionHeader } from '@/src/shared/ui/SectionHeader';
-import { MetricTile } from '@/src/shared/ui/MetricTile';
-import { IconSymbol, type IconSymbolName } from '@/src/shared/ui/icon-symbol';
 import { spacing } from '@/src/shared/theme/spacing';
-import { appScreenBackground, wellnessColors, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import { appScreenBackground } from '@/src/shared/theme/wellness-theme';
 import { dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { addDaysLocal, getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
-
-const ACCENT = wellnessColors.primary;
-const HOME_SENSOR_CONNECT_COPY = 'Conecta el sensor para medir tu volumen estimado.';
-const HOME_SENSOR_REVIEW_COPY = 'Revisa la conexión del sensor antes de iniciar.';
 
 function onLightImpact() {
   if (Platform.OS === 'ios') {
@@ -101,14 +87,9 @@ export function HomeScreen() {
   const { patient, hydrated } = usePatientSession();
   const { ready: consentUiReady, active: consentActive } = useConsentActive();
   const { snapshot: calibrationSnapshot } = useCalibrationSnapshot();
-  const { selectLevel } = useLevelsProgress();
-  const {
-    refresh: refreshTherapyGate,
-    lastReading,
-    sensorConnected: therapyGateSensorConnected,
-    sensorStatus: therapyGateSensorStatus,
-  } = useTherapyReadinessGate();
-  const { lastDataReceivedAt, sensorStreamState, status: sensorStatus, mode: sensorMode } =
+  const { refresh: refreshTherapyGate } = useTherapyReadinessGate();
+  const { launchingLevelId, launchTherapySession } = useTherapySessionLauncher();
+  const { lastReading, sensorStreamState, status: sensorStatus, mode: sensorMode } =
     useSensorConnection();
   const [hasCompletedDiagnostic, setHasCompletedDiagnostic] = useState(false);
   const [currentLevelLabel, setCurrentLevelLabel] = useState('Nivel 1');
@@ -117,7 +98,6 @@ export function HomeScreen() {
   const [todayCompletedSessions, setTodayCompletedSessions] = useState(0);
   const [patientSessions, setPatientSessions] = useState<SessionRecord[]>([]);
   const [, setLatestDiag] = useState<DiagnosticRecord | null>(null);
-  const [startingLevel, setStartingLevel] = useState(false);
   const [welcomeVisible, setWelcomeVisible] = useState(false);
   const [welcomeCheckedPatientId, setWelcomeCheckedPatientId] = useState<number | null>(null);
   const bottomPad = dashboardScrollBottomPadding(insets.bottom);
@@ -235,71 +215,8 @@ export function HomeScreen() {
     return countWeeklyCompleted(patientSessions, getLocalDateKey());
   }, [patientSessions]);
 
-  const navigateToSession = useCallback(
-    (levelId: LevelId, inputMode: SessionInputMode) => {
-      selectLevel(levelId);
-      router.push({
-        pathname: '/(tabs)/sesion',
-        params: {
-          levelId,
-          sessionRunId: `${levelId}-${Date.now()}`,
-          inputMode,
-        },
-      });
-    },
-    [router, selectLevel],
-  );
-
-  const sensorTransportConnected = isRealSensorTransportConnected(sensorStatus, sensorMode);
-  const { effectiveTouchPracticeEnabled } = useTouchPracticeGate({
-    sensorConnected: sensorTransportConnected,
-  });
   const sensorConnected =
     sensorStatus === 'connected' || sensorStatus === 'receiving' || sensorMode === 'mock';
-
-  const beginOfficialSensorSession = useCallback(
-    async (levelId: LevelId) => {
-      setStartingLevel(true);
-      try {
-        const readiness = await evaluateLevelSensorReadiness({
-          inputMode: 'sensor',
-          sensorConnected: therapyGateSensorConnected,
-          sensorStatus: therapyGateSensorStatus,
-          lastReading,
-          receivedAtMs: lastDataReceivedAt,
-          sensorStreamState,
-          patientId: patient?.paciente_id ?? null,
-        });
-
-        if (!readiness.canStart) {
-          if (readiness.blockReason === 'no_live_reading') {
-            Alert.alert(
-              'Esperando datos del sensor',
-              'Conecta el sensor y verifica que esté enviando lecturas antes de comenzar.',
-              [{ text: 'Entendido', style: 'default' }],
-            );
-            return;
-          }
-          showTherapyReadinessAlert(readiness.gate, (route) => router.push(route));
-          return;
-        }
-
-        navigateToSession(levelId, 'sensor');
-      } finally {
-        setStartingLevel(false);
-      }
-    },
-    [
-      lastReading,
-      lastDataReceivedAt,
-      navigateToSession,
-      patient?.paciente_id,
-      router,
-      sensorStreamState,
-      therapyGateSensorConnected,
-      therapyGateSensorStatus,
-    ],
-  );
 
   const goStartRecommendedLevel = useCallback(() => {
     if (!hasCompletedDiagnostic) {
@@ -321,7 +238,7 @@ export function HomeScreen() {
       );
       return;
     }
-    if (!activeLevelId || startingLevel) {
+    if (!activeLevelId || launchingLevelId !== null) {
       onLightImpact();
       router.push('/(tabs)/terapia');
       return;
@@ -333,28 +250,15 @@ export function HomeScreen() {
       return;
     }
     onLightImpact();
-
-    const launchMode = resolveTherapySessionLaunchInputMode({
-      sensorTransportConnected,
-      effectiveTouchPracticeEnabled,
-    });
-    logLevelSensorModeSelected(launchMode);
-    if (launchMode === 'touch_practice') {
-      navigateToSession(activeLevelId, 'touch_practice');
-      return;
-    }
-    void beginOfficialSensorSession(activeLevelId);
+    launchTherapySession(activeLevelId);
   }, [
     activeLevelId,
-    beginOfficialSensorSession,
     consentActive,
     consentUiReady,
-    effectiveTouchPracticeEnabled,
     hasCompletedDiagnostic,
-    navigateToSession,
+    launchTherapySession,
+    launchingLevelId,
     router,
-    sensorTransportConnected,
-    startingLevel,
   ]);
 
   const goSensorConnection = useCallback(() => {
@@ -384,23 +288,7 @@ export function HomeScreen() {
   }, [router]);
 
   if (!hydrated || !patient) {
-    return (
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <View style={styles.center}>
-          <AppText variant="bodyLarge" style={styles.mutedBody}>
-            Cargando tu información…
-          </AppText>
-          <Pressable
-            style={styles.textLinkWrap}
-            onPress={() => router.replace('/auth/login')}
-            accessibilityRole="button">
-            <AppText variant="link" style={styles.textLink}>
-              Ir al acceso
-            </AppText>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
+    return <HomeLoadingState onGoToLogin={() => router.replace('/auth/login')} />;
   }
 
   const displayName = normalizePatientDisplayName(patient.nombre_completo);
@@ -415,8 +303,14 @@ export function HomeScreen() {
       ? 'eval_no_sessions'
       : 'has_sessions';
 
+  const therapyButtonTitle = !consentUiReady
+    ? 'Preparando…'
+    : !consentActive
+      ? 'Activa el consentimiento para continuar'
+      : 'Empezar nivel sugerido';
+
   const sensorCard = (
-    <DeviceCard
+    <HomeDeviceCard
       calibrationSnapshot={calibrationSnapshot}
       sensorConnected={sensorConnected}
       sensorSignalLive={sensorSignalLive}
@@ -446,131 +340,30 @@ export function HomeScreen() {
     </>
   );
 
-  const footerSection = (
-    <>
-      {consentUiReady && !consentActive ? (
-        <View style={styles.consentCard} accessibilityRole="alert">
-          <AppText variant="titleSmall" style={styles.consentTitle}>
-            Consentimiento pendiente
-          </AppText>
-          <AppText variant="bodyMedium" style={styles.consentBody}>
-            Revisa y acepta los documentos para continuar con la terapia.
-          </AppText>
-          <Pressable
-            style={styles.consentBtn}
-            onPress={() => router.push(LEGAL_ACCEPT_HREF)}
-            accessibilityRole="button"
-            accessibilityLabel="Revisar documentos legales">
-            <AppText variant="button" style={styles.consentBtnText}>
-              Revisar documentos
-            </AppText>
-          </Pressable>
-        </View>
-      ) : null}
-
-      <AppCard
-        pressable
-        onPress={() => {
-          onLightImpact();
-          router.push('/data-export');
-        }}
-        style={styles.exportCardProminent}>
-        <View style={styles.exportCardTopRow}>
-          <View style={styles.exportCardIconWrap}>
-            <IconSymbol name="doc.text.fill" size={22} color={ACCENT} />
-          </View>
-          <View style={styles.exportCardTextCol}>
-            <AppText variant="label" style={styles.exportCardKicker}>
-              Seguimiento clínico
-            </AppText>
-            <AppText variant="titleSmall" style={styles.exportCardTitle}>
-              Resumen para tu profesional
-            </AppText>
-            <AppText variant="bodySmall" style={styles.exportCardBody}>
-              Exporta tus sesiones y progreso para compartirlos.
-            </AppText>
-          </View>
-        </View>
-        <View style={styles.exportCardCtaRow}>
-          <AppText variant="statusValue" style={styles.exportCardCtaText}>
-            Exportar resumen
-          </AppText>
-        </View>
-      </AppCard>
-
-      <View style={styles.claveRow}>
-        <AppText variant="label" style={styles.claveLabel}>
-          Tu clave de acceso
-        </AppText>
-        <AppText variant="titleSmall" style={styles.claveValue}>
-          {patient.clave}
-        </AppText>
-        <AppText variant="caption" style={styles.claveHint}>
-          Guárdala para volver a entrar.
-        </AppText>
-      </View>
-    </>
-  );
-
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <AppTopBar onPressProfile={() => router.push('/profile')} />
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]}
         showsVerticalScrollIndicator={false}>
-        <AppText variant="titleLarge" style={styles.greeting}>
-          Hola, {firstName}
-        </AppText>
-        <AppText variant="bodyLarge" style={styles.tagline}>
-          Tu resumen diario en RESPIRA+
-        </AppText>
+        <HomeHeaderGreeting firstName={firstName} />
 
         {!hasCompletedDiagnostic ? (
-          <AppCard variant="highlight" style={styles.primaryActionCard}>
-            <AppText variant="titleLarge" style={styles.primaryActionTitle}>
-              Conoce tu volumen de referencia
-            </AppText>
-            <AppText variant="bodyMedium" style={styles.primaryActionBody}>
-              Realiza tu evaluación inicial para personalizar tus niveles.
-            </AppText>
-            <AppButton title="Comenzar evaluación" onPress={goInitialEvaluation} />
-          </AppCard>
+          <HomeEvaluationCtaCard onPress={goInitialEvaluation} />
         ) : dailyGoalMet ? (
-          <AppCard variant="highlight" style={styles.primaryActionCard}>
-            <AppText variant="titleLarge" style={styles.primaryActionTitle}>
-              Meta diaria completada
-            </AppText>
-            <AppText variant="bodyMedium" style={styles.primaryActionBody}>
-              Revisa tu progreso en Historial.
-            </AppText>
-            <AppButton
-              title="Ver historial"
-              onPress={() => {
-                onLightImpact();
-                router.push('/(tabs)/historial');
-              }}
-            />
-          </AppCard>
+          <HomeDailyGoalCtaCard
+            onPress={() => {
+              onLightImpact();
+              router.push('/(tabs)/historial');
+            }}
+          />
         ) : (
-          <AppCard variant="highlight" style={styles.primaryActionCard}>
-            <AppText variant="titleLarge" style={styles.primaryActionTitle}>
-              Continúa tu terapia guiada
-            </AppText>
-            <AppText variant="bodyMedium" style={styles.primaryActionBody}>
-              Nivel sugerido: {levelDisplayName}
-            </AppText>
-            <AppButton
-              title={
-                !consentUiReady
-                  ? 'Preparando…'
-                  : !consentActive
-                    ? 'Activa el consentimiento para continuar'
-                    : 'Empezar nivel sugerido'
-              }
-              onPress={goStartRecommendedLevel}
-              disabled={therapyCtaDisabled}
-            />
-          </AppCard>
+          <HomeTherapyCtaCard
+            levelDisplayName={levelDisplayName}
+            buttonTitle={therapyButtonTitle}
+            onPress={goStartRecommendedLevel}
+            disabled={therapyCtaDisabled}
+          />
         )}
 
         {homeLayoutState === 'pre_eval' ? (
@@ -584,14 +377,7 @@ export function HomeScreen() {
           <>
             {sensorCard}
             <SectionHeader title="Progreso de hoy" />
-            <AppCard variant="soft" style={styles.progressCardSpacing}>
-              <AppText variant="titleSmall" style={styles.emptyTitle}>
-                Sin sesiones completadas hoy
-              </AppText>
-              <AppText variant="bodyMedium" style={styles.emptyBody}>
-                Completa tu primera sesión para ver tu progreso.
-              </AppText>
-            </AppCard>
+            <HomeProgressEmptyState />
             {quickAccessSection}
           </>
         ) : null}
@@ -599,290 +385,31 @@ export function HomeScreen() {
         {homeLayoutState === 'has_sessions' ? (
           <>
             <SectionHeader title="Progreso de hoy" />
-            <AppCard style={styles.progressCardSpacing}>
-              <View style={styles.weekMetricsRow}>
-                <MetricTile
-                  label="Hoy"
-                  value={`${todayCompletedSessions}/6`}
-                  helper="meta diaria"
-                />
-                <MetricTile
-                  label="Esta semana"
-                  value={weeklyCompleted === 0 ? '0' : String(weeklyCompleted)}
-                  helper={`sesión${weeklyCompleted === 1 ? '' : 'es'} completada${weeklyCompleted === 1 ? '' : 's'}`}
-                />
-              </View>
-              <View style={styles.progressTrackNoMargin}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    { width: `${Math.min(100, (todayCompletedSessions / 6) * 100)}%` },
-                  ]}
-                />
-              </View>
-            </AppCard>
+            <HomeProgressTodayCard
+              todayCompletedSessions={todayCompletedSessions}
+              weeklyCompleted={weeklyCompleted}
+            />
             {sensorCard}
             {lastSession ? <HomeLastSessionCard session={lastSession} /> : null}
             {quickAccessSection}
           </>
         ) : null}
 
-        {footerSection}
+        {consentUiReady && !consentActive ? (
+          <HomeConsentNoticeCard onReviewPress={() => router.push(LEGAL_ACCEPT_HREF)} />
+        ) : null}
+
+        <HomeExportCard
+          onPress={() => {
+            onLightImpact();
+            router.push('/data-export');
+          }}
+        />
+
+        <HomeAccessKeyCard clave={patient.clave} />
       </ScrollView>
       <RespiraWelcomeOnboarding visible={welcomeVisible} onContinue={handleWelcomeContinue} />
     </SafeAreaView>
-  );
-}
-
-type CalibrationSnapshot = ReturnType<typeof useCalibrationSnapshot>['snapshot'];
-
-type QuickAccessItem = {
-  label: string;
-  icon: IconSymbolName;
-  onPress: () => void;
-};
-
-function HomeQuickAccessGrid({
-  onTherapy,
-  onHistory,
-  onSensor,
-  onProfile,
-}: {
-  onTherapy: () => void;
-  onHistory: () => void;
-  onSensor: () => void;
-  onProfile: () => void;
-}) {
-  const items: QuickAccessItem[] = [
-    { label: 'Terapia', icon: 'waveform.path.ecg', onPress: onTherapy },
-    { label: 'Historial', icon: 'clock.fill', onPress: onHistory },
-    { label: 'Sensor', icon: 'dot.radiowaves.left.and.right', onPress: onSensor },
-    { label: 'Perfil', icon: 'person.crop.circle', onPress: onProfile },
-  ];
-
-  return (
-    <View style={styles.quickAccessGrid}>
-      {items.map((item) => (
-        <Pressable
-          key={item.label}
-          style={({ pressed }) => [styles.quickAccessTile, pressed && styles.quickAccessTilePressed]}
-          onPress={item.onPress}
-          accessibilityRole="button"
-          accessibilityLabel={item.label}>
-          <View style={styles.quickAccessIconWrap}>
-            <IconSymbol name={item.icon} size={18} color={ACCENT} />
-          </View>
-          <AppText variant="chip" style={styles.quickAccessLabel}>
-            {item.label}
-          </AppText>
-        </Pressable>
-      ))}
-    </View>
-  );
-}
-
-function describeDeviceState(
-  snapshot: CalibrationSnapshot,
-  technicalCalibrationEnabled: boolean,
-  sensorConnected: boolean,
-  sensorSignalLive: boolean,
-): {
-  badge: string | null;
-  showBadge: boolean;
-  title: string;
-  subtitle: string;
-  ctaLabel: string;
-  variant: 'ready' | 'pending' | 'warn' | 'loading';
-} {
-  const therapyReady =
-    snapshot.kind !== 'loading' && snapshot.therapy.isReadyForTherapy;
-  const therapyStatus = snapshot.kind === 'loading' ? 'pending' : snapshot.therapy.status;
-
-  const phase = resolvePatientMeasurementPhase({
-    technicalMode: technicalCalibrationEnabled,
-    snapshotLoading: snapshot.kind === 'loading',
-    snapshotCorrupt: snapshot.kind === 'corrupt',
-    therapyReady,
-    therapyStatus,
-    sensorConnected,
-    signalLive: sensorSignalLive,
-  });
-
-  const badge = patientMeasurementStatusLabel(phase, technicalCalibrationEnabled);
-
-  if (snapshot.kind === 'loading') {
-    return {
-      badge: technicalCalibrationEnabled ? null : badge,
-      showBadge: !technicalCalibrationEnabled,
-      title: 'Dispositivo RESPIRA+',
-      subtitle: technicalCalibrationEnabled
-        ? 'Revisando el estado del sensor…'
-        : 'Verificando medición…',
-      ctaLabel: 'Revisar sensor',
-      variant: 'loading',
-    };
-  }
-
-  if (snapshot.kind === 'ready' && therapyReady) {
-    const { profile } = snapshot;
-    const readyBadge = technicalCalibrationEnabled
-      ? 'Calibración verificada'
-      : sensorSignalLive
-        ? 'Sensor listo para medir'
-        : 'Calibración activa';
-    return {
-      badge: readyBadge,
-      showBadge: true,
-      title: 'Dispositivo RESPIRA+',
-      subtitle: technicalCalibrationEnabled
-        ? formatCalibrationCardSubtitle(profile, snapshot.therapy.activeModel)
-        : sensorSignalLive
-          ? `${snapshot.therapy.spirometerLabel ?? profile.name} · volumen estimado en vivo`
-          : HOME_SENSOR_CONNECT_COPY,
-      ctaLabel: 'Revisar sensor',
-      variant: 'ready',
-    };
-  }
-
-  if (snapshot.kind === 'corrupt') {
-    return {
-      badge: technicalCalibrationEnabled ? 'Revisar calibración' : badge,
-      showBadge: true,
-      title: 'Dispositivo RESPIRA+',
-      subtitle: technicalCalibrationEnabled
-        ? 'La calibración guardada no se pudo leer.'
-        : PATIENT_MEASUREMENT_LOAD_ERROR,
-      ctaLabel: 'Revisar sensor',
-      variant: 'warn',
-    };
-  }
-
-  if (snapshot.kind === 'ready' || snapshot.kind === 'none') {
-    return {
-      badge,
-      showBadge: true,
-      title: 'Dispositivo RESPIRA+',
-      subtitle: technicalCalibrationEnabled
-        ? (snapshot.therapy.detailMessage ?? 'Completa la calibración verificada del espirómetro.')
-        : sensorConnected
-          ? 'Verificando medición…'
-          : HOME_SENSOR_CONNECT_COPY,
-      ctaLabel: technicalCalibrationEnabled ? 'Configurar espirómetro' : 'Conectar sensor',
-      variant: 'pending',
-    };
-  }
-
-  return {
-    badge: null,
-    showBadge: false,
-    title: 'Dispositivo RESPIRA+',
-    subtitle: technicalCalibrationEnabled
-      ? 'Conecta el sensor y verifica la calibración del espirómetro.'
-      : HOME_SENSOR_CONNECT_COPY,
-    variant: 'pending',
-    ctaLabel: technicalCalibrationEnabled ? 'Configurar sensor' : 'Conectar sensor',
-  };
-}
-
-function applyHomeDevicePresentation(
-  state: ReturnType<typeof describeDeviceState>,
-  sensorConnected: boolean,
-  technicalCalibrationEnabled: boolean,
-): ReturnType<typeof describeDeviceState> {
-  if (technicalCalibrationEnabled) {
-    return { ...state, showBadge: false };
-  }
-
-  let subtitle = state.subtitle;
-  if (state.variant === 'loading') {
-    subtitle = 'Verificando medición…';
-  } else if (state.variant === 'warn') {
-    subtitle = state.subtitle;
-  } else {
-    subtitle = sensorConnected ? HOME_SENSOR_REVIEW_COPY : HOME_SENSOR_CONNECT_COPY;
-  }
-
-  return {
-    ...state,
-    showBadge: false,
-    subtitle,
-    ctaLabel: 'Revisar sensor',
-  };
-}
-
-function DeviceCard({
-  calibrationSnapshot,
-  sensorConnected,
-  sensorSignalLive,
-  onPress,
-  homePresentation = false,
-}: {
-  calibrationSnapshot: CalibrationSnapshot;
-  sensorConnected: boolean;
-  sensorSignalLive: boolean;
-  onPress: () => void;
-  homePresentation?: boolean;
-}) {
-  const technicalCalibrationEnabled = isTechnicalCalibrationEnabled();
-  const baseState = describeDeviceState(
-    calibrationSnapshot,
-    technicalCalibrationEnabled,
-    sensorConnected,
-    sensorSignalLive,
-  );
-  const state = homePresentation
-    ? applyHomeDevicePresentation(baseState, sensorConnected, technicalCalibrationEnabled)
-    : baseState;
-  const isReady = state.variant === 'ready';
-  const isWarn = state.variant === 'warn';
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.deviceCard, pressed && styles.deviceCardPressed]}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${state.title}. ${state.showBadge && state.badge ? state.badge : ''} ${state.subtitle}`}>
-      <View style={styles.deviceTopRow}>
-        <View style={styles.deviceIconWrap}>
-          <View style={styles.deviceIcon}>
-            <IconSymbol name="dot.radiowaves.left.and.right" size={34} color={ACCENT} />
-          </View>
-        </View>
-        <View style={styles.deviceContent}>
-          {state.showBadge && state.badge ? (
-            <View
-              style={[
-                styles.deviceBadge,
-                isReady ? styles.deviceBadgeReady : isWarn ? styles.deviceBadgeWarn : styles.deviceBadgePending,
-              ]}>
-              <AppText
-                variant="caption"
-                style={[
-                  styles.deviceBadgeText,
-                  isReady
-                    ? styles.deviceBadgeTextReady
-                    : isWarn
-                      ? styles.deviceBadgeTextWarn
-                      : styles.deviceBadgeTextPending,
-                ]}>
-                {state.badge}
-              </AppText>
-            </View>
-          ) : null}
-          <AppText variant="titleMedium" style={[styles.deviceTitle, styles.deviceTitleNoBadge]}>
-            {state.title}
-          </AppText>
-          <AppText variant="bodySmall" style={styles.deviceSubtitle}>
-            {state.subtitle}
-          </AppText>
-          <View style={styles.deviceCtaRow}>
-            <AppText variant="statusValue" style={styles.deviceCtaLabel}>
-              {state.ctaLabel}
-            </AppText>
-            <IconSymbol name="chevron.right" size={18} color={ACCENT} />
-          </View>
-        </View>
-      </View>
-    </Pressable>
   );
 }
 
@@ -892,250 +419,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
   },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
-  greeting: {
-    color: wellnessColors.textPrimary,
-    marginBottom: 2,
-  },
-  tagline: {
-    color: wellnessColors.textSecondary,
-    marginBottom: spacing.md,
-  },
-  primaryActionCard: {
-    marginBottom: spacing.md,
-    gap: spacing.sm,
-  },
-  primaryActionTitle: {
-    fontSize: 24,
-    lineHeight: 30,
-    color: wellnessColors.textPrimary,
-  },
-  primaryActionBody: {
-    color: wellnessColors.textSecondary,
-  },
-  progressCardSpacing: {
-    marginBottom: spacing.sm,
-  },
-  secondaryCardSpacing: {
-    marginBottom: spacing.sm,
-  },
-  quickAccessGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
-  },
-  quickAccessTile: {
-    width: '48%',
-    flexGrow: 1,
-    flexBasis: '46%',
-    backgroundColor: wellnessColors.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: wellnessColors.border,
-    paddingVertical: 10,
-    paddingHorizontal: spacing.sm,
-    alignItems: 'center',
-    gap: 4,
-    ...wellnessShadows.soft,
-  },
-  quickAccessTilePressed: {
-    opacity: 0.92,
-  },
-  quickAccessIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: wellnessColors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quickAccessLabel: {
-    color: wellnessColors.textPrimary,
-  },
-  consentCard: {
-    backgroundColor: wellnessColors.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: wellnessColors.border,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-  },
-  consentTitle: {
-    fontSize: 17,
-    color: wellnessColors.textPrimary,
-    marginBottom: spacing.sm,
-  },
-  consentBody: {
-    color: wellnessColors.textSecondary,
-    marginBottom: spacing.md,
-  },
-  consentBtn: {
-    alignSelf: 'flex-start',
-    backgroundColor: ACCENT,
-    borderRadius: 12,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 12,
-  },
-  consentBtnText: {
-    color: '#FFFFFF',
-  },
-  progressTrackNoMargin: {
-    height: 6,
-    borderRadius: 4,
-    backgroundColor: wellnessColors.neutralSoft,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: ACCENT,
-    borderRadius: 4,
-  },
-  emptyTitle: {
-    fontSize: 17,
-    color: wellnessColors.textPrimary,
-    marginBottom: spacing.sm,
-  },
-  emptyBody: {
-    color: wellnessColors.textSecondary,
-  },
-  weekMetricsRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  deviceCard: {
-    backgroundColor: wellnessColors.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: wellnessColors.border,
-    padding: spacing.lg,
-    marginBottom: spacing.sm,
-    ...wellnessShadows.soft,
-  },
-  deviceCardPressed: { opacity: 0.94 },
-  deviceTopRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: spacing.md,
-  },
-  deviceIconWrap: {
-    justifyContent: 'center',
-  },
-  deviceIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
-    backgroundColor: wellnessColors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deviceContent: { flex: 1 },
-  deviceBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  deviceBadgeReady: { backgroundColor: wellnessColors.primarySoft, borderColor: 'rgba(52, 171, 165, 0.32)' },
-  deviceBadgePending: { backgroundColor: wellnessColors.neutralSoft, borderColor: wellnessColors.border },
-  deviceBadgeWarn: { backgroundColor: wellnessColors.dangerSoft, borderColor: '#FECACA' },
-  deviceBadgeText: { fontWeight: '700', letterSpacing: 0.2 },
-  deviceBadgeTextReady: { color: wellnessColors.primaryDark },
-  deviceBadgeTextPending: { color: wellnessColors.textSecondary },
-  deviceBadgeTextWarn: { color: wellnessColors.danger },
-  deviceTitle: { fontSize: 20, color: wellnessColors.textPrimary, marginTop: 8 },
-  deviceTitleNoBadge: { marginTop: 0 },
-  deviceSubtitle: {
-    marginTop: 6,
-    color: wellnessColors.textSecondary,
-  },
-  deviceCtaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: spacing.md,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: wellnessColors.border,
-  },
-  deviceCtaLabel: { color: ACCENT },
-  exportCardProminent: {
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    gap: spacing.sm,
-  },
-  exportCardTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.md,
-  },
-  exportCardIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: wellnessColors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  exportCardTextCol: {
-    flex: 1,
-    minWidth: 0,
-    paddingTop: 2,
-  },
-  exportCardKicker: {
-    color: ACCENT,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  exportCardTitle: {
-    fontSize: 17,
-    color: wellnessColors.textPrimary,
-    marginBottom: 4,
-  },
-  exportCardBody: {
-    color: wellnessColors.textSecondary,
-  },
-  exportCardCtaRow: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: spacing.xs,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: wellnessColors.border,
-  },
-  exportCardCtaText: {
-    color: ACCENT,
-    textAlign: 'center',
-  },
-  claveRow: {
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: wellnessColors.border,
-  },
-  claveLabel: {
-    fontWeight: '600',
-    color: wellnessColors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 2,
-  },
-  claveValue: {
-    fontSize: 18,
-    color: wellnessColors.textPrimary,
-    letterSpacing: 1,
-    marginBottom: 2,
-  },
-  claveHint: {
-    color: wellnessColors.textMuted,
-    lineHeight: 16,
-    fontWeight: '400',
-  },
-  mutedBody: { color: wellnessColors.textSecondary, marginBottom: spacing.md },
-  textLinkWrap: { padding: spacing.md },
-  textLink: { fontSize: 16, color: authPalette.link, textDecorationLine: 'underline' },
 });

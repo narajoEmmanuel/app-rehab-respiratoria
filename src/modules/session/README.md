@@ -22,6 +22,28 @@ Archivos transversales:
 
 - `session-input-mode.ts` — `sensor` vs `touch_practice` y flag de entorno.
 - `session-record-classification.ts` — etiquetas Sensor / Práctica / Sin clasificar e campos de exportación.
+- `hooks/resolve-therapy-session-launch.ts` — decisión sensor vs práctica táctil.
+- `hooks/use-therapy-session-launcher.ts` — lanzamiento compartido desde Inicio y Terapia (Fase 5B).
+
+---
+
+## Lanzamiento de sesión (Fase 5B)
+
+`useTherapySessionLauncher` centraliza la lógica duplicada entre `HomeScreen` y `LevelsScreen`:
+
+| Responsabilidad | Hook | Pantallas |
+|-----------------|------|-----------|
+| Resolver `inputMode` (`resolveTherapySessionLaunchInputMode`) | Sí | — |
+| Navegar a `/(tabs)/sesion` con `levelId`, `sessionRunId`, `inputMode` | Sí | — |
+| Readiness sensor (`evaluateLevelSensorReadiness`, alerts) | Sí | — |
+| Práctica táctil vs sesión oficial | Sí | — |
+| Estado `launchingLevelId` durante async readiness | Sí | — |
+| Gates consentimiento / evaluación | No | `HomeScreen` |
+| Fallback a tab Terapia si no hay nivel activo | No | `HomeScreen` |
+| Bloqueo progresión (`locked`, `comingSoon`) | No | `LevelsScreen` |
+| UI de niveles y cards | No | `LevelsScreen` |
+
+API expuesta: `launchTherapySession(levelId)`, `launchingLevelId`, `navigateToSession`, `beginOfficialSensorSession`.
 
 ---
 

@@ -9,14 +9,14 @@ Dashboard principal del paciente: saludo, estado de evaluación/sesiones, acceso
 | Tipo | Ruta |
 |------|------|
 | Ruta | `app/(tabs)/index.tsx` |
-| Pantalla | `src/modules/home/screens/HomeScreen.tsx` |
-| Componente | `src/modules/home/components/HomeLastSessionCard.tsx` |
+| Pantalla (orquestación) | `src/modules/home/screens/HomeScreen.tsx` |
+| Componentes UI | `src/modules/home/components/` — ver [home/README.md](../../src/modules/home/README.md) |
 | Onboarding | `src/modules/onboarding/components/RespiraWelcomeOnboarding.tsx` |
 | Top bar | `src/shared/ui/AppTopBar.tsx` |
 
-Tipografía: `HomeScreen` y `HomeLastSessionCard` usan `AppText` + tokens (Fase 4M). Labels de volumen en última sesión dicen «estimado».
+Tipografía: componentes de Inicio usan `AppText` + tokens (Fase 4M). Labels de volumen en última sesión dicen «estimado».
 
-Subcomponentes inline en `HomeScreen.tsx`: `DeviceCard`, `HomeQuickAccessGrid`.
+**Fase 5A:** `HomeScreen` orquesta hooks y handlers; bloques visuales extraídos a `components/` (`HomeDeviceCard`, `HomeQuickAccessGrid`, CTAs, progreso, footer). Sin cambio de comportamiento ni layout.
 
 ## Flujo funcional
 
@@ -59,8 +59,8 @@ Servicios: `diagnostic-service`, `session-progress-repository`, `navigate-to-ini
 
 ## Pendientes o revisión manual
 
-- `HomeScreen.tsx` ~1100+ líneas — candidato a refactor (extraer `DeviceCard`, launch controller).
-- Lógica `beginOfficialSensorSession` / `navigateToSession` duplicada con Terapia.
+- Fase 5A completada: componentes presentacionales en `components/`; launch controller sigue en `HomeScreen`.
+- Lógica `beginOfficialSensorSession` / `navigateToSession` duplicada con Terapia (candidato Fase 5B+).
 
 ## Checklist manual mínimo
 

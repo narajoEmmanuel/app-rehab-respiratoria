@@ -19,7 +19,8 @@ Ejecutar una sesión gamificada de ejercicios respiratorios (10 intentos en nive
 | Validación | `src/modules/session/sensor-evaluation/session-attempt-validation-service.ts` |
 | Persistencia | `src/modules/session/session-progress-service.ts` |
 | Storage | `src/modules/session/storage/session-progress-repository.ts` |
-| Launch | `src/modules/session/hooks/resolve-therapy-session-launch.ts` |
+| Launch (decisión modo) | `src/modules/session/hooks/resolve-therapy-session-launch.ts` |
+| Launch (orquestación) | `src/modules/session/hooks/use-therapy-session-launcher.ts` |
 
 Tipografía: sesión activa y juego usan `Text` nativo con estilos locales (excepción Fase 4O; ver `typography-scale.md`). HUD compacto: «Volumen» / abreviaciones; modal de resumen: «Vol. máx. / prom. estimado».
 
@@ -29,8 +30,8 @@ Tipografía: sesión activa y juego usan `Text` nativo con estilos locales (exce
 
 ## Entradas del flujo
 
-- Terapia o Inicio tras gates.
-- Params: `levelId`, `inputMode` (`sensor` | `touch_practice`), `sessionRunId`.
+- Terapia o Inicio tras gates locales de cada pantalla; launch compartido en `useTherapySessionLauncher`.
+- Params: `levelId`, `inputMode` (`sensor` | `touch_practice`), `sessionRunId` (`${levelId}-${Date.now()}`).
 
 ## Salidas del flujo
 

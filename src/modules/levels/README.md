@@ -35,8 +35,8 @@ UI de la pestaña **Terapia** y estado de **progreso por nivel** en memoria + As
 - Lista niveles del registry (`session/registry/level-registry.ts`).
 - Muestra filas de `patient_levels` (estado `active` / `locked` / `completed`).
 - CTA de evaluación inicial si no hay diagnóstico.
-- Compuerta de readiness del sensor (`useTherapyReadinessGate`) antes de lanzar sesión oficial.
-- Opción de práctica táctil vía `resolveTherapySessionLaunchInputMode` cuando aplica.
+- Lanzamiento de sesión vía `useTherapySessionLauncher` (Fase 5B): readiness sensor, práctica táctil, navegación a `/(tabs)/sesion`.
+- `useTherapyReadinessGate().refresh` en focus para actualizar compuerta antes de jugar.
 - Card informativa de desbloqueo: **6 sesiones perfectas** en el nivel activo.
 
 ---
