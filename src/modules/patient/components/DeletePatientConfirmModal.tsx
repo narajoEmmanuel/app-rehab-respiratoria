@@ -7,7 +7,6 @@ import {
   Modal,
   Pressable,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from 'react-native';
@@ -15,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+import { AppText } from '@/src/shared/ui/AppText';
 
 export const DELETE_PATIENT_CONFIRM_PHRASE = 'ELIMINAR PACIENTE';
 
@@ -45,11 +45,16 @@ export function DeletePatientConfirmModal({ visible, busy, onCancel, onConfirm }
       onRequestClose={onCancel}>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
-          <Text style={styles.title}>Confirmar eliminación</Text>
-          <Text style={styles.body}>
+          <AppText variant="metric" style={styles.title}>
+            Confirmar eliminación
+          </AppText>
+          <AppText variant="bodyLarge" style={styles.body}>
             Escribe exactamente{' '}
-            <Text style={styles.phraseEmphasis}>{DELETE_PATIENT_CONFIRM_PHRASE}</Text> para continuar.
-          </Text>
+            <AppText variant="bodyLarge" style={styles.phraseEmphasis}>
+              {DELETE_PATIENT_CONFIRM_PHRASE}
+            </AppText>{' '}
+            para continuar.
+          </AppText>
         </View>
 
         <TextInput
@@ -71,7 +76,9 @@ export function DeletePatientConfirmModal({ visible, busy, onCancel, onConfirm }
             disabled={busy}
             accessibilityRole="button"
             accessibilityLabel="Cancelar">
-            <Text style={styles.cancelBtnText}>Cancelar</Text>
+            <AppText variant="button" style={styles.cancelBtnText}>
+              Cancelar
+            </AppText>
           </Pressable>
           <Pressable
             style={({ pressed }) => [
@@ -83,9 +90,11 @@ export function DeletePatientConfirmModal({ visible, busy, onCancel, onConfirm }
             disabled={!canConfirm}
             accessibilityRole="button"
             accessibilityLabel="Eliminar definitivamente">
-            <Text style={[styles.deleteBtnText, !canConfirm && styles.deleteBtnTextDisabled]}>
+            <AppText
+              variant="button"
+              style={[styles.deleteBtnText, !canConfirm && styles.deleteBtnTextDisabled]}>
               Eliminar definitivamente
-            </Text>
+            </AppText>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -105,13 +114,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   title: {
-    fontSize: 22,
-    fontWeight: '800',
     color: wellness.text,
   },
   body: {
-    fontSize: 16,
-    lineHeight: 24,
     color: wellness.textSecondary,
   },
   phraseEmphasis: {
@@ -144,8 +149,6 @@ const styles = StyleSheet.create({
     backgroundColor: wellness.card,
   },
   cancelBtnText: {
-    fontSize: 16,
-    fontWeight: '700',
     color: wellness.text,
   },
   deleteBtn: {
@@ -158,8 +161,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#E5E7EB',
   },
   deleteBtnText: {
-    fontSize: 16,
-    fontWeight: '700',
     color: '#FFFFFF',
   },
   deleteBtnTextDisabled: {

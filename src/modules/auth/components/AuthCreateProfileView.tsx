@@ -9,7 +9,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   useWindowDimensions,
   View,
@@ -23,6 +22,7 @@ import {
 } from '@/src/modules/auth/components/AuthRegistrationHeader';
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
+import { AppText } from '@/src/shared/ui/AppText';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 
@@ -183,14 +183,14 @@ export function AuthCreateProfileView({
           <View style={styles.page}>
             <View style={styles.contentMain}>
               <View style={styles.titleBlock}>
-                <Text style={styles.title}>Creamos tu perfil</Text>
-                <Text style={styles.subtitle}>
+                <AppText variant="titleLarge" style={styles.title}>Creamos tu perfil</AppText>
+                <AppText variant="bodyLarge" style={styles.subtitle}>
                   Necesitamos algunos datos básicos para personalizar tu experiencia.
-                </Text>
+                </AppText>
               </View>
 
               <View style={styles.formCard}>
-                <Text style={styles.fieldLabel}>Nombre completo</Text>
+                <AppText variant="bodySmall" style={styles.fieldLabel}>Nombre completo</AppText>
                 <TextInput
                   style={styles.input}
                   value={nombre}
@@ -201,7 +201,7 @@ export function AuthCreateProfileView({
                   accessibilityLabel="Nombre completo"
                 />
 
-                <Text style={[styles.fieldLabel, styles.fieldLabelSpaced]}>Edad (años)</Text>
+                <AppText variant="bodySmall" style={[styles.fieldLabel, styles.fieldLabelSpaced]}>Edad (años)</AppText>
                 <TextInput
                   style={styles.input}
                   value={edadText}
@@ -214,7 +214,7 @@ export function AuthCreateProfileView({
                 />
 
                 {edadText.length > 0 && !edadValid ? (
-                  <Text style={styles.helperError}>Indica una edad entre 1 y 120 años.</Text>
+                  <AppText variant="bodySmall" style={styles.helperError}>Indica una edad entre 1 y 120 años.</AppText>
                 ) : null}
               </View>
 
@@ -222,9 +222,9 @@ export function AuthCreateProfileView({
                 <View style={styles.securityIconWrap}>
                   <IconSymbol name="lock.fill" size={14} color={wellness.primaryDark} />
                 </View>
-                <Text style={styles.securityText}>
+                <AppText variant="caption" style={styles.securityText}>
                   Tu información está segura y solo será usada en la app.
-                </Text>
+                </AppText>
               </View>
 
               <Pressable
@@ -246,13 +246,13 @@ export function AuthCreateProfileView({
                   {busy ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <Text
+                    <AppText variant="button"
                       style={[
                         styles.btnPrimaryText,
                         !submitEnabled && styles.btnPrimaryTextDisabled,
                       ]}>
                       Continuar
-                    </Text>
+                    </AppText>
                   )}
                 </LinearGradient>
               </Pressable>

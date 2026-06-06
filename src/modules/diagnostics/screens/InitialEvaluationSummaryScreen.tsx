@@ -6,7 +6,7 @@
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EvaluationAttemptsCard } from '@/src/modules/diagnostics/components/EvaluationAttemptsCard';
@@ -32,6 +32,7 @@ import {
 } from '@/src/shared/theme/wellness-theme';
 import { dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { AppButton } from '@/src/shared/ui/AppButton';
+import { AppText } from '@/src/shared/ui/AppText';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 
 export function InitialEvaluationSummaryScreen() {
@@ -94,33 +95,41 @@ export function InitialEvaluationSummaryScreen() {
         contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]}
         showsVerticalScrollIndicator={false}>
         <View style={styles.headerBlock}>
-          <Text style={styles.title}>Resumen de evaluación</Text>
-          <Text style={styles.subtitle}>Tu volumen de referencia y niveles personalizados.</Text>
+          <AppText variant="titleLarge" style={styles.title}>
+            Resumen de evaluación
+          </AppText>
+          <AppText variant="bodyMedium" style={styles.subtitle}>
+            Tu volumen de referencia y niveles personalizados.
+          </AppText>
         </View>
 
         {loading ? (
           <ActivityIndicator color={wellnessColors.primary} style={styles.loader} />
         ) : !patient || !pair ? (
           <View style={styles.emptyBlock}>
-            <Text style={styles.emptyTitle}>Aún no hay una evaluación inicial registrada.</Text>
-            <Text style={styles.emptyBody}>
+            <AppText variant="titleSmall" style={styles.emptyTitle}>
+              Aún no hay una evaluación inicial registrada.
+            </AppText>
+            <AppText variant="bodyMedium" style={styles.emptyBody}>
               Realiza tu evaluación inicial para personalizar tus niveles de terapia.
-            </Text>
+            </AppText>
             <AppButton title="Comenzar evaluación" onPress={goStartEvaluation} />
           </View>
         ) : (
           <>
             <View style={styles.heroCard}>
-              <Text style={styles.heroLabel}>Volumen de referencia</Text>
-              <Text style={styles.heroValue}>
+              <AppText variant="label" style={styles.heroLabel}>
+                Volumen de referencia
+              </AppText>
+              <AppText variant="metricLarge" style={styles.heroValue}>
                 {formatEvaluationVolumeMl(pair.current.max_inspiratory_volume)}
-              </Text>
-              <Text style={styles.heroDate}>
+              </AppText>
+              <AppText variant="statusValue" style={styles.heroDate}>
                 Evaluación del {formatEvaluationDate(pair.current.diagnostic_date)}
-              </Text>
-              <Text style={styles.heroHint}>
+              </AppText>
+              <AppText variant="bodySmall" style={styles.heroHint}>
                 Este valor se usa para personalizar tus niveles.
-              </Text>
+              </AppText>
             </View>
 
             {comparisonInsight ? (
@@ -131,26 +140,26 @@ export function InitialEvaluationSummaryScreen() {
 
             {pair.current.consistency_summary ? (
               <View style={styles.consistencyCard}>
-                <Text style={styles.consistencyTitle}>
+                <AppText variant="titleSmall" style={styles.consistencyTitle}>
                   {pair.current.consistency_summary.display_label}
-                </Text>
-                <Text style={styles.consistencyBody}>
+                </AppText>
+                <AppText variant="bodySmall" style={styles.consistencyBody}>
                   Indica qué tan parecidos fueron tus intentos durante la evaluación.
-                </Text>
+                </AppText>
                 {pair.current.consistency_summary.coefficient_of_variation_percent != null ? (
-                  <Text style={styles.consistencyCv}>
+                  <AppText variant="caption" style={styles.consistencyCv}>
                     CV:{' '}
                     {pair.current.consistency_summary.coefficient_of_variation_percent.toFixed(1)}%
-                  </Text>
+                  </AppText>
                 ) : null}
               </View>
             ) : null}
 
             <EvaluationLevelTargetsCard referenceVolumeMl={pair.current.max_inspiratory_volume} />
 
-            <Text style={styles.disclaimer}>
+            <AppText variant="caption" style={styles.disclaimer}>
               Este resumen es una referencia para la app y no sustituye una valoración médica.
-            </Text>
+            </AppText>
 
             <View style={styles.actions}>
               <AppButton title="Ir a terapia" onPress={goTherapy} />
@@ -189,8 +198,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
   },
   subtitle: {
-    fontSize: 15,
-    lineHeight: 22,
     color: wellnessColors.textSecondary,
   },
   loader: {
@@ -207,8 +214,6 @@ const styles = StyleSheet.create({
     lineHeight: 26,
   },
   emptyBody: {
-    fontSize: 15,
-    lineHeight: 22,
     color: wellnessColors.textSecondary,
   },
   heroCard: {
@@ -222,7 +227,6 @@ const styles = StyleSheet.create({
   },
   heroLabel: {
     fontSize: 13,
-    fontWeight: '700',
     color: wellnessColors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
@@ -231,20 +235,16 @@ const styles = StyleSheet.create({
   heroValue: {
     fontSize: 44,
     lineHeight: 50,
-    fontWeight: '800',
     color: wellnessColors.primaryDark,
     letterSpacing: -0.5,
   },
   heroDate: {
     marginTop: spacing.sm,
-    fontSize: 15,
     fontWeight: '600',
     color: wellnessColors.textSecondary,
   },
   heroHint: {
     marginTop: spacing.sm,
-    fontSize: 14,
-    lineHeight: 20,
     color: wellnessColors.textMuted,
     textAlign: 'center',
   },
@@ -257,23 +257,16 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   consistencyTitle: {
-    fontSize: 17,
-    fontWeight: '700',
     color: wellnessColors.textPrimary,
   },
   consistencyBody: {
-    fontSize: 14,
-    lineHeight: 20,
     color: wellnessColors.textSecondary,
   },
   consistencyCv: {
-    fontSize: 12,
     color: wellnessColors.textMuted,
     marginTop: 2,
   },
   disclaimer: {
-    fontSize: 12,
-    lineHeight: 17,
     color: wellnessColors.textMuted,
     textAlign: 'center',
     paddingHorizontal: spacing.sm,

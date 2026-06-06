@@ -2,8 +2,9 @@
  * Purpose: Celebratory hero for session summary (mascot, title, chips).
  * Module: summary
  */
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { AppText } from '@/src/shared/ui/AppText';
 import {
   RespiraBunnyImage,
   type BunnyImagePose,
@@ -57,7 +58,8 @@ function SummaryChip({ label, variant }: { label: string; variant: 'celebrate' |
         variant === 'neutral' && styles.chipNeutral,
         variant === 'default' && styles.chipDefault,
       ]}>
-      <Text
+      <AppText
+        variant="label"
         style={[
           styles.chipText,
           variant === 'celebrate' && styles.chipTextCelebrate,
@@ -65,7 +67,7 @@ function SummaryChip({ label, variant }: { label: string; variant: 'celebrate' |
         ]}
         numberOfLines={1}>
         {label}
-      </Text>
+      </AppText>
     </View>
   );
 }
@@ -94,12 +96,12 @@ export function SessionSummaryHero({
       ]}>
       <View style={styles.heroRow}>
         <View style={styles.heroTextCol}>
-          <Text style={styles.screenTitle} numberOfLines={3}>
+          <AppText variant="titleLarge" style={styles.screenTitle} numberOfLines={3}>
             {title}
-          </Text>
-          <Text style={styles.screenSubtitle} numberOfLines={3}>
+          </AppText>
+          <AppText variant="bodySmall" style={styles.screenSubtitle} numberOfLines={3}>
             {subtitle}
-          </Text>
+          </AppText>
           <View style={styles.chipRow}>
             <SummaryChip label={`Nivel ${levelLabel}`} variant={variant} />
             <SummaryChip label={classificationChipLabel} variant={variant} />
@@ -151,17 +153,14 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   screenTitle: {
-    color: wellnessColors.textPrimary,
     fontSize: 24,
-    fontWeight: '800',
-    letterSpacing: -0.3,
     lineHeight: 30,
+    color: wellnessColors.textPrimary,
+    letterSpacing: -0.3,
     marginBottom: 4,
   },
   screenSubtitle: {
     color: wellnessColors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
     marginBottom: spacing.sm,
   },
   chipRow: {
@@ -189,8 +188,6 @@ const styles = StyleSheet.create({
     borderColor: wellnessColors.border,
   },
   chipText: {
-    fontSize: 11,
-    fontWeight: '700',
     color: wellnessColors.primaryDark,
   },
   chipTextCelebrate: {

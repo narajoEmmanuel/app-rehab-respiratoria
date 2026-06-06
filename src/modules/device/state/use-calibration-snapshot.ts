@@ -67,11 +67,6 @@ export function useCalibrationSnapshot(): UseCalibrationSnapshotResult {
   return { snapshot, refresh };
 }
 
-/** @deprecated Usar `isTherapyReadyForActiveSpirometer` — el perfil solo no basta para terapia. */
-export function isCalibrationReady(snapshot: CalibrationSnapshot): boolean {
-  return snapshot.kind === 'ready' && snapshot.profile.points.length > 0;
-}
-
 export function isTherapyReadyForActiveSpirometer(snapshot: CalibrationSnapshot): boolean {
   if (snapshot.kind === 'loading') return false;
   return snapshot.therapy.isReadyForTherapy;

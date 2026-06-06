@@ -3,10 +3,11 @@
  * Module: notifications
  */
 
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 
 import { reminderUi } from '@/src/modules/notifications/components/reminder-ui-tokens';
 import { ACTIVE_WINDOW_INVALID_MESSAGE } from '@/src/modules/notifications/notification-settings.types';
+import { AppText } from '@/src/shared/ui/AppText';
 import { wellness, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 
 function formatTimeDraftInput(raw: string): string {
@@ -26,7 +27,9 @@ type TimeFieldProps = {
 function TimeField({ label, value, onChangeText, onCommit, disabled }: TimeFieldProps) {
   return (
     <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <AppText variant="label" style={styles.fieldLabel}>
+        {label}
+      </AppText>
       <TextInput
         style={[styles.fieldInput, disabled && styles.fieldInputDisabled]}
         value={value}
@@ -70,10 +73,12 @@ export function AwakeWindowCard({
   return (
     <View style={[styles.card, dimmed && styles.dimmed]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Horario despierto</Text>
-        <Text style={styles.subtitle}>
+        <AppText variant="titleSmall" style={styles.title}>
+          Horario despierto
+        </AppText>
+        <AppText variant="bodySmall" style={styles.subtitle}>
           Configura el rango en el que recibirás recordatorios.
-        </Text>
+        </AppText>
       </View>
 
       <View style={styles.fieldsRow}>
@@ -94,7 +99,11 @@ export function AwakeWindowCard({
         />
       </View>
 
-      {invalid ? <Text style={styles.error}>{ACTIVE_WINDOW_INVALID_MESSAGE}</Text> : null}
+      {invalid ? (
+        <AppText variant="chip" style={styles.error}>
+          {ACTIVE_WINDOW_INVALID_MESSAGE}
+        </AppText>
+      ) : null}
     </View>
   );
 }
@@ -119,12 +128,9 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 17,
-    fontWeight: '700',
     color: reminderUi.textPrimary,
   },
   subtitle: {
-    fontSize: 14,
-    lineHeight: 20,
     color: reminderUi.textSecondary,
   },
   fieldsRow: {
@@ -147,8 +153,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   fieldLabel: {
-    fontSize: 11,
-    fontWeight: '700',
     letterSpacing: 0.35,
     textTransform: 'uppercase',
     color: reminderUi.textSecondary,
@@ -174,6 +178,7 @@ const styles = StyleSheet.create({
   error: {
     fontSize: 13,
     lineHeight: 18,
+    fontWeight: '400',
     color: '#9A5248',
     textAlign: 'center',
   },

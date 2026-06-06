@@ -6,7 +6,6 @@ import {
     Pressable,
     ScrollView,
     StyleSheet,
-    Text,
     TextInput,
     View,
 } from 'react-native';
@@ -51,6 +50,7 @@ import {
 } from '@/src/shared/theme/wellness-theme';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { AppCard } from '@/src/shared/ui/AppCard';
+import { AppText } from '@/src/shared/ui/AppText';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { InfoTile } from '@/src/shared/ui/InfoTile';
 import { SectionHeader } from '@/src/shared/ui/SectionHeader';
@@ -314,7 +314,9 @@ export function SensorConnectionScreen() {
               <IconSymbol name="dot.radiowaves.left.and.right" size={28} color={wellnessColors.primaryDark} />
             </View>
             <View style={styles.cardHeaderText}>
-              <Text style={styles.cardTitle}>Conexión del dispositivo</Text>
+              <AppText variant="titleSmall" style={styles.cardTitle}>
+                Conexión del dispositivo
+              </AppText>
               <StatusPill label={connectionPillLabel} tone={connectionTone} size="sm" />
             </View>
           </View>
@@ -352,11 +354,15 @@ export function SensorConnectionScreen() {
             />
           </View>
 
-          <Text style={styles.hint}>{connectionHint}</Text>
+          <AppText variant="chip" style={styles.hint}>
+            {connectionHint}
+          </AppText>
 
           {status === 'error' && errorMessage ? (
             <View style={styles.errorBox}>
-              <Text style={styles.errorBoxText}>{errorMessage}</Text>
+              <AppText variant="chip" style={styles.errorBoxText}>
+                {errorMessage}
+              </AppText>
               <AppButton
                 title="Limpiar conexión"
                 onPress={onResetConnection}
@@ -469,15 +475,21 @@ export function SensorConnectionScreen() {
               style={({ pressed }) => [styles.accordionHeader, pressed && styles.accordionHeaderPressed]}
               accessibilityRole="button"
               accessibilityLabel={techExpanded ? 'Ocultar detalles técnicos' : 'Mostrar detalles técnicos'}>
-              <Text style={styles.accordionTitle}>Detalles técnicos</Text>
-              <Text style={styles.accordionChevron}>{techExpanded ? '▾' : '▸'}</Text>
+              <AppText variant="bodySmall" style={styles.accordionTitle}>
+                Detalles técnicos
+              </AppText>
+              <AppText variant="bodyLarge" style={styles.accordionChevron}>
+                {techExpanded ? '▾' : '▸'}
+              </AppText>
             </Pressable>
 
             {techExpanded ? (
               <AppCard style={styles.techCard}>
                 <View style={styles.techHeaderRow}>
                   <IconSymbol name="gearshape.fill" size={16} color={wellnessColors.textSecondary} />
-                  <Text style={styles.techSection}>Conexión y diagnóstico</Text>
+                  <AppText variant="caption" style={styles.techSection}>
+                    Conexión y diagnóstico
+                  </AppText>
                 </View>
                 <TextInput
                   value={url}
@@ -489,12 +501,14 @@ export function SensorConnectionScreen() {
                   placeholder="ws://192.168.4.1:81"
                   placeholderTextColor={wellnessColors.textMuted}
                 />
-                <Text style={styles.urlHint}>
+                <AppText variant="caption" style={styles.urlHint}>
                   URL del WebSocket del ESP32. Cambia solo si tu firmware usa otra dirección.
-                </Text>
+                </AppText>
 
                 <View style={styles.techDivider} />
-                <Text style={styles.techSection}>Telemetría</Text>
+                <AppText variant="caption" style={styles.techSection}>
+                  Telemetría
+                </AppText>
                 <DiagRow label="status" value={statusLabel(status)} />
                 <DiagRow label="source" value={formatScalar(lastReading?.source)} />
                 <DiagRow label="distanceMm" value={formatScalar(lastReading?.distanceMm)} />
@@ -516,13 +530,17 @@ export function SensorConnectionScreen() {
                 <DiagRow label="closeReason" value={closeReason ?? '—'} />
                 <DiagRow label="errorMessage" value={errorMessage ?? '—'} />
 
-                <Text style={styles.techJsonLabel}>Último JSON crudo</Text>
-                <Text style={styles.techJson} numberOfLines={6}>
+                <AppText variant="label" style={styles.techJsonLabel}>
+                  Último JSON crudo
+                </AppText>
+                <AppText variant="caption" style={styles.techJson} numberOfLines={6}>
                   {lastRawMessage ? truncateJson(lastRawMessage) : 'Sin mensajes recibidos aún.'}
-                </Text>
+                </AppText>
 
                 <View style={styles.techDivider} />
-                <Text style={styles.techSection}>Diagnóstico avanzado</Text>
+                <AppText variant="caption" style={styles.techSection}>
+                  Diagnóstico avanzado
+                </AppText>
 
                 <AppButton
                   title={isMock ? 'Detener lectura de prueba' : 'Iniciar lectura de prueba'}
@@ -561,10 +579,12 @@ export function SensorConnectionScreen() {
 function DiagRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.diagRow}>
-      <Text style={styles.diagKey}>{label}</Text>
-      <Text style={styles.diagValue} numberOfLines={2}>
+      <AppText variant="caption" style={styles.diagKey}>
+        {label}
+      </AppText>
+      <AppText variant="caption" style={styles.diagValue} numberOfLines={2}>
         {value}
-      </Text>
+      </AppText>
     </View>
   );
 }
@@ -595,8 +615,6 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
     color: wellnessColors.textPrimary,
   },
   metricsRow: {
@@ -605,7 +623,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   hint: {
-    fontSize: 13,
     lineHeight: 19,
     color: wellnessColors.textSecondary,
   },
@@ -617,7 +634,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   errorBoxText: {
-    fontSize: 13,
     lineHeight: 18,
     color: wellnessColors.danger,
     fontWeight: '600',
@@ -648,8 +664,8 @@ const styles = StyleSheet.create({
     borderColor: wellnessColors.border,
   },
   accordionHeaderPressed: { opacity: 0.94 },
-  accordionTitle: { fontSize: 14, fontWeight: '700', color: wellnessColors.textPrimary },
-  accordionChevron: { fontSize: 16, fontWeight: '800', color: wellnessColors.textMuted },
+  accordionTitle: { color: wellnessColors.textPrimary },
+  accordionChevron: { color: wellnessColors.textMuted },
   techCard: {
     gap: spacing.sm,
   },
@@ -659,8 +675,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   techSection: {
-    fontSize: 12,
-    fontWeight: '700',
     color: wellnessColors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -680,7 +694,7 @@ const styles = StyleSheet.create({
     color: wellnessColors.textPrimary,
     fontSize: 14,
   },
-  urlHint: { fontSize: 12, color: wellnessColors.textMuted, lineHeight: 16 },
+  urlHint: { color: wellnessColors.textMuted, lineHeight: 16 },
   diagRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -688,24 +702,20 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     gap: spacing.sm,
   },
-  diagKey: { fontSize: 12, fontWeight: '600', color: wellnessColors.textSecondary },
+  diagKey: { fontWeight: '600', color: wellnessColors.textSecondary },
   diagValue: {
-    fontSize: 12,
     fontWeight: '700',
     color: wellnessColors.textPrimary,
     flexShrink: 1,
     textAlign: 'right',
   },
   techJsonLabel: {
-    fontSize: 11,
-    fontWeight: '700',
     color: wellnessColors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
     marginTop: spacing.sm,
   },
   techJson: {
-    fontSize: 11,
     lineHeight: 15,
     color: wellnessColors.textPrimary,
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),

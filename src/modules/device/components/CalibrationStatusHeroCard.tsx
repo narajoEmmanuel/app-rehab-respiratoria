@@ -1,11 +1,11 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import {
   wellnessColors,
   wellnessShadows,
-  wellnessTypography,
 } from '@/src/shared/theme/wellness-theme';
+import { AppText } from '@/src/shared/ui/AppText';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 
 const STATUS_ACTIVE = {
@@ -59,12 +59,14 @@ function DeviceInfoBlock({
         <IconSymbol name="lungs.fill" size={20} color={wellnessColors.primaryDark} />
       </View>
       <View style={styles.deviceTextCol}>
-        <Text style={styles.deviceModel} numberOfLines={2}>
+        <AppText variant="bodyLarge" style={styles.deviceModel} numberOfLines={2}>
           {spirometerModel}
-        </Text>
+        </AppText>
         <View style={styles.dateRow}>
           <IconSymbol name="calendar" size={13} color={wellnessColors.textMuted} />
-          <Text style={styles.deviceDate}>{calibrationDateShort}</Text>
+          <AppText variant="chip" style={styles.deviceDate}>
+            {calibrationDateShort}
+          </AppText>
         </View>
       </View>
     </View>
@@ -96,15 +98,20 @@ export function CalibrationStatusHeroCard({
 
       <View style={styles.content}>
         <StatusIcon active={active} />
-        <Text
+        <AppText
+          variant="titleSmall"
           style={[
             styles.title,
             showDevice && styles.titleWithDevice,
             !active && subtitle ? styles.titleWithSubtitle : null,
           ]}>
           {title}
-        </Text>
-        {!active && subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+        </AppText>
+        {!active && subtitle ? (
+          <AppText variant="chip" style={styles.subtitle}>
+            {subtitle}
+          </AppText>
+        ) : null}
         {showDevice ? (
           <DeviceInfoBlock
             spirometerModel={spirometerModel!}
@@ -154,7 +161,6 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: wellnessTypography.cardTitle.fontWeight,
     letterSpacing: -0.2,
     textAlign: 'center',
     color: wellnessColors.textPrimary,
@@ -166,9 +172,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   subtitle: {
-    fontSize: 13,
     lineHeight: 19,
-    fontWeight: wellnessTypography.body.fontWeight,
     textAlign: 'center',
     color: wellnessColors.textSecondary,
     maxWidth: 300,
@@ -201,7 +205,6 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   deviceModel: {
-    fontSize: 16,
     fontWeight: '600',
     color: wellnessColors.textPrimary,
     letterSpacing: -0.15,
@@ -212,7 +215,6 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   deviceDate: {
-    fontSize: 13,
     fontWeight: '400',
     color: wellnessColors.textSecondary,
   },

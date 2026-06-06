@@ -7,11 +7,11 @@ import {
   ActivityIndicator,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { AppText } from '@/src/shared/ui/AppText';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { AppCard } from '@/src/shared/ui/AppCard';
@@ -138,11 +138,13 @@ export function SummaryScreen() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/terapia" />
         <View style={styles.centered}>
-          <Text style={styles.title}>{getSummaryTitle(null)}</Text>
-          <Text style={styles.detail}>
+          <AppText variant="titleLarge" style={styles.title}>
+            {getSummaryTitle(null)}
+          </AppText>
+          <AppText variant="bodyLarge" style={styles.detail}>
             No hay una sesión seleccionada. Completa un nivel o abre un resumen desde el flujo de
             terapia.
-          </Text>
+          </AppText>
           <AppButton
             title="Volver a Terapia"
             onPress={() => router.replace('/(tabs)/terapia')}
@@ -158,8 +160,12 @@ export function SummaryScreen() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/terapia" />
         <View style={styles.centered}>
-          <Text style={styles.title}>{getSummaryTitle(null)}</Text>
-          <Text style={styles.detail}>Identificador de sesión no válido.</Text>
+          <AppText variant="titleLarge" style={styles.title}>
+            {getSummaryTitle(null)}
+          </AppText>
+          <AppText variant="bodyLarge" style={styles.detail}>
+            Identificador de sesión no válido.
+          </AppText>
           <AppButton
             title="Volver a Terapia"
             onPress={() => router.replace('/(tabs)/terapia')}
@@ -175,8 +181,12 @@ export function SummaryScreen() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/terapia" />
         <View style={styles.centered}>
-          <Text style={styles.title}>{getSummaryTitle(null)}</Text>
-          <Text style={styles.detail}>No se encontró la sesión guardada.</Text>
+          <AppText variant="titleLarge" style={styles.title}>
+            {getSummaryTitle(null)}
+          </AppText>
+          <AppText variant="bodyLarge" style={styles.detail}>
+            No se encontró la sesión guardada.
+          </AppText>
           <AppButton
             title="Volver a Terapia"
             onPress={() => router.replace('/(tabs)/terapia')}
@@ -193,7 +203,9 @@ export function SummaryScreen() {
         <AppTopBar showBackButton showProfileButton={false} backFallbackHref="/(tabs)/terapia" />
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={wellnessColors.primary} />
-          <Text style={styles.loadingText}>Cargando resumen…</Text>
+          <AppText variant="bodyLarge" style={styles.loadingText}>
+            Cargando resumen…
+          </AppText>
         </View>
       </SafeAreaView>
     );
@@ -250,7 +262,9 @@ export function SummaryScreen() {
 
         {showSensorCard ? (
           <AppCard style={styles.sensorCard}>
-            <Text style={styles.sensorCardTitle}>Datos del sensor (debug)</Text>
+            <AppText variant="caption" style={styles.sensorCardTitle}>
+              Datos del sensor (debug)
+            </AppText>
             <SensorDataRow label="Fuente" value={session.data_source ?? 'sensor_model'} />
             <SensorDataRow
               label="Validación"
@@ -274,9 +288,9 @@ export function SummaryScreen() {
                 }
               />
             ) : null}
-            <Text style={styles.sensorCardNote}>
+            <AppText variant="label" style={styles.sensorCardNote}>
               Visible solo con depuración del sensor activada.
-            </Text>
+            </AppText>
           </AppCard>
         ) : null}
 
@@ -292,8 +306,12 @@ export function SummaryScreen() {
 function SensorDataRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.sensorDataRow}>
-      <Text style={styles.sensorDataLabel}>{label}</Text>
-      <Text style={styles.sensorDataValue}>{value}</Text>
+      <AppText variant="label" style={styles.sensorDataLabel}>
+        {label}
+      </AppText>
+      <AppText variant="chip" style={styles.sensorDataValue}>
+        {value}
+      </AppText>
     </View>
   );
 }
@@ -324,13 +342,11 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: spacing.md,
     color: wellnessColors.textSecondary,
-    fontSize: 16,
   },
   sensorCard: {
     marginBottom: spacing.md,
   },
   sensorCardTitle: {
-    fontSize: 14,
     fontWeight: '800',
     color: wellnessColors.primaryDark,
     marginBottom: spacing.sm,
@@ -344,34 +360,26 @@ const styles = StyleSheet.create({
   },
   sensorDataLabel: {
     flex: 1,
-    fontSize: 12,
-    fontWeight: '700',
     color: wellnessColors.textSecondary,
   },
   sensorDataValue: {
     flex: 1,
-    fontSize: 13,
-    fontWeight: '700',
     color: wellnessColors.textPrimary,
     textAlign: 'right',
   },
   sensorCardNote: {
     marginTop: spacing.sm,
-    fontSize: 11,
     fontWeight: '600',
     color: wellnessColors.textSecondary,
     lineHeight: 16,
   },
   title: {
     color: wellnessColors.textPrimary,
-    fontSize: 26,
-    fontWeight: '800',
     marginBottom: spacing.sm,
     textAlign: 'center',
   },
   detail: {
     color: wellnessColors.textSecondary,
-    fontSize: 16,
     textAlign: 'center',
     marginBottom: spacing.md,
   },

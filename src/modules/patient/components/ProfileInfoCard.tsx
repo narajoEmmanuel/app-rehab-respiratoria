@@ -4,10 +4,11 @@
  */
 
 import type { ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness } from '@/src/shared/theme/wellness-theme';
+import { AppText } from '@/src/shared/ui/AppText';
 
 type ProfileInfoCardProps = {
   title?: string;
@@ -17,7 +18,11 @@ type ProfileInfoCardProps = {
 export function ProfileInfoCard({ title, children }: ProfileInfoCardProps) {
   return (
     <View style={styles.card}>
-      {title ? <Text style={styles.cardTitle}>{title}</Text> : null}
+      {title ? (
+        <AppText variant="titleSmall" style={styles.cardTitle}>
+          {title}
+        </AppText>
+      ) : null}
       <View style={styles.body}>{children}</View>
     </View>
   );
@@ -33,8 +38,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
     color: wellness.text,
   },
   body: {

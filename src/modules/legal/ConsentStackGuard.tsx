@@ -4,7 +4,7 @@
  */
 
 import type { ReactNode } from 'react';
-import { Redirect } from 'expo-router';
+import { Redirect, type Href } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
@@ -17,9 +17,17 @@ type Props = {
   children: ReactNode;
   /** Kept for route wrappers; consent bypass only applies in `offline_sensor_test` + enabled flag. */
   allowOfflineDevBypass?: boolean;
+  /** Where to send the user when consent is inactive (default: Inicio tabs). */
+  blockedHref?: Href;
 };
 
-export function ConsentStackGuard({ children, allowOfflineDevBypass = false }: Props) {
+const DEFAULT_BLOCKED_HREF = '/(tabs)' as Href;
+
+export function ConsentStackGuard({
+  children,
+  allowOfflineDevBypass = false,
+  blockedHref = DEFAULT_BLOCKED_HREF,
+}: Props) {
   void allowOfflineDevBypass;
   const [gate, setGate] = useState<'loading' | 'ok' | 'blocked'>('loading');
   const { isOfflineSensorTestMode, offlineSensorTestEnabled } = useAppMode();
@@ -51,7 +59,7 @@ export function ConsentStackGuard({ children, allowOfflineDevBypass = false }: P
   }
 
   if (gate === 'blocked') {
-    return <Redirect href="/(tabs)" />;
+    return <Redirect href={blockedHref} />;
   }
 
   return <>{children}</>;

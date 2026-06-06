@@ -3,7 +3,7 @@
  * Module: patient
  * Dependencies: expo-router, patient session, legal/export navigation (behavior unchanged).
  */
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -13,7 +13,6 @@ import {
   ScrollView,
   StyleSheet,
   Switch,
-  Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,11 +25,16 @@ import {
   withdrawConsent,
 } from '@/src/modules/legal/consent-service';
 import { LEGAL_ACCEPT_HREF, LEGAL_DOCUMENT_HREF } from '@/src/modules/legal/legal-hrefs';
-import { loadNotificationSettings } from '@/src/modules/notifications/notification-settings.storage';
+import { readNotificationSettingsForDisplay } from '@/src/modules/notifications/notification-settings.storage';
+import { supportsNativeLocalNotifications } from '@/src/modules/notifications/notification-permissions';
 import {
-  formatProfileReminderSummary,
+  profileReminderStatusHint,
+  profileReminderStatusLabel,
+  resolveProfileReminderStatus,
   type NotificationSettings,
+  type ProfileReminderStatus,
 } from '@/src/modules/notifications/notification-settings.types';
+import { StatusPill } from '@/src/shared/ui/StatusPill';
 import { DeletePatientConfirmModal } from '@/src/modules/patient/components/DeletePatientConfirmModal';
 import { ProfileAvatarPicker } from '@/src/modules/patient/components/ProfileAvatarPicker';
 import { ProfileInfoCard } from '@/src/modules/patient/components/ProfileInfoCard';
@@ -47,6 +51,7 @@ import type { SessionRecord } from '@/src/modules/session/types/session-progress
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { AppCard } from '@/src/shared/ui/AppCard';
+import { AppText } from '@/src/shared/ui/AppText';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { MetricTile } from '@/src/shared/ui/MetricTile';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -116,7 +121,9 @@ export function ProfileScreen() {
   const [consentActive, setConsentActive] = useState(false);
   const [prefs, setPrefs] = useState<ProfilePreferences>(DEFAULT_PROFILE_PREFERENCES);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings | null>(null);
+  const [notificationSettingsLoading, setNotificationSettingsLoading] = useState(false);
   const [sessionQuickStats, setSessionQuickStats] = useState<SessionQuickStats | null>(null);
+  const isFocused = useIsFocused();
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const touchPracticeFeatureEnabled = isTouchPracticeModeEnabled();
@@ -138,8 +145,33 @@ export function ProfileScreen() {
     setSessionQuickStats(null);
     setPrefs(DEFAULT_PROFILE_PREFERENCES);
     setNotificationSettings(null);
+    setNotificationSettingsLoading(false);
     setConsentActive(false);
   }, []);
+
+  const reloadNotificationSettings = useCallback(async () => {
+    const patientId = patient?.paciente_id;
+    if (patientId == null) {
+      setNotificationSettings(null);
+      setNotificationSettingsLoading(false);
+      return;
+    }
+
+    setNotificationSettingsLoading(true);
+    try {
+      const stored = await readNotificationSettingsForDisplay(String(patientId));
+      setNotificationSettings(stored);
+    } catch {
+      setNotificationSettings(null);
+    } finally {
+      setNotificationSettingsLoading(false);
+    }
+  }, [patient?.paciente_id]);
+
+  useEffect(() => {
+    if (!isFocused) return;
+    void reloadNotificationSettings();
+  }, [isFocused, reloadNotificationSettings]);
 
   useFocusEffect(
     useCallback(() => {
@@ -155,16 +187,14 @@ export function ProfileScreen() {
           setNotificationSettings(null);
           return;
         }
-        const [diagnostic, prefsResult, sessions, notifSettingsResult] = await Promise.all([
+        const [diagnostic, prefsResult, sessions] = await Promise.all([
           getLatestDiagnostic(patient.paciente_id),
           getProfilePreferences(patient.paciente_id),
           readAllSessions(),
-          loadNotificationSettings(String(patient.paciente_id)),
         ]);
         if (!active) return;
         setLatestDiagnostic(diagnostic);
         setPrefs(prefsResult);
-        setNotificationSettings(notifSettingsResult);
         setSessionQuickStats(buildSessionQuickStats(sessions, patient.paciente_id));
         await reloadTouchPracticePreference();
       })();
@@ -267,7 +297,25 @@ export function ProfileScreen() {
   };
 
   const hasEvaluation = latestDiagnostic != null;
-  const remindersActive = notificationSettings?.enabled === true;
+  const nativeNotificationsSupported = supportsNativeLocalNotifications();
+  const reminderStatus = resolveProfileReminderStatus(
+    notificationSettings,
+    nativeNotificationsSupported,
+  );
+  const remindersActive = reminderStatus === 'active';
+  const reminderStatusPillTone = (status: ProfileReminderStatus | null) => {
+    switch (status) {
+      case 'active':
+        return 'success' as const;
+      case 'no_permission':
+      case 'requires_review':
+        return 'warning' as const;
+      case 'web_only':
+        return 'info' as const;
+      default:
+        return 'neutral' as const;
+    }
+  };
   const lastPracticeLabel =
     metrics.completedCount === 0 ? 'Sin registro' : (metrics.lastSessionDateLabel ?? 'Sin registro');
   const planLabel = planStatusLabel(hasEvaluation);
@@ -277,7 +325,9 @@ export function ProfileScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <AppTopBar showBackButton showProfileButton={false} />
         <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>No hay sesión de paciente activa.</Text>
+          <AppText variant="bodyLarge" style={styles.emptyText}>
+            No hay sesión de paciente activa.
+          </AppText>
         </View>
       </SafeAreaView>
     );
@@ -298,10 +348,12 @@ export function ProfileScreen() {
             avatarSize={72}
             editButtonLabel="Editar perfil"
           />
-          <Text style={styles.profileName}>{patientDisplayName}</Text>
-          <Text style={styles.profileMeta}>
+          <AppText variant="titleSmall" style={styles.profileName}>
+            {patientDisplayName}
+          </AppText>
+          <AppText variant="chip" style={styles.profileMeta}>
             Paciente {patient.clave} · {consentActive ? 'Activo' : 'Pendiente'}
-          </Text>
+          </AppText>
         </View>
 
         <ProfileSection title="Estado del paciente" subtitle="Resumen rápido de tu actividad.">
@@ -339,29 +391,35 @@ export function ProfileScreen() {
           {hasEvaluation ? (
             <AppCard variant="highlight" style={styles.evalCompleteCard}>
               <View style={styles.evalMainMetric}>
-                <Text style={styles.evalMainLabel}>Volumen de referencia</Text>
-                <Text style={styles.evalMainValue}>
+                <AppText variant="chip" style={styles.evalMainLabel}>
+                  Volumen de referencia
+                </AppText>
+                <AppText variant="metricLarge" style={styles.evalMainValue}>
                   {`${latestDiagnostic.max_inspiratory_volume} mL`}
-                </Text>
+                </AppText>
               </View>
               <View style={styles.evalSecondaryRow}>
                 <View style={styles.evalSecondaryItem}>
-                  <Text style={styles.evalSecondaryLabel}>Fecha</Text>
-                  <Text style={styles.evalSecondaryValue}>
+                  <AppText variant="chip" style={styles.evalSecondaryLabel}>
+                    Fecha
+                  </AppText>
+                  <AppText variant="statusValue" style={styles.evalSecondaryValue}>
                     {new Date(latestDiagnostic.diagnostic_date).toLocaleDateString(undefined, {
                       day: '2-digit',
                       month: 'short',
                       year: 'numeric',
                     })}
-                  </Text>
+                  </AppText>
                 </View>
                 <View style={styles.evalSecondaryItem}>
-                  <Text style={styles.evalSecondaryLabel}>Evaluación número</Text>
-                  <Text style={styles.evalSecondaryValue}>
+                  <AppText variant="chip" style={styles.evalSecondaryLabel}>
+                    Evaluación número
+                  </AppText>
+                  <AppText variant="statusValue" style={styles.evalSecondaryValue}>
                     {latestDiagnostic.diagnostic_number != null
                       ? String(latestDiagnostic.diagnostic_number)
                       : '—'}
-                  </Text>
+                  </AppText>
                 </View>
               </View>
               <View style={styles.cardAction}>
@@ -378,9 +436,9 @@ export function ProfileScreen() {
                 <View style={styles.evalPendingIconWrap}>
                   <IconSymbol name="lungs.fill" size={18} color={wellnessColors.primaryDark} />
                 </View>
-                <Text style={styles.evalPendingBody}>
+                <AppText variant="bodySmall" style={styles.evalPendingBody}>
                   Establece tu volumen de referencia y personaliza tus niveles.
-                </Text>
+                </AppText>
               </View>
               <AppButton
                 title="Realizar evaluación"
@@ -393,34 +451,28 @@ export function ProfileScreen() {
 
         <ProfileSection title="Recordatorios de terapia">
           <AppCard style={styles.reminderCard}>
-            <View style={styles.statusChipRow}>
-              <View
-                style={[
-                  styles.statusChip,
-                  remindersActive ? styles.statusChipActive : styles.statusChipInactive,
-                ]}>
-                <Text
-                  style={[
-                    styles.statusChipText,
-                    remindersActive ? styles.statusChipTextActive : styles.statusChipTextInactive,
-                  ]}>
-                  {notificationSettings == null
-                    ? '—'
-                    : remindersActive
-                      ? 'Activos'
-                      : 'Inactivos'}
-                </Text>
-              </View>
+            <View style={styles.reminderStatusRow}>
+              <AppText variant="titleSmall" style={styles.reminderStatusTitle}>
+                {notificationSettingsLoading && notificationSettings == null
+                  ? 'Cargando…'
+                  : profileReminderStatusLabel(reminderStatus)}
+              </AppText>
+              {!notificationSettingsLoading && notificationSettings != null ? (
+                <StatusPill
+                  key={`reminder-${reminderStatus}-${notificationSettings.enabled}-${notificationSettings.permissionStatus}`}
+                  label={profileReminderStatusLabel(reminderStatus)}
+                  tone={reminderStatusPillTone(reminderStatus)}
+                  size="sm"
+                />
+              ) : null}
             </View>
-            {notificationSettings != null && remindersActive ? (
-              <Text style={styles.reminderSummary}>
-                {formatProfileReminderSummary(notificationSettings)}
-              </Text>
-            ) : (
-              <Text style={styles.reminderHint}>
-                Configura horarios para mantener tu rutina.
-              </Text>
-            )}
+            <AppText
+              variant="bodySmall"
+              style={remindersActive ? styles.reminderSummary : styles.reminderHint}>
+              {notificationSettingsLoading && notificationSettings == null
+                ? 'Actualizando estado de recordatorios…'
+                : profileReminderStatusHint(reminderStatus, notificationSettings)}
+            </AppText>
             <View style={styles.cardAction}>
               <AppButton
                 title={remindersActive ? 'Editar recordatorios' : 'Configurar recordatorios'}
@@ -435,20 +487,30 @@ export function ProfileScreen() {
           <AppCard style={styles.compactCard}>
             <View style={styles.personalRows}>
               <View style={styles.personalItem}>
-                <Text style={styles.personalLabel}>Nombre</Text>
-                <Text style={styles.personalValue}>{patientDisplayName}</Text>
+                <AppText variant="bodySmall" style={styles.personalLabel}>
+                  Nombre
+                </AppText>
+                <AppText variant="bodySmall" style={styles.personalValue}>
+                  {patientDisplayName}
+                </AppText>
               </View>
               <View style={styles.personalDivider} />
               <View style={styles.personalItem}>
-                <Text style={styles.personalLabel}>Edad</Text>
-                <Text style={styles.personalValue}>
+                <AppText variant="bodySmall" style={styles.personalLabel}>
+                  Edad
+                </AppText>
+                <AppText variant="bodySmall" style={styles.personalValue}>
                   {patient.edad != null ? `${patient.edad} años` : '—'}
-                </Text>
+                </AppText>
               </View>
               <View style={styles.personalDivider} />
               <View style={styles.personalItem}>
-                <Text style={styles.personalLabel}>Clave del paciente</Text>
-                <Text style={styles.personalValue}>{patient.clave}</Text>
+                <AppText variant="bodySmall" style={styles.personalLabel}>
+                  Clave del paciente
+                </AppText>
+                <AppText variant="bodySmall" style={styles.personalValue}>
+                  {patient.clave}
+                </AppText>
               </View>
             </View>
           </AppCard>
@@ -456,14 +518,14 @@ export function ProfileScreen() {
 
         <ProfileSection title="Privacidad y documentos">
           <AppCard style={styles.legalCard}>
-            <Text style={styles.privacyStatus}>
+            <AppText variant="statusValue" style={styles.privacyStatus}>
               {consentActive ? 'Consentimiento activo' : 'Consentimiento pendiente'}
-            </Text>
-            <Text style={styles.consentHint}>
+            </AppText>
+            <AppText variant="bodySmall" style={styles.consentHint}>
               {consentActive
                 ? 'Puedes consultar los documentos cuando lo necesites.'
                 : 'Necesitas revisar y aceptar los documentos para continuar con la terapia.'}
-            </Text>
+            </AppText>
             <View style={styles.consentActions}>
               <AppButton
                 title="Ver documentos"
@@ -486,13 +548,15 @@ export function ProfileScreen() {
             <AppCard style={styles.advancedCard}>
               <View style={styles.sessionPrefRow}>
                 <View style={styles.sessionPrefCopy}>
-                  <Text style={styles.sessionPrefTitle}>Modo de práctica sin sensor</Text>
-                  <Text style={styles.sessionPrefBody}>
+                  <AppText variant="bodySmall" style={styles.sessionPrefTitle}>
+                    Modo de práctica sin sensor
+                  </AppText>
+                  <AppText variant="chip" style={styles.sessionPrefBody}>
                     Practica la dinámica sin registrar mediciones del dispositivo.
-                  </Text>
-                  <Text style={styles.sessionPrefFootnote}>
+                  </AppText>
+                  <AppText variant="caption" style={styles.sessionPrefFootnote}>
                     No sustituye una sesión medida con sensor.
-                  </Text>
+                  </AppText>
                 </View>
                 <Switch
                   accessibilityLabel="Modo de práctica sin sensor"
@@ -518,12 +582,12 @@ export function ProfileScreen() {
                 />
               </View>
               <View style={styles.helpCopy}>
-                <Text style={styles.helpParagraph}>
+                <AppText variant="bodySmall" style={styles.helpParagraph}>
                   Detén la sesión si presentas dolor, mareo, falta de aire intensa o malestar.
-                </Text>
-                <Text style={styles.helpParagraphSecondary}>
+                </AppText>
+                <AppText variant="chip" style={styles.helpParagraphSecondary}>
                   Consulta a un profesional de salud si tienes dudas.
-                </Text>
+                </AppText>
               </View>
             </View>
           </AppCard>
@@ -542,7 +606,9 @@ export function ProfileScreen() {
                 onPress={onWithdraw}
                 accessibilityRole="button"
                 accessibilityLabel="Retirar consentimiento">
-                <Text style={styles.withdrawBtnText}>Retirar consentimiento</Text>
+                <AppText variant="statusValue" style={styles.withdrawBtnText}>
+                  Retirar consentimiento
+                </AppText>
               </Pressable>
             ) : null}
 
@@ -559,7 +625,9 @@ export function ProfileScreen() {
               {deleteBusy ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.deleteProfileBtnText}>Eliminar perfil del paciente</Text>
+                <AppText variant="statusValue" style={styles.deleteProfileBtnText}>
+                  Eliminar perfil del paciente
+                </AppText>
               )}
             </Pressable>
 
@@ -573,7 +641,9 @@ export function ProfileScreen() {
               }}
               accessibilityRole="button"
               accessibilityLabel="Cerrar sesión">
-              <Text style={styles.logoutText}>Cerrar sesión</Text>
+              <AppText variant="statusValue" style={styles.logoutText}>
+                Cerrar sesión
+              </AppText>
             </Pressable>
           </ProfileInfoCard>
         </ProfileSection>
@@ -614,14 +684,12 @@ const styles = StyleSheet.create({
   },
   profileName: {
     fontSize: 20,
-    fontWeight: '700',
     color: wellnessColors.textPrimary,
     textAlign: 'center',
   },
   profileMeta: {
-    fontSize: 13,
-    color: wellnessColors.textSecondary,
     fontWeight: '600',
+    color: wellnessColors.textSecondary,
     textAlign: 'center',
   },
   metricsRow: {
@@ -642,14 +710,12 @@ const styles = StyleSheet.create({
     backgroundColor: wellnessColors.neutralSoft,
   },
   personalLabel: {
-    fontSize: 14,
-    color: wellnessColors.textSecondary,
     fontWeight: '500',
+    color: wellnessColors.textSecondary,
   },
   personalValue: {
-    fontSize: 14,
-    color: wellnessColors.textPrimary,
     fontWeight: '600',
+    color: wellnessColors.textPrimary,
   },
   compactCard: {
     padding: spacing.md,
@@ -667,16 +733,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   evalMainLabel: {
-    fontSize: 13,
     fontWeight: '500',
     color: wellnessColors.textSecondary,
     marginBottom: 4,
   },
   evalMainValue: {
     fontSize: 32,
-    fontWeight: '800',
-    color: wellnessColors.primaryDark,
     letterSpacing: -0.4,
+    color: wellnessColors.primaryDark,
   },
   evalSecondaryRow: {
     flexDirection: 'row',
@@ -686,13 +750,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   evalSecondaryLabel: {
-    fontSize: 13,
     fontWeight: '500',
     color: wellnessColors.textMuted,
     marginBottom: 2,
   },
   evalSecondaryValue: {
-    fontSize: 15,
     fontWeight: '600',
     color: wellnessColors.textPrimary,
   },
@@ -716,8 +778,6 @@ const styles = StyleSheet.create({
   },
   evalPendingBody: {
     flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
     color: wellnessColors.textSecondary,
   },
   cardAction: {
@@ -727,41 +787,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFBF5',
     borderColor: 'rgba(245, 158, 11, 0.16)',
   },
-  statusChipRow: {
+  reminderStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
     marginBottom: spacing.xs,
   },
-  statusChip: {
-    alignSelf: 'flex-start',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: wellnessRadii.pill,
-  },
-  statusChipActive: {
-    backgroundColor: 'rgba(52, 171, 165, 0.12)',
-  },
-  statusChipInactive: {
-    backgroundColor: wellnessColors.neutralSoft,
-  },
-  statusChipText: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  statusChipTextActive: {
-    color: wellnessColors.primaryDark,
-  },
-  statusChipTextInactive: {
-    color: wellnessColors.textSecondary,
+  reminderStatusTitle: {
+    color: wellnessColors.textPrimary,
+    flex: 1,
   },
   reminderSummary: {
-    fontSize: 14,
-    lineHeight: 20,
     color: wellnessColors.textSecondary,
     marginBottom: spacing.sm,
   },
   reminderHint: {
-    fontSize: 14,
-    lineHeight: 20,
     color: wellnessColors.textSecondary,
     marginBottom: spacing.sm,
   },
@@ -770,14 +811,10 @@ const styles = StyleSheet.create({
     borderColor: wellnessColors.border,
   },
   privacyStatus: {
-    fontSize: 15,
-    fontWeight: '700',
     color: wellnessColors.primaryDark,
     marginBottom: spacing.xs,
   },
   consentHint: {
-    fontSize: 14,
-    lineHeight: 20,
     color: wellnessColors.textSecondary,
     marginBottom: spacing.sm,
   },
@@ -813,12 +850,10 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   helpParagraph: {
-    fontSize: 14,
-    lineHeight: 20,
     color: wellnessColors.textPrimary,
   },
   helpParagraphSecondary: {
-    fontSize: 13,
+    fontWeight: '400',
     lineHeight: 18,
     color: wellnessColors.textSecondary,
   },
@@ -834,7 +869,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   withdrawBtnText: {
-    fontSize: 15,
     fontWeight: '600',
     color: wellnessColors.danger,
   },
@@ -855,8 +889,6 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   deleteProfileBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
     color: '#FFFFFF',
   },
   sensitiveActionBtnPressed: {
@@ -877,17 +909,16 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   sessionPrefTitle: {
-    fontSize: 14,
     fontWeight: '600',
     color: wellnessColors.textPrimary,
   },
   sessionPrefBody: {
-    fontSize: 13,
+    fontWeight: '400',
     lineHeight: 18,
     color: wellnessColors.textSecondary,
   },
   sessionPrefFootnote: {
-    fontSize: 12,
+    fontWeight: '400',
     lineHeight: 16,
     color: wellnessColors.textMuted,
   },
@@ -904,7 +935,6 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   logoutText: {
-    fontSize: 15,
     fontWeight: '600',
     color: wellnessColors.primaryDark,
   },
@@ -915,7 +945,6 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   emptyText: {
-    fontSize: 16,
     color: wellnessColors.textSecondary,
     textAlign: 'center',
   },

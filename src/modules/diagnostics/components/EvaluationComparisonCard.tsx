@@ -1,8 +1,9 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import type { VimComparisonInsight } from '@/src/modules/diagnostics/diagnostic-evaluation-display-utils';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessColors, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import { AppText } from '@/src/shared/ui/AppText';
 
 type EvaluationComparisonCardProps = {
   insight: VimComparisonInsight;
@@ -41,8 +42,12 @@ export function EvaluationComparisonCard({ insight }: EvaluationComparisonCardPr
         { backgroundColor: palette.backgroundColor, borderColor: palette.borderColor },
       ]}
       accessibilityRole="summary">
-      <Text style={[styles.title, { color: palette.titleColor }]}>{insight.title}</Text>
-      <Text style={styles.detail}>{insight.detail}</Text>
+      <AppText variant="titleSmall" style={[styles.title, { color: palette.titleColor }]}>
+        {insight.title}
+      </AppText>
+      <AppText variant="bodyMedium" style={styles.detail}>
+        {insight.detail}
+      </AppText>
     </View>
   );
 }
@@ -55,15 +60,11 @@ const styles = StyleSheet.create({
     ...wellnessShadows.soft,
   },
   title: {
-    fontSize: 17,
-    fontWeight: '700',
     marginBottom: 6,
     lineHeight: 22,
   },
   detail: {
-    fontSize: 15,
-    lineHeight: 21,
-    color: wellnessColors.textSecondary,
     fontWeight: '500',
+    color: wellnessColors.textSecondary,
   },
 });

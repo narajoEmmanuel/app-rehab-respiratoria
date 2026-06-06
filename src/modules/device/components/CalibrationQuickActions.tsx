@@ -5,12 +5,12 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  Text,
   View,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 
+import { AppText } from '@/src/shared/ui/AppText';
 import { IconSymbol, type IconSymbolName } from '@/src/shared/ui/icon-symbol';
 
 export type CalibrationQuickActionsProps = {
@@ -52,9 +52,11 @@ function CalibrationActionCard({ label, icon, variant, onPress }: CalibrationAct
           color={isPrimary ? '#FFFFFF' : TEAL_ACCENT}
         />
       </View>
-      <Text style={[styles.actionLabel, isPrimary ? styles.actionLabelPrimary : styles.actionLabelSecondary]}>
+      <AppText
+        variant="chip"
+        style={[styles.actionLabel, isPrimary ? styles.actionLabelPrimary : styles.actionLabelSecondary]}>
         {label}
-      </Text>
+      </AppText>
       <View style={[styles.arrowCircle, isPrimary ? styles.arrowCirclePrimary : styles.arrowCircleSecondary]}>
         <IconSymbol
           name="arrow.right.circle.fill"
@@ -204,8 +206,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(11, 143, 134, 0.1)',
   },
   actionLabel: {
-    fontSize: 13,
-    fontWeight: '700',
     textAlign: 'center',
     letterSpacing: -0.15,
     lineHeight: 17,

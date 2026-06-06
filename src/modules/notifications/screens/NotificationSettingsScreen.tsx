@@ -11,7 +11,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,6 +30,7 @@ import {
 } from '@/src/modules/notifications/notification-copy';
 import { useNotificationSettings } from '@/src/modules/notifications/use-notification-settings';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+import { AppText } from '@/src/shared/ui/AppText';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessFloatingTabBarInset } from '@/src/shared/theme/wellness-theme';
@@ -119,32 +119,50 @@ export function NotificationSettingsScreen() {
         ]}
         showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={styles.title}>Recordatorios</Text>
-          <Text style={styles.subtitle}>Pequeños avisos para cuidar tu recuperación</Text>
+          <AppText variant="titleLarge" style={styles.title}>
+            Recordatorios
+          </AppText>
+          <AppText variant="bodyMedium" style={styles.subtitle}>
+            Pequeños avisos para cuidar tu recuperación
+          </AppText>
         </View>
 
         {!hydrated || (patient != null && (consentOk === null || loading)) ? (
           <View style={styles.centerRow}>
             <ActivityIndicator color={ACCENT} />
-            <Text style={styles.muted}>Cargando…</Text>
+            <AppText variant="bodySmall" style={styles.muted}>
+              Cargando…
+            </AppText>
           </View>
         ) : null}
 
-        {patient == null ? <Text style={styles.note}>Inicia sesión para configurar.</Text> : null}
+        {patient == null ? (
+          <AppText variant="bodySmall" style={styles.note}>
+            Inicia sesión para configurar.
+          </AppText>
+        ) : null}
 
         {blockedByConsent ? (
           <View style={styles.consentCard}>
-            <Text style={styles.note}>Acepta los documentos legales para activar recordatorios.</Text>
+            <AppText variant="bodySmall" style={styles.note}>
+              Acepta los documentos legales para activar recordatorios.
+            </AppText>
             <Pressable
               style={({ pressed }) => [styles.linkBtn, pressed && styles.pressed]}
               onPress={() => router.push(LEGAL_ACCEPT_HREF)}
               accessibilityRole="button">
-              <Text style={styles.linkBtnText}>Revisar documentos</Text>
+              <AppText variant="bodyMedium" style={styles.linkBtnText}>
+                Revisar documentos
+              </AppText>
             </Pressable>
           </View>
         ) : null}
 
-        {!nativeSupported ? <Text style={styles.note}>{describeWebLimitation()}</Text> : null}
+        {!nativeSupported ? (
+          <AppText variant="bodySmall" style={styles.note}>
+            {describeWebLimitation()}
+          </AppText>
+        ) : null}
 
         {patient && consentOk === true && settings != null ? (
           <>
@@ -217,7 +235,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   subtitle: {
-    fontSize: 15,
     color: wellness.textSecondary,
   },
   centerRow: {
@@ -227,12 +244,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
   },
   muted: {
-    fontSize: 14,
     color: wellness.textSecondary,
   },
   note: {
-    fontSize: 14,
-    lineHeight: 20,
     color: wellness.textSecondary,
   },
   consentCard: {
@@ -247,7 +261,6 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   linkBtnText: {
-    fontSize: 15,
     fontWeight: '600',
     color: wellness.primaryDark,
   },

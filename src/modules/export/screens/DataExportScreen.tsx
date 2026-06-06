@@ -6,7 +6,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { exportCalibrationTechnicalCsv } from '@/src/modules/export/services/calibration-technical-export-service';
@@ -15,6 +15,7 @@ import { exportPatientCsv, exportPatientJson } from '@/src/modules/export/servic
 import { isTechnicalCalibrationEnabled } from '@/src/modules/app-mode';
 import { isConsentActive } from '@/src/modules/legal/consent-service';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+import { AppText } from '@/src/shared/ui/AppText';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { AppCard } from '@/src/shared/ui/AppCard';
@@ -161,24 +162,32 @@ export function DataExportScreen() {
         {!hydrated || (patient != null && consentOk === null) ? (
           <View style={styles.centerRow}>
             <ActivityIndicator color={wellnessColors.primary} />
-            <Text style={styles.muted}>Comprobando permisos y datos…</Text>
+            <AppText variant="bodySmall" style={styles.muted}>
+              Comprobando permisos y datos…
+            </AppText>
           </View>
         ) : null}
 
         {patient == null ? (
           <AppCard variant="soft">
-            <Text style={styles.emptyTitle}>Sin sesión activa</Text>
-            <Text style={styles.emptyBody}>Inicia sesión para exportar tus datos.</Text>
+            <AppText variant="titleSmall" style={styles.emptyTitle}>
+              Sin sesión activa
+            </AppText>
+            <AppText variant="bodySmall" style={styles.emptyBody}>
+              Inicia sesión para exportar tus datos.
+            </AppText>
           </AppCard>
         ) : null}
 
         {patient && showConsentBlock ? (
           <AppCard>
             <StatusPill label="Consentimiento inactivo" tone="warning" size="sm" />
-            <Text style={styles.blockTitle}>Exportación no disponible</Text>
-            <Text style={styles.blockText}>
+            <AppText variant="titleSmall" style={styles.blockTitle}>
+              Exportación no disponible
+            </AppText>
+            <AppText variant="bodySmall" style={styles.blockText}>
               Reactiva el consentimiento en Perfil para poder exportar tu resumen de progreso.
-            </Text>
+            </AppText>
           </AppCard>
         ) : null}
 
@@ -196,11 +205,13 @@ export function DataExportScreen() {
         {patient && consentOk === true && summary != null ? (
           <>
             <AppCard style={styles.contentCard}>
-              <Text style={styles.contentCardTitle}>Contenido del archivo</Text>
-              <Text style={styles.contentCardBody}>
+              <AppText variant="statusValue" style={styles.contentCardTitle}>
+                Contenido del archivo
+              </AppText>
+              <AppText variant="bodySmall" style={styles.contentCardBody}>
                 Incluye tu ficha, evaluaciones iniciales, niveles, sesiones e intentos guardados en
                 este dispositivo.
-              </Text>
+              </AppText>
             </AppCard>
 
             <View style={styles.metricsRow}>
@@ -226,9 +237,9 @@ export function DataExportScreen() {
             </View>
 
             {summary.sessions === 0 && summary.diagnostics === 0 ? (
-              <Text style={styles.emptyHint}>
+              <AppText variant="bodySmall" style={styles.emptyHint}>
                 Aún no hay sesiones ni evaluaciones registradas. Puedes exportar de todas formas para verificar la estructura.
-              </Text>
+              </AppText>
             ) : null}
           </>
         ) : null}
@@ -237,7 +248,9 @@ export function DataExportScreen() {
           busy ? (
             <View style={styles.busyRow}>
               <ActivityIndicator color={wellnessColors.primary} />
-              <Text style={styles.muted}>Generando archivo…</Text>
+              <AppText variant="bodySmall" style={styles.muted}>
+                Generando archivo…
+              </AppText>
             </View>
           ) : (
             <View style={styles.actionsSection}>
@@ -248,7 +261,9 @@ export function DataExportScreen() {
                 disabled={!canExport}
                 iconName="arrow.down.doc.fill"
               />
-              <Text style={styles.formatHint}>Recomendado para revisión rápida con profesionales.</Text>
+              <AppText variant="caption" style={styles.formatHint}>
+                Recomendado para revisión rápida con profesionales.
+              </AppText>
 
               <AppButton
                 title="Exportar JSON"
@@ -258,15 +273,19 @@ export function DataExportScreen() {
                 iconName="doc.text.fill"
                 style={styles.secondaryAction}
               />
-              <Text style={styles.formatHintSecondary}>Formato técnico completo.</Text>
+              <AppText variant="caption" style={styles.formatHintSecondary}>
+                Formato técnico completo.
+              </AppText>
 
               {technicalCalibrationEnabled ? (
                 <>
                   <View style={styles.technicalDivider} />
-                  <Text style={styles.technicalSectionTitle}>Calibración técnica</Text>
-                  <Text style={styles.formatHintSecondary}>
+                  <AppText variant="bodySmall" style={styles.technicalSectionTitle}>
+                    Calibración técnica
+                  </AppText>
+                  <AppText variant="caption" style={styles.formatHintSecondary}>
                     Descarga puntos, modelo y métricas de calibración para revisión técnica.
-                  </Text>
+                  </AppText>
                   <AppButton
                     title="Exportar datos técnicos"
                     onPress={() => void runCalibrationExport()}
@@ -281,11 +300,11 @@ export function DataExportScreen() {
           )
         ) : null}
 
-        <Text style={styles.disclaimer}>
+        <AppText variant="caption" style={styles.disclaimer}>
           En la web, el archivo se descarga con el navegador. En el teléfono, se guarda un archivo
           temporal y se abre la hoja de compartir. No enviamos datos automáticamente a correo, nube
           ni mensajería.
-        </Text>
+        </AppText>
       </ScrollView>
     </SafeAreaView>
   );
@@ -309,29 +328,20 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   muted: {
-    fontSize: 14,
     color: wellnessColors.textSecondary,
   },
   emptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
     color: wellnessColors.textPrimary,
     marginBottom: 4,
   },
   emptyBody: {
-    fontSize: 14,
-    lineHeight: 20,
     color: wellnessColors.textSecondary,
   },
   blockTitle: {
-    fontSize: 16,
-    fontWeight: '700',
     color: wellnessColors.textPrimary,
     marginTop: spacing.sm,
   },
   blockText: {
-    fontSize: 14,
-    lineHeight: 20,
     color: wellnessColors.textSecondary,
     marginTop: 4,
   },
@@ -342,13 +352,9 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   contentCardTitle: {
-    fontSize: 15,
-    fontWeight: '700',
     color: wellnessColors.textPrimary,
   },
   contentCardBody: {
-    fontSize: 14,
-    lineHeight: 20,
     color: wellnessColors.textSecondary,
   },
   metricsRow: {
@@ -372,13 +378,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   formatHint: {
-    fontSize: 12,
     color: wellnessColors.textSecondary,
     marginBottom: spacing.md,
     marginLeft: 2,
   },
   formatHintSecondary: {
-    fontSize: 12,
     color: wellnessColors.textMuted,
     marginLeft: 2,
   },
@@ -391,13 +395,11 @@ const styles = StyleSheet.create({
     marginVertical: spacing.md,
   },
   technicalSectionTitle: {
-    fontSize: 14,
     fontWeight: '600',
     color: wellnessColors.textSecondary,
     marginBottom: 2,
   },
   disclaimer: {
-    fontSize: 12,
     lineHeight: 18,
     color: wellnessColors.textMuted,
     marginTop: spacing.md,

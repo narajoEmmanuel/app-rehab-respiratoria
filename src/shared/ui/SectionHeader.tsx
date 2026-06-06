@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { wellnessColors, wellnessTypography } from '@/src/shared/theme/wellness-theme';
+import { AppText } from '@/src/shared/ui/AppText';
+import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 
 type SectionHeaderProps = {
   title: string;
@@ -13,18 +14,26 @@ export function SectionHeader({ title, subtitle, actionLabel, onActionPress }: S
   return (
     <View style={styles.wrap}>
       <View style={styles.topRow}>
-        <Text style={[styles.title, wellnessTypography.sectionTitle]}>{title}</Text>
+        <AppText variant="titleMedium" style={styles.title}>
+          {title}
+        </AppText>
         {actionLabel && onActionPress ? (
           <Pressable
             onPress={onActionPress}
             accessibilityRole="button"
             hitSlop={8}
             style={({ pressed }) => pressed && styles.actionPressed}>
-            <Text style={styles.actionLabel}>{actionLabel}</Text>
+            <AppText variant="link" style={styles.actionLabel}>
+              {actionLabel}
+            </AppText>
           </Pressable>
         ) : null}
       </View>
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      {subtitle ? (
+        <AppText variant="bodyMedium" style={styles.subtitle}>
+          {subtitle}
+        </AppText>
+      ) : null}
     </View>
   );
 }
@@ -44,13 +53,9 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     marginTop: 4,
-    fontSize: 15,
-    lineHeight: 21,
     color: wellnessColors.textSecondary,
   },
   actionLabel: {
-    fontSize: 14,
-    fontWeight: '700',
     color: wellnessColors.primary,
   },
   actionPressed: {

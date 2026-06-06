@@ -4,7 +4,9 @@
  */
 
 import { Image } from 'expo-image';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+
+import { AppText } from '@/src/shared/ui/AppText';
 
 const ACCENT = '#34aba5';
 
@@ -44,7 +46,11 @@ export function ProfileAvatarView({ displayName, avatarUri, size = 96 }: Props) 
           <Image source={{ uri: avatarUri }} style={styles.image} contentFit="cover" transition={120} />
         ) : (
           <View style={styles.placeholder} accessibilityLabel={`Iniciales: ${initials}`}>
-            <Text style={[styles.initials, { fontSize: Math.max(16, Math.round(size / 3)) }]}>{initials}</Text>
+            <AppText
+              variant="titleSmall"
+              style={[styles.initials, { fontSize: Math.max(16, Math.round(size / 3)) }]}>
+              {initials}
+            </AppText>
           </View>
         )}
       </View>
@@ -76,7 +82,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   initials: {
-    fontWeight: '700',
     color: ACCENT,
   },
 });

@@ -79,11 +79,12 @@ async function rescheduleIfActive(
     return cleared;
   }
 
-  const ids = await scheduleRemindersFromSettings(normalized);
+  const { notificationIds, lastMessageKey } = await scheduleRemindersFromSettings(normalized);
   const scheduled: NotificationSettings = {
     ...normalized,
-    scheduledNotificationIds: ids,
+    scheduledNotificationIds: notificationIds,
     lastScheduledAt: new Date().toISOString(),
+    lastReminderMessageKey: lastMessageKey,
   };
   await saveNotificationSettings(patientId, scheduled);
   return scheduled;
@@ -236,7 +237,13 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
         setSettings(updated);
       }
 
-      await sendTestNotification();
+      const messageKey = await sendTestNotification(settings.lastReminderMessageKey);
+      const updated = applyNotificationDefaults({
+        ...settings,
+        lastReminderMessageKey: messageKey,
+      });
+      await saveNotificationSettings(patientId, updated);
+      setSettings(updated);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'No se pudo enviar la notificación de prueba.';

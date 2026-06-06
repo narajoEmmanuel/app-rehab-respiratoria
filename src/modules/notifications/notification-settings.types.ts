@@ -40,6 +40,9 @@ export type NotificationSettings = {
 
   lastScheduledAt: string | null;
 
+  /** Stable key (`title\\0body`) of the last delivered/scheduled reminder copy — avoids consecutive duplicates. */
+  lastReminderMessageKey: string | null;
+
   scheduleMode: ReminderScheduleMode;
 
   /** Hours between reminders (1–12). */
@@ -149,6 +152,8 @@ export function createDefaultNotificationSettings(): NotificationSettings {
     scheduledNotificationIds: [],
 
     lastScheduledAt: null,
+
+    lastReminderMessageKey: null,
 
     scheduleMode: 'interval',
 
@@ -439,10 +444,73 @@ export function notificationToneLabel(tone: NotificationTone): string {
 
 export function formatProfileReminderSummary(settings: NotificationSettings): string {
 
-  if (!settings.enabled) return 'Inactivos';
+  if (!settings.enabled) return 'Pausados';
 
   return `Cada ${formatIntervalLabel(settings.intervalHours)}, ${settings.activeWindowStart} a ${settings.activeWindowEnd}`;
 
+}
+
+
+
+export type ProfileReminderStatus =
+  | 'active'
+  | 'paused'
+  | 'no_permission'
+  | 'requires_review'
+  | 'web_only';
+
+
+
+export function resolveProfileReminderStatus(
+  settings: NotificationSettings | null,
+  nativeSupported: boolean,
+): ProfileReminderStatus | null {
+  if (settings == null) return null;
+  if (!nativeSupported) return 'web_only';
+  if (settings.permissionStatus === 'denied') return 'no_permission';
+  if (!settings.enabled) return 'paused';
+  if (settings.permissionStatus === 'granted') return 'active';
+  return 'requires_review';
+}
+
+
+
+export function profileReminderStatusLabel(status: ProfileReminderStatus | null): string {
+  switch (status) {
+    case 'active':
+      return 'Activas';
+    case 'paused':
+      return 'Pausadas';
+    case 'no_permission':
+      return 'Sin permiso';
+    case 'requires_review':
+      return 'Requiere revisión';
+    case 'web_only':
+      return 'Solo en app';
+    default:
+      return '—';
+  }
+}
+
+
+
+export function profileReminderStatusHint(
+  status: ProfileReminderStatus | null,
+  settings: NotificationSettings | null,
+): string {
+  if (status === 'active' && settings != null) {
+    return formatProfileReminderSummary(settings);
+  }
+  if (status === 'no_permission') {
+    return 'Revisa los permisos de notificaciones en la configuración de tu dispositivo.';
+  }
+  if (status === 'requires_review') {
+    return 'Abre Recordatorios y confirma el permiso del sistema para activar los avisos.';
+  }
+  if (status === 'web_only') {
+    return 'Los recordatorios locales están disponibles en la app para iPhone o Android.';
+  }
+  return 'Configura horarios para mantener tu rutina.';
 }
 
 

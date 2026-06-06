@@ -3,7 +3,7 @@
  * Module: notifications
  */
 
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Svg, {
   Circle,
   Defs,
@@ -15,6 +15,7 @@ import Svg, {
 } from 'react-native-svg';
 
 import { reminderUi } from '@/src/modules/notifications/components/reminder-ui-tokens';
+import { AppText } from '@/src/shared/ui/AppText';
 
 const VIEW_W = 360;
 const VIEW_H = 220;
@@ -148,7 +149,9 @@ export function DayNightLandscape({ scheduleMessage, dimmed }: DayNightLandscape
 
       {scheduleMessage ? (
         <View style={styles.scheduleTextWrap} pointerEvents="none">
-          <Text style={styles.scheduleText}>{scheduleMessage}</Text>
+          <AppText variant="statusValue" style={styles.scheduleText}>
+            {scheduleMessage}
+          </AppText>
         </View>
       ) : null}
     </View>
@@ -176,9 +179,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   scheduleText: {
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '700',
     color: '#FFFFFF',
     textAlign: 'center',
   },

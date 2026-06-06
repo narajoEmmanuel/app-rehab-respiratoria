@@ -5,13 +5,14 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import {
   findNextReminderTime,
   getReminderTimelineSlotState,
 } from '@/src/modules/notifications/components/reminder-schedule-display';
 import { reminderUi } from '@/src/modules/notifications/components/reminder-ui-tokens';
+import { AppText } from '@/src/shared/ui/AppText';
 import { wellness, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 
 const SLOT_SIZE = 44;
@@ -58,8 +59,12 @@ export function TodayReminderTimeline({ times, dimmed }: TodayReminderTimelinePr
 
   return (
     <View style={[styles.section, dimmed && styles.dimmed]}>
-      <Text style={styles.title}>Avisos de hoy</Text>
-      <Text style={styles.subtitle}>Horarios programados para hoy.</Text>
+      <AppText variant="titleSmall" style={styles.title}>
+        Avisos de hoy
+      </AppText>
+      <AppText variant="bodySmall" style={styles.subtitle}>
+        Horarios programados para hoy.
+      </AppText>
 
       <View style={styles.card}>
         {times.length > 0 ? (
@@ -98,7 +103,8 @@ export function TodayReminderTimeline({ times, dimmed }: TodayReminderTimelinePr
                         <SlotIcon state={state} />
                       </View>
                     </View>
-                    <Text
+                    <AppText
+                      variant="caption"
                       style={[
                         styles.slotTime,
                         isNext && styles.slotTimeNext,
@@ -106,16 +112,16 @@ export function TodayReminderTimeline({ times, dimmed }: TodayReminderTimelinePr
                         isUpcoming && styles.slotTimeUpcoming,
                       ]}>
                       {time}
-                    </Text>
+                    </AppText>
                   </View>
                 );
               })}
             </ScrollView>
           </View>
         ) : (
-          <Text style={styles.empty}>
+          <AppText variant="bodySmall" style={styles.empty}>
             Configura tu horario despierto para ver los avisos de hoy.
-          </Text>
+          </AppText>
         )}
       </View>
     </View>
@@ -131,11 +137,9 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 17,
-    fontWeight: '700',
     color: reminderUi.textPrimary,
   },
   subtitle: {
-    fontSize: 14,
     color: reminderUi.textSecondary,
   },
   card: {
@@ -231,8 +235,6 @@ const styles = StyleSheet.create({
     borderColor: reminderUi.timelineUpcomingBorder,
   },
   slotTime: {
-    fontSize: 12,
-    fontWeight: '600',
     color: reminderUi.timelineUpcomingTime,
     fontVariant: ['tabular-nums'],
     textAlign: 'center',

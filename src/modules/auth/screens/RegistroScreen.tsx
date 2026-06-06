@@ -14,7 +14,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from 'react-native';
@@ -28,6 +27,7 @@ import type { PatientRecord } from '@/src/modules/patient/types';
 import { getErrorMessage } from '@/src/shared/utils/get-error-message';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import { AppText } from '@/src/shared/ui/AppText';
 
 const TITLE = 26;
 const BODY = 16;
@@ -80,45 +80,45 @@ export function RegistroScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <Text style={styles.title}>¡Listo, tu registro está guardado!</Text>
-          <Text style={styles.subtitle}>
+          <AppText variant="titleLarge" style={styles.title}>¡Listo, tu registro está guardado!</AppText>
+          <AppText variant="bodyLarge" style={styles.subtitle}>
             Anota tu clave en un lugar seguro. La necesitarás cada vez que entres a la app.
-          </Text>
+          </AppText>
 
           <View style={styles.keyCard} accessibilityRole="summary">
-            <Text style={styles.keyLabel}>Tu clave de acceso</Text>
-            <Text style={styles.keyValue}>{registered.clave}</Text>
-            <Text style={styles.keyHint}>Ejemplo: la usarás como {registered.clave} en la pantalla de acceso.</Text>
+            <AppText variant="label" style={styles.keyLabel}>Tu clave de acceso</AppText>
+            <AppText variant="metricLarge" style={styles.keyValue}>{registered.clave}</AppText>
+            <AppText variant="bodyLarge" style={styles.keyHint}>Ejemplo: la usarás como {registered.clave} en la pantalla de acceso.</AppText>
           </View>
 
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryLine}>
-              <Text style={styles.summaryBold}>Nombre: </Text>
+            <AppText variant="bodyLarge" style={styles.summaryLine}>
+              <AppText variant="bodyLarge" style={styles.summaryBold}>Nombre: </AppText>
               {registered.nombre_completo}
-            </Text>
-            <Text style={styles.summaryLine}>
-              <Text style={styles.summaryBold}>Edad: </Text>
+            </AppText>
+            <AppText variant="bodyLarge" style={styles.summaryLine}>
+              <AppText variant="bodyLarge" style={styles.summaryBold}>Edad: </AppText>
               {registered.edad} años
-            </Text>
+            </AppText>
           </View>
 
-          <Text style={styles.legalHint}>
+          <AppText variant="bodyMedium" style={styles.legalHint}>
             El siguiente paso es revisar y aceptar los documentos legales.
-          </Text>
+          </AppText>
 
           <Pressable
             style={styles.primaryBtn}
             onPress={onContinue}
             accessibilityRole="button"
             accessibilityLabel="Revisar documentos">
-            <Text style={styles.primaryBtnText}>Revisar documentos</Text>
+            <AppText variant="button" style={styles.primaryBtnText}>Revisar documentos</AppText>
           </Pressable>
 
           <Pressable
             style={styles.textLinkBtn}
             onPress={() => router.replace('/auth/login')}
             accessibilityRole="button">
-            <Text style={styles.textLink}>Volver al acceso con clave</Text>
+            <AppText variant="link" style={styles.textLink}>Volver al acceso con clave</AppText>
           </Pressable>
         </ScrollView>
       </SafeAreaView>
@@ -134,13 +134,13 @@ export function RegistroScreen() {
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
-          <Text style={styles.title}>Crear registro</Text>
-          <Text style={styles.subtitle}>
+          <AppText variant="titleLarge" style={styles.title}>Crear registro</AppText>
+          <AppText variant="bodyLarge" style={styles.subtitle}>
             Solo necesitamos tu nombre y edad. Te daremos una clave automática.
-          </Text>
+          </AppText>
 
           <View style={styles.card}>
-            <Text style={styles.label}>Nombre completo</Text>
+            <AppText variant="bodyLarge" style={styles.label}>Nombre completo</AppText>
             <TextInput
               style={styles.input}
               value={nombre}
@@ -151,7 +151,7 @@ export function RegistroScreen() {
               accessibilityLabel="Nombre completo"
             />
 
-            <Text style={styles.label}>Edad (años)</Text>
+            <AppText variant="bodyLarge" style={styles.label}>Edad (años)</AppText>
             <TextInput
               style={styles.input}
               value={edadText}
@@ -164,7 +164,7 @@ export function RegistroScreen() {
             />
 
             {edadText.length > 0 && !edadValid ? (
-              <Text style={styles.helperError}>Indica una edad entre 1 y 120 años.</Text>
+              <AppText variant="bodySmall" style={styles.helperError}>Indica una edad entre 1 y 120 años.</AppText>
             ) : null}
 
             <Pressable
@@ -176,7 +176,7 @@ export function RegistroScreen() {
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.primaryBtnText}>Crear mi registro</Text>
+                <AppText variant="button" style={styles.primaryBtnText}>Crear mi registro</AppText>
               )}
             </Pressable>
           </View>
@@ -185,7 +185,7 @@ export function RegistroScreen() {
             style={styles.textLinkBtn}
             onPress={() => router.replace('/auth/login')}
             accessibilityRole="button">
-            <Text style={styles.textLink}>Ya tengo clave, volver al acceso</Text>
+            <AppText variant="link" style={styles.textLink}>Ya tengo clave, volver al acceso</AppText>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>

@@ -5,7 +5,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,6 +24,7 @@ import { exportCalibrationTechnicalCsv } from '@/src/modules/export/services/cal
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { AppCard } from '@/src/shared/ui/AppCard';
+import { AppText } from '@/src/shared/ui/AppText';
 import { StatusPill } from '@/src/shared/ui/StatusPill';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessColors, wellnessShadows } from '@/src/shared/theme/wellness-theme';
@@ -138,8 +138,12 @@ export function SensorCalibrationTechnicalScreen({
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        <Text style={styles.eyebrow}>Modo técnico</Text>
-        <Text style={styles.title}>{SPIROMETER_NAME}</Text>
+        <AppText variant="label" style={styles.eyebrow}>
+          Modo técnico
+        </AppText>
+        <AppText variant="titleLarge" style={styles.title}>
+          {SPIROMETER_NAME}
+        </AppText>
 
         {loadingTherapy ? (
           <View style={styles.loadingWrap}>
@@ -148,14 +152,18 @@ export function SensorCalibrationTechnicalScreen({
         ) : (
           <>
             <AppCard style={styles.statusCard}>
-              <Text style={styles.cardLabel}>Estado de calibración</Text>
+              <AppText variant="bodyMedium" style={styles.cardLabel}>
+                Estado de calibración
+              </AppText>
               <StatusPill
                 label={statusLabel}
                 tone={calibrationTone(therapy?.status ?? 'pending')}
                 size="sm"
               />
               {therapy?.status === 'needs_review' && therapy.detailMessage ? (
-                <Text style={styles.warnText}>{therapy.detailMessage}</Text>
+                <AppText variant="bodySmall" style={styles.warnText}>
+                  {therapy.detailMessage}
+                </AppText>
               ) : null}
             </AppCard>
 
@@ -180,7 +188,11 @@ export function SensorCalibrationTechnicalScreen({
               />
             </View>
 
-            {exportMessage ? <Text style={styles.exportHint}>{exportMessage}</Text> : null}
+            {exportMessage ? (
+              <AppText variant="bodySmall" style={styles.exportHint}>
+                {exportMessage}
+              </AppText>
+            ) : null}
 
             {onClose ? (
               <Pressable
@@ -191,7 +203,9 @@ export function SensorCalibrationTechnicalScreen({
                 style={({ pressed }) => [styles.backLink, pressed && styles.backLinkPressed]}
                 accessibilityRole="button"
                 accessibilityLabel="Volver a vista de calibración">
-                <Text style={styles.backLinkText}>Volver</Text>
+                <AppText variant="link" style={styles.backLinkText}>
+                  Volver
+                </AppText>
               </Pressable>
             ) : null}
           </>
@@ -229,20 +243,16 @@ const styles = StyleSheet.create({
     ...wellnessShadows.card,
   },
   cardLabel: {
-    fontSize: 15,
     fontWeight: '500',
     color: wellnessColors.textSecondary,
   },
   warnText: {
-    fontSize: 14,
-    lineHeight: 20,
     color: wellness.errorText,
   },
   actions: {
     gap: spacing.md,
   },
   exportHint: {
-    fontSize: 14,
     color: wellnessColors.textMuted,
     textAlign: 'center',
   },

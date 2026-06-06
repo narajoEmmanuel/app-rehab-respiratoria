@@ -1,8 +1,9 @@
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { VOLUME_OVER_RANGE_HELPER } from '@/src/modules/device/calibration/calibration-display-utils';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellnessColors, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import { AppText } from '@/src/shared/ui/AppText';
 
 export type MeasuredVolumeHeroProps = {
   volumeMl: number | null;
@@ -21,7 +22,7 @@ export function MeasuredVolumeHero({
   volumeMl,
   loading = false,
   subtitle,
-  label = 'Volumen medido',
+  label = 'Volumen estimado',
   overRange = false,
 }: MeasuredVolumeHeroProps) {
   const resolvedSubtitle =
@@ -32,16 +33,26 @@ export function MeasuredVolumeHero({
 
   return (
     <View style={styles.card}>
-      <Text style={styles.label}>{label}</Text>
+      <AppText variant="statusValue" style={styles.label}>
+        {label}
+      </AppText>
       {loading ? (
         <ActivityIndicator color={wellnessColors.primary} style={styles.loader} />
       ) : (
         <View style={styles.valueRow}>
-          <Text style={styles.value}>{formatVolumeMl(volumeMl)}</Text>
-          <Text style={styles.unit}>mL</Text>
+          <AppText variant="metricLarge" style={styles.value}>
+            {formatVolumeMl(volumeMl)}
+          </AppText>
+          <AppText variant="metricSmall" style={styles.unit}>
+            mL
+          </AppText>
         </View>
       )}
-      {resolvedSubtitle ? <Text style={styles.subtitle}>{resolvedSubtitle}</Text> : null}
+      {resolvedSubtitle ? (
+        <AppText variant="bodySmall" style={styles.subtitle}>
+          {resolvedSubtitle}
+        </AppText>
+      ) : null}
     </View>
   );
 }
@@ -57,7 +68,6 @@ const styles = StyleSheet.create({
     ...wellnessShadows.card,
   },
   label: {
-    fontSize: 15,
     fontWeight: '500',
     color: wellnessColors.textSecondary,
     letterSpacing: 0.2,
@@ -75,13 +85,10 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   unit: {
-    fontSize: 22,
     fontWeight: '500',
     color: wellnessColors.textSecondary,
   },
   subtitle: {
-    fontSize: 14,
-    lineHeight: 20,
     color: wellnessColors.textMuted,
     textAlign: 'center',
     maxWidth: 280,

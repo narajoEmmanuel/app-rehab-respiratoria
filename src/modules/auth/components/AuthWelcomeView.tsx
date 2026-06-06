@@ -2,7 +2,12 @@
  * Pantalla 1 — bienvenida local-first (solo presentación visual).
  */
 import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -14,6 +19,7 @@ import {
 import { RespiraBrandMark } from '@/src/shared/ui/RespiraBrandMark';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
+import { AppText } from '@/src/shared/ui/AppText';
 
 const BENEFIT_ICON_SIZE = 30;
 const BENEFIT_ICON_RING = 62;
@@ -133,7 +139,7 @@ function BenefitRow({
           <WelcomeBenefitIcon id={icon} size={BENEFIT_ICON_SIZE} color={wellness.primaryDark} />
         </View>
         <View style={styles.benefitTextWrap}>
-          <Text style={styles.benefitLabel}>{label}</Text>
+          <AppText variant="bodyLarge" style={styles.benefitLabel}>{label}</AppText>
         </View>
       </View>
       {showDivider ? <View style={styles.benefitDivider} /> : null}
@@ -161,11 +167,11 @@ export function AuthWelcomeView({
             <View style={styles.logoCircle}>
               <RespiraBrandMark variant="icon" size="lg" imageStyle={styles.logoMark} />
             </View>
-            <Text style={styles.brandName} accessibilityRole="header">
+            <AppText variant="display" style={styles.brandName} accessibilityRole="header">
               RESPIRA+
-            </Text>
-            <Text style={styles.heroLine}>Tu salud respiratoria</Text>
-            <Text style={styles.heroLine}>en buenas manos</Text>
+            </AppText>
+            <AppText variant="titleMedium" style={styles.heroLine}>Tu salud respiratoria</AppText>
+            <AppText variant="titleMedium" style={styles.heroLine}>en buenas manos</AppText>
           </View>
 
           <View style={styles.benefitsCard}>
@@ -191,7 +197,7 @@ export function AuthWelcomeView({
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.btnPrimaryGradient}>
-              <Text style={styles.btnPrimaryText}>Crear perfil</Text>
+              <AppText variant="button" style={styles.btnPrimaryText}>Crear perfil</AppText>
             </LinearGradient>
           </Pressable>
 
@@ -200,7 +206,7 @@ export function AuthWelcomeView({
             onPress={onLoginWithKey}
             accessibilityRole="button"
             accessibilityLabel="Ya tengo una clave">
-            <Text style={styles.btnOutlineText}>Ya tengo una clave</Text>
+            <AppText variant="button" style={styles.btnOutlineText}>Ya tengo una clave</AppText>
           </Pressable>
 
           {hasDeviceProfiles && onShowDeviceProfiles ? (
@@ -209,9 +215,9 @@ export function AuthWelcomeView({
               onPress={onShowDeviceProfiles}
               accessibilityRole="button"
               accessibilityLabel="Ver perfiles guardados en este dispositivo">
-              <Text style={styles.deviceProfilesLinkText}>
+              <AppText variant="link" style={styles.deviceProfilesLinkText}>
                 Perfiles guardados en este dispositivo
-              </Text>
+              </AppText>
             </Pressable>
           ) : null}
           </View>

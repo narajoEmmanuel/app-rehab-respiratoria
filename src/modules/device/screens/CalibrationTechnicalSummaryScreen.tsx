@@ -5,7 +5,6 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,6 +21,7 @@ import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessColors, wellnessRadius, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { AppCard } from '@/src/shared/ui/AppCard';
+import { AppText } from '@/src/shared/ui/AppText';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { StatusPill } from '@/src/shared/ui/StatusPill';
 
@@ -40,11 +40,17 @@ type MetricStatCardProps = {
 function MetricStatCard({ label, value, unit }: MetricStatCardProps) {
   return (
     <View style={styles.statCard}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue} numberOfLines={1}>
+      <AppText variant="chip" style={styles.statLabel}>
+        {label}
+      </AppText>
+      <AppText variant="metric" style={styles.statValue} numberOfLines={1}>
         {value}
-        {unit ? <Text style={styles.statUnit}>{unit}</Text> : null}
-      </Text>
+        {unit ? (
+          <AppText variant="bodySmall" style={styles.statUnit}>
+            {unit}
+          </AppText>
+        ) : null}
+      </AppText>
     </View>
   );
 }
@@ -58,10 +64,15 @@ type IdentityRowProps = {
 function IdentityRow({ label, value, mono }: IdentityRowProps) {
   return (
     <View style={styles.identityRow}>
-      <Text style={styles.identityLabel}>{label}</Text>
-      <Text style={[styles.identityValue, mono && styles.identityValueMono]} selectable={mono}>
+      <AppText variant="label" style={styles.identityLabel}>
+        {label}
+      </AppText>
+      <AppText
+        variant="statusValue"
+        style={[styles.identityValue, mono && styles.identityValueMono]}
+        selectable={mono}>
         {value}
-      </Text>
+      </AppText>
     </View>
   );
 }
@@ -74,8 +85,12 @@ type SystemRowProps = {
 function SystemRow({ label, value }: SystemRowProps) {
   return (
     <View style={styles.systemRow}>
-      <Text style={styles.systemLabel}>{label}</Text>
-      <Text style={styles.systemValue}>{value}</Text>
+      <AppText variant="chip" style={styles.systemLabel}>
+        {label}
+      </AppText>
+      <AppText variant="caption" style={styles.systemValue}>
+        {value}
+      </AppText>
     </View>
   );
 }
@@ -149,8 +164,12 @@ export function CalibrationTechnicalSummaryScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
         <View style={styles.headerBlock}>
-          <Text style={styles.title}>Resumen técnico</Text>
-          <Text style={styles.subtitle}>Calibración validada RESPIRA+ 3000 mL</Text>
+          <AppText variant="titleLarge" style={styles.title}>
+            Resumen técnico
+          </AppText>
+          <AppText variant="bodyMedium" style={styles.subtitle}>
+            Calibración validada RESPIRA+ 3000 mL
+          </AppText>
         </View>
 
         {busy ? (
@@ -158,19 +177,25 @@ export function CalibrationTechnicalSummaryScreen() {
         ) : (
           <>
             <AppCard style={styles.identityCard}>
-              <Text style={styles.sectionTitle}>Identidad de calibración</Text>
+              <AppText variant="label" style={styles.sectionTitle}>
+                Identidad de calibración
+              </AppText>
               <IdentityRow label="ID" value={meta.displayCalibrationId} mono />
               <IdentityRow label="Fecha" value={meta.calibrationDateLabel} />
               <IdentityRow label="Espirómetro" value={meta.spirometerModel} />
               <IdentityRow label="Modelo" value={meta.modelKind} />
               <View style={styles.identityRow}>
-                <Text style={styles.identityLabel}>Estado</Text>
+                <AppText variant="label" style={styles.identityLabel}>
+                  Estado
+                </AppText>
                 <StatusPill label={meta.statusLabel} tone="success" size="sm" />
               </View>
             </AppCard>
 
             <View style={styles.section}>
-              <Text style={styles.sectionHeading}>Métricas de calibración</Text>
+              <AppText variant="label" style={styles.sectionHeading}>
+                Métricas de calibración
+              </AppText>
               <View style={styles.statsGrid}>
                 {metricCards.map((card) => (
                   <MetricStatCard
@@ -184,22 +209,30 @@ export function CalibrationTechnicalSummaryScreen() {
             </View>
 
             <View style={styles.equationCard}>
-              <Text style={styles.sectionTitle}>Ecuación activa</Text>
-              <Text style={styles.equationText} selectable>
+              <AppText variant="label" style={styles.sectionTitle}>
+                Ecuación activa
+              </AppText>
+              <AppText variant="metric" style={styles.equationText} selectable>
                 {meta.equationLabel}
-              </Text>
-              <Text style={styles.equationHint}>{meta.equationHint}</Text>
+              </AppText>
+              <AppText variant="caption" style={styles.equationHint}>
+                {meta.equationHint}
+              </AppText>
             </View>
 
             <AppCard style={styles.systemCard}>
-              <Text style={styles.sectionTitle}>Sistema de medición</Text>
+              <AppText variant="label" style={styles.sectionTitle}>
+                Sistema de medición
+              </AppText>
               <SystemRow label="Sensor" value={meta.sensorLabel} />
               <SystemRow label="Microcontrolador" value={meta.microcontrollerLabel} />
               <SystemRow label="Firmware" value={meta.firmwareLabel} />
               <SystemRow label="Comunicación" value={meta.communicationLabel} />
             </AppCard>
 
-            <Text style={styles.footnote}>{RESPIRA_3000_OVER_RANGE_FOOTNOTE}</Text>
+            <AppText variant="caption" style={styles.footnote}>
+              {RESPIRA_3000_OVER_RANGE_FOOTNOTE}
+            </AppText>
           </>
         )}
 
@@ -212,7 +245,11 @@ export function CalibrationTechnicalSummaryScreen() {
             disabled={busy || exporting}
           />
 
-          {exportMessage ? <Text style={styles.exportHint}>{exportMessage}</Text> : null}
+          {exportMessage ? (
+            <AppText variant="caption" style={styles.exportHint}>
+              {exportMessage}
+            </AppText>
+          ) : null}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -237,8 +274,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 15,
-    lineHeight: 22,
     color: wellnessColors.textSecondary,
   },
   section: {
@@ -246,15 +281,12 @@ const styles = StyleSheet.create({
   },
   sectionHeading: {
     fontSize: 13,
-    fontWeight: '700',
     color: wellnessColors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     paddingHorizontal: 2,
   },
   sectionTitle: {
-    fontSize: 12,
-    fontWeight: '700',
     color: wellnessColors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -269,7 +301,6 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   identityLabel: {
-    fontSize: 11,
     fontWeight: '600',
     color: wellnessColors.textMuted,
     textTransform: 'uppercase',
@@ -277,7 +308,6 @@ const styles = StyleSheet.create({
   },
   identityValue: {
     fontSize: 16,
-    lineHeight: 22,
     color: wellnessColors.textPrimary,
     fontWeight: '500',
   },
@@ -306,20 +336,16 @@ const styles = StyleSheet.create({
     ...wellnessShadows.card,
   },
   statLabel: {
-    fontSize: 13,
-    fontWeight: '700',
     color: wellnessColors.primaryDark,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
   statValue: {
     fontSize: 24,
-    fontWeight: '700',
     color: wellnessColors.textPrimary,
     letterSpacing: -0.4,
   },
   statUnit: {
-    fontSize: 14,
     fontWeight: '600',
     color: wellnessColors.textSecondary,
   },
@@ -340,8 +366,6 @@ const styles = StyleSheet.create({
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
   },
   equationHint: {
-    fontSize: 13,
-    lineHeight: 18,
     color: wellnessColors.textSecondary,
   },
   systemCard: {
@@ -357,22 +381,17 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   systemLabel: {
-    fontSize: 13,
     fontWeight: '600',
     color: wellnessColors.textSecondary,
     flexShrink: 0,
   },
   systemValue: {
-    fontSize: 13,
-    lineHeight: 18,
     fontWeight: '500',
     color: wellnessColors.textPrimary,
     flex: 1,
     textAlign: 'right',
   },
   footnote: {
-    fontSize: 12,
-    lineHeight: 17,
     color: wellnessColors.textMuted,
     textAlign: 'center',
     paddingHorizontal: spacing.sm,
@@ -385,8 +404,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   exportHint: {
-    fontSize: 13,
-    lineHeight: 18,
     color: wellnessColors.textSecondary,
     textAlign: 'center',
     marginTop: spacing.xs,

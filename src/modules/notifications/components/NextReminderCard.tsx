@@ -5,7 +5,7 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import {
   areAllRemindersCompletedToday,
@@ -17,6 +17,7 @@ import {
   DAY_COMPLETED_MESSAGE,
   DAY_COMPLETED_TITLE,
 } from '@/src/modules/notifications/notification-copy';
+import { AppText } from '@/src/shared/ui/AppText';
 import { wellness, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 
 export type NextReminderCardProps = {
@@ -27,9 +28,15 @@ export type NextReminderCardProps = {
 function DayCompletedCard({ dimmed }: { dimmed?: boolean }) {
   return (
     <View style={[styles.card, styles.completedCard, dimmed && styles.dimmed]}>
-      <Text style={styles.label}>Hoy completado</Text>
-      <Text style={styles.completedHeadline}>{DAY_COMPLETED_TITLE}</Text>
-      <Text style={styles.completedMessage}>{DAY_COMPLETED_MESSAGE}</Text>
+      <AppText variant="caption" style={styles.label}>
+        Hoy completado
+      </AppText>
+      <AppText variant="titleLarge" style={styles.completedHeadline}>
+        {DAY_COMPLETED_TITLE}
+      </AppText>
+      <AppText variant="bodyMedium" style={styles.completedMessage}>
+        {DAY_COMPLETED_MESSAGE}
+      </AppText>
     </View>
   );
 }
@@ -53,9 +60,17 @@ export function NextReminderCard({ times, dimmed }: NextReminderCardProps) {
         <MaterialIcons name="notifications-none" size={28} color={reminderUi.teal} />
       </View>
       <View style={styles.textCol}>
-        <Text style={styles.label}>Siguiente aviso</Text>
-        <Text style={styles.time}>{nextTime}</Text>
-        {countdown ? <Text style={styles.countdown}>{countdown}</Text> : null}
+        <AppText variant="caption" style={styles.label}>
+          Siguiente aviso
+        </AppText>
+        <AppText variant="metricLarge" style={styles.time}>
+          {nextTime}
+        </AppText>
+        {countdown ? (
+          <AppText variant="bodyMedium" style={styles.countdown}>
+            {countdown}
+          </AppText>
+        ) : null}
       </View>
     </View>
   );
@@ -101,8 +116,6 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   label: {
-    fontSize: 12,
-    fontWeight: '600',
     letterSpacing: 0.35,
     color: reminderUi.textSecondary,
     textTransform: 'uppercase',
@@ -110,7 +123,6 @@ const styles = StyleSheet.create({
   },
   time: {
     fontSize: 36,
-    fontWeight: '800',
     color: reminderUi.teal,
     fontVariant: ['tabular-nums'],
     letterSpacing: -0.5,
@@ -119,7 +131,6 @@ const styles = StyleSheet.create({
   },
   completedHeadline: {
     fontSize: 24,
-    fontWeight: '800',
     color: reminderUi.teal,
     letterSpacing: -0.3,
     lineHeight: 30,
@@ -127,7 +138,6 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   countdown: {
-    fontSize: 15,
     fontWeight: '500',
     color: reminderUi.textSecondary,
     marginTop: 0,
@@ -135,7 +145,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   completedMessage: {
-    fontSize: 15,
     fontWeight: '500',
     color: reminderUi.textSecondary,
     lineHeight: 22,

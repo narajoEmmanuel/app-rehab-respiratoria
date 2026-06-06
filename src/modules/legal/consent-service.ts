@@ -148,6 +148,9 @@ export async function withdrawConsent(): Promise<void> {
  * Seeds a minimal active consent record locally — **dev/lab only**.
  * In normal user flow the real LegalAcceptScreen must be used.
  * Does not write to Supabase.
+ *
+ * Not invoked from `app/index.tsx`; only runs when called explicitly (e.g. future dev hooks).
+ * Requires `__DEV__` and `EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST=true`.
  */
 export async function seedLocalPrototypeConsentForPatient(patientId: number): Promise<void> {
   const isDevLab =

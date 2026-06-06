@@ -460,12 +460,62 @@ export function getMotivationalReminderCopyBySlot(slotIndex: number): Motivation
 
 
 
-export function getRandomMotivationalReminderCopy(): MotivationalReminderCopy {
+const REMINDER_MESSAGE_KEY_SEP = '\u0000';
 
-  const index = Math.floor(Math.random() * motivationalReminderMessages.length);
+export function getReminderMessageKey(copy: MotivationalReminderCopy | ReminderCopy): string {
+  return `${copy.title}${REMINDER_MESSAGE_KEY_SEP}${copy.body}`;
+}
 
-  return motivationalReminderMessages[index];
+export function pickMotivationalReminderCopy(excludeMessageKey?: string | null): {
+  copy: MotivationalReminderCopy;
+  messageKey: string;
+} {
+  const pool = motivationalReminderMessages;
+  if (pool.length === 0) {
+    throw new Error('No hay mensajes de recordatorio configurados.');
+  }
+  if (pool.length === 1) {
+    const copy = pool[0];
+    return { copy, messageKey: getReminderMessageKey(copy) };
+  }
 
+  const candidates = excludeMessageKey
+    ? pool.filter((message) => getReminderMessageKey(message) !== excludeMessageKey)
+    : pool;
+  const pickFrom = candidates.length > 0 ? candidates : pool;
+  const copy = pickFrom[Math.floor(Math.random() * pickFrom.length)];
+  return { copy, messageKey: getReminderMessageKey(copy) };
+}
+
+export function pickMotivationalReminderCopyBySlot(
+  slotIndex: number,
+  excludeMessageKey?: string | null,
+): { copy: MotivationalReminderCopy; messageKey: string } {
+  const pool = motivationalReminderMessages;
+  if (pool.length === 0) {
+    throw new Error('No hay mensajes de recordatorio configurados.');
+  }
+  if (pool.length === 1) {
+    const copy = pool[0];
+    return { copy, messageKey: getReminderMessageKey(copy) };
+  }
+
+  for (let offset = 0; offset < pool.length; offset += 1) {
+    const copy = getMotivationalReminderCopyBySlot(slotIndex + offset);
+    const messageKey = getReminderMessageKey(copy);
+    if (!excludeMessageKey || messageKey !== excludeMessageKey) {
+      return { copy, messageKey };
+    }
+  }
+
+  const fallback = getMotivationalReminderCopyBySlot(slotIndex);
+  return { copy: fallback, messageKey: getReminderMessageKey(fallback) };
+}
+
+export function getRandomMotivationalReminderCopy(
+  excludeMessageKey?: string | null,
+): MotivationalReminderCopy {
+  return pickMotivationalReminderCopy(excludeMessageKey).copy;
 }
 
 

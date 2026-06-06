@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { DEFAULT_DIAGNOSTIC_INPUT_MODE } from '@/src/modules/diagnostics/diagnostic-input-mode';
 import {
@@ -9,6 +9,7 @@ import type { DiagnosticAttemptNumber, DiagnosticRecord } from '@/src/modules/di
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessColors, wellnessRadii } from '@/src/shared/theme/wellness-theme';
 import { AppCard } from '@/src/shared/ui/AppCard';
+import { AppText } from '@/src/shared/ui/AppText';
 
 const ATTEMPT_NUMBERS: DiagnosticAttemptNumber[] = [1, 2, 3];
 
@@ -33,10 +34,12 @@ export function EvaluationAttemptsCard({ diagnostic }: EvaluationAttemptsCardPro
   if (!attempts?.length) {
     return (
       <AppCard>
-        <Text style={styles.sectionTitle}>Intentos realizados</Text>
-        <Text style={styles.legacyMessage}>
+        <AppText variant="titleSmall" style={styles.sectionTitle}>
+          Intentos realizados
+        </AppText>
+        <AppText variant="bodySmall" style={styles.legacyMessage}>
           Esta evaluación fue registrada antes de guardar intentos individuales.
-        </Text>
+        </AppText>
       </AppCard>
     );
   }
@@ -45,7 +48,9 @@ export function EvaluationAttemptsCard({ diagnostic }: EvaluationAttemptsCardPro
 
   return (
     <AppCard>
-      <Text style={styles.sectionTitle}>Intentos realizados</Text>
+      <AppText variant="titleSmall" style={styles.sectionTitle}>
+        Intentos realizados
+      </AppText>
       {ATTEMPT_NUMBERS.map((attemptNumber, index) => {
         const row = attempts.find((a) => a.attempt_number === attemptNumber);
         const peak = Math.max(0, row?.peak_volume_ml ?? 0);
@@ -57,12 +62,18 @@ export function EvaluationAttemptsCard({ diagnostic }: EvaluationAttemptsCardPro
             {index > 0 ? <View style={styles.divider} /> : null}
             <View style={[styles.row, isBest && styles.rowBest]}>
               <View style={styles.labelWrap}>
-                <Text style={styles.rowLabel}>Intento {attemptNumber}</Text>
-                {isBest ? <Text style={styles.bestPill}>Mejor intento</Text> : null}
+                <AppText variant="bodyLarge" style={styles.rowLabel}>
+                  Intento {attemptNumber}
+                </AppText>
+                {isBest ? (
+                  <AppText variant="chipSmall" style={styles.bestPill}>
+                    Mejor intento
+                  </AppText>
+                ) : null}
               </View>
-              <Text style={[styles.rowValue, isBest && styles.rowValueBest]}>
+              <AppText variant="metricSmall" style={[styles.rowValue, isBest && styles.rowValueBest]}>
                 {attemptLabelForRow(attemptNumber, peak, valid)}
-              </Text>
+              </AppText>
             </View>
           </View>
         );
@@ -73,14 +84,10 @@ export function EvaluationAttemptsCard({ diagnostic }: EvaluationAttemptsCardPro
 
 const styles = StyleSheet.create({
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: '800',
     color: wellnessColors.textPrimary,
     marginBottom: spacing.sm,
   },
   legacyMessage: {
-    fontSize: 14,
-    lineHeight: 20,
     color: wellnessColors.textSecondary,
   },
   row: {
@@ -102,20 +109,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowLabel: {
-    fontSize: 16,
     fontWeight: '600',
     color: wellnessColors.textSecondary,
   },
   bestPill: {
-    fontSize: 11,
-    fontWeight: '800',
     color: wellnessColors.primaryDark,
     textTransform: 'uppercase',
     letterSpacing: 0.2,
   },
   rowValue: {
-    fontSize: 18,
-    fontWeight: '800',
     color: wellnessColors.textPrimary,
   },
   rowValueBest: {

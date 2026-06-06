@@ -18,6 +18,28 @@ Sistema de monitoreo, biofeedback y acompañamiento para **ejercicios respirator
 
 El proyecto comenzó orientado a **EPOC**. Tras revisión con especialista en rehabilitación pulmonar, el equipo redirigió el producto hacia **postoperatorios**: volumen objetivo, sostenimiento, constancia y registro de sesiones con sensor. La arquitectura actual (perfiles de espirómetro, calibración por unidad física, terapia con validación conservadora) refleja ese enfoque.
 
+### Qué mide y registra (versión actual)
+
+| Variable | Descripción |
+|----------|-------------|
+| **Volumen inspirado estimado** | mL calculados en la app a partir de `distanceMm` y calibración activa |
+| **Tiempo de inspiración sostenida** | Por intento y promedios de sesión |
+| **Repeticiones válidas / inválidas** | Según reglas de sesión y evaluación |
+| **Cumplimiento y consistencia** | Porcentajes y resúmenes agregados en historial |
+| **Adherencia** | Historial de sesiones, rachas, calendario |
+| **Metadatos de sensor y calibración** | Trazabilidad en sesiones oficiales (modelo, dispositivo, firmware) |
+
+### Qué no mide
+
+- **Presión inspiratoria** (PIP, MIP, cmH₂O u otras métricas de presión).
+- Flujo espiratorio clínico certificado independiente del espirómetro con sensor óptico acoplado.
+
+### Qué no hace
+
+- **No diagnostica** condiciones respiratorias ni sustituye pruebas clínicas formales.
+- **No prescribe** ni ajusta tratamiento de forma autónoma.
+- **No sustituye** al profesional de la salud, urgencias ni indicación médica individual.
+
 ---
 
 ## Estado actual
@@ -69,7 +91,7 @@ Resultado acotado entre **0** y **3000 mL** (valores < 0 se muestran como 0 mL; 
 - **Calibración técnica** multi-volumen, repetibilidad, U95 y export CSV — solo con flag de modo técnico.
 - **Terapia guiada** (niveles) con validación al iniciar actividad y bloqueo de lecturas obsoletas.
 - **Modo práctica táctil** (opcional, según configuración del dispositivo).
-- **Historial**, **resumen** de sesión y **exportación clínica** (CSV / JSON, versión **2.1.0**).
+- **Historial**, **resumen** de sesión y **exportación clínica** (CSV / JSON, versión **2.4.0**).
 
 ---
 
@@ -86,12 +108,35 @@ Resultado acotado entre **0** y **3000 mL** (valores < 0 se muestran como 0 mL; 
 | **WebSocket** | Un único cliente global en la app |
 | **Supabase** | Opcional; congelado con `EXPO_PUBLIC_ENABLE_CLOUD_AUTH=false` |
 
-Documentación de módulos:
+### Módulos principales (`src/modules/`)
 
+| Módulo | Rol |
+|--------|-----|
+| `device/` | ESP32, WebSocket, calibración, estimación de volumen |
+| `session/` | Terapia, sesión, intentos, juego, persistencia, desbloqueo de niveles |
+| `diagnostics/` | Evaluación inicial (VIM) y generación de niveles personalizados |
+| `history/` | Historial y agregados |
+| `export/` | Exportación clínica y técnica |
+| `legal/` | Consentimiento y documentos legales |
+| `notifications/` | Recordatorios locales |
+| `patient/` | Perfil, preferencias, sesión de paciente |
+| `home/`, `levels/`, `summary/` | Inicio, selección de niveles, resumen post-sesión |
+| `auth/`, `onboarding/` | Acceso y bienvenida |
+
+Documentación de módulos y arquitectura:
+
+- [Overview del producto](docs/00-overview/README.md)
+- [Índice de arquitectura](docs/01-app-architecture/README.md)
+- [Arquitectura técnica](src/docs/architecture.md)
+- [Seguridad clínica y lenguaje](docs/08-clinical-safety/README.md)
+- [Dispositivo y sensor](docs/04-device-and-sensor/README.md)
+- [Calibración (índice central)](docs/05-calibration/README.md)
+- [Datos y almacenamiento](docs/06-data-and-storage/README.md)
+- [Design system / tipografía](docs/07-ui-design-system/README.md)
 - [Módulo device (sensor)](src/modules/device/README.md)
 - [Módulo session (terapia)](src/modules/session/README.md)
-- [Flujo del sensor](docs/sensor-flow.md)
-- [Calibración](docs/calibration/README.md)
+- [Flujo del sensor (legacy)](docs/sensor-flow.md) · [versión central](docs/04-device-and-sensor/sensor-flow.md)
+- [Calibración (legacy)](docs/calibration/README.md)
 - [Auditoría técnica sensor / ESP32 / calibración (mayo 2026)](docs/AUDITORIA-TECNICA-SENSOR-ESP32.md)
 
 ---
@@ -117,6 +162,40 @@ Detalle paso a paso: [docs/sensor-flow.md](docs/sensor-flow.md).
 | 2. Terapia y sesión | `/(tabs)/terapia` → `/(tabs)/sesion` |
 | 3. Historial / exportación | `/(tabs)/historial`, `/(tabs)/resumen`, `/data-export` |
 | Calibración técnica (solo flag) | `/sensor-calibration` |
+
+---
+
+## Flujo general del usuario (local-first)
+
+```mermaid
+flowchart TD
+  A[Arranque app/index.tsx] --> B{¿Paciente local?}
+  B -->|No| C[/auth/local-profile]
+  B -->|Sí| D[/(tabs) Inicio]
+  C --> E[/legal/accept]
+  E --> D
+  D --> F{¿Evaluación inicial?}
+  F -->|No| G[/diagnostico]
+  G --> H[/diagnostico-resumen]
+  H --> I[/(tabs)/terapia]
+  F -->|Sí| J{¿Sensor + calibración listos?}
+  J -->|Sí| K[/(tabs)/sesion sensor]
+  J -->|No + touch habilitado| L[/(tabs)/sesion touch_practice]
+  K --> M[/(tabs)/resumen]
+  M --> N[/(tabs)/historial]
+  D --> O[/data-export]
+```
+
+| Etapa | Requisito principal |
+|-------|---------------------|
+| Perfil local | Crear paciente en `/auth/local-profile` |
+| Consentimiento | Activo para tabs al arranque (`app/index.tsx`) y para Terapia, Historial, sensor, export, notificaciones |
+| Evaluación inicial | `hasDiagnostic()` para CTAs de terapia |
+| Sesión oficial | Sensor conectado, calibración RESPIRA+ 3000 mL, readiness OK |
+| Desbloqueo de nivel | 6 sesiones **perfectas** acumuladas con sensor en nivel activo |
+| Práctica táctil | Flag env + preferencia en Perfil; **no desbloquea** niveles |
+
+**Nota:** en cloud, retiro de consentimiento con misma versión de documento puede no redirigir al arranque (`needsConsent()` vs `isConsentActive()`) — **requiere revisión manual**.
 
 ---
 
@@ -190,14 +269,15 @@ Hook central: **`useActiveVolumeEstimate`** (`src/modules/device/volume-estimati
 
 ## Terapia y sesión
 
-| Modo | `inputMode` | `dataSource` | Validación oficial |
-|------|-------------|--------------|-------------------|
-| Sensor (por defecto) | `sensor` | `sensor_model` | `lowerBoundMl >= target` (conservador) + tiempo sostenido |
-| Práctica táctil | `touch_practice` | `touch_simulation` | Simulación táctil; no mezclar con métricas de sensor |
+| Modo | `inputMode` | `dataSource` | Validación oficial | Desbloqueo niveles |
+|------|-------------|--------------|-------------------|-------------------|
+| Sensor (oficial) | `sensor` | `sensor_model` | `lowerBoundMl >= target` (conservador) + tiempo sostenido | Sí, si sesión perfecta |
+| Práctica táctil | `touch_practice` | `touch_simulation` | Simulación táctil; no mezclar con métricas de sensor | **No** (`persistSessionResult` omite unlock) |
 
 - La **compuerta** al pulsar un nivel ejecuta `evaluateTherapyReadinessOnDemand` (conexión, modelo activo, rango).
-- Con `EXPO_PUBLIC_ENABLE_TOUCH_PRACTICE_MODE=true`, si la compuerta falla puede ofrecerse **“Practicar sin sensor”**.
-- Sesiones de práctica se marcan `is_practice_session: true` y se etiquetan en historial como **Práctica**.
+- Con `EXPO_PUBLIC_ENABLE_TOUCH_PRACTICE_MODE=true` y preferencia activa en Perfil, si no hay transporte sensor puede usarse **práctica táctil** (`resolve-therapy-session-launch.ts`).
+- Sesiones de práctica se marcan `is_practice_session: true` y se etiquetan en historial como **Práctica sin sensor**.
+- La práctica táctil es herramienta de **desarrollo, familiarización o práctica sin hardware**; no debe presentarse como sesión oficial equivalente al sensor.
 
 ---
 
@@ -209,7 +289,9 @@ Hook central: **`useActiveVolumeEstimate`** (`src/modules/device/volume-estimati
 | **Práctica** | `touch_practice` / `is_practice_session` |
 | **Sin clasificar** | Sesiones antiguas sin `input_mode` / `data_source` |
 
-Exportación clínica: `CLINICAL_EXPORT_FORMAT_VERSION = '2.1.0'` — incluye clasificación, volúmenes estimados, U95, estado de intentos con sensor, etc. (`clinical-export-service.ts`, `clinical-csv-exporter.ts`).
+Exportación clínica: `CLINICAL_EXPORT_FORMAT_VERSION = '2.4.0'`, `CLINICAL_EXPORT_SCHEMA_VERSION = '1.0.0'` — incluye paciente, evaluaciones, niveles, sesiones, intentos, clasificación sensor/práctica, volúmenes estimados, trazabilidad de calibración y bloque opcional de calibración (`clinical-export-service.ts`, `clinical-csv-exporter.ts`, `clinical-json-exporter.ts`).
+
+Export CSV técnico de calibración: schema `2.4.0` en `calibration-technical-csv-exporter.ts` (solo con flag técnico).
 
 ---
 
@@ -223,7 +305,8 @@ Copiar `.env.example` → `.env` ( **no subir** `.env` a Git).
 | `EXPO_PUBLIC_ENABLE_OFFLINE_SENSOR_TEST` | `false` | Bypass de consentimiento en rutas de sensor (solo `__DEV__`) |
 | `EXPO_PUBLIC_ENABLE_SENSOR_DEBUG` | `false` | Diagnóstico avanzado: distancia, JSON, laboratorio hardware (solo `__DEV__`) |
 | `EXPO_PUBLIC_ENABLE_TECHNICAL_CALIBRATION` | `false` | Calibración técnica multi-volumen, U95 y export CSV en UI |
-| `EXPO_PUBLIC_ENABLE_TOUCH_PRACTICE_MODE` | `false` | Botón “Practicar sin sensor” en terapia |
+| `EXPO_PUBLIC_ENABLE_TOUCH_PRACTICE_MODE` | `false` | Práctica táctil (Perfil + lanzamiento sin transporte sensor) |
+| `EXPO_PUBLIC_UNLOCK_ALL_LEVELS_FOR_REVIEW` | `false` | Desbloqueo UI de niveles para revisión (`dev-level-flags.ts`; no altera progresión persistida) |
 
 Opcionales para nube (solo si se reactiva auth):
 
@@ -260,10 +343,14 @@ Atajos: `npm run android` · `npm run ios` · `npm run web`.
 | `/(tabs)/sesion` | Sesión activa (barra oculta) |
 | `/(tabs)/historial` | Historial |
 | `/(tabs)/resumen` | Resumen post-sesión |
+| `/profile` | Perfil y configuración |
+| `/auth/local-profile` | Alta de perfil local |
+| `/legal/accept`, `/legal/document` | Consentimiento y documento legal |
+| `/diagnostico`, `/diagnostico-resumen`, `/evaluacion-resumen` | Evaluación inicial |
 | `/sensor-connection` | Conexión global, termómetro de volumen, estado de señal |
-| `/sensor-calibration` | Calibración técnica (solo con flag técnico) |
-| `/profile` | Perfil |
-| `/data-export` | Exportación |
+| `/sensor-calibration` | Calibración (técnica solo con flag) |
+| `/data-export` | Exportación clínica |
+| `/notification-settings` | Recordatorios |
 | `/hardware-lab` | Hub de diagnóstico (según modo) |
 | `/esp32-raw-test` | WebSocket mínimo (solo debug) |
 
@@ -321,10 +408,14 @@ docs/                         # sensor-flow, calibración, Supabase
 
 ## Seguridad, privacidad y límites
 
-- Los **avisos legales**, límites de uso, consentimiento y privacidad se concentran en el **documento legal** (PDF) accesible desde la app (aceptación inicial y Perfil).
-- Las pantallas operativas muestran solo mensajes **funcionales** (sensor, calibración, práctica).
-- **Consentimiento** digital antes de Terapia, Historial y sensor.
+- Los **avisos legales**, límites de uso, consentimiento y privacidad se concentran en el **documento legal** (PDF) accesible desde la app (aceptación inicial y Perfil): `assets/legal/terminos-uso-etico.pdf`.
+- Las pantallas operativas incluyen mensajes de **detener ante dolor, mareo, tos intensa o malestar** (Terapia, Perfil, evaluación inicial).
+- La evaluación inicial y las métricas de sesión **no sustituyen** valoración médica.
+- El volumen mostrado es **estimado**; no interpretarlo como diagnóstico ni estado clínico definitivo.
+- **Consentimiento** digital antes de Terapia, Historial, sensor, exportación y notificaciones.
+- Datos clínicos locales en AsyncStorage; exportación para revisión con profesional de la salud.
 - Supabase en modo desarrollo: leer [docs/supabase-security-notes.md](docs/supabase-security-notes.md).
+- Directrices de lenguaje clínico: [docs/08-clinical-safety/README.md](docs/08-clinical-safety/README.md).
 
 ---
 
@@ -341,10 +432,19 @@ docs/                         # sensor-flow, calibración, Supabase
 
 ## Documentación adicional
 
+- [Overview del producto](docs/00-overview/README.md)
+- [Índice de arquitectura](docs/01-app-architecture/README.md)
+- [Pestañas principales](docs/02-tabs/README.md)
+- [Funciones y flujos](docs/03-features/README.md)
+- [Dispositivo y sensor](docs/04-device-and-sensor/README.md)
+- [Calibración](docs/05-calibration/README.md)
+- [Datos y almacenamiento](docs/06-data-and-storage/README.md)
+- [Seguridad clínica y lenguaje](docs/08-clinical-safety/README.md)
 - [Congelación de nube](README_CLOUD_FREEZE.md)
 - [Seguridad Supabase (desarrollo)](docs/supabase-security-notes.md)
-- [Arquitectura](src/docs/architecture.md)
+- [Arquitectura técnica](src/docs/architecture.md)
 - [Reparto por módulos](src/docs/team-ownership.md)
+- [Términos y condiciones (equipo)](docs/legal/README-terminos-y-condiciones.md)
 
 ## Script `reset-project`
 

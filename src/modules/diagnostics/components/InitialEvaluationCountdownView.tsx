@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
   Easing,
   FadeOut,
@@ -13,6 +13,7 @@ import Animated, {
 
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessColors } from '@/src/shared/theme/wellness-theme';
+import { AppText } from '@/src/shared/ui/AppText';
 
 type InitialEvaluationCountdownViewProps = {
   count: number;
@@ -111,13 +112,17 @@ export function InitialEvaluationCountdownView({ count }: InitialEvaluationCount
 
   return (
     <View style={styles.screen}>
-      <Text style={styles.label}>Comienza en</Text>
+      <AppText variant="titleMedium" style={styles.label}>
+        Comienza en
+      </AppText>
 
       <CountdownDigitWithHalo count={count} digitSize={digitSize} lineHeight={lineHeight} />
 
       <CountdownProgressDots count={count} />
 
-      <Text style={styles.hint}>Prepárate</Text>
+      <AppText variant="bodyLarge" style={styles.hint}>
+        Prepárate
+      </AppText>
     </View>
   );
 }
@@ -131,8 +136,6 @@ const styles = StyleSheet.create({
     backgroundColor: wellnessColors.primarySubtle,
   },
   label: {
-    fontSize: 18,
-    fontWeight: '700',
     color: wellness.textSecondary,
     marginBottom: spacing.lg,
     letterSpacing: 0.2,
@@ -175,7 +178,6 @@ const styles = StyleSheet.create({
   },
   hint: {
     marginTop: spacing.lg,
-    fontSize: 16,
     fontWeight: '600',
     color: wellness.primary,
   },

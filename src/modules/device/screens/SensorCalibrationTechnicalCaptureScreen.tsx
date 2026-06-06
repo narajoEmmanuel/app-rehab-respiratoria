@@ -7,7 +7,6 @@ import {
     Pressable,
     ScrollView,
     StyleSheet,
-    Text,
     TextInput,
     View,
 } from 'react-native';
@@ -77,6 +76,7 @@ import {
     wellnessShadows,
 } from '@/src/shared/theme/wellness-theme';
 import { AppCard } from '@/src/shared/ui/AppCard';
+import { AppText } from '@/src/shared/ui/AppText';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { MetricTile } from '@/src/shared/ui/MetricTile';
 import { SectionHeader } from '@/src/shared/ui/SectionHeader';
@@ -1056,7 +1056,7 @@ export function SensorCalibrationTechnicalCaptureScreen(
 
         <AppCard style={styles.sessionCard}>
           <View style={styles.calibSummaryHeader}>
-            <Text style={styles.calibSummaryTitle}>Sesión en curso</Text>
+            <AppText variant="titleSmall" style={styles.calibSummaryTitle}>Sesión en curso</AppText>
             <StatusPill
               label={
                 savedStatus.kind === 'loading'
@@ -1097,14 +1097,14 @@ export function SensorCalibrationTechnicalCaptureScreen(
             />
           </View>
           {savedStatus.kind === 'saved' && savedStatus.updatedAt && !hasUnsavedChanges ? (
-            <Text style={styles.calibLastUpdated}>
+            <AppText variant="caption" style={styles.calibLastUpdated}>
               Última guardada:{' '}
               {new Date(savedStatus.updatedAt).toLocaleDateString(undefined, {
                 day: '2-digit',
                 month: 'short',
                 year: 'numeric',
               })}
-            </Text>
+            </AppText>
           ) : null}
           {canClearStorage ? (
             <Pressable
@@ -1116,24 +1116,24 @@ export function SensorCalibrationTechnicalCaptureScreen(
               ]}
               accessibilityRole="button"
               accessibilityLabel="Borrar calibración guardada">
-              <Text style={styles.destructiveTextBtnLabelMuted}>Borrar calibración guardada</Text>
+              <AppText variant="bodySmall" style={styles.destructiveTextBtnLabelMuted}>Borrar calibración guardada</AppText>
             </Pressable>
           ) : null}
         </AppCard>
 
-        <Text style={styles.sectionEyebrow}>Identificación</Text>
+        <AppText variant="label" style={styles.sectionEyebrow}>Identificación</AppText>
 
         {spirometerReady && activeSpirometerProfile ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitleStrong}>Espirómetro</Text>
-            <Text style={styles.spirometerDisplayLine}>
+            <AppText variant="titleMedium" style={styles.cardTitleStrong}>Espirómetro</AppText>
+            <AppText variant="titleSmall" style={styles.spirometerDisplayLine}>
               {RESPIRA_SPIROMETER_DISPLAY} · {RESPIRA_SPIROMETER_CAPACITY_ML} mL
-            </Text>
-            <Text style={styles.cardHint}>
+            </AppText>
+            <AppText variant="caption" style={styles.cardHint}>
               Marcas de {activeSpirometerProfile.operativeMinVolumeMl} mL a{' '}
               {activeSpirometerProfile.maxVolumeMl} mL.
-            </Text>
-            <Text style={styles.identFieldLabel}>Fecha de calibración (AAAA-MM-DD)</Text>
+            </AppText>
+            <AppText variant="label" style={styles.identFieldLabel}>Fecha de calibración (AAAA-MM-DD)</AppText>
             <TextInput
               style={styles.identInput}
               value={deviceIdentification.calibrationDateIso}
@@ -1143,7 +1143,7 @@ export function SensorCalibrationTechnicalCaptureScreen(
               }}
               placeholder="2026-06-02"
             />
-            <Text style={styles.identFieldLabel}>Operador</Text>
+            <AppText variant="label" style={styles.identFieldLabel}>Operador</AppText>
             <TextInput
               style={styles.identInput}
               value={deviceIdentification.calibrationOperator ?? ''}
@@ -1156,7 +1156,7 @@ export function SensorCalibrationTechnicalCaptureScreen(
               }}
               placeholder="Nombre del operador"
             />
-            <Text style={styles.identFieldLabel}>Notas</Text>
+            <AppText variant="label" style={styles.identFieldLabel}>Notas</AppText>
             <TextInput
               style={[styles.identInput, styles.identInputMultiline]}
               value={deviceIdentification.technicalNotes ?? ''}
@@ -1172,21 +1172,21 @@ export function SensorCalibrationTechnicalCaptureScreen(
         ) : (
           <View style={styles.card}>
             <ActivityIndicator size="small" color={wellness.primaryDark} />
-            <Text style={styles.cardHint}>Preparando sesión…</Text>
+            <AppText variant="caption" style={styles.cardHint}>Preparando sesión…</AppText>
           </View>
         )}
 
-        <Text style={styles.sectionEyebrow}>Medición</Text>
+        <AppText variant="label" style={styles.sectionEyebrow}>Medición</AppText>
 
         {isRetakeMode && retakeVolumeMl !== null ? (
           <View style={styles.retakeBanner}>
-            <Text style={styles.retakeBannerTitle}>Repitiendo {retakeVolumeMl} mL</Text>
-            <Text style={styles.retakeBannerBody}>
+            <AppText variant="titleMedium" style={styles.retakeBannerTitle}>Repitiendo {retakeVolumeMl} mL</AppText>
+            <AppText variant="bodySmall" style={styles.retakeBannerBody}>
               Captura {MIN_REPETITIONS_PER_REQUIRED_VOLUME} mediciones válidas para reemplazar el bloque anterior.
-            </Text>
-            <Text style={styles.retakeBannerProgress}>
+            </AppText>
+            <AppText variant="statusValue" style={styles.retakeBannerProgress}>
               Progreso: {retakeDraftPoints.length} / {MIN_REPETITIONS_PER_REQUIRED_VOLUME}
-            </Text>
+            </AppText>
             {retakeDraftPoints.length === MIN_REPETITIONS_PER_REQUIRED_VOLUME ? (
               <Pressable
                 style={({ pressed }) => [styles.primaryBtn, pressed && styles.primaryBtnPressed, styles.retakeBtn]}
@@ -1195,7 +1195,7 @@ export function SensorCalibrationTechnicalCaptureScreen(
                 }}
                 accessibilityRole="button"
                 accessibilityLabel="Reemplazar mediciones anteriores">
-                <Text style={styles.primaryBtnText}>Reemplazar mediciones anteriores</Text>
+                <AppText variant="button" style={styles.primaryBtnText}>Reemplazar mediciones anteriores</AppText>
               </Pressable>
             ) : null}
             <Pressable
@@ -1205,7 +1205,7 @@ export function SensorCalibrationTechnicalCaptureScreen(
               }}
               accessibilityRole="button"
               accessibilityLabel="Cancelar repetición">
-              <Text style={styles.secondaryBtnText}>Cancelar repetición</Text>
+              <AppText variant="button" style={styles.secondaryBtnText}>Cancelar repetición</AppText>
             </Pressable>
           </View>
         ) : null}
@@ -1218,8 +1218,8 @@ export function SensorCalibrationTechnicalCaptureScreen(
               size="sm"
             />
           </View>
-          <Text style={styles.cardTitleStrong}>Volumen objetivo</Text>
-          <Text style={styles.cardSubTitleStrong}>Valor objetivo para registrar el siguiente punto (mL)</Text>
+          <AppText variant="titleMedium" style={styles.cardTitleStrong}>Volumen objetivo</AppText>
+          <AppText variant="bodySmall" style={styles.cardSubTitleStrong}>Valor objetivo para registrar el siguiente punto (mL)</AppText>
           <TextInput
             value={volumeInput}
             onChangeText={setVolumeInput}
@@ -1230,14 +1230,14 @@ export function SensorCalibrationTechnicalCaptureScreen(
             placeholderTextColor={wellness.textSecondary}
           />
           {isRetakeMode ? (
-            <Text style={styles.cardHint}>
+            <AppText variant="caption" style={styles.cardHint}>
               Volumen fijado durante repetir volumen. Termina o cancela la repetición para editar otro valor.
-            </Text>
+            </AppText>
           ) : null}
-          <Text style={styles.chipsGroupLabel}>
+          <AppText variant="chipSmall" style={styles.chipsGroupLabel}>
             Rango recomendado · {activeSpirometerProfile?.recommendedMinVolumeMl ?? 500}–
             {activeSpirometerProfile?.recommendedMaxVolumeMl ?? 3000} mL
-          </Text>
+          </AppText>
           <View style={styles.chipsRow}>
             {recommendedVolumeChips.map((v) => (
               <Pressable
@@ -1254,16 +1254,16 @@ export function SensorCalibrationTechnicalCaptureScreen(
                 }}
                 accessibilityRole="button"
                 accessibilityLabel={`Volumen objetivo ${v} mililitros (rango recomendado)`}>
-                <Text style={styles.chipText}>{v}</Text>
+                <AppText variant="chip" style={styles.chipText}>{v}</AppText>
               </Pressable>
             ))}
           </View>
           {extendedVolumeChips.length > 0 && activeSpirometerProfile ? (
             <>
-              <Text style={styles.chipsGroupLabelMuted}>
+              <AppText variant="chipSmall" style={styles.chipsGroupLabelMuted}>
                 Rango extendido · {getExtendedRangeMinVolumeMl(activeSpirometerProfile)}–
                 {activeSpirometerProfile.extendedMaxVolumeMl} mL
-              </Text>
+              </AppText>
               <View style={styles.chipsRow}>
                 {extendedVolumeChips.map((v) => (
                   <Pressable
@@ -1281,7 +1281,7 @@ export function SensorCalibrationTechnicalCaptureScreen(
                     }}
                     accessibilityRole="button"
                     accessibilityLabel={`Volumen objetivo ${v} mililitros (rango extendido)`}>
-                    <Text style={[styles.chipText, styles.chipTextExtended]}>{v}</Text>
+                    <AppText variant="chip" style={[styles.chipText, styles.chipTextExtended]}>{v}</AppText>
                   </Pressable>
                 ))}
               </View>
@@ -1289,7 +1289,7 @@ export function SensorCalibrationTechnicalCaptureScreen(
           ) : null}
           <View style={styles.registerActionBlock}>
             <View style={styles.rangeHelperSlot}>
-              <Text
+              <AppText variant="bodySmall"
                 style={
                   registerHelperMessage
                     ? registerHelperIsBlock
@@ -1300,7 +1300,7 @@ export function SensorCalibrationTechnicalCaptureScreen(
                 numberOfLines={2}
                 ellipsizeMode="tail">
                 {registerHelperMessage ?? ' '}
-              </Text>
+              </AppText>
             </View>
             <Pressable
               style={({ pressed }) => [
@@ -1310,51 +1310,51 @@ export function SensorCalibrationTechnicalCaptureScreen(
               ]}
               onPress={onRegister}
               disabled={!canRegister || isRegistering}>
-              <Text
+              <AppText variant="button"
                 style={[
                   styles.primaryBtnText,
                   (!canRegister || isRegistering) && styles.primaryBtnTextDisabled,
                 ]}>
                 {isRegistering ? 'Registrando…' : 'Registrar punto'}
-              </Text>
+              </AppText>
             </Pressable>
           </View>
         </View>
 
-        <Text style={styles.sectionEyebrow}>Progreso</Text>
+        <AppText variant="label" style={styles.sectionEyebrow}>Progreso</AppText>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Progreso de la sesión</Text>
+          <AppText variant="titleMedium" style={styles.cardTitleStrong}>Progreso de la sesión</AppText>
           {captureProgressSummary.hasPoints ? (
             <>
-              <Text style={styles.captureProgressLine}>
+              <AppText variant="bodyMedium" style={styles.captureProgressLine}>
                 Volúmenes registrados: {captureProgressSummary.volumesLabel}
-              </Text>
-              <Text style={styles.captureProgressLine}>
+              </AppText>
+              <AppText variant="bodyMedium" style={styles.captureProgressLine}>
                 Repeticiones capturadas: {captureProgressSummary.totalRepetitions}
-              </Text>
+              </AppText>
               {captureProgressSummary.lastVolumeMl !== null ? (
-                <Text style={styles.captureProgressLine}>
+                <AppText variant="bodyMedium" style={styles.captureProgressLine}>
                   Último volumen registrado: {captureProgressSummary.lastVolumeMl} mL
-                </Text>
+                </AppText>
               ) : null}
             </>
           ) : (
-            <Text style={styles.emptyText}>
+            <AppText variant="bodyMedium" style={styles.emptyText}>
               Aún no hay mediciones. Conecta el sensor, valida la señal y registra el primer punto.
-            </Text>
+            </AppText>
           )}
-          <Text style={styles.captureProgressFootnote}>
+          <AppText variant="caption" style={styles.captureProgressFootnote}>
             Los datos completos se incluirán en el archivo técnico de calibración.
-          </Text>
+          </AppText>
         </View>
 
         {showPreliminaryResult && linearModel ? (
           <>
-            <Text style={styles.sectionEyebrow}>Resultado preliminar</Text>
+            <AppText variant="label" style={styles.sectionEyebrow}>Resultado preliminar</AppText>
             <View style={styles.card}>
               <View style={styles.preliminaryHeader}>
-                <Text style={styles.cardTitleStrong}>Modelo lineal</Text>
+                <AppText variant="titleMedium" style={styles.cardTitleStrong}>Modelo lineal</AppText>
                 <StatusPill
                   label={preliminaryReadyLabel}
                   tone={preliminaryReadyTone}
@@ -1364,12 +1364,12 @@ export function SensorCalibrationTechnicalCaptureScreen(
               {linearModel.status === 'valid' &&
               linearModel.coefficients.slope !== undefined &&
               linearModel.coefficients.intercept !== undefined ? (
-                <Text style={styles.preliminaryEquation}>
+                <AppText variant="bodySmall" style={styles.preliminaryEquation}>
                   V = {formatSlope(linearModel.coefficients.slope)} × distancia −{' '}
                   {formatIntercept(Math.abs(linearModel.coefficients.intercept))} mL
-                </Text>
+                </AppText>
               ) : (
-                <Text style={styles.cardHint}>{modelStatusLabel(linearModel.status)}</Text>
+                <AppText variant="caption" style={styles.cardHint}>{modelStatusLabel(linearModel.status)}</AppText>
               )}
               <View style={styles.preliminaryStatsRow}>
                 <MetricTile
@@ -1417,34 +1417,34 @@ export function SensorCalibrationTechnicalCaptureScreen(
                 />
               </View>
               {!canActivateRecommendedModel && activationBlockReason ? (
-                <Text style={styles.cardHint}>{activationBlockReason}</Text>
+                <AppText variant="caption" style={styles.cardHint}>{activationBlockReason}</AppText>
               ) : null}
               {activeModelIsStale && activeCalibrationModel ? (
-                <Text style={styles.cardHint}>
+                <AppText variant="caption" style={styles.cardHint}>
                   El modelo activo no coincide con la calibración guardada. Usa «Guardar y activar» para
                   actualizarlo.
-                </Text>
+                </AppText>
               ) : null}
             </View>
           </>
         ) : null}
 
-        <Text style={styles.sectionEyebrow}>Revisión de calibración</Text>
-        <Text style={styles.sectionIntro}>
+        <AppText variant="label" style={styles.sectionEyebrow}>Revisión de calibración</AppText>
+        <AppText variant="bodySmall" style={styles.sectionIntro}>
           Consulta el estado técnico antes de guardar y activar.
-        </Text>
+        </AppText>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Protocolo de calibración</Text>
+          <AppText variant="titleMedium" style={styles.cardTitleStrong}>Protocolo de calibración</AppText>
           {points.length === 0 ? (
-            <Text style={styles.cardHint}>
+            <AppText variant="caption" style={styles.cardHint}>
               El protocolo se completa conforme captures puntos.
-            </Text>
+            </AppText>
           ) : (
             <>
-              <Text style={styles.cardHint}>
+              <AppText variant="caption" style={styles.cardHint}>
                 Revisión rápida de los puntos necesarios para activar.
-              </Text>
+              </AppText>
               <View style={styles.preliminaryStatsRow}>
                 <MetricTile
                   label="Puntos válidos"
@@ -1470,30 +1470,30 @@ export function SensorCalibrationTechnicalCaptureScreen(
                 />
               </View>
               {coverage?.coveredMinMl != null && coverage.coveredMaxMl != null ? (
-                <Text style={styles.summaryLine}>
+                <AppText variant="bodySmall" style={styles.summaryLine}>
                   Rango calibrado: {coverage.coveredMinMl}–{coverage.coveredMaxMl} mL · Recomendado
                   cubierto: {coverage.coversRecommended ? 'Sí' : 'No'}
-                </Text>
+                </AppText>
               ) : null}
               {requiredCoverage.missingRequiredVolumes.length > 0 ? (
-                <Text style={styles.warnHint}>
+                <AppText variant="bodySmall" style={styles.warnHint}>
                   Faltan mediciones en:{' '}
                   {requiredCoverage.missingRequiredVolumes.map((v) => `${v}`).join(', ')} mL.
-                </Text>
+                </AppText>
               ) : null}
               {requiredCoverage.requiredVolumesWithLowRepetitions.length > 0 ? (
-                <Text style={styles.warnHint}>
+                <AppText variant="bodySmall" style={styles.warnHint}>
                   Repeticiones insuficientes en:{' '}
                   {requiredCoverage.requiredVolumesWithLowRepetitions.map((v) => `${v}`).join(', ')}{' '}
                   mL.
-                </Text>
+                </AppText>
               ) : null}
             </>
           )}
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Incertidumbre resumida</Text>
+          <AppText variant="titleMedium" style={styles.cardTitleStrong}>Incertidumbre resumida</AppText>
           {uncertaintyHasData && uncertaintySummary && recommendation ? (
             <>
               <View style={styles.preliminaryStatsRow}>
@@ -1528,34 +1528,34 @@ export function SensorCalibrationTechnicalCaptureScreen(
                   size="compact"
                 />
               </View>
-              <Text style={styles.cardHint}>
+              <AppText variant="caption" style={styles.cardHint}>
                 El detalle por volumen se conserva en el CSV técnico.
-              </Text>
+              </AppText>
             </>
           ) : (
-            <Text style={styles.cardHint}>
+            <AppText variant="caption" style={styles.cardHint}>
               La incertidumbre se calcula cuando hay suficientes puntos.
-            </Text>
+            </AppText>
           )}
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitleStrong}>Repetibilidad</Text>
+          <AppText variant="titleMedium" style={styles.cardTitleStrong}>Repetibilidad</AppText>
           {!repeatability.hasPoints ? (
-            <Text style={styles.cardHint}>
+            <AppText variant="caption" style={styles.cardHint}>
               La repetibilidad se evaluará conforme captures más mediciones.
-            </Text>
+            </AppText>
           ) : repeatabilityConcernVolumes.length === 0 ? (
-            <Text style={styles.cardHint}>Las mediciones capturadas son consistentes.</Text>
+            <AppText variant="caption" style={styles.cardHint}>Las mediciones capturadas son consistentes.</AppText>
           ) : (
             <View style={styles.rowGap}>
               {repeatabilityConcernVolumes.map((row) => (
                 <View key={`rep-concern-${row.volumeMl}`} style={styles.repeatabilityActionRow}>
                   <View style={styles.repeatabilityActionInfo}>
-                    <Text style={styles.repeatabilityActionVolume}>{row.volumeMl} mL</Text>
-                    <Text style={styles.repeatabilityActionLabel}>
+                    <AppText variant="statusValue" style={styles.repeatabilityActionVolume}>{row.volumeMl} mL</AppText>
+                    <AppText variant="caption" style={styles.repeatabilityActionLabel}>
                       {row.warningLevel === 'high' ? 'Variación alta' : 'Variación moderada'}
-                    </Text>
+                    </AppText>
                   </View>
                   {row.warningLevel === 'high' && !isRetakeMode ? (
                     <Pressable
@@ -1568,12 +1568,12 @@ export function SensorCalibrationTechnicalCaptureScreen(
                       }}
                       accessibilityRole="button"
                       accessibilityLabel={`Repetir volumen ${row.volumeMl} mililitros`}>
-                      <Text style={styles.repetRepeatBtnText}>Repetir {row.volumeMl} mL</Text>
+                      <AppText variant="chipSmall" style={styles.repetRepeatBtnText}>Repetir {row.volumeMl} mL</AppText>
                     </Pressable>
                   ) : row.warningLevel === 'high' &&
                     isRetakeMode &&
                     retakeVolumeMl === row.volumeMl ? (
-                    <Text style={styles.repetActionMuted}>En curso</Text>
+                    <AppText variant="caption" style={styles.repetActionMuted}>En curso</AppText>
                   ) : null}
                 </View>
               ))}
@@ -1581,10 +1581,10 @@ export function SensorCalibrationTechnicalCaptureScreen(
           )}
         </View>
 
-        <Text style={styles.sectionEyebrow}>Finalizar</Text>
-        <Text style={styles.sectionIntro}>
+        <AppText variant="label" style={styles.sectionEyebrow}>Finalizar</AppText>
+        <AppText variant="bodySmall" style={styles.sectionIntro}>
           Guarda la calibración o exporta el archivo técnico.
-        </Text>
+        </AppText>
 
         <View style={styles.card}>
           <View style={styles.finalizeActions}>
@@ -1600,10 +1600,10 @@ export function SensorCalibrationTechnicalCaptureScreen(
               disabled={!canSaveAndActivate}
               accessibilityRole="button"
               accessibilityLabel="Guardar y activar calibración">
-              <Text
+              <AppText variant="button"
                 style={[styles.primaryBtnText, !canSaveAndActivate && styles.btnTextDisabled]}>
                 Guardar y activar
-              </Text>
+              </AppText>
             </Pressable>
             <Pressable
               onPress={() => void handleExportCalibrationTechnical()}
@@ -1615,10 +1615,10 @@ export function SensorCalibrationTechnicalCaptureScreen(
               disabled={!canExportTechnicalCsv}
               accessibilityRole="button"
               accessibilityLabel="Descargar CSV técnico de calibración">
-              <Text
+              <AppText variant="button"
                 style={[styles.secondaryBtnText, !canExportTechnicalCsv && styles.btnTextDisabled]}>
                 Descargar CSV técnico
-              </Text>
+              </AppText>
             </Pressable>
             <Pressable
               onPress={() => void onCancelCalibrationInProgress()}
@@ -1631,31 +1631,31 @@ export function SensorCalibrationTechnicalCaptureScreen(
               accessibilityRole="button"
               accessibilityLabel="Borrar calibración en curso"
               accessibilityState={{ disabled: !canCancelCalibrationInProgress }}>
-              <Text
+              <AppText variant="button"
                 style={[
                   styles.dangerBtnText,
                   !canCancelCalibrationInProgress && styles.btnTextDisabled,
                 ]}>
                 Borrar calibración en curso
-              </Text>
+              </AppText>
             </Pressable>
           </View>
         </View>
 
-        {storageMessage ? <Text style={styles.finalizeStatusHint}>{storageMessage}</Text> : null}
+        {storageMessage ? <AppText variant="caption" style={styles.finalizeStatusHint}>{storageMessage}</AppText> : null}
 
         {saveSuccessVisible ? (
           <View style={styles.saveSuccessBanner} accessibilityRole="alert">
-            <Text style={styles.saveSuccessTitle}>Calibración guardada y activada correctamente.</Text>
-            <Text style={styles.saveSuccessHint}>
+            <AppText variant="button" style={styles.saveSuccessTitle}>Calibración guardada y activada correctamente.</AppText>
+            <AppText variant="bodySmall" style={styles.saveSuccessHint}>
               Puedes descargar el CSV técnico cuando quieras; no es necesario guardar antes.
-            </Text>
+            </AppText>
             <Pressable
               onPress={() => setSaveSuccessVisible(false)}
               style={({ pressed }) => [styles.saveSuccessDismiss, pressed && styles.saveSuccessDismissPressed]}
               accessibilityRole="button"
               accessibilityLabel="Cerrar mensaje de éxito">
-              <Text style={styles.saveSuccessDismissText}>Entendido</Text>
+              <AppText variant="link" style={styles.saveSuccessDismissText}>Entendido</AppText>
             </Pressable>
           </View>
         ) : null}

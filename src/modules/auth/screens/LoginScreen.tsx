@@ -16,7 +16,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from 'react-native';
@@ -29,6 +28,7 @@ import { getPatientByClave, normalizeClave } from '@/src/modules/patient/patient
 import { getErrorMessage } from '@/src/shared/utils/get-error-message';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
+import { AppText } from '@/src/shared/ui/AppText';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 
@@ -112,7 +112,7 @@ function LoginHeader({ onBack }: { onBack: () => void }) {
           <View style={styles.headerLogoCircle}>
             <Image source={LOGO_SOURCE} style={styles.headerLogoImage} resizeMode="contain" />
           </View>
-          <Text style={styles.headerBrandText}>RESPIRA+</Text>
+          <AppText variant="titleLarge" style={styles.headerBrandText}>RESPIRA+</AppText>
         </View>
       </View>
     </View>
@@ -177,16 +177,16 @@ export function LoginScreen() {
           <View style={styles.page}>
             <View style={styles.contentMain}>
               <View style={styles.titleBlock}>
-                <Text style={styles.title} accessibilityRole="header">
+                <AppText variant="titleLarge" style={styles.title} accessibilityRole="header">
                   Acceso con tu clave
-                </Text>
-                <Text style={styles.subtitle}>
+                </AppText>
+                <AppText variant="bodyLarge" style={styles.subtitle}>
                   Escribe la clave que recibiste al registrarte.
-                </Text>
+                </AppText>
               </View>
 
               <View style={styles.formCard}>
-                <Text style={styles.fieldLabel}>Tu clave</Text>
+                <AppText variant="bodySmall" style={styles.fieldLabel}>Tu clave</AppText>
                 <TextInput
                   style={[styles.input, notFound && styles.inputError]}
                   value={clave}
@@ -205,16 +205,16 @@ export function LoginScreen() {
 
               {notFound ? (
                 <View style={styles.notice} accessibilityRole="alert">
-                  <Text style={styles.noticeTitle}>Clave no encontrada</Text>
-                  <Text style={styles.noticeBody}>
+                  <AppText variant="titleSmall" style={styles.noticeTitle}>Clave no encontrada</AppText>
+                  <AppText variant="bodyMedium" style={styles.noticeBody}>
                     Revisa que esté escrita correctamente o crea un nuevo perfil.
-                  </Text>
+                  </AppText>
                   <Pressable
                     style={({ pressed }) => [styles.noticeLink, pressed && styles.pressed]}
                     onPress={goToCreateProfile}
                     accessibilityRole="button"
                     accessibilityLabel="Ir a crear perfil">
-                    <Text style={styles.noticeLinkText}>Ir a crear perfil</Text>
+                    <AppText variant="link" style={styles.noticeLinkText}>Ir a crear perfil</AppText>
                   </Pressable>
                 </View>
               ) : null}
@@ -227,9 +227,9 @@ export function LoginScreen() {
                 <View style={styles.securityIconWrap}>
                   <IconSymbol name="lock.fill" size={14} color={wellness.primaryDark} />
                 </View>
-                <Text style={styles.securityText}>
+                <AppText variant="caption" style={styles.securityText}>
                   Tu clave mantiene tu perfil seguro en este dispositivo.
-                </Text>
+                </AppText>
               </View>
 
               <Pressable
@@ -251,21 +251,21 @@ export function LoginScreen() {
                   {loading ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <Text style={[styles.btnPrimaryText, !canSubmit && styles.btnPrimaryTextDisabled]}>
+                    <AppText variant="button" style={[styles.btnPrimaryText, !canSubmit && styles.btnPrimaryTextDisabled]}>
                       Iniciar sesión
-                    </Text>
+                    </AppText>
                   )}
                 </LinearGradient>
               </Pressable>
 
               <View style={styles.footerCreate}>
-                <Text style={styles.footerHint}>¿Primera vez en RESPIRA+?</Text>
+                <AppText variant="bodyMedium" style={styles.footerHint}>¿Primera vez en RESPIRA+?</AppText>
                 <Pressable
                   style={({ pressed }) => [styles.footerLink, pressed && styles.pressed]}
                   onPress={goToCreateProfile}
                   accessibilityRole="button"
                   accessibilityLabel="Crear perfil">
-                  <Text style={styles.footerLinkText}>Crear perfil</Text>
+                  <AppText variant="bodyLarge" style={styles.footerLinkText}>Crear perfil</AppText>
                 </Pressable>
               </View>
             </View>

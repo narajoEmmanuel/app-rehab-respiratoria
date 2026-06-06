@@ -5,11 +5,12 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, Switch, Text, View } from 'react-native';
+import { StyleSheet, Switch, View } from 'react-native';
 
 import { reminderUi } from '@/src/modules/notifications/components/reminder-ui-tokens';
 import { formatIntervalLabel } from '@/src/modules/notifications/notification-settings.types';
-import { wellness, wellnessShadows, wellnessTypography } from '@/src/shared/theme/wellness-theme';
+import { AppText } from '@/src/shared/ui/AppText';
+import { wellness, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 
 export type ReminderHeroCardProps = {
   enabled: boolean;
@@ -44,9 +45,9 @@ export function ReminderHeroCard({
         style={StyleSheet.absoluteFill}
       />
       <View style={styles.headerRow}>
-        <Text style={styles.cardLabel}>
+        <AppText variant="bodyMedium" style={styles.cardLabel}>
           {enabled ? 'Recordatorios activos' : 'Recordatorios pausados'}
-        </Text>
+        </AppText>
         <Switch
           accessibilityLabel="Activar recordatorios"
           value={enabled}
@@ -67,11 +68,19 @@ export function ReminderHeroCard({
           />
         </View>
         <View style={styles.copy}>
-          <Text style={[styles.heroMetric, !enabled && styles.heroMetricMuted]}>
+          <AppText
+            variant="metricLarge"
+            style={[styles.heroMetric, !enabled && styles.heroMetricMuted]}>
             Cada {intervalLabel}
-          </Text>
-          <Text style={styles.heroSub}>Durante tu horario despierto</Text>
-          <Text style={[styles.badgeText, !enabled && styles.badgeTextMuted]}>{badgeLabel}</Text>
+          </AppText>
+          <AppText variant="bodyMedium" style={styles.heroSub}>
+            Durante tu horario despierto
+          </AppText>
+          <AppText
+            variant="bodyMedium"
+            style={[styles.badgeText, !enabled && styles.badgeTextMuted]}>
+            {badgeLabel}
+          </AppText>
         </View>
       </View>
     </View>
@@ -98,7 +107,6 @@ const styles = StyleSheet.create({
     minHeight: 32,
   },
   cardLabel: {
-    ...wellnessTypography.body,
     fontWeight: '600',
     color: reminderUi.textSecondary,
   },
@@ -124,19 +132,16 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   heroMetric: {
-    ...wellnessTypography.metricLarge,
     color: reminderUi.teal,
   },
   heroMetricMuted: {
     color: reminderUi.textSecondary,
   },
   heroSub: {
-    ...wellnessTypography.body,
     color: reminderUi.textSecondary,
     alignSelf: 'stretch',
   },
   badgeText: {
-    ...wellnessTypography.body,
     fontWeight: '600',
     color: reminderUi.tealDark,
     alignSelf: 'stretch',
