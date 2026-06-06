@@ -49,13 +49,9 @@ const CHECK_LABELS: readonly string[] = [
   'Entiendo que puedo retirar mi consentimiento en cualquier momento.',
 ];
 
-const MASTER_CHECK_LABEL = 'He leído y acepto todos los documentos anteriores.';
+const MASTER_CHECK_LABEL = 'He leído y acepto los términos y condiciones de uso.';
 
-const DOCUMENT_BLOCKS = [
-  { id: 'terms', title: 'Términos y condiciones de uso' },
-  { id: 'consent', title: 'Consentimiento informado' },
-  { id: 'privacy', title: 'Aviso de privacidad' },
-] as const;
+const DOCUMENT_BLOCKS = [{ id: 'terms', title: 'Términos y condiciones de uso' }] as const;
 
 const BTN_GRADIENT_ACTIVE = ['#45BDB7', '#34ABA5', '#1F7E7A'] as const;
 const BTN_GRADIENT_DISABLED = ['#9DD9D2', '#8BCEC6', '#7ABFB8'] as const;
@@ -176,77 +172,79 @@ function LegalAcceptContent({
               </AppText>
             </View>
 
-            <View style={styles.documentsCard}>
-              {DOCUMENT_BLOCKS.map((doc, index) => (
-                <View key={doc.id}>
-                  <Pressable
-                    style={({ pressed }) => [styles.docRow, pressed && styles.docRowPressed]}
-                    onPress={onOpenDocument}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Abrir ${doc.title}`}>
-                    <View style={styles.docIconWrap}>
-                      <IconSymbol
-                        name="doc.text.fill"
-                        size={20}
-                        color={wellness.primaryDark}
-                      />
-                    </View>
-                    <AppText variant="bodyLarge" style={styles.docTitle}>
-                      {doc.title}
-                    </AppText>
-                    <IconSymbol name="chevron.right" size={18} color={wellnessColors.textMuted} />
-                  </Pressable>
-                  {index < DOCUMENT_BLOCKS.length - 1 ? <View style={styles.docDivider} /> : null}
-                </View>
-              ))}
-            </View>
+            <View style={styles.legalContentBlock}>
+              <View style={styles.documentsCard}>
+                {DOCUMENT_BLOCKS.map((doc, index) => (
+                  <View key={doc.id}>
+                    <Pressable
+                      style={({ pressed }) => [styles.docRow, pressed && styles.docRowPressed]}
+                      onPress={onOpenDocument}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Abrir ${doc.title}`}>
+                      <View style={styles.docIconWrap}>
+                        <IconSymbol
+                          name="doc.text.fill"
+                          size={20}
+                          color={wellness.primaryDark}
+                        />
+                      </View>
+                      <AppText variant="bodyLarge" style={styles.docTitle}>
+                        {doc.title}
+                      </AppText>
+                      <IconSymbol name="chevron.right" size={18} color={wellnessColors.textMuted} />
+                    </Pressable>
+                    {index < DOCUMENT_BLOCKS.length - 1 ? <View style={styles.docDivider} /> : null}
+                  </View>
+                ))}
+              </View>
 
-            <View style={styles.masterCheckCard}>
+              <View style={styles.masterCheckCard}>
+                <Pressable
+                  style={styles.checkRow}
+                  onPress={onToggleMaster}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: masterChecked }}>
+                  <View style={[styles.checkbox, masterChecked && styles.checkboxOn]}>
+                    {masterChecked ? (
+                      <AppText variant="chip" style={styles.checkMark}>
+                        ✓
+                      </AppText>
+                    ) : null}
+                  </View>
+                  <AppText variant="bodyMedium" style={styles.checkLabel}>
+                    {MASTER_CHECK_LABEL}
+                  </AppText>
+                </Pressable>
+              </View>
+
               <Pressable
-                style={styles.checkRow}
-                onPress={onToggleMaster}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: masterChecked }}>
-                <View style={[styles.checkbox, masterChecked && styles.checkboxOn]}>
-                  {masterChecked ? (
-                    <AppText variant="chip" style={styles.checkMark}>
-                      ✓
+                style={({ pressed }) => [
+                  styles.btnPrimaryWrap,
+                  !canSubmit && styles.btnPrimaryWrapDisabled,
+                  pressed && canSubmit && styles.pressed,
+                ]}
+                onPress={onAccept}
+                disabled={!canSubmit}
+                accessibilityRole="button"
+                accessibilityLabel="Aceptar y continuar">
+                <LinearGradient
+                  colors={canSubmit ? BTN_GRADIENT_ACTIVE : BTN_GRADIENT_DISABLED}
+                  locations={[0, 0.45, 1]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.btnPrimaryGradient}>
+                  {busy ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <AppText
+                      variant="button"
+                      style={[styles.btnPrimaryText, !canSubmit && styles.btnPrimaryTextDisabled]}>
+                      Aceptar y continuar
                     </AppText>
-                  ) : null}
-                </View>
-                <AppText variant="bodyMedium" style={styles.checkLabel}>
-                  {MASTER_CHECK_LABEL}
-                </AppText>
+                  )}
+                </LinearGradient>
               </Pressable>
             </View>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.btnPrimaryWrap,
-                !canSubmit && styles.btnPrimaryWrapDisabled,
-                pressed && canSubmit && styles.pressed,
-              ]}
-              onPress={onAccept}
-              disabled={!canSubmit}
-              accessibilityRole="button"
-              accessibilityLabel="Aceptar y continuar">
-              <LinearGradient
-                colors={canSubmit ? BTN_GRADIENT_ACTIVE : BTN_GRADIENT_DISABLED}
-                locations={[0, 0.45, 1]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.btnPrimaryGradient}>
-                {busy ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <AppText
-                    variant="button"
-                    style={[styles.btnPrimaryText, !canSubmit && styles.btnPrimaryTextDisabled]}>
-                    Aceptar y continuar
-                  </AppText>
-                )}
-              </LinearGradient>
-            </Pressable>
 
             {allowBack ? (
               <Pressable
@@ -415,10 +413,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 320,
   },
+  legalContentBlock: {
+    marginTop: spacing.xxl,
+    gap: spacing.sm,
+  },
   documentsCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: wellnessRadii.cardLarge,
-    marginBottom: spacing.md,
+    marginBottom: 0,
     borderWidth: 1,
     borderColor: 'rgba(52, 171, 165, 0.18)',
     shadowColor: '#1F7E7A',
@@ -463,7 +465,8 @@ const styles = StyleSheet.create({
     borderRadius: wellnessRadii.cardLarge,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
-    marginBottom: spacing.lg,
+    marginTop: 0,
+    marginBottom: 0,
     borderWidth: 1,
     borderColor: 'rgba(52, 171, 165, 0.18)',
     shadowColor: '#1F7E7A',
@@ -503,6 +506,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   btnPrimaryWrap: {
+    marginTop: spacing.xl,
     borderRadius: wellnessRadii.pill,
     overflow: 'hidden',
     shadowColor: '#1F7E7A',
