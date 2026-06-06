@@ -199,6 +199,21 @@
 - `session/README.md`: excepción tipográfica HUD documentada.
 - `device/README.md`, `clinician/README.md`: sin cambios (device correcto; clinician sigue scaffold).
 
+### README modulares menores (jun 2026)
+
+Completada documentación breve de módulos de soporte:
+
+| Módulo | Archivo |
+|--------|---------|
+| `levels/` | `src/modules/levels/README.md` |
+| `home/` | `src/modules/home/README.md` |
+| `history/` | `src/modules/history/README.md` |
+| `summary/` | `src/modules/summary/README.md` |
+| `onboarding/` | `src/modules/onboarding/README.md` |
+| `app-mode/` | `src/modules/app-mode/README.md` |
+
+Actualizados `docs/01-app-architecture/module-index.md` y enlaces en `docs/01-app-architecture/README.md`.
+
 ---
 
 ## Documentos que se conservan como históricos
@@ -226,7 +241,7 @@
 | Refactor pantallas monolíticas | Arquitectura | Home, History, Session, calibración técnica capture |
 | Niveles 2–6 gameplay | Terapia | Registry existe; gameplay parcial |
 | Módulo `clinician/` | Producto | Scaffold sin rutas |
-| READMEs faltantes | Módulos | `patient/`, `diagnostics/`, `export/`, `notifications/`, `legal/` |
+| READMEs módulos críticos | Módulos | `patient/`, `diagnostics/`, `export/`, `notifications/`, `legal/` (si aún sin README en rama) |
 | Logout local-first → `/auth/login` | Perfil | Revisión UX |
 | Validación clínica formal | Producto | Software en desarrollo avanzado |
 

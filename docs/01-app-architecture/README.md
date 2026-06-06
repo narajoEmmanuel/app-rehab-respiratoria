@@ -32,12 +32,12 @@ app-rehab-respiratoria/
 | `notifications/` | 16 | Recordatorios locales | — |
 | `legal/` | 10 | Consentimiento, guards, PDF | [docs/legal](../legal/README-terminos-y-condiciones.md) |
 | `auth/` | 13 | Login cloud, perfil local | [auth/README.md](../../src/modules/auth/README.md) |
-| `levels/` | 7 | UI Terapia, progreso niveles | — |
-| `home/` | 2 | Dashboard Inicio | — |
-| `history/` | 3 | Historial y agregados | — |
-| `summary/` | 5 | Resumen post-sesión | — |
-| `onboarding/` | 3 | Modal bienvenida | — |
-| `app-mode/` | 4 | Feature flags env | — |
+| `levels/` | 7 | UI Terapia, progreso niveles | [levels/README.md](../../src/modules/levels/README.md) |
+| `home/` | 2 | Dashboard Inicio | [home/README.md](../../src/modules/home/README.md) |
+| `history/` | 3 | Historial y agregados | [history/README.md](../../src/modules/history/README.md) |
+| `summary/` | 5 | Resumen post-sesión | [summary/README.md](../../src/modules/summary/README.md) |
+| `onboarding/` | 3 | Modal bienvenida | [onboarding/README.md](../../src/modules/onboarding/README.md) |
+| `app-mode/` | 4 | Feature flags env | [app-mode/README.md](../../src/modules/app-mode/README.md) |
 | `clinician/` | 8 | Scaffold (sin rutas) | [clinician/README.md](../../src/modules/clinician/README.md) |
 | `plans/` | 1 | Vacío | — |
 
@@ -105,6 +105,10 @@ ESP32 (distanceMm) → SensorConnectionProvider → volume-estimation → Sessio
                                                               ↓
                               history/ · summary/ · export/ (v2.4.0)
 ```
+
+## Índice de módulos
+
+Tabla resumida con enlaces a README por módulo: [module-index.md](./module-index.md).
 
 ## Documento técnico de referencia
 

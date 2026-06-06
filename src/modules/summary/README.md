@@ -1,0 +1,98 @@
+# Módulo `summary` (Resumen post-sesión)
+
+Pantalla de **resumen** tras completar o interrumpir una sesión de terapia. Carga la sesión persistida por `sessionId` y presenta métricas de apoyo. RESPIRA+ **no diagnostica**; volúmenes en mL son **estimaciones** cuando la sesión usó sensor.
+
+---
+
+## Propósito
+
+- Mostrar resultado de una sesión guardada en AsyncStorage.
+- Celebración visual y métricas compactas.
+- Navegación de vuelta a Terapia o Historial.
+- Racha de sesiones exitosas (solo sesiones terapéuticas oficiales).
+
+---
+
+## Archivos principales
+
+| Rol | Archivo |
+|-----|---------|
+| Pantalla | `screens/SummaryScreen.tsx` |
+| Hero | `components/SessionSummaryHero.tsx` |
+| Métricas | `components/SessionSummaryMetricsGrid.tsx` |
+| Progreso | `components/SessionSummaryProgressCard.tsx` |
+| Acciones | `components/SessionSummaryActions.tsx` |
+
+**Ruta:** `app/(tabs)/resumen.tsx` → `SummaryScreen` (tab oculta; parámetro `sessionId`).
+
+**Dependencia UI:** `SessionSuccessStreakCard` en `session/patient-ui/` (Fase 4P — `AppText`).
+
+---
+
+## SummaryScreen
+
+- Parámetro de ruta: `sessionId` (entero).
+- Carga: `getSessionDetail(sessionId)` desde `session/session-progress-service.ts`.
+- Estados vacío / ID inválido / no encontrado → CTA «Volver a Terapia».
+- Clasificación de sesión: título y nota vía `sessionClassificationMainTitle` / `sessionClassificationSummaryNote`.
+- Card de datos de sensor visible solo si `sessionSensorDataCardVisible(session)`.
+- Bloque debug de volumen sensor si `isSensorDebugEnabled()`.
+
+---
+
+## Componentes y métricas
+
+| Componente | Contenido |
+|------------|-----------|
+| `SessionSummaryHero` | Mascota (`RespiraBunnyImage`), título, chips de nivel y clasificación |
+| `SessionSummaryProgressCard` | Progreso de repeticiones válidas vs `TARGET_ATTEMPTS` |
+| `SessionSummaryMetricsGrid` | Repeticiones válidas / no completadas; **volumen máx. y prom. estimado**; tiempos máx./prom. sostenidos |
+| `SessionSuccessStreakCard` | Racha actual (sesiones perfectas consecutivas con sensor) |
+| `SessionSummaryActions` | «Volver a Terapia», «Ver Historial» |
+
+---
+
+## Volumen estimado
+
+Grid usa labels «Volumen máx. estimado» y «Volumen prom. estimado» (mL). En sesiones de práctica táctil, la card de sensor puede ocultarse; no prometer paridad con espirometría clínica.
+
+---
+
+## Navegación post-sesión
+
+Flujo típico desde `SessionScreen` / modales de juego → `/(tabs)/resumen?sessionId={id}`.
+
+Acciones:
+
+- `router.replace('/(tabs)/terapia')`
+- `router.push('/(tabs)/historial')`
+
+La sesión activa (HUD) en `session/` usa **`Text` nativo** — este resumen ya está en `AppText`.
+
+---
+
+## Relación con sesión persistida
+
+Lee `@rehab/sessions_v1` y `@rehab/attempts_v1` indirectamente vía `getSessionDetail`. No muta registros; solo visualización.
+
+Racha: `computeSuccessfulSessionStreak` sobre sesiones del mismo `patient_id`.
+
+---
+
+## Riesgos al modificar
+
+| Riesgo | Impacto |
+|--------|---------|
+| Resumen sin `sessionId` en navegación desde juego | Pantalla vacía |
+| Mostrar métricas de práctica como oficiales | Informe clínico engañoso |
+| Omitir clasificación sensor/práctica | Export e historial desalineados |
+| Cambiar labels de volumen sin «estimado» | Expectativa regulatoria incorrecta |
+
+---
+
+## Referencias
+
+- [Resumen de sesión (feature)](../../../docs/03-features/resumen-sesion.md)
+- [Sesión y persistencia](../../../src/modules/session/README.md)
+- [Historial / rachas](../history/README.md)
+- Tipografía: `AppText` (Fase 4D + 4P) — [typography-scale.md](../../../docs/07-ui-design-system/typography-scale.md)
