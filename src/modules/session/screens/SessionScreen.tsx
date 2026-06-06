@@ -1251,7 +1251,7 @@ export function SessionScreen() {
               ) : null}
               <View style={styles.modalGrid}>
                 <View style={styles.modalTileWide}>
-                  <Text style={styles.modalTileLabel}>Volumen máx. / prom.</Text>
+                  <Text style={styles.modalTileLabel}>Vol. máx. / prom. estimado</Text>
                   <Text style={styles.modalTileValueSmall}>
                     {maxVolume} mL · {avgVolume} mL
                   </Text>

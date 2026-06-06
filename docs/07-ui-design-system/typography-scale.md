@@ -41,7 +41,7 @@ Inter cargada en `app/_layout.tsx`:
 
 ## Tokens especializados — `gameHud`
 
-Sub-objeto para HUD de terapia/juego. **No migrados en Fase 4A**; definidos para futura consolidación de `LevelOneGameView` y `RunnerGameFeedbackBar`.
+Sub-objeto para HUD de terapia/juego. **Referencia para estilos nativos** en sesión activa; el HUD mantiene `Text` con estilos locales (ver excepción más abajo).
 
 | Token | Tamaño | Peso | Uso |
 |-------|--------|------|-----|
@@ -122,6 +122,21 @@ import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 - `style` añade color, márgenes u overrides puntuales (p. ej. `fontSize` dinámico en `MetricTile`).
 - No se fuerza color por defecto: el color lo define el contenedor o `style`.
 - Soporta todas las props nativas de `Text` (`numberOfLines`, `accessibilityRole`, etc.).
+
+### Excepción — HUD y juego (sesión activa)
+
+`AppText` resuelve `fontFamily` según el peso del **token base** (`variant`), no del `style` final. Un override `fontWeight: '800'` o `'900'` sobre `bodyMedium` (400) sigue cargando Inter Regular, lo que aplana el look bold del HUD.
+
+**Regla:** en sesión activa y componentes de juego (`RunnerGameFeedbackBar`, `LevelOneGameView`, intro, coach, celebraciones, modales compactos de `SessionScreen`) se permite — y se prefiere cuando el diseño lo exige — **`Text` nativo** con los estilos exactos originales (`fontSize`, `fontWeight`, `lineHeight`, `letterSpacing`, `textTransform`).
+
+Prioridades del juego: legibilidad en cajas compactas, peso visual lúdico (800/900) y cero overflow en chips/fases.
+
+**Copy clínico de volumen:**
+
+| Contexto | Label recomendado |
+|----------|-------------------|
+| HUD compacto (juego) | «Volumen», «Vol.» o «Meta» — sin «estimado» si no cabe |
+| Tarjetas, resumen, reportes, modal de sesión (tile ancho) | «volumen estimado», «Vol. máx. / prom. estimado», etc. |
 
 ## Adopción en pantallas
 
@@ -228,14 +243,22 @@ import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 - Copy clínico: labels de volumen en última sesión y modal de día alineados con «estimado».
 - Agregados, rachas, calendario, clasificación y modales sin cambios de lógica.
 
+### Fase 4O — `SessionScreen` (Sesión activa / juego)
+
+- **Intento inicial:** migración a `AppText` en `SessionScreen` + 9 componentes visuales del juego.
+- **Corrección visual (regresión):** revertido a `Text` nativo en sesión activa y juego. `AppText` no preservaba pesos 800/900 del HUD (mapeo de `fontFamily` por variant base) y el copy «Vol. estimado» provocaba overflow en celdas compactas.
+- HUD, fases, countdown, chips, intro, coach y celebraciones conservan estilos locales originales.
+- Copy clínico: HUD compacto usa «Volumen» / abreviaciones; modal de resumen de sesión usa «Vol. máx. / prom. estimado» en tile ancho.
+- Motor `use-level-one-game`, validación, sensor, touch, persistencia y navegación intactos.
+
 ## Qué queda pendiente
 
 | Ámbito | Motivo |
 |--------|--------|
-| `SessionScreen` | Pantalla grande — pendiente fases posteriores |
 | `AppTopBar`, `AppCard` | Sin texto propio o solo layout |
-| HUD de juego | Tokens definidos; migración requiere revisión visual del gameplay |
-| Módulos `device/`, `session/games/` | Alto volumen de `fontSize` hardcoded |
+| Estilos HUD legacy en `LevelOneGameView` | Dead styles; render usa `RunnerGameFeedbackBar` |
+| `SessionSuccessStreakCard` | Usado en `SummaryScreen` (Fase resumen) |
+| Módulos `device/` | Fuera de alcance sesión activa |
 
 ## Reglas
 

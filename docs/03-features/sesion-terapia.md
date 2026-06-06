@@ -21,6 +21,8 @@ Ejecutar una sesión gamificada de ejercicios respiratorios (10 intentos en nive
 | Storage | `src/modules/session/storage/session-progress-repository.ts` |
 | Launch | `src/modules/session/hooks/resolve-therapy-session-launch.ts` |
 
+Tipografía: sesión activa y juego usan `Text` nativo con estilos locales (excepción Fase 4O; ver `typography-scale.md`). HUD compacto: «Volumen» / abreviaciones; modal de resumen: «Vol. máx. / prom. estimado».
+
 ## Rutas relacionadas
 
 `/(tabs)/sesion?levelId&inputMode&sessionRunId` (tab oculta, barra tabs oculta en layout).
