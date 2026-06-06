@@ -607,11 +607,15 @@ Los cambios grandes de estructura deben documentarse en `src/docs/` para que tod
 - existencia de documentación interna real
 
 ### Áreas todavía en desarrollo
-- `patient/` aún reservado
-- `device/` sigue en fase de placeholder
-- `clinician/` sigue en fase inicial
-- varias pantallas están en modo scaffold
-- todavía faltan contratos de datos más definidos entre sesión, resumen e historial
+- `clinician/` sigue en fase inicial (scaffold sin rutas)
+- `plans/` vacío
+- pantallas monolíticas (`HomeScreen`, `HistoryScreen`, `SessionScreen`) — candidatas a refactor, no scaffold
+- contratos de datos entre sesión, resumen e historial mejorables pero operativos
+- tipografía: pantallas principales migradas a `AppText`; HUD/juego de sesión activa conserva `Text` nativo por decisión visual (ver `docs/07-ui-design-system/typography-scale.md`)
+
+### Áreas ya operativas (actualizado jun 2026)
+- `device/` — ESP32, WebSocket, calibración, estimación de volumen (**implementado**, no placeholder)
+- `patient/` — perfil, prefs, borrado local, contexto paciente
 
 ---
 

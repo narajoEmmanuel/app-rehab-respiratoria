@@ -59,7 +59,7 @@ No persiste stream crudo en AsyncStorage; solo agregados de sesión.
 ## Pendientes o revisión manual
 
 - Comportamiento exacto si `distanceValid === false` en cada pantalla — validar en dispositivo.
-- Doc legacy en `docs/sensor-flow.md` (raíz); mantener sincronizado con este archivo.
+- Doc legacy en `docs/sensor-flow.md` (raíz): mantener alineada con export v2.4.0 y flujo paciente.
 
 ## Checklist manual mínimo
 

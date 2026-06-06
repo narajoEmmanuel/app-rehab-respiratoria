@@ -2,14 +2,15 @@
 
 Documentación del sistema visual compartido de RESPIRA+. Esta carpeta centraliza tokens, tipografía y reglas de adopción progresiva.
 
-## Estado actual (Fase 4A)
+## Estado actual (Fase 4 — jun 2026)
 
 | Área | Estado |
 |------|--------|
 | Paleta (`wellness`, `wellnessColors`) | Definida en `src/shared/theme/wellness-theme.ts` |
 | Tipografía (`wellnessTypography`) | Escala canónica ampliada (Fase 4A) |
-| Componente `AppText` | Creado en `src/shared/ui/AppText.tsx` |
-| Adopción en pantallas grandes | **Pendiente** — no migrar sin revisión visual |
+| Componente `AppText` | `src/shared/ui/AppText.tsx` |
+| Adopción en pantallas grandes | **Migradas** (Fases 4B–4N): export, notificaciones, resumen, perfil, diagnóstico, terapia, legal, sensor, calibración técnica, auth, onboarding, inicio, historial |
+| Excepción HUD / juego sesión activa | **`Text` nativo** en `SessionScreen` y componentes de juego (Fase 4O revertida) — ver [typography-scale.md](./typography-scale.md) |
 | Adopción en `src/shared/ui/` | Parcial (botones, tiles, headers, pills) |
 
 ## Fuentes de verdad
@@ -23,22 +24,27 @@ Documentación del sistema visual compartido de RESPIRA+. Esta carpeta centraliz
 
 ## Documentos
 
-- [Escala tipográfica](./typography-scale.md) — variantes, jerarquía y reglas de uso
+- [Escala tipográfica](./typography-scale.md) — variantes, jerarquía, pantallas migradas y excepción HUD
 
 ## Reglas de adopción
 
 1. **Nuevas pantallas y componentes** deben usar `AppText` con variantes de `wellnessTypography`, no `fontSize` hardcoded.
-2. **No migrar pantallas grandes** (Home, History, Session, calibración técnica, juego) sin revisión visual dedicada.
+2. **No forzar `AppText`** cuando compromete legibilidad, peso bold (800/900) o layout compacto — preferir `Text` nativo con estilos locales documentados (HUD/juego).
 3. **No inventar colores por pantalla** — usar `wellness` / `wellnessColors`.
-4. **Tokens legacy** (`screenTitle`, `sectionTitle`, `cardTitle`, `body`) siguen válidos; preferir nombres canónicos en código nuevo.
+4. **Copy clínico de volumen:** en cards, resumen, historial y export usar «volumen estimado»; en HUD compacto permitir «Volumen» / abreviaciones.
+5. **Tokens legacy** (`screenTitle`, `sectionTitle`, `cardTitle`, `body`) siguen válidos; preferir nombres canónicos en código nuevo.
 
-## Pendiente (post Fase 4A)
+## Pendiente real (post migración 4N)
 
-- Migrar pantallas tab (`HomeScreen`, `HistoryScreen`, `SessionScreen`, `LevelsScreen`)
-- Migrar HUD de juego a tokens `gameHud` + `AppText`
-- Migrar `therapy-level-card.tsx` y componentes de módulo con muchos estilos inline
-- Auditar `fontWeight: '800'` suelto y consolidar con tokens
-- Evaluar barrel `src/shared/ui/index.ts` (hoy los imports son directos por archivo)
+| Ámbito | Motivo |
+|--------|--------|
+| HUD / juego sesión activa | Excepción deliberada — `Text` nativo |
+| `SessionSuccessStreakCard` | Sin migrar a `AppText` |
+| `therapy-level-card.tsx` | Componente shared con estilos inline |
+| Paleta `reminder-ui-tokens.ts` | Colores fuera de wellness (tipografía sí migrada) |
+| Estilos HUD legacy en `LevelOneGameView` | Dead styles; render usa `RunnerGameFeedbackBar` |
+| Auditar `fontWeight: '800'` suelto fuera de sesión activa | Consolidar con tokens |
+| Evaluar barrel `src/shared/ui/index.ts` | Imports directos por archivo hoy |
 
 ## Referencias
 
