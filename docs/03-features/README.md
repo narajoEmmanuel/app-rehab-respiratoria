@@ -13,7 +13,7 @@ Documentación por flujo funcional (no solo pestaña visible).
 | Términos y consentimiento | [terminos-consentimiento.md](./terminos-consentimiento.md) |
 | Onboarding | [onboarding.md](./onboarding.md) |
 
-Funciones de dispositivo (sensor, calibración): ver [../04-device-and-sensor/](../sensor-flow.md) y [../../src/modules/device/README.md](../../src/modules/device/README.md) — carpeta `04` pendiente de fase futura; referencia actual en [sensor-flow.md](../sensor-flow.md).
+Funciones de dispositivo (sensor, calibración): ver [../04-device-and-sensor/README.md](../04-device-and-sensor/README.md), [sensor-flow.md](../04-device-and-sensor/sensor-flow.md) y [../../src/modules/device/README.md](../../src/modules/device/README.md). Doc histórica en [sensor-flow.md](../sensor-flow.md) (raíz `docs/`).
 
 ## Referencias
 

@@ -72,7 +72,7 @@ Con diagnóstico avanzado habilitado pueden mostrarse el laboratorio de hardware
 ## 5. Historial y exportación
 
 - Etiquetas: **Sensor**, **Práctica**, **Sin clasificar** (`session-record-classification.ts`).
-- Exportación clínica v2.1.0 con campos de clasificación y telemetría de intentos.
+- Exportación clínica **v2.4.0** con campos de clasificación, volúmenes estimados y telemetría de intentos.
 - Export técnico (U95, R², curvas): solo modo técnico/debug.
 
 ---

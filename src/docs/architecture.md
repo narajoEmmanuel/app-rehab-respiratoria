@@ -190,8 +190,10 @@ flowchart TD
 ## Tema y UI compartida
 
 - Tokens principales: `src/shared/theme/wellness-theme.ts` (`wellnessColors`, `wellnessTypography`, `wellnessShadows`, `wellnessRadii`).
-- Componentes: `src/shared/ui/` (`AppButton`, `AppCard`, `AppTopBar`, tiles, mascota).
+- Tipografía: `AppText` (`src/shared/ui/AppText.tsx`) en pantallas principales (Fases 4B–4N). **Excepción:** HUD/juego de sesión activa conserva `Text` nativo (Fase 4O).
+- Componentes: `src/shared/ui/` (`AppButton`, `AppCard`, `AppTopBar`, `AppText`, tiles, mascota).
 - Tokens adicionales de módulo: `src/theme/`, `reminder-ui-tokens.ts`, `auth-palette.ts`.
+- Detalle de escala y excepciones: [docs/07-ui-design-system/typography-scale.md](../../docs/07-ui-design-system/typography-scale.md).
 
 ## Persistencia local (claves principales)
 
@@ -209,11 +211,12 @@ Definidas en `src/modules/patient/storage-keys.ts`:
 | Riesgo | Ubicación | Severidad |
 |--------|-----------|-----------|
 | Pantallas monolíticas difíciles de mantener | `HistoryScreen`, `SessionScreen`, `HomeScreen`, `SensorCalibrationTechnicalCaptureScreen` | Alta |
-| Tipografía hardcoded fuera de tokens | ~70 archivos con `fontSize` inline | Alta |
+| Tipografía residual fuera de tokens | Componentes shared, HUD/juego (excepción), `SessionSuccessStreakCard`, `reminder-ui-tokens` | Media |
 | Consent fail-open en error AsyncStorage | `app/index.tsx` | Media |
 | Lógica duplicada de lanzamiento de terapia | `HomeScreen`, `LevelsScreen` (parcialmente centralizada en `resolve-therapy-session-launch.ts`) | Media |
 | Dos sistemas de tokens (`shared/theme` vs `src/theme`) | Varios imports | Media |
 | `src/docs/architecture.md` anterior describía device como placeholder | Corregido en este documento | — |
+| Paridad cloud vs local-first en retiro de consentimiento | Cloud usa `needsConsent()`; local-first usa `isConsentActive()` | Media |
 | Módulo `clinician/` y carpeta `plans/` sin uso en runtime | Scaffold / vacío | Baja |
 
 ## Convención de ramas

@@ -16,6 +16,8 @@ Selección de niveles de ejercicio respiratorio gamificado, visualización de pr
 | Progreso | `src/modules/levels/state/levels-progress-context.tsx` |
 | Unlock | `src/modules/session/session-progress-service.ts` |
 
+Tipografía: `LevelsScreen` + `TherapyLevelCard` migrados a `AppText` (Fase 4G). `therapy-level-card.tsx` (shared) aún con estilos inline — pendiente.
+
 ## Flujo funcional
 
 1. Sin evaluación → CTA `/diagnostico` (`navigateToInitialEvaluation`).

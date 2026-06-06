@@ -66,6 +66,14 @@ La validación conservadora con sensor exige, entre otros criterios, **`lowerBou
 
 ---
 
+## Tipografía (excepción HUD)
+
+Sesión activa y componentes de juego (`LevelOneGameView`, `RunnerGameFeedbackBar`, intro, coach, celebraciones) usan **`Text` nativo** con estilos locales — no `AppText`. Motivo: pesos 800/900 del HUD y celdas compactas; migración Fase 4O revertida por regresión visual. Detalle: [docs/07-ui-design-system/typography-scale.md](../../../docs/07-ui-design-system/typography-scale.md).
+
+Copy volumen en HUD: «Volumen» / abreviaciones; en modal de resumen de sesión: «Vol. máx. / prom. estimado».
+
+---
+
 ## Estado
 
 Nivel 1 con juego visual y validación por sensor implementados. Niveles 2–5 en catálogo con bloqueo progresivo (`comingSoon` / diagnóstico).

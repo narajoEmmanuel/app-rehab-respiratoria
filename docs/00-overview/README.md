@@ -76,7 +76,7 @@ Basado en tipos en `src/modules/session/types/session-progress.ts`, `src/modules
 | Historial + export clínico v2.4.0 | Operativa |
 | Niveles 2–6 | Registrados; gameplay parcial / coming soon en README de sesión |
 | Módulo clinician | Scaffold |
-| Design system / tipografía | Escala canónica + `AppText` (Fase 4A); adopción parcial en pantallas |
+| Design system / tipografía | Escala canónica + `AppText`; pantallas principales migradas (4B–4N); excepción HUD/juego con `Text` nativo (4O) |
 | Cloud auth | Congelado por defecto |
 
 ## Documentación relacionada
@@ -91,6 +91,7 @@ Basado en tipos en `src/modules/session/types/session-progress.ts`, `src/modules
 - [Datos y almacenamiento](../06-data-and-storage/README.md)
 - [Design system / tipografía](../07-ui-design-system/README.md)
 - [Seguridad clínica](../08-clinical-safety/README.md)
+- [Revisión documentación (jun 2026)](./documentation-sync-report.md)
 - [Módulo device](../../src/modules/device/README.md)
 - [Módulo session](../../src/modules/session/README.md)
 

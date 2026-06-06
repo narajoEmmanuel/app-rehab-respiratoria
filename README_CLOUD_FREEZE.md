@@ -97,6 +97,8 @@ La definición exacta en código debe consultarse en `src/modules/app-mode/app-m
 | **Local-first (prototipo ESP32, sin internet obligatorio)** | **`EXPO_PUBLIC_ENABLE_CLOUD_AUTH=false`** |
 | **Online (retomar flujo real con nube)** | **`EXPO_PUBLIC_ENABLE_CLOUD_AUTH=true`** |
 
+En **local-first**, el arranque (`app/index.tsx`) exige consentimiento activo con `isConsentActive()` antes de abrir tabs (incluye retiro de consent o versión de documento desactualizada). Terapia, Historial, sensor, exportación, notificaciones y evaluación inicial quedan bloqueados sin consent. Detalle: [docs/03-features/terminos-consentimiento.md](docs/03-features/terminos-consentimiento.md).
+
 ---
 
 ## Variables de entorno y Git
