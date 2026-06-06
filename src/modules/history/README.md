@@ -16,9 +16,19 @@ Vista de **progreso motivacional**: calendario, rachas, agregados por día y det
 
 | Rol | Archivo |
 |-----|---------|
-| Pantalla | `screens/HistoryScreen.tsx` |
+| Pantalla (orquestación) | `screens/HistoryScreen.tsx` |
 | Agregados | `services/history-aggregates.ts` |
 | Racha exitosa | `utils/session-success-streak.ts` |
+| Estados loading / sin paciente | `components/HistoryLoadingState.tsx`, `HistoryNoPatientState.tsx` |
+| Header | `components/HistoryPageHeader.tsx` |
+| Hero racha | `components/HistoryStreakHeroCard.tsx` |
+| Tarjetas métricas | `components/HistoryStatMiniCard.tsx` |
+| Progreso respiratorio | `components/HistoryRespiratoryProgressCard.tsx`, `HistoryMetricProgressRow.tsx` |
+| Calendario | `components/HistoryCalendarCard.tsx`, `HistoryCalendarLegend.tsx` |
+| Última sesión / vacío | `components/HistoryLastSessionCard.tsx`, `HistoryEmptySessionsCard.tsx` |
+| Logros | `components/HistoryAchievementsSection.tsx`, `HistoryAchievementCompactCard.tsx` |
+| Exportación | `components/HistoryExportCard.tsx` |
+| Modal día | `components/HistoryDayDetailModal.tsx` |
 
 **Ruta:** `app/(tabs)/historial.tsx` → `HistoryScreen` (con `ConsentTabGuard`).
 
@@ -26,13 +36,34 @@ Vista de **progreso motivacional**: calendario, rachas, agregados por día y det
 
 ---
 
-## HistoryScreen
+## HistoryScreen — orquestación (Fase 5C)
 
-- Calendario mensual con codificación por tipo de día.
-- Hero de racha (días consecutivos con actividad terapéutica).
-- Métricas globales (volumen máx. estimado con sensor, repeticiones, etc.).
-- Modal de detalle por día seleccionado.
-- Enlace a exportación y debug de sensor solo si flags dev activos.
+`HistoryScreen` conserva carga, agregados, rachas, estado del modal y navegación. Los componentes en `components/` son **puramente presentacionales**.
+
+### Lógica que permanece en HistoryScreen
+
+- `load()`, `useFocusEffect`, lectura de `readAllSessions` / `readAllAttempts`.
+- Agregados: `groupSessionsByDay`, `computeStreakDays`, `buildHistoryProgressAchievements`, `displayStats`.
+- Estado: `viewYear` / `viewMonth`, `selectedDay`, `legendExpanded`.
+- Handlers: `openDay`, `openLastSessionDay`, `shiftMonth`.
+- Derivados: `streakDays`, `hasAnyHistory`, métricas VIM/sostén/adherencia, `progressAchievements`.
+
+### Componentes extraídos — responsabilidades
+
+| Componente | Renderiza | Props principales |
+|------------|-----------|-------------------|
+| `HistoryNoPatientState` | Sin paciente activo | — |
+| `HistoryLoadingState` | Cargando | — |
+| `HistoryPageHeader` | Título + chip mes actual | `monthChipLabel` |
+| `HistoryStreakHeroCard` | Hero racha + Bunny | `streakDays`, `streakLost`, `dailyGoalMet` |
+| `HistoryStatMiniCardsRow` | Fila de 3 mini cards | `streakMiniValue`, `weeklySessions`, `totalValidReps` |
+| `HistoryRespiratoryProgressCard` | Card progreso respiratorio | métricas VIM, sostén, adherencia |
+| `HistoryCalendarCard` | Calendario mensual + leyenda | celdas, `byDay`, callbacks navegación mes/día |
+| `HistoryEmptySessionsCard` | Sin sesiones | `onStartFirstSession` |
+| `HistoryLastSessionCard` | Resumen última sesión | `session`, `bestHoldSeconds`, `onViewDetail` |
+| `HistoryAchievementsSection` | Grid de logros | `achievements` |
+| `HistoryExportCard` | Exportación clínica | `hasAnyHistory`, `onExport` |
+| `HistoryDayDetailModal` | Modal detalle día | `selectedDay`, `sensorDebug`, `onClose` |
 
 Tipografía: `AppText` (Fase 4N).
 
@@ -97,7 +128,9 @@ Labels en UI y agregados usan volumen del modelo de sensor (`max_sensor_estimate
 | Incluir práctica en racha terapéutica | Motivación inflada / datos engañosos |
 | Cambiar `LEVEL1_DAILY_GOAL` sin alinear Terapia | Meta diaria inconsistente |
 | Tratar calendario como diagnóstico | Expectativa clínica incorrecta |
-| Pantalla monolítica (~1800 líneas) | Regresiones difíciles de revisar |
+| Pantalla monolítica | Fase 5C extrajo UI; agregados siguen en pantalla — no duplicar lógica en componentes |
+| Mover `classifyCalendarDay` fuera de `HistoryCalendarCard` sin revisar colores | Drift visual del calendario |
+| Alterar props de métricas sin revisar derivados en pantalla | Conteos o barras desincronizados |
 
 ---
 

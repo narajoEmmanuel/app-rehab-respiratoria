@@ -5,37 +5,39 @@
  * Notes: Intended to show historical sessions and trends.
  *        Diagnostic is not required to view this screen.
  */
-import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { HistoryAchievementsSection } from '@/src/modules/history/components/HistoryAchievementsSection';
+import type { HistoryProgressAchievement } from '@/src/modules/history/components/HistoryAchievementCompactCard';
+import { HistoryCalendarCard } from '@/src/modules/history/components/HistoryCalendarCard';
+import { HistoryDayDetailModal } from '@/src/modules/history/components/HistoryDayDetailModal';
+import { HistoryEmptySessionsCard } from '@/src/modules/history/components/HistoryEmptySessionsCard';
+import { HistoryExportCard } from '@/src/modules/history/components/HistoryExportCard';
+import { HistoryLastSessionCard } from '@/src/modules/history/components/HistoryLastSessionCard';
+import { HistoryLoadingState } from '@/src/modules/history/components/HistoryLoadingState';
+import { HISTORY_EMPTY_METRIC_PLACEHOLDER } from '@/src/modules/history/components/HistoryMetricProgressRow';
+import { HistoryNoPatientState } from '@/src/modules/history/components/HistoryNoPatientState';
+import { HistoryPageHeader } from '@/src/modules/history/components/HistoryPageHeader';
+import { HistoryRespiratoryProgressCard } from '@/src/modules/history/components/HistoryRespiratoryProgressCard';
+import { HistoryStatMiniCardsRow } from '@/src/modules/history/components/HistoryStatMiniCard';
+import { HistoryStreakHeroCard } from '@/src/modules/history/components/HistoryStreakHeroCard';
 import {
   LEVEL1_DAILY_GOAL,
   attachBestHoldSeconds,
   buildDayAggregate,
   buildAttemptsBySessionId,
-  classifyCalendarDay,
   countCompletedToday,
-  dayDetailMotivation,
-  formatDisplayDateEs,
-  globalMaxSensorVolumeMlForPatient,
   groupSessionsByDay,
   monthGridDates,
   computeStreakDays,
   hadUnlockPerfectDayForLevel,
   therapeuticActivityDayKeys,
   practiceActivityDayKeys,
-  type CalendarDayKind,
+  globalMaxSensorVolumeMlForPatient,
   type DayAggregate,
 } from '@/src/modules/history/services/history-aggregates';
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
@@ -45,58 +47,14 @@ import type { LevelId } from '@/src/modules/levels/types/level-progress';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { readAllAttempts, readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
-import { AppCard } from '@/src/shared/ui/AppCard';
-import { AppButton } from '@/src/shared/ui/AppButton';
-import { AppText } from '@/src/shared/ui/AppText';
-import { RespiraBunnyImage } from '@/src/shared/ui/RespiraBunnyImage';
 import { spacing } from '@/src/shared/theme/spacing';
-import {
-  appScreenBackground,
-  wellness,
-  wellnessColors,
-  wellnessRadii,
-  wellnessShadows,
-} from '@/src/shared/theme/wellness-theme';
+import { appScreenBackground } from '@/src/shared/theme/wellness-theme';
 import { dashboardScrollBottomPadding } from '@/src/theme/dashboard-screen';
 import { addDaysLocal, getLocalDateKey, sessionRecordLocalDayKey } from '@/src/shared/utils/local-date-key';
 import { isSensorDebugEnabled } from '@/src/modules/app-mode';
 
 /** Meta visual de sostén (2 s del juego); solo etiqueta UI. */
 const SUSTAIN_META_SECONDS = 2;
-
-const CAL_BG: Record<CalendarDayKind, string> = {
-  none: '#E8EDEA',
-  perfect: '#43A047',
-  good: '#B8E0C0',
-  incomplete: '#FFE082',
-  interrupted: '#F5B4B4',
-};
-const CAL_BG_PRACTICE = '#B3E5FC';
-
-const CALENDAR_LEGEND_PRIMARY: { color: string; label: string }[] = [
-  { color: CAL_BG.perfect, label: 'Completada' },
-  { color: CAL_BG.good, label: 'Parcial' },
-  { color: CAL_BG.none, label: 'Sin actividad' },
-];
-
-const CALENDAR_LEGEND_EXTRA: { color: string; label: string }[] = [
-  { color: CAL_BG.incomplete, label: 'Sesión incompleta' },
-  { color: CAL_BG.interrupted, label: 'Interrumpida' },
-  { color: CAL_BG_PRACTICE, label: 'Práctica (sin sensor)' },
-];
-
-const WEEK_LABELS = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
-
-const STREAK_ACTIVE_GRADIENT = ['#5CE0C8', '#34ABA5', '#1F7E7A'] as const;
-const STREAK_WARM_GRADIENT = ['#FFF6EE', '#FFE8D4', '#FFD9B8'] as const;
-
-/** Altura del bloque visual (fuego + Bunny) alineada con la card hero. */
-const STREAK_HERO_VISUAL_HEIGHT = 108;
-const STREAK_HERO_BUNNY_SIZE = STREAK_HERO_VISUAL_HEIGHT;
-
-const CALENDAR_DAY_HEIGHT = 34;
-
-const EMPTY_METRIC_PLACEHOLDER = 'Tras tu primera sesión';
 
 /** Quita celdas vacías al final del mes para no reservar filas en blanco. */
 function trimTrailingEmptyCalendarCells(cells: (string | null)[]): (string | null)[] {
@@ -106,14 +64,6 @@ function trimTrailingEmptyCalendarCells(cells: (string | null)[]): (string | nul
   }
   return cells.slice(0, lastIndex + 1);
 }
-
-type ProgressAchievement = {
-  id: string;
-  title: string;
-  description: string;
-  unlocked: boolean;
-  icon: string;
-};
 
 function countCompletedTherapeuticSessions(sessions: SessionRecord[], patientId: number): number {
   return sessions.filter(
@@ -127,7 +77,7 @@ function buildHistoryProgressAchievements(input: {
   patientId: number;
   streakDays: number;
   activeDays: number;
-}): ProgressAchievement[] {
+}): HistoryProgressAchievement[] {
   const { sessions, patientId, streakDays, activeDays } = input;
   const totalCompleted = countCompletedTherapeuticSessions(sessions, patientId);
   const firstLevelCompleted =
@@ -237,355 +187,6 @@ function compareSessionRecency(a: SessionRecord, b: SessionRecord): number {
     return tb - ta;
   }
   return b.session_id - a.session_id;
-}
-
-function formatSessionDateTime(sessionDate: string): string {
-  const parsed = Date.parse(sessionDate);
-  if (Number.isNaN(parsed)) return 'Fecha no disponible';
-  return new Date(parsed).toLocaleString('es-MX', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-const BADGE_SLOT_SIZE = 40;
-
-type BadgeVariant = 'yellow' | 'teal' | 'blue';
-
-const BADGE_PALETTES: Record<
-  BadgeVariant,
-  {
-    slotBg: string;
-    ribbonLeft: readonly [string, string];
-    ribbonRight: readonly [string, string];
-    ring: readonly [string, string, string];
-    core: readonly [string, string];
-  }
-> = {
-  yellow: {
-    slotBg: '#FFF8E8',
-    ribbonLeft: ['#FFE082', '#FFC107'],
-    ribbonRight: ['#FFD54F', '#FFB300'],
-    ring: ['#FFE082', '#FFC107', '#F9A825'],
-    core: ['#FFFDE7', '#FFD54F'],
-  },
-  teal: {
-    slotBg: '#E8F6F5',
-    ribbonLeft: ['#80CBC4', '#4DB6AC'],
-    ribbonRight: ['#4DB6AC', '#26A69A'],
-    ring: ['#B2DFDB', '#4DB6AC', '#00897B'],
-    core: ['#E0F2F1', '#80CBC4'],
-  },
-  blue: {
-    slotBg: '#E8F4FC',
-    ribbonLeft: ['#90CAF9', '#64B5F6'],
-    ribbonRight: ['#64B5F6', '#42A5F5'],
-    ring: ['#BBDEFB', '#64B5F6', '#1E88E5'],
-    core: ['#E3F2FD', '#90CAF9'],
-  },
-};
-
-function SummaryBadgeIcon({ variant }: { variant: BadgeVariant }) {
-  const palette = BADGE_PALETTES[variant];
-
-  return (
-    <View
-      style={[badgeStyles.slot, { backgroundColor: palette.slotBg }]}
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants">
-      <View style={badgeStyles.canvas}>
-        <LinearGradient
-          colors={[...palette.ribbonLeft]}
-          style={[badgeStyles.ribbon, badgeStyles.ribbonLeft]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        />
-        <LinearGradient
-          colors={[...palette.ribbonRight]}
-          style={[badgeStyles.ribbon, badgeStyles.ribbonRight]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        />
-        <LinearGradient
-          colors={[...palette.ring]}
-          style={badgeStyles.outerRing}
-          start={{ x: 0.25, y: 0.1 }}
-          end={{ x: 0.95, y: 1 }}
-        />
-        {variant === 'teal' ? <View style={badgeStyles.innerRing} /> : null}
-        <LinearGradient
-          colors={[...palette.core]}
-          style={badgeStyles.core}
-          start={{ x: 0.25, y: 0.2 }}
-          end={{ x: 1, y: 1 }}
-        />
-        <View style={badgeStyles.shine} />
-        {variant === 'yellow' ? <View style={badgeStyles.yellowAccent} /> : null}
-        {variant === 'blue' ? <View style={badgeStyles.blueLevelMark} /> : null}
-      </View>
-    </View>
-  );
-}
-
-function StreakFireEmoji({ active, hero }: { active: boolean; hero?: boolean }) {
-  return (
-    <AppText
-      style={[
-        styles.streakFire,
-        hero && styles.streakFireHero,
-        active ? styles.streakFireActive : styles.streakFireDim,
-      ]}
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants">
-      🔥
-    </AppText>
-  );
-}
-
-function StreakHeroCard({
-  streakDays,
-  streakLost,
-  dailyGoalMet,
-}: {
-  streakDays: number;
-  streakLost: boolean;
-  dailyGoalMet: boolean;
-}) {
-  const active = streakDays > 0;
-  const dayLabel = streakDays === 1 ? 'día' : 'días';
-
-  let title: string;
-  let body: string;
-  let gradientColors: readonly [string, string, string];
-  let fireActive = false;
-
-  if (active) {
-    fireActive = true;
-    gradientColors = STREAK_ACTIVE_GRADIENT;
-    title = `${streakDays} ${dayLabel} de racha activa`;
-    body = dailyGoalMet
-      ? 'Meta del día completada. Sigue así.'
-      : 'Completa tu sesión de hoy para mantener tu racha.';
-  } else if (streakLost) {
-    gradientColors = STREAK_WARM_GRADIENT;
-    title = 'Tu racha puede comenzar de nuevo';
-    body = 'Retoma tu práctica hoy para volver a activarla.';
-  } else {
-    gradientColors = STREAK_WARM_GRADIENT;
-    title = 'Tu primera racha empieza hoy';
-    body = 'Completa una sesión para encender tu progreso.';
-  }
-
-  const titleStyle = active ? styles.streakHeroTitleActive : styles.streakHeroTitleWarm;
-  const bodyStyle = active ? styles.streakHeroBodyActive : styles.streakHeroBodyWarm;
-
-  return (
-    <View style={styles.streakHeroWrap}>
-      <LinearGradient
-        colors={[...gradientColors]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0.85 }}
-        style={styles.streakHeroGradient}>
-        <View style={styles.streakHeroRow}>
-          <View style={styles.streakHeroVisual}>
-            <RespiraBunnyImage pose="presenting" size={STREAK_HERO_BUNNY_SIZE} />
-            <View style={styles.streakHeroFireSlot}>
-              <StreakFireEmoji active={fireActive} hero />
-            </View>
-          </View>
-          <View style={styles.streakHeroCopy}>
-            <AppText variant="metric" style={titleStyle}>
-              {title}
-            </AppText>
-            <AppText variant="bodyMedium" style={bodyStyle}>
-              {body}
-            </AppText>
-          </View>
-        </View>
-      </LinearGradient>
-    </View>
-  );
-}
-
-function MonthChip({ label }: { label: string }) {
-  return (
-    <View style={styles.monthChip}>
-      <AppText variant="chip" style={styles.monthChipText}>
-        {label}
-      </AppText>
-    </View>
-  );
-}
-
-function StatMiniCard({
-  badgeVariant,
-  label,
-  value,
-}: {
-  badgeVariant: BadgeVariant;
-  label: string;
-  value: string;
-}) {
-  return (
-    <View style={styles.statMiniCard}>
-      <View style={styles.statMiniIconSlot}>
-        <SummaryBadgeIcon variant={badgeVariant} />
-      </View>
-      <AppText variant="statusValue" style={styles.statMiniValue}>
-        {value}
-      </AppText>
-      <AppText variant="label" style={styles.statMiniLabel}>
-        {label}
-      </AppText>
-    </View>
-  );
-}
-
-function MetricProgressRow({
-  label,
-  valueText,
-  progress,
-  showTrack,
-}: {
-  label: string;
-  valueText: string;
-  progress: number;
-  showTrack: boolean;
-}) {
-  const safeProgress = Math.max(0, Math.min(progress, 1));
-  return (
-    <View style={styles.metricRow}>
-      <View style={styles.metricRowHeader}>
-        <AppText variant="bodyMedium" style={styles.metricLabel}>
-          {label}
-        </AppText>
-        <AppText
-          variant="bodySmall"
-          style={[
-            styles.metricValue,
-            !showTrack && valueText === EMPTY_METRIC_PLACEHOLDER && styles.metricValueMuted,
-          ]}>
-          {valueText}
-        </AppText>
-      </View>
-      {showTrack ? (
-        <View style={styles.metricTrack}>
-          <View style={[styles.metricFill, { width: `${safeProgress * 100}%` }]} />
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-function AchievementCompactCard({ item }: { item: ProgressAchievement }) {
-  const { title, description, unlocked, icon } = item;
-  return (
-    <View style={[styles.achievementCompact, unlocked && styles.achievementCompactUnlocked]}>
-      <AppText style={[styles.achievementCompactIcon, !unlocked && styles.achievementCompactIconLocked]}>
-        {icon}
-      </AppText>
-      <AppText
-        variant="chip"
-        style={[styles.achievementCompactTitle, !unlocked && styles.achievementCompactTitleLocked]}
-        numberOfLines={2}>
-        {title}
-      </AppText>
-      <AppText
-        variant="chipSmall"
-        style={[styles.achievementCompactDesc, !unlocked && styles.achievementCompactDescLocked]}
-        numberOfLines={3}>
-        {description}
-      </AppText>
-    </View>
-  );
-}
-
-function CalendarLegend({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
-  return (
-    <View style={styles.legendContainer}>
-      <View style={styles.legendPrimaryRow}>
-        {CALENDAR_LEGEND_PRIMARY.map((item) => (
-          <LegendDot key={item.label} color={item.color} label={item.label} compact />
-        ))}
-      </View>
-      {expanded ? (
-        <View style={styles.legendExtraBlock}>
-          {CALENDAR_LEGEND_EXTRA.map((item) => (
-            <LegendDot key={item.label} color={item.color} label={item.label} compact />
-          ))}
-        </View>
-      ) : null}
-      <Pressable onPress={onToggle} accessibilityRole="button" hitSlop={8}>
-        <AppText variant="link" style={styles.legendMoreLink}>
-          {expanded ? 'Ver menos estados' : 'Ver más estados'}
-        </AppText>
-      </Pressable>
-    </View>
-  );
-}
-
-function LastSessionCard({
-  session,
-  bestHoldSeconds,
-  onViewDetail,
-}: {
-  session: SessionRecord;
-  bestHoldSeconds: number | null;
-  onViewDetail: () => void;
-}) {
-  const volMl =
-    session.max_sensor_estimated_volume_ml != null && session.max_sensor_estimated_volume_ml > 0
-      ? `${Math.round(session.max_sensor_estimated_volume_ml)} mL`
-      : session.max_volume > 0
-        ? `${Math.round(session.max_volume)} mL`
-        : '—';
-  const holdText =
-    bestHoldSeconds != null && bestHoldSeconds > 0
-      ? `${bestHoldSeconds.toFixed(1)} s`
-      : session.avg_hold_seconds > 0
-        ? `${session.avg_hold_seconds.toFixed(1)} s`
-        : '—';
-
-  return (
-    <AppCard style={styles.lastSessionCard}>
-      <AppText variant="titleMedium" style={styles.lastSessionTitle}>
-        Última sesión
-      </AppText>
-      <AppText variant="statusValue" style={styles.lastSessionDate}>
-        {formatSessionDateTime(session.session_date)}
-      </AppText>
-      <View style={styles.lastSessionMetrics}>
-        <View style={styles.lastSessionMetric}>
-          <AppText variant="caption" style={styles.lastSessionMetricLabel}>
-            Repeticiones válidas
-          </AppText>
-          <AppText variant="titleSmall" style={styles.lastSessionMetricValue}>
-            {session.valid_attempts}
-          </AppText>
-        </View>
-        <View style={styles.lastSessionMetric}>
-          <AppText variant="caption" style={styles.lastSessionMetricLabel}>
-            Mejor volumen estimado
-          </AppText>
-          <AppText variant="titleSmall" style={styles.lastSessionMetricValue}>
-            {volMl}
-          </AppText>
-        </View>
-        <View style={styles.lastSessionMetric}>
-          <AppText variant="caption" style={styles.lastSessionMetricLabel}>
-            Tiempo sostenido
-          </AppText>
-          <AppText variant="titleSmall" style={styles.lastSessionMetricValue}>
-            {holdText}
-          </AppText>
-        </View>
-      </View>
-      <AppButton title="Ver detalle" onPress={onViewDetail} variant="secondary" />
-    </AppCard>
-  );
 }
 
 export function HistoryScreen() {
@@ -769,14 +370,14 @@ export function HistoryScreen() {
   const vimValueText =
     bestSensorVolumeMl != null && bestSensorVolumeMl > 0
       ? `${Math.round(bestSensorVolumeMl)} mL`
-      : EMPTY_METRIC_PLACEHOLDER;
+      : HISTORY_EMPTY_METRIC_PLACEHOLDER;
   const vimProgress = bestSensorVolumeMl != null && bestSensorVolumeMl > 0 ? 1 : 0;
   const adherenceValueText = `${displayStats.weeklyActiveDays} de 7 días`;
   const adherenceProgress = displayStats.weeklyActiveDays / 7;
   const sustainValueText =
     displayStats.avgHoldSeconds != null
       ? `${displayStats.avgHoldSeconds.toFixed(1)} s`
-      : EMPTY_METRIC_PLACEHOLDER;
+      : HISTORY_EMPTY_METRIC_PLACEHOLDER;
   const sustainProgress =
     displayStats.avgHoldSeconds != null
       ? Math.min(displayStats.avgHoldSeconds / SUSTAIN_META_SECONDS, 1)
@@ -817,368 +418,76 @@ export function HistoryScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
         {!patient ? (
-          <View style={styles.emptyCard}>
-            <AppText variant="titleLarge" style={styles.screenTitle}>
-              Tu historial
-            </AppText>
-            <AppText variant="bodyLarge" style={styles.tagline}>
-              Asocia un perfil de paciente para ver tu historial, calendario y logros.
-            </AppText>
-          </View>
+          <HistoryNoPatientState />
         ) : loading ? (
-          <View style={styles.loadingBox}>
-            <AppText variant="titleLarge" style={styles.screenTitle}>
-              Tu historial
-            </AppText>
-            <AppText variant="bodyLarge" style={styles.tagline}>
-              Cargando tu historial…
-            </AppText>
-            <ActivityIndicator size="large" color={wellness.primary} style={styles.loadingSpinner} />
-          </View>
+          <HistoryLoadingState />
         ) : (
           <>
-            <View style={styles.pageHeader}>
-              <AppText variant="titleLarge" style={styles.pageTitle}>
-                Mi progreso
-              </AppText>
-              <MonthChip label={headerMonthChip} />
-            </View>
+            <HistoryPageHeader monthChipLabel={headerMonthChip} />
 
-            <StreakHeroCard
+            <HistoryStreakHeroCard
               streakDays={streakDays}
               streakLost={streakLost}
               dailyGoalMet={dailyGoalMet}
             />
 
-            <View style={styles.statMiniRow}>
-              <StatMiniCard badgeVariant="yellow" label="Racha" value={streakMiniValue} />
-              <StatMiniCard
-                badgeVariant="teal"
-                label="Sesiones"
-                value={`${displayStats.weeklySessions} esta semana`}
-              />
-              <StatMiniCard
-                badgeVariant="blue"
-                label="Repeticiones válidas"
-                value={`${displayStats.totalValidReps} completadas`}
-              />
-            </View>
+            <HistoryStatMiniCardsRow
+              streakMiniValue={streakMiniValue}
+              weeklySessions={displayStats.weeklySessions}
+              totalValidReps={displayStats.totalValidReps}
+            />
 
-            <AppCard style={styles.metricsCard}>
-              <AppText variant="titleMedium" style={styles.metricsTitle}>
-                Progreso respiratorio
-              </AppText>
-              <MetricProgressRow
-                label="Mejor volumen estimado"
-                valueText={vimValueText}
-                progress={vimProgress}
-                showTrack={hasRespiratoryMetrics}
-              />
-              <MetricProgressRow
-                label="Tiempo sostenido promedio"
-                valueText={sustainValueText}
-                progress={sustainProgress}
-                showTrack={hasRespiratoryMetrics}
-              />
-              <MetricProgressRow
-                label="Cumplimiento semanal"
-                valueText={adherenceValueText}
-                progress={adherenceProgress}
-                showTrack
-              />
-            </AppCard>
+            <HistoryRespiratoryProgressCard
+              vimValueText={vimValueText}
+              vimProgress={vimProgress}
+              sustainValueText={sustainValueText}
+              sustainProgress={sustainProgress}
+              adherenceValueText={adherenceValueText}
+              adherenceProgress={adherenceProgress}
+              hasRespiratoryMetrics={hasRespiratoryMetrics}
+            />
 
-            <AppText variant="titleMedium" style={styles.sectionTitle}>
-              Calendario de actividad
-            </AppText>
-            <AppText variant="bodySmall" style={styles.sectionSubtitle}>
-              Revisa tus sesiones registradas por día.
-            </AppText>
-
-            <AppCard style={styles.calendarCard}>
-              <View style={styles.monthNav}>
-                <Pressable
-                  onPress={() => shiftMonth(-1)}
-                  style={styles.monthNavBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel="Mes anterior">
-                  <AppText variant="metric" style={styles.monthNavBtnText}>
-                    ‹
-                  </AppText>
-                </Pressable>
-                <AppText variant="statusValue" style={styles.monthTitle}>
-                  {monthChipLabel}
-                </AppText>
-                <Pressable
-                  onPress={() => shiftMonth(1)}
-                  style={styles.monthNavBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel="Mes siguiente">
-                  <AppText variant="metric" style={styles.monthNavBtnText}>
-                    ›
-                  </AppText>
-                </Pressable>
-              </View>
-              <View style={styles.weekRow}>
-                {WEEK_LABELS.map((w, i) => (
-                  <View key={`w-${i}`} style={styles.weekCell}>
-                    <AppText variant="label" style={styles.weekCellText}>
-                      {w}
-                    </AppText>
-                  </View>
-                ))}
-              </View>
-              <View style={styles.grid}>
-                {compactMonthCells.map((dateKey, idx) => {
-                  if (!dateKey) {
-                    return <View key={`e-${idx}`} style={styles.dayCellEmpty} />;
-                  }
-                  const list = byDay.get(dateKey) ?? [];
-                  const kind = list.length === 0 ? 'none' : classifyCalendarDay(list);
-                  const isToday = dateKey === todayKey;
-                  const isSelected = dateKey === selectedDateKey;
-                  const hasPracticeOnly = kind === 'none' && practiceDayKeys.has(dateKey);
-                  const inactive = kind === 'none' && !hasPracticeOnly;
-                  return (
-                    <Pressable
-                      key={dateKey}
-                      onPress={() => openDay(dateKey)}
-                      style={[
-                        styles.dayCell,
-                        { backgroundColor: hasPracticeOnly ? CAL_BG_PRACTICE : CAL_BG[kind] },
-                        inactive && styles.dayCellInactive,
-                        isToday && styles.dayCellToday,
-                        isSelected && styles.dayCellSelected,
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Día ${dateKey}`}>
-                      <AppText
-                        variant="chip"
-                        style={[
-                          styles.dayCellNum,
-                          inactive && styles.dayCellNumMuted,
-                          (kind === 'perfect' || kind === 'good') && styles.dayCellNumOnColor,
-                        ]}>
-                        {Number(dateKey.slice(8, 10))}
-                      </AppText>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <CalendarLegend
-                expanded={legendExpanded}
-                onToggle={() => setLegendExpanded((v) => !v)}
-              />
-            </AppCard>
+            <HistoryCalendarCard
+              monthChipLabel={monthChipLabel}
+              compactMonthCells={compactMonthCells}
+              byDay={byDay}
+              practiceDayKeys={practiceDayKeys}
+              todayKey={todayKey}
+              selectedDateKey={selectedDateKey}
+              legendExpanded={legendExpanded}
+              onShiftMonth={shiftMonth}
+              onOpenDay={openDay}
+              onToggleLegend={() => setLegendExpanded((v) => !v)}
+            />
 
             {!hasAnyHistory ? (
-              <AppCard style={styles.emptySessionsCard}>
-                <AppText variant="titleSmall" style={styles.inlineEmptyTitle}>
-                  Aún no hay sesiones registradas
-                </AppText>
-                <AppText variant="bodyMedium" style={styles.inlineEmptyText}>
-                  Tu historial se activará cuando completes tu primera práctica.
-                </AppText>
-                <AppButton
-                  title="Comenzar primera sesión"
-                  onPress={() => router.push('/(tabs)/terapia')}
-                  variant="primary"
-                  style={styles.emptySessionsCta}
-                />
-              </AppCard>
+              <HistoryEmptySessionsCard
+                onStartFirstSession={() => router.push('/(tabs)/terapia')}
+              />
             ) : lastSession ? (
-              <LastSessionCard
+              <HistoryLastSessionCard
                 session={lastSession}
                 bestHoldSeconds={lastSessionHoldSeconds}
                 onViewDetail={openLastSessionDay}
               />
             ) : null}
 
-            <AppText variant="titleMedium" style={styles.sectionTitle}>
-              Logros
-            </AppText>
-            <AppText variant="bodySmall" style={styles.sectionSubtitle}>
-              Desbloquéalos conforme avanzas en tu terapia.
-            </AppText>
-            <View style={styles.achievementGrid}>
-              {progressAchievements.map((a) => (
-                <AchievementCompactCard key={a.id} item={a} />
-              ))}
-            </View>
+            <HistoryAchievementsSection achievements={progressAchievements} />
 
-            <AppText variant="titleMedium" style={styles.sectionTitle}>
-              Reporte para profesional
-            </AppText>
-            <AppCard style={styles.exportSection}>
-              <AppText variant="bodySmall" style={styles.exportSectionBody}>
-                Exporta tus sesiones, cumplimiento y progreso.
-              </AppText>
-              {!hasAnyHistory ? (
-                <AppText variant="bodySmall" style={styles.exportHint}>
-                  Disponible después de tu primera sesión.
-                </AppText>
-              ) : null}
-              <AppButton
-                title="Exportar reporte"
-                onPress={() => router.push('/data-export')}
-                variant="secondary"
-                iconName="doc.text.fill"
-              />
-            </AppCard>
+            <HistoryExportCard
+              hasAnyHistory={hasAnyHistory}
+              onExport={() => router.push('/data-export')}
+            />
           </>
         )}
       </ScrollView>
 
-      <Modal
-        visible={selectedDay !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSelectedDay(null)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setSelectedDay(null)}>
-          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
-            {selectedDay ? (
-              <>
-                <AppText variant="titleMedium" style={styles.modalTitle}>
-                  {formatDisplayDateEs(selectedDay.dateKey)}
-                </AppText>
-                <View style={styles.modalChipRow}>
-                  <View style={[styles.modalChip, styles.modalChipStatus]}>
-                    <AppText variant="chip" style={styles.modalChipText}>
-                      {selectedDay.statusLabel}
-                    </AppText>
-                  </View>
-                  {selectedDay.classification.sensorSessionsCount > 0 ? (
-                    <View style={[styles.modalChip, styles.modalChipSensor]}>
-                      <AppText variant="chip" style={styles.modalChipText}>
-                        Con medición
-                      </AppText>
-                    </View>
-                  ) : null}
-                  {selectedDay.classification.practiceSessionsCount > 0 ? (
-                    <View style={[styles.modalChip, styles.modalChipPractice]}>
-                      <AppText variant="chip" style={styles.modalChipText}>
-                        Práctica
-                      </AppText>
-                    </View>
-                  ) : null}
-                  {selectedDay.classification.unclassifiedSessionsCount > 0 ? (
-                    <View style={[styles.modalChip, styles.modalChipUnclassified]}>
-                      <AppText variant="chip" style={styles.modalChipText}>
-                        Sin clasificar
-                      </AppText>
-                    </View>
-                  ) : null}
-                </View>
-
-                <View style={styles.modalSection}>
-                  <AppText variant="label" style={styles.modalSectionTitle}>
-                    Resumen del día
-                  </AppText>
-                  <AppText variant="bodyLarge" style={styles.modalLine}>
-                    Completadas: {selectedDay.completedCount}/{LEVEL1_DAILY_GOAL} · Perfectas:{' '}
-                    {selectedDay.perfectCount}
-                  </AppText>
-                  {selectedDay.interruptedCount > 0 ? (
-                    <AppText variant="bodyLarge" style={styles.modalLine}>
-                      Interrumpidas: {selectedDay.interruptedCount}
-                    </AppText>
-                  ) : null}
-                  <AppText variant="bodyLarge" style={styles.modalLine}>
-                    Mejor inspiración:{' '}
-                    {selectedDay.bestHoldSeconds != null && selectedDay.bestHoldSeconds > 0
-                      ? `${selectedDay.bestHoldSeconds.toFixed(1)} s`
-                      : '—'}
-                  </AppText>
-                </View>
-
-                {selectedDay.classification.sensorSessionsCount > 0 ? (
-                  <View style={styles.modalSection}>
-                    <AppText variant="label" style={styles.modalSectionTitle}>
-                      Tu inspiración
-                    </AppText>
-                    <AppText variant="bodyLarge" style={styles.modalLine}>
-                      {selectedDay.classification.sensorSessionsCount}{' '}
-                      {selectedDay.classification.sensorSessionsCount === 1 ? 'sesión' : 'sesiones'}
-                      {selectedDay.maxVolumeMl != null && selectedDay.maxVolumeMl > 0
-                        ? ` · Mejor volumen estimado ${selectedDay.maxVolumeMl} mL`
-                        : ''}
-                    </AppText>
-                    {sensorDebug && selectedDay.classification.maxSensorU95Ml != null ? (
-                      <AppText variant="bodySmall" style={styles.modalLineMuted}>
-                        U95 máx. ±{Math.round(selectedDay.classification.maxSensorU95Ml)} mL (debug)
-                      </AppText>
-                    ) : null}
-                  </View>
-                ) : null}
-
-                {selectedDay.classification.practiceSessionsCount > 0 ? (
-                  <View style={styles.modalSection}>
-                    <AppText variant="label" style={styles.modalSectionTitle}>
-                      Práctica táctil
-                    </AppText>
-                    <AppText variant="bodySmall" style={styles.modalLineMuted}>
-                      {selectedDay.classification.practiceSessionsCount}{' '}
-                      {selectedDay.classification.practiceSessionsCount === 1 ? 'sesión' : 'sesiones'}{' '}
-                      · No terapéutica
-                    </AppText>
-                  </View>
-                ) : null}
-
-                {selectedDay.classification.unclassifiedSessionsCount > 0 ? (
-                  <View style={styles.modalSection}>
-                    <AppText variant="label" style={styles.modalSectionTitle}>
-                      Sin clasificar
-                    </AppText>
-                    <AppText variant="bodySmall" style={styles.modalLineMuted}>
-                      {selectedDay.classification.unclassifiedSessionsCount}{' '}
-                      {selectedDay.classification.unclassifiedSessionsCount === 1
-                        ? 'sesión'
-                        : 'sesiones'}{' '}
-                      · Registro anterior a la clasificación
-                    </AppText>
-                  </View>
-                ) : null}
-
-                <AppText variant="bodyMedium" style={styles.modalMotivation}>
-                  {dayDetailMotivation(selectedDay)}
-                </AppText>
-                <Pressable
-                  style={styles.modalClose}
-                  onPress={() => setSelectedDay(null)}
-                  accessibilityRole="button">
-                  <AppText variant="button" style={styles.modalCloseText}>
-                    Cerrar
-                  </AppText>
-                </Pressable>
-              </>
-            ) : null}
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <HistoryDayDetailModal
+        selectedDay={selectedDay}
+        sensorDebug={sensorDebug}
+        onClose={() => setSelectedDay(null)}
+      />
     </SafeAreaView>
-  );
-}
-
-function LegendDot({ color, label, compact }: { color: string; label: string; compact?: boolean }) {
-  if (compact) {
-    return (
-      <View style={styles.legendItemCompact}>
-        <View style={[styles.legendDot, { backgroundColor: color }]} />
-        <AppText variant="label" style={styles.legendLabelCompact}>
-          {label}
-        </AppText>
-      </View>
-    );
-  }
-  return (
-    <View style={styles.legendItem}>
-      <View style={styles.legendDotSlot}>
-        <View style={[styles.legendDot, { backgroundColor: color }]} />
-      </View>
-      <AppText variant="caption" style={styles.legendLabel}>
-        {label}
-      </AppText>
-    </View>
   );
 }
 
@@ -1191,627 +500,5 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
-  },
-  screenTitle: {
-    color: wellness.text,
-    marginBottom: 2,
-  },
-  tagline: {
-    color: wellness.textSecondary,
-    marginBottom: spacing.sm,
-  },
-  pageHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-    gap: spacing.md,
-  },
-  pageTitle: {
-    fontSize: 28,
-    color: wellness.text,
-    letterSpacing: -0.4,
-    flexShrink: 0,
-  },
-  monthChip: {
-    backgroundColor: '#F0F7F5',
-    borderRadius: wellnessRadii.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: wellness.border,
-  },
-  monthChipText: {
-    fontWeight: '600',
-    color: wellness.primaryDark,
-  },
-  streakHeroWrap: {
-    marginBottom: spacing.lg,
-    borderRadius: wellnessRadii.cardLarge,
-    overflow: 'hidden',
-    ...wellnessShadows.card,
-  },
-  streakHeroGradient: {
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    minHeight: STREAK_HERO_VISUAL_HEIGHT + spacing.md * 2,
-    justifyContent: 'center',
-  },
-  streakHeroRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  streakHeroVisual: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: STREAK_HERO_VISUAL_HEIGHT,
-    flexShrink: 0,
-    marginRight: spacing.xs,
-  },
-  streakHeroCopy: {
-    flex: 1,
-    minWidth: 0,
-    justifyContent: 'center',
-  },
-  streakHeroFireSlot: {
-    height: STREAK_HERO_VISUAL_HEIGHT,
-    justifyContent: 'center',
-    marginLeft: -8,
-    paddingTop: 10,
-  },
-  streakFire: {
-    fontSize: 36,
-    lineHeight: 40,
-  },
-  streakFireHero: {
-    fontSize: 58,
-    lineHeight: 62,
-  },
-  streakFireDim: {
-    opacity: 0.42,
-  },
-  streakFireActive: {
-    opacity: 1,
-    textShadowColor: 'rgba(255, 160, 60, 0.55)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 10,
-  },
-  streakHeroTitleWarm: {
-    fontSize: 22,
-    color: '#5D4037',
-    letterSpacing: -0.3,
-    lineHeight: 28,
-  },
-  streakHeroBodyWarm: {
-    marginTop: 6,
-    color: '#795548',
-    fontWeight: '500',
-  },
-  streakHeroTitleActive: {
-    fontSize: 24,
-    color: '#FFFFFF',
-    letterSpacing: -0.35,
-    lineHeight: 30,
-  },
-  streakHeroBodyActive: {
-    marginTop: 6,
-    color: 'rgba(255, 255, 255, 0.94)',
-    fontWeight: '600',
-  },
-  sectionTitle: {
-    color: wellness.text,
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
-    color: wellness.textSecondary,
-    marginBottom: spacing.sm,
-  },
-  calendarCard: {
-    marginBottom: spacing.md,
-    paddingTop: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  monthNav: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  monthNavBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: '#F0F7F5',
-  },
-  monthNavBtnText: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: wellness.primaryDark,
-    lineHeight: 28,
-  },
-  monthTitle: {
-    color: wellness.text,
-    textTransform: 'capitalize',
-  },
-  weekRow: {
-    flexDirection: 'row',
-    marginBottom: 2,
-  },
-  weekCell: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  weekCellText: {
-    color: wellness.textSecondary,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignContent: 'flex-start',
-  },
-  dayCell: {
-    width: '14.28%',
-    height: CALENDAR_DAY_HEIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    marginBottom: 2,
-  },
-  dayCellInactive: {
-    backgroundColor: '#EEF2F0',
-  },
-  dayCellEmpty: {
-    width: '14.28%',
-    height: CALENDAR_DAY_HEIGHT,
-    marginBottom: 2,
-  },
-  dayCellToday: {
-    borderWidth: 2,
-    borderColor: wellness.primary,
-  },
-  dayCellSelected: {
-    borderWidth: 2,
-    borderColor: wellness.primaryDark,
-  },
-  dayCellNum: {
-    color: '#37474F',
-  },
-  dayCellNumMuted: {
-    color: '#B0BEC5',
-    fontWeight: '600',
-  },
-  dayCellNumOnColor: {
-    color: '#1B5E20',
-  },
-  legendContainer: {
-    marginTop: 6,
-    paddingTop: 4,
-    gap: 4,
-    alignSelf: 'stretch',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: wellness.border,
-  },
-  legendPrimaryRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    justifyContent: 'flex-start',
-  },
-  legendItemCompact: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  legendLabelCompact: {
-    fontWeight: '600',
-    color: wellness.textSecondary,
-  },
-  legendExtraBlock: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  legendMoreLink: {
-    fontSize: 11,
-    color: wellness.primaryDark,
-    marginTop: 2,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    width: '100%',
-  },
-  legendDotSlot: {
-    width: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  legendLabel: {
-    flex: 1,
-    flexShrink: 1,
-    color: wellness.textSecondary,
-  },
-  statMiniRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  statMiniCard: {
-    flex: 1,
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.card,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: wellness.border,
-    ...wellnessShadows.card,
-    minWidth: 0,
-  },
-  statMiniIconSlot: {
-    height: BADGE_SLOT_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statMiniValue: {
-    marginTop: 6,
-    fontWeight: '800',
-    color: wellness.text,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  statMiniLabel: {
-    marginTop: 4,
-    fontWeight: '600',
-    color: wellness.textSecondary,
-    textAlign: 'center',
-    lineHeight: 14,
-  },
-  metricsCard: {
-    marginBottom: spacing.md,
-  },
-  metricsTitle: {
-    color: wellness.text,
-    marginBottom: spacing.md,
-  },
-  metricRow: {
-    marginBottom: spacing.md,
-  },
-  metricRowHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    marginBottom: 8,
-  },
-  metricLabel: {
-    flex: 1,
-    fontWeight: '600',
-    color: wellness.text,
-  },
-  metricValue: {
-    fontWeight: '700',
-    color: wellness.primaryDark,
-    textAlign: 'right',
-    flexShrink: 0,
-    maxWidth: '58%',
-  },
-  metricValueMuted: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: wellness.textSecondary,
-  },
-  metricTrack: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#E8EDEA',
-    overflow: 'hidden',
-  },
-  metricFill: {
-    height: '100%',
-    borderRadius: 3,
-    backgroundColor: wellness.primary,
-  },
-  emptyCard: {
-    marginTop: spacing.md,
-    padding: spacing.lg,
-    borderRadius: wellnessRadii.card,
-    backgroundColor: wellness.card,
-    borderWidth: 1,
-    borderColor: wellness.border,
-  },
-  emptySessionsCard: {
-    marginBottom: spacing.md,
-    gap: spacing.sm,
-    alignItems: 'stretch',
-  },
-  emptySessionsCta: {
-    marginTop: spacing.xs,
-  },
-  inlineEmptyTitle: {
-    fontSize: 17,
-    color: wellness.text,
-  },
-  inlineEmptyText: {
-    color: wellness.textSecondary,
-  },
-  lastSessionCard: {
-    marginBottom: spacing.md,
-    gap: spacing.sm,
-  },
-  lastSessionTitle: {
-    color: wellness.text,
-  },
-  lastSessionDate: {
-    fontWeight: '600',
-    color: wellness.primaryDark,
-  },
-  lastSessionMetrics: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginVertical: spacing.xs,
-  },
-  lastSessionMetric: {
-    minWidth: '30%',
-    flexGrow: 1,
-  },
-  lastSessionMetricLabel: {
-    color: wellness.textSecondary,
-    marginBottom: 2,
-  },
-  lastSessionMetricValue: {
-    color: wellness.text,
-  },
-  achievementGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  achievementCompact: {
-    width: '48%',
-    backgroundColor: '#F7F9F8',
-    borderRadius: wellnessRadii.card,
-    padding: spacing.sm + 2,
-    borderWidth: 1,
-    borderColor: '#E0E6E3',
-    alignItems: 'center',
-  },
-  achievementCompactUnlocked: {
-    borderColor: 'rgba(52, 171, 165, 0.45)',
-    backgroundColor: '#F4FBFA',
-    ...wellnessShadows.soft,
-  },
-  achievementCompactIcon: {
-    fontSize: 24,
-    marginBottom: 6,
-  },
-  achievementCompactIconLocked: {
-    opacity: 0.55,
-  },
-  achievementCompactTitle: {
-    color: wellness.primaryDark,
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  achievementCompactTitleLocked: {
-    color: wellness.text,
-    fontWeight: '700',
-  },
-  achievementCompactDesc: {
-    lineHeight: 15,
-    color: wellness.primaryDark,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  achievementCompactDescLocked: {
-    color: wellness.textSecondary,
-    fontWeight: '500',
-  },
-  exportSection: {
-    marginBottom: spacing.lg,
-    gap: spacing.md,
-  },
-  exportHint: {
-    color: wellness.textSecondary,
-    fontStyle: 'italic',
-  },
-  exportSectionBody: {
-    color: wellnessColors.textSecondary,
-  },
-  loadingBox: {
-    paddingVertical: spacing.xl,
-    alignItems: 'flex-start',
-    width: '100%',
-  },
-  loadingSpinner: {
-    marginTop: spacing.lg,
-    alignSelf: 'center',
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    padding: spacing.lg,
-  },
-  modalCard: {
-    backgroundColor: wellness.card,
-    borderRadius: wellnessRadii.cardLarge,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: wellness.border,
-    maxHeight: '85%',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: wellness.text,
-    textTransform: 'capitalize',
-  },
-  modalChipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  modalChip: {
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  modalChipStatus: {
-    backgroundColor: 'rgba(52, 171, 165, 0.12)',
-  },
-  modalChipSensor: {
-    backgroundColor: 'rgba(46, 125, 50, 0.12)',
-  },
-  modalChipPractice: {
-    backgroundColor: 'rgba(33, 150, 243, 0.12)',
-  },
-  modalChipUnclassified: {
-    backgroundColor: 'rgba(158, 158, 158, 0.15)',
-  },
-  modalChipText: {
-    fontWeight: '600',
-    color: wellness.text,
-  },
-  modalSection: {
-    marginBottom: spacing.md,
-  },
-  modalSectionTitle: {
-    color: wellness.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 6,
-  },
-  modalLine: {
-    color: wellness.text,
-    marginBottom: 4,
-  },
-  modalLineMuted: {
-    color: wellness.textSecondary,
-    marginBottom: 4,
-  },
-  modalMotivation: {
-    marginTop: spacing.sm,
-    fontWeight: '600',
-    color: wellness.primaryDark,
-  },
-  modalClose: {
-    marginTop: spacing.lg,
-    backgroundColor: wellness.primary,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    minHeight: 48,
-    justifyContent: 'center',
-  },
-  modalCloseText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-  },
-});
-
-const badgeStyles = StyleSheet.create({
-  slot: {
-    width: BADGE_SLOT_SIZE,
-    height: BADGE_SLOT_SIZE,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(52, 171, 165, 0.1)',
-  },
-  canvas: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ribbon: {
-    position: 'absolute',
-    top: 0,
-    width: 9,
-    height: 12,
-    borderRadius: 3,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-  },
-  ribbonLeft: {
-    left: 4,
-    transform: [{ rotate: '-20deg' }],
-  },
-  ribbonRight: {
-    right: 4,
-    transform: [{ rotate: '20deg' }],
-  },
-  outerRing: {
-    position: 'absolute',
-    bottom: 0,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.55)',
-  },
-  innerRing: {
-    position: 'absolute',
-    bottom: 3,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.45)',
-  },
-  core: {
-    position: 'absolute',
-    bottom: 5,
-    width: 13,
-    height: 13,
-    borderRadius: 7,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
-  },
-  shine: {
-    position: 'absolute',
-    bottom: 14,
-    left: 5,
-    width: 9,
-    height: 4,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-  },
-  yellowAccent: {
-    position: 'absolute',
-    top: 1,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#FFFFFF',
-    opacity: 0.75,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 193, 7, 0.35)',
-  },
-  blueLevelMark: {
-    position: 'absolute',
-    bottom: 9,
-    width: 7,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
   },
 });
