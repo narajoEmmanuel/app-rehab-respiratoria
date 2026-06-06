@@ -15,7 +15,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -48,6 +47,7 @@ import { readAllAttempts, readAllSessions } from '@/src/modules/session/storage/
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppCard } from '@/src/shared/ui/AppCard';
 import { AppButton } from '@/src/shared/ui/AppButton';
+import { AppText } from '@/src/shared/ui/AppText';
 import { RespiraBunnyImage } from '@/src/shared/ui/RespiraBunnyImage';
 import { spacing } from '@/src/shared/theme/spacing';
 import {
@@ -332,7 +332,7 @@ function SummaryBadgeIcon({ variant }: { variant: BadgeVariant }) {
 
 function StreakFireEmoji({ active, hero }: { active: boolean; hero?: boolean }) {
   return (
-    <Text
+    <AppText
       style={[
         styles.streakFire,
         hero && styles.streakFireHero,
@@ -341,7 +341,7 @@ function StreakFireEmoji({ active, hero }: { active: boolean; hero?: boolean }) 
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants">
       🔥
-    </Text>
+    </AppText>
   );
 }
 
@@ -397,8 +397,12 @@ function StreakHeroCard({
             </View>
           </View>
           <View style={styles.streakHeroCopy}>
-            <Text style={titleStyle}>{title}</Text>
-            <Text style={bodyStyle}>{body}</Text>
+            <AppText variant="metric" style={titleStyle}>
+              {title}
+            </AppText>
+            <AppText variant="bodyMedium" style={bodyStyle}>
+              {body}
+            </AppText>
           </View>
         </View>
       </LinearGradient>
@@ -409,7 +413,9 @@ function StreakHeroCard({
 function MonthChip({ label }: { label: string }) {
   return (
     <View style={styles.monthChip}>
-      <Text style={styles.monthChipText}>{label}</Text>
+      <AppText variant="chip" style={styles.monthChipText}>
+        {label}
+      </AppText>
     </View>
   );
 }
@@ -428,8 +434,12 @@ function StatMiniCard({
       <View style={styles.statMiniIconSlot}>
         <SummaryBadgeIcon variant={badgeVariant} />
       </View>
-      <Text style={styles.statMiniValue}>{value}</Text>
-      <Text style={styles.statMiniLabel}>{label}</Text>
+      <AppText variant="statusValue" style={styles.statMiniValue}>
+        {value}
+      </AppText>
+      <AppText variant="label" style={styles.statMiniLabel}>
+        {label}
+      </AppText>
     </View>
   );
 }
@@ -449,14 +459,17 @@ function MetricProgressRow({
   return (
     <View style={styles.metricRow}>
       <View style={styles.metricRowHeader}>
-        <Text style={styles.metricLabel}>{label}</Text>
-        <Text
+        <AppText variant="bodyMedium" style={styles.metricLabel}>
+          {label}
+        </AppText>
+        <AppText
+          variant="bodySmall"
           style={[
             styles.metricValue,
             !showTrack && valueText === EMPTY_METRIC_PLACEHOLDER && styles.metricValueMuted,
           ]}>
           {valueText}
-        </Text>
+        </AppText>
       </View>
       {showTrack ? (
         <View style={styles.metricTrack}>
@@ -471,19 +484,21 @@ function AchievementCompactCard({ item }: { item: ProgressAchievement }) {
   const { title, description, unlocked, icon } = item;
   return (
     <View style={[styles.achievementCompact, unlocked && styles.achievementCompactUnlocked]}>
-      <Text style={[styles.achievementCompactIcon, !unlocked && styles.achievementCompactIconLocked]}>
+      <AppText style={[styles.achievementCompactIcon, !unlocked && styles.achievementCompactIconLocked]}>
         {icon}
-      </Text>
-      <Text
+      </AppText>
+      <AppText
+        variant="chip"
         style={[styles.achievementCompactTitle, !unlocked && styles.achievementCompactTitleLocked]}
         numberOfLines={2}>
         {title}
-      </Text>
-      <Text
+      </AppText>
+      <AppText
+        variant="chipSmall"
         style={[styles.achievementCompactDesc, !unlocked && styles.achievementCompactDescLocked]}
         numberOfLines={3}>
         {description}
-      </Text>
+      </AppText>
     </View>
   );
 }
@@ -504,7 +519,9 @@ function CalendarLegend({ expanded, onToggle }: { expanded: boolean; onToggle: (
         </View>
       ) : null}
       <Pressable onPress={onToggle} accessibilityRole="button" hitSlop={8}>
-        <Text style={styles.legendMoreLink}>{expanded ? 'Ver menos estados' : 'Ver más estados'}</Text>
+        <AppText variant="link" style={styles.legendMoreLink}>
+          {expanded ? 'Ver menos estados' : 'Ver más estados'}
+        </AppText>
       </Pressable>
     </View>
   );
@@ -534,20 +551,36 @@ function LastSessionCard({
 
   return (
     <AppCard style={styles.lastSessionCard}>
-      <Text style={styles.lastSessionTitle}>Última sesión</Text>
-      <Text style={styles.lastSessionDate}>{formatSessionDateTime(session.session_date)}</Text>
+      <AppText variant="titleMedium" style={styles.lastSessionTitle}>
+        Última sesión
+      </AppText>
+      <AppText variant="statusValue" style={styles.lastSessionDate}>
+        {formatSessionDateTime(session.session_date)}
+      </AppText>
       <View style={styles.lastSessionMetrics}>
         <View style={styles.lastSessionMetric}>
-          <Text style={styles.lastSessionMetricLabel}>Repeticiones válidas</Text>
-          <Text style={styles.lastSessionMetricValue}>{session.valid_attempts}</Text>
+          <AppText variant="caption" style={styles.lastSessionMetricLabel}>
+            Repeticiones válidas
+          </AppText>
+          <AppText variant="titleSmall" style={styles.lastSessionMetricValue}>
+            {session.valid_attempts}
+          </AppText>
         </View>
         <View style={styles.lastSessionMetric}>
-          <Text style={styles.lastSessionMetricLabel}>Mejor volumen</Text>
-          <Text style={styles.lastSessionMetricValue}>{volMl}</Text>
+          <AppText variant="caption" style={styles.lastSessionMetricLabel}>
+            Mejor volumen estimado
+          </AppText>
+          <AppText variant="titleSmall" style={styles.lastSessionMetricValue}>
+            {volMl}
+          </AppText>
         </View>
         <View style={styles.lastSessionMetric}>
-          <Text style={styles.lastSessionMetricLabel}>Tiempo sostenido</Text>
-          <Text style={styles.lastSessionMetricValue}>{holdText}</Text>
+          <AppText variant="caption" style={styles.lastSessionMetricLabel}>
+            Tiempo sostenido
+          </AppText>
+          <AppText variant="titleSmall" style={styles.lastSessionMetricValue}>
+            {holdText}
+          </AppText>
         </View>
       </View>
       <AppButton title="Ver detalle" onPress={onViewDetail} variant="secondary" />
@@ -785,21 +818,29 @@ export function HistoryScreen() {
         keyboardShouldPersistTaps="handled">
         {!patient ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.screenTitle}>Tu historial</Text>
-            <Text style={styles.tagline}>
+            <AppText variant="titleLarge" style={styles.screenTitle}>
+              Tu historial
+            </AppText>
+            <AppText variant="bodyLarge" style={styles.tagline}>
               Asocia un perfil de paciente para ver tu historial, calendario y logros.
-            </Text>
+            </AppText>
           </View>
         ) : loading ? (
           <View style={styles.loadingBox}>
-            <Text style={styles.screenTitle}>Tu historial</Text>
-            <Text style={styles.tagline}>Cargando tu historial…</Text>
+            <AppText variant="titleLarge" style={styles.screenTitle}>
+              Tu historial
+            </AppText>
+            <AppText variant="bodyLarge" style={styles.tagline}>
+              Cargando tu historial…
+            </AppText>
             <ActivityIndicator size="large" color={wellness.primary} style={styles.loadingSpinner} />
           </View>
         ) : (
           <>
             <View style={styles.pageHeader}>
-              <Text style={styles.pageTitle}>Mi progreso</Text>
+              <AppText variant="titleLarge" style={styles.pageTitle}>
+                Mi progreso
+              </AppText>
               <MonthChip label={headerMonthChip} />
             </View>
 
@@ -824,7 +865,9 @@ export function HistoryScreen() {
             </View>
 
             <AppCard style={styles.metricsCard}>
-              <Text style={styles.metricsTitle}>Progreso respiratorio</Text>
+              <AppText variant="titleMedium" style={styles.metricsTitle}>
+                Progreso respiratorio
+              </AppText>
               <MetricProgressRow
                 label="Mejor volumen estimado"
                 valueText={vimValueText}
@@ -845,8 +888,12 @@ export function HistoryScreen() {
               />
             </AppCard>
 
-            <Text style={styles.sectionTitle}>Calendario de actividad</Text>
-            <Text style={styles.sectionSubtitle}>Revisa tus sesiones registradas por día.</Text>
+            <AppText variant="titleMedium" style={styles.sectionTitle}>
+              Calendario de actividad
+            </AppText>
+            <AppText variant="bodySmall" style={styles.sectionSubtitle}>
+              Revisa tus sesiones registradas por día.
+            </AppText>
 
             <AppCard style={styles.calendarCard}>
               <View style={styles.monthNav}>
@@ -855,21 +902,29 @@ export function HistoryScreen() {
                   style={styles.monthNavBtn}
                   accessibilityRole="button"
                   accessibilityLabel="Mes anterior">
-                  <Text style={styles.monthNavBtnText}>‹</Text>
+                  <AppText variant="metric" style={styles.monthNavBtnText}>
+                    ‹
+                  </AppText>
                 </Pressable>
-                <Text style={styles.monthTitle}>{monthChipLabel}</Text>
+                <AppText variant="statusValue" style={styles.monthTitle}>
+                  {monthChipLabel}
+                </AppText>
                 <Pressable
                   onPress={() => shiftMonth(1)}
                   style={styles.monthNavBtn}
                   accessibilityRole="button"
                   accessibilityLabel="Mes siguiente">
-                  <Text style={styles.monthNavBtnText}>›</Text>
+                  <AppText variant="metric" style={styles.monthNavBtnText}>
+                    ›
+                  </AppText>
                 </Pressable>
               </View>
               <View style={styles.weekRow}>
                 {WEEK_LABELS.map((w, i) => (
                   <View key={`w-${i}`} style={styles.weekCell}>
-                    <Text style={styles.weekCellText}>{w}</Text>
+                    <AppText variant="label" style={styles.weekCellText}>
+                      {w}
+                    </AppText>
                   </View>
                 ))}
               </View>
@@ -897,14 +952,15 @@ export function HistoryScreen() {
                       ]}
                       accessibilityRole="button"
                       accessibilityLabel={`Día ${dateKey}`}>
-                      <Text
+                      <AppText
+                        variant="chip"
                         style={[
                           styles.dayCellNum,
                           inactive && styles.dayCellNumMuted,
                           (kind === 'perfect' || kind === 'good') && styles.dayCellNumOnColor,
                         ]}>
                         {Number(dateKey.slice(8, 10))}
-                      </Text>
+                      </AppText>
                     </Pressable>
                   );
                 })}
@@ -917,10 +973,12 @@ export function HistoryScreen() {
 
             {!hasAnyHistory ? (
               <AppCard style={styles.emptySessionsCard}>
-                <Text style={styles.inlineEmptyTitle}>Aún no hay sesiones registradas</Text>
-                <Text style={styles.inlineEmptyText}>
+                <AppText variant="titleSmall" style={styles.inlineEmptyTitle}>
+                  Aún no hay sesiones registradas
+                </AppText>
+                <AppText variant="bodyMedium" style={styles.inlineEmptyText}>
                   Tu historial se activará cuando completes tu primera práctica.
-                </Text>
+                </AppText>
                 <AppButton
                   title="Comenzar primera sesión"
                   onPress={() => router.push('/(tabs)/terapia')}
@@ -936,21 +994,29 @@ export function HistoryScreen() {
               />
             ) : null}
 
-            <Text style={styles.sectionTitle}>Logros</Text>
-            <Text style={styles.sectionSubtitle}>Desbloquéalos conforme avanzas en tu terapia.</Text>
+            <AppText variant="titleMedium" style={styles.sectionTitle}>
+              Logros
+            </AppText>
+            <AppText variant="bodySmall" style={styles.sectionSubtitle}>
+              Desbloquéalos conforme avanzas en tu terapia.
+            </AppText>
             <View style={styles.achievementGrid}>
               {progressAchievements.map((a) => (
                 <AchievementCompactCard key={a.id} item={a} />
               ))}
             </View>
 
-            <Text style={styles.sectionTitle}>Reporte para profesional</Text>
+            <AppText variant="titleMedium" style={styles.sectionTitle}>
+              Reporte para profesional
+            </AppText>
             <AppCard style={styles.exportSection}>
-              <Text style={styles.exportSectionBody}>
+              <AppText variant="bodySmall" style={styles.exportSectionBody}>
                 Exporta tus sesiones, cumplimiento y progreso.
-              </Text>
+              </AppText>
               {!hasAnyHistory ? (
-                <Text style={styles.exportHint}>Disponible después de tu primera sesión.</Text>
+                <AppText variant="bodySmall" style={styles.exportHint}>
+                  Disponible después de tu primera sesión.
+                </AppText>
               ) : null}
               <AppButton
                 title="Exportar reporte"
@@ -972,92 +1038,117 @@ export function HistoryScreen() {
           <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
             {selectedDay ? (
               <>
-                <Text style={styles.modalTitle}>{formatDisplayDateEs(selectedDay.dateKey)}</Text>
+                <AppText variant="titleMedium" style={styles.modalTitle}>
+                  {formatDisplayDateEs(selectedDay.dateKey)}
+                </AppText>
                 <View style={styles.modalChipRow}>
                   <View style={[styles.modalChip, styles.modalChipStatus]}>
-                    <Text style={styles.modalChipText}>{selectedDay.statusLabel}</Text>
+                    <AppText variant="chip" style={styles.modalChipText}>
+                      {selectedDay.statusLabel}
+                    </AppText>
                   </View>
                   {selectedDay.classification.sensorSessionsCount > 0 ? (
                     <View style={[styles.modalChip, styles.modalChipSensor]}>
-                      <Text style={styles.modalChipText}>Con medición</Text>
+                      <AppText variant="chip" style={styles.modalChipText}>
+                        Con medición
+                      </AppText>
                     </View>
                   ) : null}
                   {selectedDay.classification.practiceSessionsCount > 0 ? (
                     <View style={[styles.modalChip, styles.modalChipPractice]}>
-                      <Text style={styles.modalChipText}>Práctica</Text>
+                      <AppText variant="chip" style={styles.modalChipText}>
+                        Práctica
+                      </AppText>
                     </View>
                   ) : null}
                   {selectedDay.classification.unclassifiedSessionsCount > 0 ? (
                     <View style={[styles.modalChip, styles.modalChipUnclassified]}>
-                      <Text style={styles.modalChipText}>Sin clasificar</Text>
+                      <AppText variant="chip" style={styles.modalChipText}>
+                        Sin clasificar
+                      </AppText>
                     </View>
                   ) : null}
                 </View>
 
                 <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionTitle}>Resumen del día</Text>
-                  <Text style={styles.modalLine}>
-                    Completadas: {selectedDay.completedCount}/{LEVEL1_DAILY_GOAL} · Perfectas: {selectedDay.perfectCount}
-                  </Text>
+                  <AppText variant="label" style={styles.modalSectionTitle}>
+                    Resumen del día
+                  </AppText>
+                  <AppText variant="bodyLarge" style={styles.modalLine}>
+                    Completadas: {selectedDay.completedCount}/{LEVEL1_DAILY_GOAL} · Perfectas:{' '}
+                    {selectedDay.perfectCount}
+                  </AppText>
                   {selectedDay.interruptedCount > 0 ? (
-                    <Text style={styles.modalLine}>
+                    <AppText variant="bodyLarge" style={styles.modalLine}>
                       Interrumpidas: {selectedDay.interruptedCount}
-                    </Text>
+                    </AppText>
                   ) : null}
-                  <Text style={styles.modalLine}>
+                  <AppText variant="bodyLarge" style={styles.modalLine}>
                     Mejor inspiración:{' '}
                     {selectedDay.bestHoldSeconds != null && selectedDay.bestHoldSeconds > 0
                       ? `${selectedDay.bestHoldSeconds.toFixed(1)} s`
                       : '—'}
-                  </Text>
+                  </AppText>
                 </View>
 
                 {selectedDay.classification.sensorSessionsCount > 0 ? (
                   <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>Tu inspiración</Text>
-                    <Text style={styles.modalLine}>
+                    <AppText variant="label" style={styles.modalSectionTitle}>
+                      Tu inspiración
+                    </AppText>
+                    <AppText variant="bodyLarge" style={styles.modalLine}>
                       {selectedDay.classification.sensorSessionsCount}{' '}
                       {selectedDay.classification.sensorSessionsCount === 1 ? 'sesión' : 'sesiones'}
                       {selectedDay.maxVolumeMl != null && selectedDay.maxVolumeMl > 0
-                        ? ` · Mejor volumen ${selectedDay.maxVolumeMl} mL`
+                        ? ` · Mejor volumen estimado ${selectedDay.maxVolumeMl} mL`
                         : ''}
-                    </Text>
+                    </AppText>
                     {sensorDebug && selectedDay.classification.maxSensorU95Ml != null ? (
-                      <Text style={styles.modalLineMuted}>
+                      <AppText variant="bodySmall" style={styles.modalLineMuted}>
                         U95 máx. ±{Math.round(selectedDay.classification.maxSensorU95Ml)} mL (debug)
-                      </Text>
+                      </AppText>
                     ) : null}
                   </View>
                 ) : null}
 
                 {selectedDay.classification.practiceSessionsCount > 0 ? (
                   <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>Práctica táctil</Text>
-                    <Text style={styles.modalLineMuted}>
+                    <AppText variant="label" style={styles.modalSectionTitle}>
+                      Práctica táctil
+                    </AppText>
+                    <AppText variant="bodySmall" style={styles.modalLineMuted}>
                       {selectedDay.classification.practiceSessionsCount}{' '}
                       {selectedDay.classification.practiceSessionsCount === 1 ? 'sesión' : 'sesiones'}{' '}
                       · No terapéutica
-                    </Text>
+                    </AppText>
                   </View>
                 ) : null}
 
                 {selectedDay.classification.unclassifiedSessionsCount > 0 ? (
                   <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>Sin clasificar</Text>
-                    <Text style={styles.modalLineMuted}>
+                    <AppText variant="label" style={styles.modalSectionTitle}>
+                      Sin clasificar
+                    </AppText>
+                    <AppText variant="bodySmall" style={styles.modalLineMuted}>
                       {selectedDay.classification.unclassifiedSessionsCount}{' '}
-                      {selectedDay.classification.unclassifiedSessionsCount === 1 ? 'sesión' : 'sesiones'}{' '}
+                      {selectedDay.classification.unclassifiedSessionsCount === 1
+                        ? 'sesión'
+                        : 'sesiones'}{' '}
                       · Registro anterior a la clasificación
-                    </Text>
+                    </AppText>
                   </View>
                 ) : null}
 
-                <Text style={styles.modalMotivation}>{dayDetailMotivation(selectedDay)}</Text>
+                <AppText variant="bodyMedium" style={styles.modalMotivation}>
+                  {dayDetailMotivation(selectedDay)}
+                </AppText>
                 <Pressable
                   style={styles.modalClose}
                   onPress={() => setSelectedDay(null)}
                   accessibilityRole="button">
-                  <Text style={styles.modalCloseText}>Cerrar</Text>
+                  <AppText variant="button" style={styles.modalCloseText}>
+                    Cerrar
+                  </AppText>
                 </Pressable>
               </>
             ) : null}
@@ -1073,7 +1164,9 @@ function LegendDot({ color, label, compact }: { color: string; label: string; co
     return (
       <View style={styles.legendItemCompact}>
         <View style={[styles.legendDot, { backgroundColor: color }]} />
-        <Text style={styles.legendLabelCompact}>{label}</Text>
+        <AppText variant="label" style={styles.legendLabelCompact}>
+          {label}
+        </AppText>
       </View>
     );
   }
@@ -1082,7 +1175,9 @@ function LegendDot({ color, label, compact }: { color: string; label: string; co
       <View style={styles.legendDotSlot}>
         <View style={[styles.legendDot, { backgroundColor: color }]} />
       </View>
-      <Text style={styles.legendLabel}>{label}</Text>
+      <AppText variant="caption" style={styles.legendLabel}>
+        {label}
+      </AppText>
     </View>
   );
 }
@@ -1098,15 +1193,10 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   screenTitle: {
-    fontSize: 26,
-    fontWeight: '800',
     color: wellness.text,
-    letterSpacing: -0.3,
     marginBottom: 2,
   },
   tagline: {
-    fontSize: 16,
-    lineHeight: 22,
     color: wellness.textSecondary,
     marginBottom: spacing.sm,
   },
@@ -1119,7 +1209,6 @@ const styles = StyleSheet.create({
   },
   pageTitle: {
     fontSize: 28,
-    fontWeight: '800',
     color: wellness.text,
     letterSpacing: -0.4,
     flexShrink: 0,
@@ -1133,7 +1222,6 @@ const styles = StyleSheet.create({
     borderColor: wellness.border,
   },
   monthChipText: {
-    fontSize: 13,
     fontWeight: '600',
     color: wellness.primaryDark,
   },
@@ -1192,41 +1280,31 @@ const styles = StyleSheet.create({
   },
   streakHeroTitleWarm: {
     fontSize: 22,
-    fontWeight: '800',
     color: '#5D4037',
     letterSpacing: -0.3,
     lineHeight: 28,
   },
   streakHeroBodyWarm: {
     marginTop: 6,
-    fontSize: 15,
-    lineHeight: 22,
     color: '#795548',
     fontWeight: '500',
   },
   streakHeroTitleActive: {
     fontSize: 24,
-    fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -0.35,
     lineHeight: 30,
   },
   streakHeroBodyActive: {
     marginTop: 6,
-    fontSize: 15,
-    lineHeight: 22,
     color: 'rgba(255, 255, 255, 0.94)',
     fontWeight: '600',
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
     color: wellness.text,
     marginBottom: 4,
   },
   sectionSubtitle: {
-    fontSize: 14,
-    lineHeight: 20,
     color: wellness.textSecondary,
     marginBottom: spacing.sm,
   },
@@ -1257,8 +1335,6 @@ const styles = StyleSheet.create({
     lineHeight: 28,
   },
   monthTitle: {
-    fontSize: 15,
-    fontWeight: '700',
     color: wellness.text,
     textTransform: 'capitalize',
   },
@@ -1271,9 +1347,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   weekCellText: {
-    fontWeight: '700',
     color: wellness.textSecondary,
-    fontSize: 11,
   },
   grid: {
     flexDirection: 'row',
@@ -1305,8 +1379,6 @@ const styles = StyleSheet.create({
     borderColor: wellness.primaryDark,
   },
   dayCellNum: {
-    fontSize: 13,
-    fontWeight: '700',
     color: '#37474F',
   },
   dayCellNumMuted: {
@@ -1336,7 +1408,6 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   legendLabelCompact: {
-    fontSize: 11,
     fontWeight: '600',
     color: wellness.textSecondary,
   },
@@ -1347,7 +1418,6 @@ const styles = StyleSheet.create({
   },
   legendMoreLink: {
     fontSize: 11,
-    fontWeight: '700',
     color: wellness.primaryDark,
     marginTop: 2,
   },
@@ -1370,10 +1440,7 @@ const styles = StyleSheet.create({
   legendLabel: {
     flex: 1,
     flexShrink: 1,
-    fontSize: 12,
-    lineHeight: 16,
     color: wellness.textSecondary,
-    fontWeight: '600',
   },
   statMiniRow: {
     flexDirection: 'row',
@@ -1399,7 +1466,6 @@ const styles = StyleSheet.create({
   },
   statMiniValue: {
     marginTop: 6,
-    fontSize: 15,
     fontWeight: '800',
     color: wellness.text,
     textAlign: 'center',
@@ -1407,7 +1473,6 @@ const styles = StyleSheet.create({
   },
   statMiniLabel: {
     marginTop: 4,
-    fontSize: 11,
     fontWeight: '600',
     color: wellness.textSecondary,
     textAlign: 'center',
@@ -1417,8 +1482,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   metricsTitle: {
-    fontSize: 18,
-    fontWeight: '800',
     color: wellness.text,
     marginBottom: spacing.md,
   },
@@ -1434,12 +1497,10 @@ const styles = StyleSheet.create({
   },
   metricLabel: {
     flex: 1,
-    fontSize: 15,
     fontWeight: '600',
     color: wellness.text,
   },
   metricValue: {
-    fontSize: 14,
     fontWeight: '700',
     color: wellness.primaryDark,
     textAlign: 'right',
@@ -1480,25 +1541,19 @@ const styles = StyleSheet.create({
   },
   inlineEmptyTitle: {
     fontSize: 17,
-    fontWeight: '800',
     color: wellness.text,
   },
   inlineEmptyText: {
-    fontSize: 15,
     color: wellness.textSecondary,
-    lineHeight: 22,
   },
   lastSessionCard: {
     marginBottom: spacing.md,
     gap: spacing.sm,
   },
   lastSessionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
     color: wellness.text,
   },
   lastSessionDate: {
-    fontSize: 15,
     fontWeight: '600',
     color: wellness.primaryDark,
   },
@@ -1513,13 +1568,10 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   lastSessionMetricLabel: {
-    fontSize: 12,
     color: wellness.textSecondary,
     marginBottom: 2,
   },
   lastSessionMetricValue: {
-    fontSize: 16,
-    fontWeight: '700',
     color: wellness.text,
   },
   achievementGrid: {
@@ -1551,8 +1603,6 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   achievementCompactTitle: {
-    fontSize: 13,
-    fontWeight: '800',
     color: wellness.primaryDark,
     textAlign: 'center',
     marginBottom: 4,
@@ -1562,7 +1612,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   achievementCompactDesc: {
-    fontSize: 11,
     lineHeight: 15,
     color: wellness.primaryDark,
     textAlign: 'center',
@@ -1577,14 +1626,10 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   exportHint: {
-    fontSize: 13,
-    lineHeight: 18,
     color: wellness.textSecondary,
     fontStyle: 'italic',
   },
   exportSectionBody: {
-    fontSize: 14,
-    lineHeight: 20,
     color: wellnessColors.textSecondary,
   },
   loadingBox: {
@@ -1641,7 +1686,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(158, 158, 158, 0.15)',
   },
   modalChipText: {
-    fontSize: 13,
     fontWeight: '600',
     color: wellness.text,
   },
@@ -1649,31 +1693,23 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   modalSectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
     color: wellness.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 6,
   },
   modalLine: {
-    fontSize: 16,
     color: wellness.text,
     marginBottom: 4,
-    lineHeight: 24,
   },
   modalLineMuted: {
-    fontSize: 14,
     color: wellness.textSecondary,
     marginBottom: 4,
-    lineHeight: 20,
   },
   modalMotivation: {
     marginTop: spacing.sm,
-    fontSize: 15,
     fontWeight: '600',
     color: wellness.primaryDark,
-    lineHeight: 22,
   },
   modalClose: {
     marginTop: spacing.lg,
@@ -1687,7 +1723,6 @@ const styles = StyleSheet.create({
   modalCloseText: {
     color: '#FFFFFF',
     fontSize: 17,
-    fontWeight: '700',
   },
 });
 

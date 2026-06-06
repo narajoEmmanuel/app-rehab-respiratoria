@@ -220,11 +220,19 @@ import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 - Copy clínico: labels de volumen en última sesión y card sensor alineados con «estimado».
 - Lógica de gates, CTAs, onboarding, consent, sensor, terapia y exportación intacta.
 
+### Fase 4N — `HistoryScreen` (Historial)
+
+- `HistoryScreen` migrado a `AppText` (subcomponentes inline incluidos).
+- Variantes: `titleLarge`, `titleMedium`, `titleSmall`, `bodyLarge`, `bodyMedium`, `bodySmall`, `caption`, `label`, `chip`, `chipSmall`, `button`, `link`, `metric`, `statusValue`.
+- `AppButton`, `AppTopBar`, `RespiraBunnyImage` sin cambios.
+- Copy clínico: labels de volumen en última sesión y modal de día alineados con «estimado».
+- Agregados, rachas, calendario, clasificación y modales sin cambios de lógica.
+
 ## Qué queda pendiente
 
 | Ámbito | Motivo |
 |--------|--------|
-| `HistoryScreen`, `SessionScreen` | Pantallas grandes — pendiente fases posteriores |
+| `SessionScreen` | Pantalla grande — pendiente fases posteriores |
 | `AppTopBar`, `AppCard` | Sin texto propio o solo layout |
 | HUD de juego | Tokens definidos; migración requiere revisión visual del gameplay |
 | Módulos `device/`, `session/games/` | Alto volumen de `fontSize` hardcoded |
