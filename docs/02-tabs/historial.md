@@ -15,6 +15,8 @@ Vista motivacional del progreso: racha, calendario de días, logros y detalle po
 | Clasificación | `src/modules/session/session-record-classification.ts` |
 | Storage | `src/modules/session/storage/session-progress-repository.ts` |
 
+Tipografía: `HistoryScreen` usa `AppText` + tokens (Fase 4N). Labels de volumen en tarjeta y modal dicen «estimado».
+
 ## Flujo funcional
 
 1. Carga sesiones e intentos del paciente activo.

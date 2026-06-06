@@ -4,17 +4,13 @@
  * Dependencies: RespiraBunnyImage, IconSymbol, wellness tokens
  */
 
-import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { RespiraBunnyImage } from '@/src/shared/ui/RespiraBunnyImage';
+import { AppText } from '@/src/shared/ui/AppText';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { spacing } from '@/src/shared/theme/spacing';
-import {
-  wellnessColors,
-  wellnessRadii,
-  wellnessShadows,
-  wellnessTypography,
-} from '@/src/shared/theme/wellness-theme';
+import { wellnessColors, wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 
 const BUNNY_SIZE = 152;
 const CARD_MAX_WIDTH = 400;
@@ -66,14 +62,20 @@ export function RespiraWelcomeOnboarding({ visible, onContinue }: RespiraWelcome
 
           <View style={styles.copyBlock}>
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>Tu guía respiratoria</Text>
+              <AppText variant="chip" style={styles.badgeText}>
+                Tu guía respiratoria
+              </AppText>
             </View>
 
-            <Text style={styles.title}>Soy Respira Bunny</Text>
-            <Text style={styles.subtitle}>y te acompañaré en cada sesión.</Text>
-            <Text style={styles.hint}>
+            <AppText variant="titleLarge" style={styles.title}>
+              Soy Respira Bunny
+            </AppText>
+            <AppText variant="bodyLarge" style={styles.subtitle}>
+              y te acompañaré en cada sesión.
+            </AppText>
+            <AppText variant="bodyMedium" style={styles.hint}>
               Te daré indicaciones, ánimo y recordatorios para que avances con calma.
-            </Text>
+            </AppText>
           </View>
         </View>
       </View>
@@ -167,14 +169,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   badgeText: {
-    fontSize: 13,
-    fontWeight: '700',
     color: LAVENDER_PRIMARY,
     letterSpacing: 0.35,
   },
   title: {
-    ...wellnessTypography.screenTitle,
-    fontSize: 26,
     color: wellnessColors.textPrimary,
     textAlign: 'center',
     marginBottom: spacing.xs,
@@ -189,9 +187,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   hint: {
-    ...wellnessTypography.body,
-    fontSize: 15,
-    lineHeight: 22,
     color: COPY_MUTED,
     textAlign: 'center',
     marginBottom: 0,
