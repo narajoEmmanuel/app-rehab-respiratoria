@@ -251,14 +251,21 @@ Prioridades del juego: legibilidad en cajas compactas, peso visual lúdico (800/
 - Copy clínico: HUD compacto usa «Volumen» / abreviaciones; modal de resumen de sesión usa «Vol. máx. / prom. estimado» en tile ancho.
 - Motor `use-level-one-game`, validación, sensor, touch, persistencia y navegación intactos.
 
+### Fase 4P — Cierre tipográfico producto (perfil + racha resumen)
+
+- `ProfileStatusBadge`, `ProfileActionRow` y `SessionSuccessStreakCard` migrados a `AppText`.
+- Variantes: `chip` (badge), `bodyMedium` (filas perfil), `statusValue` + `bodySmall` (racha en `SummaryScreen`).
+- Overrides mínimos para paridad visual (`fontSize`, `fontWeight`, `letterSpacing`, colores dinámicos).
+- **Sin tocar:** HUD/juego (4O), `VolumeThermometer.tsx` (sin consumidores), dev/debug, wrappers técnicos.
+
 ## Qué queda pendiente
 
 | Ámbito | Motivo |
 |--------|--------|
 | `AppTopBar`, `AppCard` | Sin texto propio o solo layout |
 | Estilos HUD legacy en `LevelOneGameView` | Dead styles; render usa `RunnerGameFeedbackBar` |
-| `SessionSuccessStreakCard` | Usado en `SummaryScreen` (Fase resumen) |
-| Módulos `device/` | Fuera de alcance sesión activa |
+| `VolumeThermometer.tsx` | Componente legacy sin consumidores; evaluar deprecar o migrar |
+| Módulos `device/` (dev) | `HardwareLabScreen`, `esp32-raw-test` — fuera de alcance producto |
 
 ## Reglas
 

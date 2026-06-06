@@ -3,10 +3,11 @@
  * Module: patient
  */
 
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+import { AppText } from '@/src/shared/ui/AppText';
 
 export type ProfileConsentBadgeVariant = 'active' | 'withdrawn' | 'unavailable';
 
@@ -40,7 +41,9 @@ export function ProfileStatusBadge({ label, variant }: ProfileStatusBadgeProps) 
   const v = variantStyles[variant];
   return (
     <View style={[styles.pill, { backgroundColor: v.bg, borderColor: v.border }]}>
-      <Text style={[styles.pillText, { color: v.text }]}>{label}</Text>
+      <AppText variant="chip" style={[styles.pillText, { color: v.text }]}>
+        {label}
+      </AppText>
     </View>
   );
 }

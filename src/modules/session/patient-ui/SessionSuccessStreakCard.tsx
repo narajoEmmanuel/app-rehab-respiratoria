@@ -2,7 +2,7 @@
  * Purpose: Compact streak achievement card for session summary (read-only streak).
  * Module: session / patient-ui
  */
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { spacing } from '@/src/shared/theme/spacing';
 import {
@@ -10,6 +10,7 @@ import {
   wellnessRadii,
   wellnessShadows,
 } from '@/src/shared/theme/wellness-theme';
+import { AppText } from '@/src/shared/ui/AppText';
 
 export type SessionSuccessStreakCardProps = {
   currentStreak: number;
@@ -26,15 +27,20 @@ export function SessionSuccessStreakCard({ currentStreak }: SessionSuccessStreak
 
   return (
     <View style={styles.card} accessibilityRole="summary">
-      <Text
+      <AppText
+        variant="bodyMedium"
         style={styles.fire}
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants">
         🔥
-      </Text>
+      </AppText>
       <View style={styles.textCol}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
+        <AppText variant="statusValue" style={styles.title}>
+          {title}
+        </AppText>
+        <AppText variant="bodySmall" style={styles.subtitle}>
+          {subtitle}
+        </AppText>
       </View>
     </View>
   );
