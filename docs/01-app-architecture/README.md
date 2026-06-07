@@ -131,6 +131,7 @@ El archivo [src/docs/architecture.md](../../src/docs/architecture.md) contiene:
 - [Design system / tipografía](../07-ui-design-system/README.md)
 - [Legacy y limpieza](../12-legacy/README.md)
 - [Seguridad clínica](../08-clinical-safety/README.md)
+- [Testing y validación QA](../10-testing-and-validation/full-app-manual-qa-checklist.md) · [Mapa de riesgos](../10-testing-and-validation/regression-risk-map.md)
 - [Flujo del sensor](../sensor-flow.md)
 - [Calibración](../calibration/README.md)
 - [Ownership por equipo](../../src/docs/team-ownership.md)
