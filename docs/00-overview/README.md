@@ -91,6 +91,7 @@ Basado en tipos en `src/modules/session/types/session-progress.ts`, `src/modules
 - [Datos y almacenamiento](../06-data-and-storage/README.md)
 - [Design system / tipografía](../07-ui-design-system/README.md)
 - [Seguridad clínica](../08-clinical-safety/README.md)
+- [Testing y validación QA](../10-testing-and-validation/full-app-manual-qa-checklist.md)
 - [Revisión documentación (jun 2026)](./documentation-sync-report.md)
 - [Módulo device](../../src/modules/device/README.md)
 - [Módulo session](../../src/modules/session/README.md)
@@ -107,5 +108,6 @@ docs/
 ├── 05-calibration/       ← RESPIRA+ 3000 mL, flujo técnico, CSV
 ├── 06-data-and-storage/  ← Claves, modelos, export schema
 ├── 07-ui-design-system/  ← Tipografía, tokens UI, AppText
-└── 08-clinical-safety/   ← Lenguaje clínico y límites del producto
+├── 08-clinical-safety/   ← Lenguaje clínico y límites del producto
+└── 10-testing-and-validation/  ← Checklist QA manual y mapa de riesgos
 ```
