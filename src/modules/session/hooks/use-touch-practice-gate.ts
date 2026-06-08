@@ -14,6 +14,8 @@ export type UseTouchPracticeGateResult = {
   /** Feature + profile preference + no sensor — touch may run this session. */
   canUseTouchPractice: boolean;
   effectiveTouchPracticeEnabled: boolean;
+  /** Feature flag + Perfil (sin comprobar transporte WS). Para diagnóstico con fallback táctil. */
+  profileTouchPracticeAllowed: boolean;
   touchPracticeFeatureEnabled: boolean;
   profileTouchPracticeEnabled: boolean;
   /** AsyncStorage preference loaded for active patient. */
@@ -29,17 +31,18 @@ export function useTouchPracticeGate({
   const { hydrated, touchPracticeFeatureEnabled, profileTouchPracticeEnabled } =
     useTouchPracticePreference();
 
+  const profileTouchPracticeAllowed =
+    hydrated && touchPracticeFeatureEnabled && profileTouchPracticeEnabled;
+
   const canUseTouchPractice =
-    hydrated &&
-    touchPracticeFeatureEnabled &&
-    profileTouchPracticeEnabled &&
-    sensorConnected !== true;
+    profileTouchPracticeAllowed && sensorConnected !== true;
 
   const effectiveTouchPracticeEnabled = canUseTouchPractice;
 
   return {
     canUseTouchPractice,
     effectiveTouchPracticeEnabled,
+    profileTouchPracticeAllowed,
     touchPracticeFeatureEnabled,
     profileTouchPracticeEnabled,
     preferenceHydrated: hydrated,

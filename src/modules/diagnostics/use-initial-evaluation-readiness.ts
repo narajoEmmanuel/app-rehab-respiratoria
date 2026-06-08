@@ -43,15 +43,16 @@ type ReadinessSnapshot = {
 export type UseInitialEvaluationReadinessOptions = {
   /** Poll sensor/calibration when true (false for URL touch/touch_practice explícito). */
   enabled: boolean;
-  /** Profile + feature flag; web_touch no requiere perfil. */
+  /** Touch habilitado por flag + perfil (web_touch no requiere perfil). */
   allowTouchFallback: boolean;
-  effectiveTouchPracticeEnabled: boolean;
+  /** Flag + Perfil; no exige ausencia de transporte WS (a diferencia de terapia). */
+  profileTouchPracticeAllowed: boolean;
 };
 
 export function useInitialEvaluationReadiness(
   options: UseInitialEvaluationReadinessOptions,
 ): InitialEvaluationReadiness {
-  const { enabled, allowTouchFallback, effectiveTouchPracticeEnabled } = options;
+  const { enabled, allowTouchFallback, profileTouchPracticeAllowed } = options;
 
   const { lastReading, status, mode, lastDataReceivedAt, sensorStreamState } =
     useSensorConnection();
@@ -145,18 +146,13 @@ export function useInitialEvaluationReadiness(
 
     const launchMode = resolveDiagnosticLaunchInputMode({
       sensorReadinessCanStart,
-      effectiveTouchPracticeEnabled,
+      profileTouchPracticeAllowed,
     });
 
-    const touchReady =
-      allowTouchFallback &&
-      launchMode !== 'sensor' &&
-      (launchMode === 'touch' || effectiveTouchPracticeEnabled || !sensorRuntimeEnabled);
+    const touchReady = allowTouchFallback && launchMode !== 'sensor';
 
     const readyNow =
-      launchMode === 'sensor'
-        ? sensorReadinessCanStart
-        : touchReady;
+      launchMode === 'sensor' ? sensorReadinessCanStart : touchReady;
 
     if (!readyNow && !sensorRuntimeEnabled && !allowTouchFallback) {
       nextStatusMessage = TOUCH_DISABLED_MESSAGE;
@@ -171,10 +167,10 @@ export function useInitialEvaluationReadiness(
       canStartNow: readyNow,
       statusMessage: nextStatusMessage,
       spirometerLabel: nextSpirometerLabel,
-      resolvedInputMode: readyNow ? launchMode : 'sensor',
+      resolvedInputMode: readyNow ? launchMode : launchMode !== 'sensor' ? launchMode : 'sensor',
       sensorReadinessCanStart,
     };
-  }, [allowTouchFallback, effectiveTouchPracticeEnabled, enabled]);
+  }, [allowTouchFallback, enabled, profileTouchPracticeAllowed]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -191,11 +187,9 @@ export function useInitialEvaluationReadiness(
     if (!enabled && allowTouchFallback) {
       const launchMode = resolveDiagnosticLaunchInputMode({
         sensorReadinessCanStart: false,
-        effectiveTouchPracticeEnabled,
+        profileTouchPracticeAllowed,
       });
-      const touchReady =
-        launchMode !== 'sensor' &&
-        (launchMode === 'touch' || effectiveTouchPracticeEnabled || !isSensorRuntimeEnabled());
+      const touchReady = launchMode !== 'sensor';
       setLoading(false);
       setCanStart(touchReady);
       setCanStartNow(touchReady);
@@ -250,9 +244,9 @@ export function useInitialEvaluationReadiness(
   }, [
     allowTouchFallback,
     applySnapshot,
-    effectiveTouchPracticeEnabled,
     enabled,
     evaluateSnapshot,
+    profileTouchPracticeAllowed,
   ]);
 
   return {

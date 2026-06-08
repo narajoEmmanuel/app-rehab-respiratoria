@@ -20,7 +20,7 @@ Fase 3 habilita evaluación inicial con input táctil (sensor como prioridad en 
 | `src/modules/diagnostics/screens/DiagnosticSummaryScreen.tsx` | `touch` guardable; `touch_practice` solo práctica |
 | `src/modules/diagnostics/components/InitialEvaluationWelcomeView.tsx` | Prop `isTouchMode` — oculta hints de sensor |
 | `src/modules/diagnostics/diagnostic-evaluation-session-service.ts` | Metadata por intento; validación touch |
-| `src/modules/diagnostics/diagnostic-service.ts` | Persiste metadata en evaluación oficial |
+| `src/modules/diagnostics/diagnostic-service.ts` | Persiste metadata; guard defensivo contra `touch_practice` |
 | `src/modules/diagnostics/types.ts` | Campos opcionales `measurement_source`, `sensor_used` |
 | `src/modules/session/session-input-mode.ts` | `isTouchPracticeModeEnabled()` lee `runtimeEnv.enableTouchPractice` |
 | `src/config/dev-level-flags.ts` | `REVIEW_UNLOCK_ALL_LEVELS` sin restricción `__DEV__` |
@@ -96,6 +96,20 @@ Sensor oficial:
 ```
 
 Los valores touch **no** se presentan como lectura ESP32 (`useDiagnosticSensorVolume` deshabilitado; meta UI «Mantén presionado en el globo»).
+
+### Guardado oficial: `touch` (web) vs `touch_practice` (local)
+
+| Modo | ¿Guarda evaluación oficial? | Metadata al guardar |
+|------|----------------------------|---------------------|
+| `touch` (`web_touch`) | **Sí** — VIM, niveles y metas | `measurement_source: 'touch'`, `sensor_used: false` |
+| `touch_practice` (`local_sensor`) | **No** — solo práctica | No llega a persistencia oficial |
+
+**Doble protección para `touch_practice` local:**
+
+1. **UI** — `DiagnosticSummaryScreen` no renderiza «Continuar a terapia» (`onContinueOfficial`) cuando `isDiagnosticPracticeOnly(inputMode)` es `true`; solo «Volver al inicio» borra la sesión temporal.
+2. **Servicio** — `persistOfficialDiagnosticResult` en `diagnostic-service.ts` rechaza la operación **antes** de `createDiagnostic`, `generatePatientLevels`, `applyDiagnosticVimToPatientLevels` o `updatePatientCurrentLevel` si `payload.inputMode === 'touch_practice'`, lanzando `Error('PRACTICE_DIAGNOSTIC_NOT_PERSISTABLE')`.
+
+Así, aunque un caller futuro invoque el servicio por error, no se escribe VIM oficial ni se alteran `patient_levels` ni el perfil del paciente.
 
 ---
 

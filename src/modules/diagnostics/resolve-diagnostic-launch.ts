@@ -9,8 +9,11 @@ import { isTouchPracticeModeEnabled } from '@/src/modules/session/session-input-
 export type ResolveDiagnosticLaunchParams = {
   /** Sensor calibration + live signal ready (immediate snapshot). */
   sensorReadinessCanStart: boolean;
-  /** Profile + feature flag + no real sensor (local_sensor touch fallback). */
-  effectiveTouchPracticeEnabled: boolean;
+  /**
+   * Feature flag + preferencia de Perfil (sin comprobar transporte WS).
+   * En local_sensor el fallback táctil depende de readiness, no de si el socket está abierto.
+   */
+  profileTouchPracticeAllowed: boolean;
 };
 
 /**
@@ -35,7 +38,7 @@ export function resolveDiagnosticLaunchInputMode(
     return 'touch';
   }
 
-  if (params.effectiveTouchPracticeEnabled) {
+  if (params.profileTouchPracticeAllowed) {
     return 'touch_practice';
   }
 
@@ -43,7 +46,7 @@ export function resolveDiagnosticLaunchInputMode(
 }
 
 export function isDiagnosticTouchFallbackAllowed(params: {
-  effectiveTouchPracticeEnabled: boolean;
+  profileTouchPracticeAllowed: boolean;
 }): boolean {
   const touchFeatureEnabled = isTouchPracticeModeEnabled();
   if (!touchFeatureEnabled) return false;
@@ -52,5 +55,5 @@ export function isDiagnosticTouchFallbackAllowed(params: {
     return true;
   }
 
-  return params.effectiveTouchPracticeEnabled;
+  return params.profileTouchPracticeAllowed;
 }

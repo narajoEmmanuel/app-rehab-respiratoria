@@ -138,11 +138,11 @@ export function DiagnosticExamScreen() {
   const sensorRuntimeEnabled = isSensorRuntimeEnabled();
   const sensorTransportConnected =
     sensorRuntimeEnabled && isRealSensorTransportConnected(sensorStatus, sensorMode);
-  const { effectiveTouchPracticeEnabled, preferenceHydrated } = useTouchPracticeGate({
+  const { profileTouchPracticeAllowed, preferenceHydrated } = useTouchPracticeGate({
     sensorConnected: sensorTransportConnected,
   });
   const touchFallbackEligible = isDiagnosticTouchFallbackAllowed({
-    effectiveTouchPracticeEnabled,
+    profileTouchPracticeAllowed,
   });
   const allowTouchFallback =
     touchFallbackEligible &&
@@ -151,7 +151,7 @@ export function DiagnosticExamScreen() {
   const readiness = useInitialEvaluationReadiness({
     enabled: !explicitTouchUrl,
     allowTouchFallback,
-    effectiveTouchPracticeEnabled,
+    profileTouchPracticeAllowed,
   });
 
   const inputMode: DiagnosticInputMode = useMemo(() => {
@@ -194,12 +194,13 @@ export function DiagnosticExamScreen() {
   const phaseTransitionLockRef = useRef(false);
   const countdownStartedRef = useRef(false);
 
-  const canStartEvaluation = isTouchInput
-    ? allowTouchFallback || explicitTouchUrl
-    : readiness.canStartNow;
-  const canShowStartButton = isTouchInput
-    ? allowTouchFallback || explicitTouchUrl
-    : readiness.canStart;
+  const touchFallbackActive =
+    allowTouchFallback && readiness.resolvedInputMode !== 'sensor';
+
+  const canStartEvaluation =
+    readiness.canStartNow || touchFallbackActive || explicitTouchUrl;
+  const canShowStartButton =
+    readiness.canStart || touchFallbackActive || explicitTouchUrl;
 
   const inAttempt = isDiagnosticAttemptPhase(phase);
 
@@ -577,7 +578,7 @@ export function DiagnosticExamScreen() {
         loading={!isTouchInput && readiness.loading}
         statusMessage={readiness.statusMessage}
         spirometerLabel={liveLabel}
-        isTouchMode={isTouchInput || (!sensorRuntimeEnabled && touchFallbackEligible)}
+        isTouchMode={isTouchInput || touchFallbackActive}
         onStart={handleStartEvaluation}
         onGoToSensor={
           sensorRuntimeEnabled && !isTouchInput
