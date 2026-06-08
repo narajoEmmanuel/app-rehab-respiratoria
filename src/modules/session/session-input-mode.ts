@@ -1,3 +1,5 @@
+import { runtimeEnv } from '@/src/config/runtime-env';
+
 /**
  * Modo de entrada de sesión: medición con sensor (por defecto) o práctica táctil.
  */
@@ -24,7 +26,10 @@ export function buildSessionPersistenceFields(inputMode: SessionInputMode): {
 }
 
 export function isTouchPracticeModeEnabled(): boolean {
-  return process.env.EXPO_PUBLIC_ENABLE_TOUCH_PRACTICE_MODE === 'true';
+  return (
+    process.env.EXPO_PUBLIC_ENABLE_TOUCH_PRACTICE_MODE === 'true' ||
+    runtimeEnv.enableTouchPractice
+  );
 }
 
 export function parseSessionInputMode(value: string | string[] | undefined): SessionInputMode {

@@ -1,6 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { DiagnosticInputMode } from '@/src/modules/diagnostics/diagnostic-input-mode';
+import {
+  buildDiagnosticMeasurementMetadata,
+  isTouchDiagnosticInputMode,
+} from '@/src/modules/diagnostics/diagnostic-measurement-metadata';
 import type {
   DiagnosticAttemptNumber,
   DiagnosticAttemptRecord,
@@ -56,7 +60,7 @@ export function deriveInvalidReason(
   inputMode: DiagnosticInputMode,
 ): string | undefined {
   if (peakVolumeMl <= 0) return 'zero_peak';
-  if (inputMode === 'sensor' && !hadLiveSignal) return 'no_live_signal';
+  if (!isTouchDiagnosticInputMode(inputMode) && !hadLiveSignal) return 'no_live_signal';
   return undefined;
 }
 
@@ -65,7 +69,7 @@ export function isValidOfficialDiagnosticAttempt(
   inputMode: DiagnosticInputMode,
 ): boolean {
   if (attempt.peak_volume_ml <= 0) return false;
-  if (inputMode === 'sensor' && !attempt.had_live_signal) return false;
+  if (!isTouchDiagnosticInputMode(inputMode) && !attempt.had_live_signal) return false;
   return attempt.valid;
 }
 
@@ -187,6 +191,7 @@ export function buildDiagnosticAttemptRecord(params: {
     params.inputMode,
   );
   const valid = invalidReason === undefined;
+  const measurement = buildDiagnosticMeasurementMetadata(params.inputMode);
 
   return {
     id: newAttemptId(params.sessionId, params.attemptNumber),
@@ -204,6 +209,8 @@ export function buildDiagnosticAttemptRecord(params: {
     live_sample_count: params.tracking.live_sample_count,
     signal_lost_during_attempt: params.tracking.signal_lost_during_attempt,
     sensor_status_summary: params.tracking.sensor_status_summary,
+    measurement_source: measurement.measurement_source,
+    sensor_used: measurement.sensor_used,
     created_at: new Date().toISOString(),
   };
 }

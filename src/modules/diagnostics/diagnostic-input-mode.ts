@@ -1,38 +1,59 @@
 /**
- * Modalidad de entrada del diagnóstico: sensor real o simulación táctil.
+ * Modalidad de entrada del diagnóstico: sensor real, touch web o práctica táctil local.
  */
 import {
   DEFAULT_SESSION_INPUT_MODE,
   isTouchPracticeModeEnabled,
   isTouchPracticeSession,
-  parseSessionInputMode,
   type SessionInputMode,
 } from '@/src/modules/session/session-input-mode';
 
-export type DiagnosticInputMode = SessionInputMode;
+/** Official sensor; web touch input; local_sensor practice fallback. */
+export type DiagnosticInputMode = SessionInputMode | 'touch';
+
+export type DiagnosticInputModeParam = DiagnosticInputMode | 'auto';
 
 export const DEFAULT_DIAGNOSTIC_INPUT_MODE: DiagnosticInputMode = DEFAULT_SESSION_INPUT_MODE;
+
+export function parseDiagnosticInputModeParam(
+  value: string | string[] | undefined,
+): DiagnosticInputModeParam {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (raw === 'touch_practice') return 'touch_practice';
+  if (raw === 'touch') return 'touch';
+  if (raw === 'auto') return 'auto';
+  return DEFAULT_DIAGNOSTIC_INPUT_MODE;
+}
 
 export function parseDiagnosticInputMode(
   value: string | string[] | undefined,
 ): DiagnosticInputMode {
-  return parseSessionInputMode(value);
+  const parsed = parseDiagnosticInputModeParam(value);
+  if (parsed === 'auto') return DEFAULT_DIAGNOSTIC_INPUT_MODE;
+  return parsed;
 }
 
-/** Touch practice solo vía ruta manual cuando la flag o dev lo permiten — nunca en flujo paciente. */
-export function isTouchPracticeDiagnosticUiAllowed(): boolean {
+export function isTouchDiagnosticUiAllowed(): boolean {
   return isTouchPracticeModeEnabled() || __DEV__;
 }
 
+/** @deprecated Use isTouchDiagnosticUiAllowed */
+export function isTouchPracticeDiagnosticUiAllowed(): boolean {
+  return isTouchDiagnosticUiAllowed();
+}
+
 /**
- * Resuelve el modo efectivo: touch_practice solo si viene explícito en la URL y está permitido;
- * en cualquier otro caso, sensor.
+ * Resuelve modo explícito en URL. `auto` y ausencia de param se resuelven en pantalla
+ * según readiness + touch fallback.
  */
 export function resolveDiagnosticInputMode(
   value: string | string[] | undefined,
 ): DiagnosticInputMode {
-  const parsed = parseDiagnosticInputMode(value);
-  if (parsed === 'touch_practice' && isTouchPracticeDiagnosticUiAllowed()) {
+  const parsed = parseDiagnosticInputModeParam(value);
+  if (parsed === 'touch' && isTouchDiagnosticUiAllowed()) {
+    return 'touch';
+  }
+  if (parsed === 'touch_practice' && isTouchDiagnosticUiAllowed()) {
     return 'touch_practice';
   }
   return DEFAULT_DIAGNOSTIC_INPUT_MODE;
@@ -41,3 +62,5 @@ export function resolveDiagnosticInputMode(
 export function isTouchPracticeDiagnostic(mode: DiagnosticInputMode): boolean {
   return isTouchPracticeSession(mode);
 }
+
+export { isTouchDiagnosticInputMode, isDiagnosticPracticeOnly } from './diagnostic-measurement-metadata';

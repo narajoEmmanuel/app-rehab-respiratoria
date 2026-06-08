@@ -12,6 +12,7 @@ import {
 } from './diagnostic-repository';
 import { VIM_SOURCE } from './diagnostic-evaluation-session-service';
 import type { DiagnosticInputMode } from './diagnostic-input-mode';
+import { buildDiagnosticMeasurementMetadata } from './diagnostic-measurement-metadata';
 import type {
   DiagnosticAttemptRecord,
   DiagnosticConsistencySummary,
@@ -114,6 +115,8 @@ export async function createDiagnostic(
     patient_id: patientId,
   }));
 
+  const measurement = buildDiagnosticMeasurementMetadata(inputMode);
+
   const created: DiagnosticRecord = {
     diagnostic_id: diagnosticId,
     patient_id: patientId,
@@ -125,6 +128,8 @@ export async function createDiagnostic(
     vim_source: payload.vimSource ?? VIM_SOURCE,
     consistency_summary: consistencySummary,
     input_mode: inputMode,
+    measurement_source: measurement.measurement_source,
+    sensor_used: measurement.sensor_used,
   };
 
   diagnostics.push(created);
