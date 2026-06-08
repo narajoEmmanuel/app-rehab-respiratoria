@@ -46,3 +46,6 @@ app-example
 .cursor/
 
 .cursor/
+
+# Local Netlify folder
+.netlify
