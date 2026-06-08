@@ -10,6 +10,7 @@ import {
   resolveEvaluationFromSession,
 } from '@/src/modules/diagnostics/diagnostic-evaluation-session-service';
 import {
+  type DiagnosticInputMode,
   isDiagnosticPracticeOnly,
   isTouchDiagnosticInputMode,
   parseDiagnosticInputMode,
@@ -58,9 +59,11 @@ export function DiagnosticSummaryScreen() {
     evaluationSessionId?: string;
     inputMode?: string;
   }>();
-  const inputMode = useMemo(() => parseDiagnosticInputMode(inputModeParam), [inputModeParam]);
-  const isTouchInput = isTouchDiagnosticInputMode(inputMode);
-  const isPracticeOnly = isDiagnosticPracticeOnly(inputMode);
+  const routeInputMode = useMemo(() => parseDiagnosticInputMode(inputModeParam), [inputModeParam]);
+  const [sessionInputMode, setSessionInputMode] = useState<DiagnosticInputMode | null>(null);
+  const effectiveInputMode = sessionInputMode ?? routeInputMode;
+  const isTouchInput = isTouchDiagnosticInputMode(effectiveInputMode);
+  const isPracticeOnly = isDiagnosticPracticeOnly(effectiveInputMode);
   const [saving, setSaving] = useState(false);
   const [loadingSession, setLoadingSession] = useState(true);
   const [sessionMissing, setSessionMissing] = useState(false);
@@ -90,22 +93,25 @@ export function DiagnosticSummaryScreen() {
 
     const resolved = resolveEvaluationFromSession(session);
     const practiceVim = Math.max(0, ...session.attempts.map((a) => a.peak_volume_ml));
+    const mode = session.input_mode;
+    setSessionInputMode(mode);
     setSessionAttempts(session.attempts);
     setAttemptPeaks([
       attemptPeakForNumber(session.attempts, 1),
       attemptPeakForNumber(session.attempts, 2),
       attemptPeakForNumber(session.attempts, 3),
     ]);
-    setVimNumber(isPracticeOnly ? practiceVim : resolved.vim);
+    const practiceOnlySession = isDiagnosticPracticeOnly(mode);
+    setVimNumber(practiceOnlySession ? practiceVim : resolved.vim);
     setConsistencyLabel(resolved.consistencySummary.display_label);
     setBestAttemptNumber(resolved.bestAttemptNumber);
     setIsOfficialResultValid(
-      isPracticeOnly
-        ? resolved.vim > 0
-        : isValidOfficialDiagnosticFromAttempts(session.attempts, session.input_mode),
+      practiceOnlySession
+        ? practiceVim > 0
+        : isValidOfficialDiagnosticFromAttempts(session.attempts, mode),
     );
     setLoadingSession(false);
-  }, [evaluationSessionId, isPracticeOnly]);
+  }, [evaluationSessionId]);
 
   useEffect(() => {
     void loadSession();
@@ -143,9 +149,9 @@ export function DiagnosticSummaryScreen() {
     }
     router.replace({
       pathname: '/diagnostico',
-      params: { inputMode: isTouchInput ? inputMode : 'auto' },
+      params: { inputMode: isTouchInput ? effectiveInputMode : 'auto' },
     });
-  }, [evaluationSessionId, inputMode, isTouchInput, router]);
+  }, [effectiveInputMode, evaluationSessionId, isTouchInput, router]);
 
   const onContinueOfficial = async () => {
     if (!patient) {

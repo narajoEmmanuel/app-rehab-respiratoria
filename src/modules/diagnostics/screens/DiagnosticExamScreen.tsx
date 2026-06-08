@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { runtimeEnv } from '@/src/config/runtime-env';
@@ -54,6 +54,9 @@ const BALLOON_MIN_SCALE = 0.38;
 const BALLOON_MAX_SCALE = 1.95;
 const BALLOON_BASE_WIDTH = 88;
 const BALLOON_BASE_HEIGHT = 108;
+const BALLOON_TOUCH_WIDTH = Math.ceil(BALLOON_BASE_WIDTH * BALLOON_MAX_SCALE) + 20;
+const BALLOON_TOUCH_HEIGHT = Math.ceil(BALLOON_BASE_HEIGHT * BALLOON_MAX_SCALE) + 12;
+const CANCEL_HIT_SLOP = { top: 12, bottom: 12, left: 20, right: 20 };
 
 type DiagnosticPhase =
   | 'welcome'
@@ -210,13 +213,15 @@ export function DiagnosticExamScreen() {
 
   const ingestVolumeMl = useCallback(
     (ml: number, meta?: { live?: boolean }) => {
-      const live = meta?.live ?? true;
+      const live = isTouchInput ? true : (meta?.live ?? true);
       const clamped = Math.max(0, Math.min(MAX_SIMULATED_VOLUME, ml));
       const displayMl = live ? clamped : 0;
       const tracking = attemptTrackingRef.current;
 
       if (live) {
-        tracking.had_live_signal = true;
+        if (clamped > 0) {
+          tracking.had_live_signal = true;
+        }
         tracking.live_sample_count += 1;
         if (clamped > tracking.peak_volume_ml) {
           tracking.peak_volume_ml = clamped;
@@ -233,7 +238,7 @@ export function DiagnosticExamScreen() {
       setCurrentVolume(displayMl);
       updateBalloonScale(balloonProgress, displayMl);
     },
-    [balloonProgress],
+    [balloonProgress, isTouchInput],
   );
 
   const appendAttemptToSession = useCallback(
@@ -269,11 +274,12 @@ export function DiagnosticExamScreen() {
 
   const navigateToSummary = useCallback(
     (sessionId: string) => {
+      const mode = evaluationSessionRef.current?.input_mode ?? inputMode;
       router.replace({
         pathname: '/diagnostico-resumen',
         params: {
           evaluationSessionId: sessionId,
-          inputMode,
+          inputMode: mode,
         },
       });
     },
@@ -325,7 +331,30 @@ export function DiagnosticExamScreen() {
     })();
   }, [armPhaseDeadline, balloonProgress, inputMode, patient?.paciente_id]);
 
+  const cancelEvaluationAndExit = useCallback(() => {
+    const sessionId = evaluationSessionRef.current?.session_id;
+    if (sessionId) {
+      void clearDiagnosticEvaluationSession(sessionId);
+    }
+    evaluationSessionRef.current = null;
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  }, [router]);
+
   const confirmCancelEvaluation = useCallback(() => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(
+        '¿Cancelar evaluación?\n\nSe perderá el progreso de esta evaluación.',
+      );
+      if (confirmed) {
+        cancelEvaluationAndExit();
+      }
+      return;
+    }
+
     Alert.alert(
       '¿Cancelar evaluación?',
       'No se guardará ningún resultado.',
@@ -334,22 +363,11 @@ export function DiagnosticExamScreen() {
         {
           text: 'Cancelar evaluación',
           style: 'destructive',
-          onPress: () => {
-            const sessionId = evaluationSessionRef.current?.session_id;
-            if (sessionId) {
-              void clearDiagnosticEvaluationSession(sessionId);
-            }
-            evaluationSessionRef.current = null;
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace('/(tabs)');
-            }
-          },
+          onPress: cancelEvaluationAndExit,
         },
       ],
     );
-  }, [router]);
+  }, [cancelEvaluationAndExit]);
 
   const handleBack = useCallback(() => {
     if (phase === 'welcome') {
@@ -658,10 +676,27 @@ export function DiagnosticExamScreen() {
 
       <View style={styles.balloonZone}>
         <View style={styles.balloonStage}>
-          <View style={styles.balloonThread} />
-          <Animated.View style={[styles.balloonBody, { transform: [{ scale: balloonScale }] }]}>
-            <View style={styles.balloonHighlight} />
-          </Animated.View>
+          <View style={styles.balloonThread} pointerEvents="none" />
+          {isTouchInput && inAttempt ? (
+            <Pressable
+              style={webTouchSurfaceStyle(styles.balloonTouchTarget)}
+              onPressIn={onPressIn}
+              onPressOut={onPressOut}
+              accessibilityRole="button"
+              accessibilityLabel="Mantén presionado en el globo para inhalar"
+              {...webTouchSurfacePressableProps()}
+            >
+              <Animated.View
+                style={[styles.balloonBody, { transform: [{ scale: balloonScale }] }]}
+                pointerEvents="none">
+                <View style={styles.balloonHighlight} pointerEvents="none" />
+              </Animated.View>
+            </Pressable>
+          ) : (
+            <Animated.View style={[styles.balloonBody, { transform: [{ scale: balloonScale }] }]}>
+              <View style={styles.balloonHighlight} pointerEvents="none" />
+            </Animated.View>
+          )}
         </View>
       </View>
 
@@ -715,18 +750,7 @@ export function DiagnosticExamScreen() {
     </View>
   );
 
-  const gameCard = isTouchInput ? (
-    <Pressable
-      style={webTouchSurfaceStyle(styles.gameCardFlexFill)}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
-      disabled={!inAttempt}
-      {...webTouchSurfacePressableProps()}>
-      {gameCardInner}
-    </Pressable>
-  ) : (
-    <View style={styles.gameCardFlexFill}>{gameCardInner}</View>
-  );
+  const gameCard = <View style={styles.gameCardFlexFill}>{gameCardInner}</View>;
 
   return (
     <SafeAreaView style={[styles.safe, { paddingBottom: screenBottomInset }]} edges={['top']}>
@@ -739,13 +763,16 @@ export function DiagnosticExamScreen() {
 
       <View style={styles.contentArea}>
         <View style={styles.gameCardShell}>{gameCard}</View>
+      </View>
 
+      <View style={styles.evaluationFooter}>
         <AppText variant="chip" style={styles.safetyHint}>
           Respira con calma. Puedes cancelar si te sientes mal.
         </AppText>
         <Pressable
           style={({ pressed }) => [styles.cancelLink, pressed && styles.cancelLinkPressed]}
           onPress={confirmCancelEvaluation}
+          hitSlop={CANCEL_HIT_SLOP}
           accessibilityRole="button"
           accessibilityLabel="Cancelar evaluación">
           <AppText variant="link" style={styles.cancelLinkText}>
@@ -771,12 +798,20 @@ const styles = StyleSheet.create({
     minHeight: 0,
     paddingHorizontal: spacing.md,
   },
+  evaluationFooter: {
+    flexShrink: 0,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+    backgroundColor: wellness.screenBg,
+    zIndex: 30,
+    elevation: 30,
+  },
   activeCardMeta: {
     color: wellness.textSecondary,
     textAlign: 'center',
   },
   safetyHint: {
-    marginTop: spacing.sm,
     fontWeight: '400',
     lineHeight: 18,
     color: wellness.textSecondary,
@@ -784,8 +819,13 @@ const styles = StyleSheet.create({
   },
   cancelLink: {
     marginTop: spacing.xs,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
     alignItems: 'center',
+    alignSelf: 'center',
+    minHeight: 44,
+    minWidth: 200,
+    ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as const) : null),
   },
   cancelLinkPressed: {
     opacity: 0.65,
@@ -798,12 +838,14 @@ const styles = StyleSheet.create({
     minHeight: 0,
     width: '100%',
     alignSelf: 'stretch',
+    overflow: 'hidden',
   },
   gameCardFlexFill: {
     flex: 1,
     minHeight: 0,
     width: '100%',
     alignSelf: 'stretch',
+    overflow: 'hidden',
   },
   gameCardInner: {
     flex: 1,
@@ -816,6 +858,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: spacing.md,
     justifyContent: 'space-between',
+    overflow: 'hidden',
   },
   cardTopSection: {
     flexShrink: 0,
@@ -896,6 +939,15 @@ const styles = StyleSheet.create({
     minHeight: 0,
     overflow: 'hidden',
     marginVertical: spacing.xs,
+    position: 'relative',
+  },
+  balloonTouchTarget: {
+    width: BALLOON_TOUCH_WIDTH,
+    height: BALLOON_TOUCH_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+    backgroundColor: 'transparent',
   },
   balloonStage: {
     flex: 1,

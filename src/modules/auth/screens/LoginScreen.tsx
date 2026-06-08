@@ -128,6 +128,7 @@ export function LoginScreen() {
 
   const normalized = normalizeClave(clave);
   const canSubmit = Boolean(normalized) && !loading;
+  const webPwaLayout = isWebPwaLayout();
 
   function goToCreateProfile() {
     router.push({ pathname: LOCAL_PROFILE_HREF, params: { intent: 'create' } });
@@ -171,9 +172,9 @@ export function LoginScreen() {
         showsVerticalScrollIndicator={false}
         bounces={false}
         automaticallyAdjustKeyboardInsets={!isWebPwaLayout()}>
-          <View style={styles.page}>
+          <View style={[styles.page, webPwaLayout && styles.pageWebPwa]}>
             <View style={styles.contentMain}>
-              <View style={styles.titleBlock}>
+              <View style={[styles.titleBlock, webPwaLayout && styles.titleBlockWebPwa]}>
                 <AppText variant="titleLarge" style={styles.title} accessibilityRole="header">
                   Acceso con tu clave
                 </AppText>
@@ -267,14 +268,14 @@ export function LoginScreen() {
               </View>
             </View>
 
-            <View style={styles.pageTailSpacer} />
+            <View style={[styles.pageTailSpacer, webPwaLayout && styles.pageTailSpacerWebPwa]} />
           </View>
       </ScrollView>
     </>
   );
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={webPwaLayout ? ['top'] : ['top', 'bottom']}>
       <LoginWellnessBackdrop />
       {shouldUseNativeKeyboardAvoiding() ? (
         <KeyboardAvoidingView style={styles.flex} behavior="padding">
@@ -347,12 +348,19 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     width: '100%',
   },
+  pageWebPwa: {
+    flexGrow: 0,
+  },
   contentMain: {
     width: '100%',
   },
   pageTailSpacer: {
     flexGrow: 1,
     minHeight: spacing.xl,
+  },
+  pageTailSpacerWebPwa: {
+    flexGrow: 0,
+    minHeight: 0,
   },
   headerBar: {
     paddingHorizontal: spacing.lg,
@@ -414,6 +422,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.sm,
     marginTop: CONTENT_TITLE_TOP,
+  },
+  titleBlockWebPwa: {
+    marginTop: 24,
   },
   title: {
     fontSize: 27,
