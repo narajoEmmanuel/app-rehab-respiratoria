@@ -1,5 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
+import { webTouchSurfaceStyle } from '@/src/shared/layout/web-pwa-layout';
+
 const CIRCLE_SIZE = 88;
 
 type TouchInputPressFeedbackProps = {
@@ -11,7 +13,7 @@ export function TouchInputPressFeedback({ visible }: TouchInputPressFeedbackProp
   if (!visible) return null;
 
   return (
-    <View style={styles.anchor} pointerEvents="none">
+    <View style={webTouchSurfaceStyle(styles.anchor)} pointerEvents="none">
       <View style={styles.circle} />
     </View>
   );

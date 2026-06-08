@@ -12,7 +12,6 @@ import {
   Alert,
   Image,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,6 +22,7 @@ import Svg, { Path } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LOCAL_PROFILE_HREF } from '@/src/modules/auth/local-profile-hrefs';
+import { isWebPwaLayout, shouldUseNativeKeyboardAvoiding } from '@/src/shared/layout/web-pwa-layout';
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
 import { getPatientByClave, normalizeClave } from '@/src/modules/patient/patient-service';
 import { getErrorMessage } from '@/src/shared/utils/get-error-message';
@@ -161,19 +161,16 @@ export function LoginScreen() {
     }
   }
 
-  return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <LoginWellnessBackdrop />
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <LoginHeader onBack={onBack} />
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          bounces={false}>
+  const scrollBody = (
+    <>
+      <LoginHeader onBack={onBack} />
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+        automaticallyAdjustKeyboardInsets={!isWebPwaLayout()}>
           <View style={styles.page}>
             <View style={styles.contentMain}>
               <View style={styles.titleBlock}>
@@ -272,8 +269,20 @@ export function LoginScreen() {
 
             <View style={styles.pageTailSpacer} />
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </ScrollView>
+    </>
+  );
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <LoginWellnessBackdrop />
+      {shouldUseNativeKeyboardAvoiding() ? (
+        <KeyboardAvoidingView style={styles.flex} behavior="padding">
+          {scrollBody}
+        </KeyboardAvoidingView>
+      ) : (
+        <View style={styles.flex}>{scrollBody}</View>
+      )}
     </SafeAreaView>
   );
 }

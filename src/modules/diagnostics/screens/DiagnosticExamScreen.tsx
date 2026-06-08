@@ -32,6 +32,10 @@ import { usePatientSession } from '@/src/modules/patient/context/PatientSessionC
 import { isRealSensorTransportConnected } from '@/src/modules/device/sensor-real-connection';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import { useTouchPracticeGate } from '@/src/modules/session/hooks/use-touch-practice-gate';
+import {
+  webTouchSurfacePressableProps,
+  webTouchSurfaceStyle,
+} from '@/src/shared/layout/web-pwa-layout';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppText } from '@/src/shared/ui/AppText';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -713,10 +717,11 @@ export function DiagnosticExamScreen() {
 
   const gameCard = isTouchInput ? (
     <Pressable
-      style={styles.gameCardFlexFill}
+      style={webTouchSurfaceStyle(styles.gameCardFlexFill)}
       onPressIn={onPressIn}
       onPressOut={onPressOut}
-      disabled={!inAttempt}>
+      disabled={!inAttempt}
+      {...webTouchSurfacePressableProps()}>
       {gameCardInner}
     </Pressable>
   ) : (

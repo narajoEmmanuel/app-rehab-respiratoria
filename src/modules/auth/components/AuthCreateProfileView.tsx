@@ -5,7 +5,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,6 +19,7 @@ import {
   AUTH_REGISTRATION_STEP_COUNT,
   AuthRegistrationHeader,
 } from '@/src/modules/auth/components/AuthRegistrationHeader';
+import { isWebPwaLayout, shouldUseNativeKeyboardAvoiding } from '@/src/shared/layout/web-pwa-layout';
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { AppText } from '@/src/shared/ui/AppText';
@@ -159,27 +159,25 @@ export function AuthCreateProfileView({
   const insets = useSafeAreaInsets();
   const scrollMinHeight =
     windowHeight - insets.top - insets.bottom - HEADER_BAR_ESTIMATED_HEIGHT;
+  const useFullHeightScroll = !isWebPwaLayout();
 
-  return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <CreateProfileBackdrop />
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <AuthRegistrationHeader
-          onBack={onBack}
-          backAccessibilityLabel="Volver a bienvenida"
-          step={{ current: 1, total: AUTH_REGISTRATION_STEP_COUNT }}
-        />
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={[
-            styles.scroll,
-            { minHeight: Math.max(scrollMinHeight, 0) },
-          ]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          bounces={false}>
+  const scrollBody = (
+    <>
+      <AuthRegistrationHeader
+        onBack={onBack}
+        backAccessibilityLabel="Volver a bienvenida"
+        step={{ current: 1, total: AUTH_REGISTRATION_STEP_COUNT }}
+      />
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scroll,
+          useFullHeightScroll ? { minHeight: Math.max(scrollMinHeight, 0) } : null,
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+        automaticallyAdjustKeyboardInsets={!isWebPwaLayout()}>
           <View style={styles.page}>
             <View style={styles.contentMain}>
               <View style={styles.titleBlock}>
@@ -260,8 +258,20 @@ export function AuthCreateProfileView({
 
             <View style={styles.pageTailSpacer} />
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </ScrollView>
+    </>
+  );
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <CreateProfileBackdrop />
+      {shouldUseNativeKeyboardAvoiding() ? (
+        <KeyboardAvoidingView style={styles.flex} behavior="padding">
+          {scrollBody}
+        </KeyboardAvoidingView>
+      ) : (
+        <View style={styles.flex}>{scrollBody}</View>
+      )}
     </SafeAreaView>
   );
 }
