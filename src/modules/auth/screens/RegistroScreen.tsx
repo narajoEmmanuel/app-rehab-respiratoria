@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,6 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
+import { isWebPwaLayout, shouldUseNativeKeyboardAvoiding } from '@/src/shared/layout/web-pwa-layout';
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { createPatientLocal } from '@/src/modules/patient/patient-service';
@@ -125,15 +125,12 @@ export function RegistroScreen() {
     );
   }
 
-  return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}>
+  const formScroll = (
+    <ScrollView
+      contentContainerStyle={styles.scroll}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      automaticallyAdjustKeyboardInsets={!isWebPwaLayout()}>
           <AppText variant="titleLarge" style={styles.title}>Crear registro</AppText>
           <AppText variant="bodyLarge" style={styles.subtitle}>
             Solo necesitamos tu nombre y edad. Te daremos una clave automática.
@@ -187,8 +184,18 @@ export function RegistroScreen() {
             accessibilityRole="button">
             <AppText variant="link" style={styles.textLink}>Ya tengo clave, volver al acceso</AppText>
           </Pressable>
-        </ScrollView>
-      </KeyboardAvoidingView>
+    </ScrollView>
+  );
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      {shouldUseNativeKeyboardAvoiding() ? (
+        <KeyboardAvoidingView style={styles.flex} behavior="padding">
+          {formScroll}
+        </KeyboardAvoidingView>
+      ) : (
+        <View style={styles.flex}>{formScroll}</View>
+      )}
     </SafeAreaView>
   );
 }

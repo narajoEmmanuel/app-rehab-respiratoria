@@ -43,6 +43,7 @@ import {
   type OfficialAttemptReleasePayload,
 } from '@/src/modules/session/engine/level-one/use-level-one-game';
 import { useTouchInputAdapter } from '@/src/modules/session/engine/touch/use-touch-input-adapter';
+import { webTouchSurfaceStyle } from '@/src/shared/layout/web-pwa-layout';
 import { SessionErrorState } from '@/src/modules/session/components/SessionErrorState';
 import { SessionGoalAdjustmentNotice } from '@/src/modules/session/components/SessionGoalAdjustmentNotice';
 import { SessionLoadingState } from '@/src/modules/session/components/SessionLoadingState';
@@ -1081,7 +1082,7 @@ export function SessionScreen() {
       {targetWasAdjusted && targetAdjustmentReason ? (
         <SessionGoalAdjustmentNotice message={targetAdjustmentReason} />
       ) : null}
-      <View style={styles.gameWrap}>
+      <View style={isTouchPractice ? webTouchSurfaceStyle(styles.gameWrap) : styles.gameWrap}>
         <LevelOneGameView
           introMode={runnerSceneIntroMode}
           showRunnerRabbit={!showRunnerPreStartIntro}

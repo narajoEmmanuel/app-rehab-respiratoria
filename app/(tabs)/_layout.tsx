@@ -8,12 +8,19 @@
 import { Redirect, Tabs, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Alert, Platform, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LOCAL_PROFILE_HREF } from '@/src/modules/auth/local-profile-hrefs';
 import { isCloudAuthEnabled } from '@/src/modules/app-mode/app-mode-config';
 import { LEGAL_ACCEPT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { useConsentActive } from '@/src/modules/legal/use-consent-active';
+import {
+  isWebPwaLayout,
+  TAB_ICON_SIZE_ACTIVE,
+  TAB_ICON_SIZE_INACTIVE,
+  webPwaTabBarBottomPadding,
+} from '@/src/shared/layout/web-pwa-layout';
 import { wellnessColors } from '@/src/shared/theme/wellness-theme';
 import { HapticTab } from '@/src/shared/ui/haptic-tab';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
@@ -22,20 +29,39 @@ const TAB_ACTIVE = wellnessColors.primary;
 const TAB_INACTIVE = wellnessColors.textMuted;
 const TAB_BAR_TOP_BORDER = wellnessColors.border;
 
-const TAB_ICON_SIZE = 22;
+const TAB_ICON_SIZE_NATIVE = 22;
 
 type TabIconName = 'house.fill' | 'square.grid.2x2.fill' | 'clock.fill';
 
 function tabBarIconFor(name: TabIconName) {
-  return function TabBarIcon({ color }: { color: string; focused: boolean; size: number }) {
-    return <IconSymbol name={name} size={TAB_ICON_SIZE} color={color} />;
+  return function TabBarIcon({ color, focused }: { color: string; focused: boolean; size: number }) {
+    const iconSize = isWebPwaLayout()
+      ? focused
+        ? TAB_ICON_SIZE_ACTIVE
+        : TAB_ICON_SIZE_INACTIVE
+      : TAB_ICON_SIZE_NATIVE;
+    return <IconSymbol name={name} size={iconSize} color={color} />;
   };
 }
 
 export default function TabLayout() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { patient, hydrated } = usePatientSession();
   const { ready, active } = useConsentActive();
+
+  const tabBarStyle = useMemo(
+    () => [
+      styles.tabBar,
+      isWebPwaLayout()
+        ? {
+            paddingBottom: webPwaTabBarBottomPadding(insets.bottom),
+            minHeight: 58,
+          }
+        : null,
+    ],
+    [insets.bottom],
+  );
 
   const protectedTabListeners = useMemo(
     () => ({
@@ -78,7 +104,7 @@ export default function TabLayout() {
         tabBarHideOnKeyboard: true,
         tabBarLabelStyle: styles.tabLabel,
         tabBarItemStyle: styles.tabItem,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle,
       }}>
       <Tabs.Screen
         name="index"
@@ -147,6 +173,7 @@ const styles = StyleSheet.create({
   tabItem: {
     paddingTop: 2,
     gap: 3,
+    ...(Platform.OS === 'web' ? { minHeight: 44 } : {}),
   },
   tabLabel: {
     fontSize: 11,

@@ -35,6 +35,10 @@ import { RunnerBunnyCoachBubble } from '@/src/modules/session/games/components/R
 import { resolveRunnerCoachCue } from '@/src/modules/session/games/components/resolve-runner-coach-cue';
 import { TouchInputPressFeedback } from '@/src/modules/session/games/components/TouchInputPressFeedback';
 import {
+  webTouchSurfacePressableProps,
+  webTouchSurfaceStyle,
+} from '@/src/shared/layout/web-pwa-layout';
+import {
   DesertBackdropCactus,
   DesertGroundSegment,
   DesertNearDecor,
@@ -966,11 +970,12 @@ export function LevelOneGameView({
 
           {!introMode && touchInputEnabled ? (
             <Pressable
-              style={styles.gameTouchLayer}
+              style={webTouchSurfaceStyle(styles.gameTouchLayer)}
               onPressIn={handleTouchPressIn}
               onPressOut={handleTouchPressOut}
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
+              {...webTouchSurfacePressableProps()}
             />
           ) : null}
 

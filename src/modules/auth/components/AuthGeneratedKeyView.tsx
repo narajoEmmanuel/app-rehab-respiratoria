@@ -18,6 +18,7 @@ import {
   AUTH_REGISTRATION_STEP_COUNT,
   AuthRegistrationHeader,
 } from '@/src/modules/auth/components/AuthRegistrationHeader';
+import { isWebPwaLayout } from '@/src/shared/layout/web-pwa-layout';
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { AppText } from '@/src/shared/ui/AppText';
@@ -105,6 +106,7 @@ export function AuthGeneratedKeyView({
   const insets = useSafeAreaInsets();
   const scrollMinHeight =
     windowHeight - insets.top - insets.bottom - AUTH_REGISTRATION_HEADER_ESTIMATED_HEIGHT;
+  const useFullHeightScroll = !isWebPwaLayout();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -116,7 +118,10 @@ export function AuthGeneratedKeyView({
       />
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[styles.scroll, { minHeight: Math.max(scrollMinHeight, 0) }]}
+        contentContainerStyle={[
+          styles.scroll,
+          useFullHeightScroll ? { minHeight: Math.max(scrollMinHeight, 0) } : null,
+        ]}
         showsVerticalScrollIndicator={false}
         bounces={false}>
         <View style={styles.page}>

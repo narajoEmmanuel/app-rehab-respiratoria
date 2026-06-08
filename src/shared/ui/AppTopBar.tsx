@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 
+import { isWebPwaLayout, WEB_PWA_TOP_OFFSET } from '@/src/shared/layout/web-pwa-layout';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { ProfileAvatarView } from '@/src/modules/patient/components/ProfileAvatarView';
@@ -18,6 +19,7 @@ const SLOT_WIDTH = 56;
 const HEADER_ROW_MIN_HEIGHT = Platform.OS === 'web' ? 40 : 42;
 const HEADER_PADDING_TOP = 6;
 const HEADER_PADDING_BOTTOM = Platform.OS === 'web' ? 8 : 10;
+const HEADER_WEB_EXTRA_TOP = WEB_PWA_TOP_OFFSET;
 
 type AppTopBarProps = {
   onPressProfile?: () => void;
@@ -51,7 +53,11 @@ export function AppTopBar({
   }, [backFallbackHref, navigation, onPressBack, router]);
 
   return (
-    <View style={styles.wrap}>
+    <View
+      style={[
+        styles.wrap,
+        isWebPwaLayout() ? { paddingTop: HEADER_PADDING_TOP + HEADER_WEB_EXTRA_TOP } : null,
+      ]}>
       <View style={styles.row}>
         <View style={styles.leftSlot}>
           {showBackButton ? (
