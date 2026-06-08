@@ -4,6 +4,7 @@
  */
 
 import type { SessionInputMode } from '@/src/modules/session/session-input-mode';
+import { isSensorRuntimeEnabled } from '@/src/config/sensor-runtime-guards';
 
 export type ResolveTherapySessionLaunchParams = {
   sensorTransportConnected: boolean;
@@ -14,6 +15,9 @@ export type ResolveTherapySessionLaunchParams = {
 export function resolveTherapySessionLaunchInputMode(
   params: ResolveTherapySessionLaunchParams,
 ): SessionInputMode {
+  const sensorRuntimeEnabled = isSensorRuntimeEnabled();
+
+  if (!sensorRuntimeEnabled) return 'touch_practice';
   if (params.sensorTransportConnected) return 'sensor';
   if (params.effectiveTouchPracticeEnabled) return 'touch_practice';
   return 'sensor';

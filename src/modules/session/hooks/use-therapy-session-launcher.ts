@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
 
+import { isSensorRuntimeEnabled } from '@/src/config/sensor-runtime-guards';
 import {
   showTherapyReadinessAlert,
   useTherapyReadinessGate,
@@ -38,7 +39,9 @@ export function useTherapySessionLauncher() {
     mode: sensorMode,
   } = useSensorConnection();
 
-  const sensorTransportConnected = isRealSensorTransportConnected(sensorStatus, sensorMode);
+  const sensorRuntimeEnabled = isSensorRuntimeEnabled();
+  const sensorTransportConnected =
+    sensorRuntimeEnabled && isRealSensorTransportConnected(sensorStatus, sensorMode);
   const { effectiveTouchPracticeEnabled } = useTouchPracticeGate({
     sensorConnected: sensorTransportConnected,
   });
@@ -62,6 +65,15 @@ export function useTherapySessionLauncher() {
 
   const beginOfficialSensorSession = useCallback(
     async (levelId: LevelId) => {
+      if (!sensorRuntimeEnabled) {
+        Alert.alert(
+          'Terapia con sensor no disponible',
+          'En este modo la terapia con espirómetro no está disponible. La práctica táctil se habilitará en una fase posterior.',
+          [{ text: 'Entendido', style: 'default' }],
+        );
+        return;
+      }
+
       setLaunchingLevelId(levelId);
       try {
         const readiness = await evaluateLevelSensorReadiness({
@@ -99,6 +111,7 @@ export function useTherapySessionLauncher() {
       patient?.paciente_id,
       router,
       sensorStreamState,
+      sensorRuntimeEnabled,
       therapyGateSensorConnected,
       therapyGateSensorStatus,
     ],
@@ -115,12 +128,21 @@ export function useTherapySessionLauncher() {
         navigateToSession(levelId, 'touch_practice');
         return;
       }
+      if (!sensorRuntimeEnabled) {
+        Alert.alert(
+          'Terapia con sensor no disponible',
+          'En este modo la terapia con espirómetro no está disponible. La práctica táctil se habilitará en una fase posterior.',
+          [{ text: 'Entendido', style: 'default' }],
+        );
+        return;
+      }
       void beginOfficialSensorSession(levelId);
     },
     [
       beginOfficialSensorSession,
       effectiveTouchPracticeEnabled,
       navigateToSession,
+      sensorRuntimeEnabled,
       sensorTransportConnected,
     ],
   );

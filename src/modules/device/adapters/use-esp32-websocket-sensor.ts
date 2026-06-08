@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { isSensorRuntimeEnabled } from '@/src/config/sensor-runtime-guards';
 import { getMockSensorReading } from '@/src/modules/device/mocks/mock-sensor-readings';
 import { SENSOR_STREAM_DATA_TIMEOUT_MS } from '@/src/modules/device/stream/sensor-stream-state';
 import type {
@@ -18,6 +19,7 @@ const STREAM_STATE_TICK_MS = 400;
 const CONNECTING_TIMEOUT_MS = 9000;
 
 export function useEsp32WebSocketSensor() {
+  const sensorConnectionAllowed = isSensorRuntimeEnabled();
   const [status, setStatus] = useState<SensorConnectionStatus>('idle');
   const [mode, setMode] = useState<SensorSourceMode>('mock');
   const [lastReading, setLastReading] = useState<SensorReading | null>(null);
@@ -163,6 +165,10 @@ export function useEsp32WebSocketSensor() {
   }, [mode]);
 
   useEffect(() => {
+    if (!sensorConnectionAllowed) {
+      return undefined;
+    }
+
     clientRef.current = new Esp32WebSocketClient({
       onOpen: () => {
         setStatus('connected');
@@ -205,9 +211,13 @@ export function useEsp32WebSocketSensor() {
       clientRef.current?.disconnect();
       clientRef.current = null;
     };
-  }, [markDataReceived, recordIncomingMessage, resetStreamState, stopMock]);
+  }, [markDataReceived, recordIncomingMessage, resetStreamState, sensorConnectionAllowed, stopMock]);
 
   const startMock = useCallback(() => {
+    if (!sensorConnectionAllowed) {
+      return;
+    }
+
     clientRef.current?.disconnect();
     stopMock();
     resetMessageMetrics();
@@ -228,9 +238,13 @@ export function useEsp32WebSocketSensor() {
       setStatus('connected');
       markDataReceived();
     }, MOCK_INTERVAL_MS);
-  }, [markDataReceived, resetMessageMetrics, stopMock]);
+  }, [markDataReceived, resetMessageMetrics, sensorConnectionAllowed, stopMock]);
 
   const connect = useCallback(() => {
+    if (!sensorConnectionAllowed) {
+      return;
+    }
+
     const trimmedUrl = url.trim();
     if (!trimmedUrl) {
       setStatus('error');
@@ -259,7 +273,7 @@ export function useEsp32WebSocketSensor() {
       setStatus('error');
       setErrorMessage('No se pudo iniciar la conexión WebSocket con el ESP32.');
     }
-  }, [resetMessageMetrics, resetStreamState, stopMock, url]);
+  }, [resetMessageMetrics, resetStreamState, sensorConnectionAllowed, stopMock, url]);
 
   return {
     status,

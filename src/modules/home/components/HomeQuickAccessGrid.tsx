@@ -19,6 +19,7 @@ type QuickAccessItem = {
 };
 
 type Props = {
+  showSensor?: boolean;
   onTherapy: () => void;
   onHistory: () => void;
   onSensor: () => void;
@@ -26,6 +27,7 @@ type Props = {
 };
 
 export function HomeQuickAccessGrid({
+  showSensor = true,
   onTherapy,
   onHistory,
   onSensor,
@@ -34,7 +36,9 @@ export function HomeQuickAccessGrid({
   const items: QuickAccessItem[] = [
     { label: 'Terapia', icon: 'waveform.path.ecg', onPress: onTherapy },
     { label: 'Historial', icon: 'clock.fill', onPress: onHistory },
-    { label: 'Sensor', icon: 'dot.radiowaves.left.and.right', onPress: onSensor },
+    ...(showSensor
+      ? [{ label: 'Sensor', icon: 'dot.radiowaves.left.and.right' as IconSymbolName, onPress: onSensor }]
+      : []),
     { label: 'Perfil', icon: 'person.crop.circle', onPress: onProfile },
   ];
 

@@ -4,6 +4,7 @@
  */
 
 import type { SensorConnectionStatus, SensorSourceMode } from '@/src/modules/device/types/sensor-reading';
+import { isSensorRuntimeEnabled } from '@/src/config/sensor-runtime-guards';
 
 /**
  * True when the app has an active link to a real sensor (WebSocket transport).
@@ -14,6 +15,7 @@ export function isRealSensorTransportConnected(
   connectionStatus: SensorConnectionStatus,
   sourceMode: SensorSourceMode,
 ): boolean {
+  if (!isSensorRuntimeEnabled()) return false;
   if (sourceMode === 'mock') return false;
   return connectionStatus === 'connected' || connectionStatus === 'receiving';
 }

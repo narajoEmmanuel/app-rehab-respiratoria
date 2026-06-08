@@ -3,6 +3,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { isSensorRuntimeEnabled } from '@/src/config/sensor-runtime-guards';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import { evaluateDiagnosticSensorReadinessOnDemand } from '@/src/modules/device/volume-estimation';
 import { checkSensorReadingLive } from '@/src/modules/session/sensor/sensor-live-reading';
@@ -18,6 +19,8 @@ export type InitialEvaluationReadiness = {
 };
 
 const NOT_READY_MESSAGE = 'Conecta y calibra el espirómetro para continuar.';
+const WEB_TOUCH_EVAL_PENDING_MESSAGE =
+  'La evaluación con sensor no está disponible en este modo. La evaluación táctil se habilitará en una fase posterior.';
 const WAITING_SIGNAL_MESSAGE =
   'Esperando señal del sensor. Conecta el espirómetro para continuar.';
 const POLL_MS = 1500;
@@ -85,6 +88,14 @@ export function useInitialEvaluationReadiness(enabled: boolean): InitialEvaluati
   );
 
   const evaluateSnapshot = useCallback(async (): Promise<ReadinessSnapshot> => {
+    if (!isSensorRuntimeEnabled()) {
+      return {
+        canStartNow: false,
+        statusMessage: WEB_TOUCH_EVAL_PENDING_MESSAGE,
+        spirometerLabel: null,
+      };
+    }
+
     const connected = sensorConnectedRef.current;
     if (!enabled) {
       return {
@@ -135,11 +146,13 @@ export function useInitialEvaluationReadiness(enabled: boolean): InitialEvaluati
   }, []);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !isSensorRuntimeEnabled()) {
       setLoading(false);
       setCanStart(false);
       setCanStartNow(false);
-      setStatusMessage(NOT_READY_MESSAGE);
+      setStatusMessage(
+        !isSensorRuntimeEnabled() ? WEB_TOUCH_EVAL_PENDING_MESSAGE : NOT_READY_MESSAGE,
+      );
       setSpirometerLabel(null);
       if (stableTimerRef.current) {
         clearTimeout(stableTimerRef.current);

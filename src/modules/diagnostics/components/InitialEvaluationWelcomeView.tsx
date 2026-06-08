@@ -25,7 +25,7 @@ type InitialEvaluationWelcomeViewProps = {
   statusMessage: string;
   spirometerLabel: string | null;
   onStart: () => void;
-  onGoToSensor: () => void;
+  onGoToSensor?: () => void;
   onBack?: () => void;
 };
 
@@ -38,7 +38,7 @@ export function InitialEvaluationWelcomeView({
   onGoToSensor,
   onBack,
 }: InitialEvaluationWelcomeViewProps) {
-  const showSensorHint = !canStart && !loading;
+  const showSensorHint = !canStart && !loading && onGoToSensor != null;
   const buttonDisabled = !canStart || loading;
   const showReadyHint = canStart && !loading;
   const waitingForSignal = statusMessage.includes('Esperando señal del sensor');

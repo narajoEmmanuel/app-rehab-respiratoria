@@ -7,12 +7,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getPatientLevels } from '@/src/modules/diagnostics/diagnostic-service';
 import { loadActiveVolumeEstimationContext, showTherapyReadinessAlert } from '@/src/modules/device/volume-estimation';
 import { isSensorDebugEnabled } from '@/src/modules/app-mode';
+import { isSensorRuntimeEnabled } from '@/src/config/sensor-runtime-guards';
 import { isRealSensorTransportConnected } from '@/src/modules/device/sensor-real-connection';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import type { SensorConnectionStatus } from '@/src/modules/device/types/sensor-reading';
@@ -182,10 +183,10 @@ export function SessionScreen() {
   const sensorConnectionRef = useRef(sensorConnection);
   sensorConnectionRef.current = sensorConnection;
 
-  const sensorTransportConnected = isRealSensorTransportConnected(
-    sensorConnection.status,
-    sensorConnection.mode,
-  );
+  const sensorRuntimeEnabled = isSensorRuntimeEnabled();
+  const sensorTransportConnected =
+    sensorRuntimeEnabled &&
+    isRealSensorTransportConnected(sensorConnection.status, sensorConnection.mode);
 
   const { effectiveTouchPracticeEnabled } = useTouchPracticeGate({
     sensorConnected: sensorTransportConnected,
@@ -273,6 +274,20 @@ export function SessionScreen() {
       return;
     }
 
+    if (!sensorRuntimeEnabled) {
+      Alert.alert(
+        'Terapia con sensor no disponible',
+        'En este modo la terapia con espirómetro no está disponible. La práctica táctil se habilitará en una fase posterior.',
+        [{ text: 'Entendido', style: 'default' }],
+      );
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)/terapia');
+      }
+      return;
+    }
+
     const readinessKey = String(sessionRunId);
     if (sensorReadinessDoneKeyRef.current === readinessKey) {
       setSensorEntryReady(true);
@@ -317,6 +332,7 @@ export function SessionScreen() {
     isTouchPractice,
     patient?.paciente_id,
     router,
+    sensorRuntimeEnabled,
     sessionInputMode,
     sessionRunId,
   ]);
