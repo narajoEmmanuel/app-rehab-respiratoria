@@ -34,21 +34,22 @@ const TouchPracticePreferenceContext = createContext<TouchPracticePreferenceCont
 
 export function TouchPracticePreferenceProvider({ children }: { children: ReactNode }) {
   const { patient } = usePatientSession();
+  const patientId = patient?.paciente_id;
   const [hydrated, setHydrated] = useState(false);
   const [profileTouchPracticeEnabled, setProfileTouchPracticeEnabledState] = useState(false);
 
   const touchPracticeFeatureEnabled = isTouchPracticeModeEnabled();
 
   const reload = useCallback(async () => {
-    if (!patient) {
+    if (patientId == null) {
       setProfileTouchPracticeEnabledState(false);
       setHydrated(true);
       return;
     }
-    const prefs = await getProfilePreferences(patient.paciente_id);
+    const prefs = await getProfilePreferences(patientId);
     setProfileTouchPracticeEnabledState(prefs.allowTouchPracticeInput);
     setHydrated(true);
-  }, [patient]);
+  }, [patientId]);
 
   useEffect(() => {
     setHydrated(false);
@@ -57,11 +58,11 @@ export function TouchPracticePreferenceProvider({ children }: { children: ReactN
 
   const setProfileTouchPracticeEnabled = useCallback(
     async (enabled: boolean) => {
-      if (!patient) return;
+      if (patientId == null) return;
       setProfileTouchPracticeEnabledState(enabled);
-      await updateProfilePreferences(patient.paciente_id, { allowTouchPracticeInput: enabled });
+      await updateProfilePreferences(patientId, { allowTouchPracticeInput: enabled });
     },
-    [patient],
+    [patientId],
   );
 
   const value = useMemo(

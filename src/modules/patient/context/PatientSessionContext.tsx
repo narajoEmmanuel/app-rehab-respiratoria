@@ -25,6 +25,21 @@ import {
 import type { PatientRecord } from '@/src/modules/patient/types';
 import { getErrorMessage } from '@/src/shared/utils/get-error-message';
 
+function isSamePatientRecord(a: PatientRecord | null, b: PatientRecord | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.paciente_id === b.paciente_id &&
+    a.clave === b.clave &&
+    a.nombre_completo === b.nombre_completo &&
+    a.edad === b.edad &&
+    a.current_level_id === b.current_level_id &&
+    a.racha_actual === b.racha_actual &&
+    a.ultima_fecha_cumplida === b.ultima_fecha_cumplida &&
+    a.fecha_creacion === b.fecha_creacion
+  );
+}
+
 type PatientSessionContextValue = {
   patient: PatientRecord | null;
   hydrated: boolean;
@@ -51,7 +66,7 @@ export function PatientSessionProvider({ children }: { children: React.ReactNode
   const refreshSession = useCallback(async () => {
     try {
       const p = await loadCurrentPatientFromStorage();
-      setPatient(p);
+      setPatient((prev) => (isSamePatientRecord(prev, p) ? prev : p));
       setProfileAvatarUriState(await loadProfileAvatarUri(p));
     } catch {
       setPatient(null);
