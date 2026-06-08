@@ -40,6 +40,7 @@ import { ProfileAvatarPicker } from '@/src/modules/patient/components/ProfileAva
 import { ProfileInfoCard } from '@/src/modules/patient/components/ProfileInfoCard';
 import { ProfileSection } from '@/src/modules/patient/components/ProfileSection';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+import { getCurrentPatient } from '@/src/modules/patient/patient-service';
 import { LOCAL_PROFILE_HREF } from '@/src/modules/auth/local-profile-hrefs';
 import { deleteCurrentPatientLocalData } from '@/src/modules/patient/patient-delete-service';
 import { normalizePatientDisplayName } from '@/src/modules/patient/patient-display';
@@ -180,7 +181,8 @@ export function ProfileScreen() {
         await refreshSession();
         await refreshConsent();
         if (!active) return;
-        if (!patient) {
+        const currentPatient = await getCurrentPatient();
+        if (!currentPatient) {
           setLatestDiagnostic(null);
           setSessionQuickStats(null);
           setPrefs(DEFAULT_PROFILE_PREFERENCES);
@@ -188,20 +190,20 @@ export function ProfileScreen() {
           return;
         }
         const [diagnostic, prefsResult, sessions] = await Promise.all([
-          getLatestDiagnostic(patient.paciente_id),
-          getProfilePreferences(patient.paciente_id),
+          getLatestDiagnostic(currentPatient.paciente_id),
+          getProfilePreferences(currentPatient.paciente_id),
           readAllSessions(),
         ]);
         if (!active) return;
         setLatestDiagnostic(diagnostic);
         setPrefs(prefsResult);
-        setSessionQuickStats(buildSessionQuickStats(sessions, patient.paciente_id));
+        setSessionQuickStats(buildSessionQuickStats(sessions, currentPatient.paciente_id));
         await reloadTouchPracticePreference();
       })();
       return () => {
         active = false;
       };
-    }, [patient, refreshConsent, refreshSession, reloadTouchPracticePreference]),
+    }, [refreshConsent, refreshSession, reloadTouchPracticePreference]),
   );
 
   useEffect(() => {
