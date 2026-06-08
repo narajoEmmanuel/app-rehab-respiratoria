@@ -3,6 +3,7 @@
  */
 import { Alert } from 'react-native';
 
+import { isSensorRuntimeEnabled } from '@/src/config/sensor-runtime-guards';
 import {
   resolveDiagnosticCalibration,
   type DiagnosticCalibrationBlockReason,
@@ -577,10 +578,16 @@ export function showTherapyReadinessAlert(
   }[] = [{ text: 'Cancelar', style: 'cancel' }];
 
   if (alertCopy.actionLabel && alertCopy.actionRoute) {
-    buttons.push({
-      text: alertCopy.actionLabel,
-      onPress: () => onNavigate(alertCopy.actionRoute!),
-    });
+    const routeAllowed =
+      isSensorRuntimeEnabled() ||
+      (alertCopy.actionRoute !== '/sensor-connection' &&
+        alertCopy.actionRoute !== '/sensor-calibration');
+    if (routeAllowed) {
+      buttons.push({
+        text: alertCopy.actionLabel,
+        onPress: () => onNavigate(alertCopy.actionRoute!),
+      });
+    }
   }
 
   if (options?.onPracticeWithoutSensor) {

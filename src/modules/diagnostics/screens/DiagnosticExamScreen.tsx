@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { isSensorRuntimeEnabled } from '@/src/config/sensor-runtime-guards';
 import { InitialEvaluationCountdownView } from '@/src/modules/diagnostics/components/InitialEvaluationCountdownView';
 import { InitialEvaluationWelcomeView } from '@/src/modules/diagnostics/components/InitialEvaluationWelcomeView';
 import {
@@ -145,7 +146,8 @@ export function DiagnosticExamScreen() {
   const phaseTransitionLockRef = useRef(false);
   const countdownStartedRef = useRef(false);
 
-  const readiness = useInitialEvaluationReadiness(!isTouchPractice);
+  const sensorRuntimeEnabled = isSensorRuntimeEnabled();
+  const readiness = useInitialEvaluationReadiness(!isTouchPractice && sensorRuntimeEnabled);
   const canStartEvaluation = isTouchPractice || readiness.canStartNow;
   const canShowStartButton = isTouchPractice || readiness.canStart;
 
@@ -526,7 +528,9 @@ export function DiagnosticExamScreen() {
         statusMessage={readiness.statusMessage}
         spirometerLabel={liveLabel}
         onStart={handleStartEvaluation}
-        onGoToSensor={() => router.push('/sensor-connection')}
+        onGoToSensor={
+          sensorRuntimeEnabled ? () => router.push('/sensor-connection') : undefined
+        }
         onBack={handleBack}
       />
     );

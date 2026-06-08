@@ -13,6 +13,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { isSensorRuntimeEnabled } from '@/src/config/sensor-runtime-guards';
+import { SensorUnavailableScreen } from '@/src/modules/device/screens/SensorUnavailableScreen';
+
 const DEFAULT_WS_URL = 'ws://192.168.4.1:81';
 const MPS_WINDOW_MS = 5000;
 const MAX_RAW_PREVIEW = 360;
@@ -67,6 +70,14 @@ function truncate(raw: string | null, max = MAX_RAW_PREVIEW): string {
 }
 
 export default function Esp32RawTestRoute() {
+  if (!isSensorRuntimeEnabled()) {
+    return <SensorUnavailableScreen backFallbackHref="/(tabs)/index" />;
+  }
+
+  return <Esp32RawTestContent />;
+}
+
+function Esp32RawTestContent() {
   const [url, setUrl] = useState(DEFAULT_WS_URL);
   const [status, setStatus] = useState<RawTestStatus>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);

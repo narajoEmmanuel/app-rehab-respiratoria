@@ -50,6 +50,7 @@ import { updateDailyProgress } from '@/src/modules/session/session-progress-serv
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 import { isLevelEntryLockedForUi } from '@/src/config/dev-level-flags';
+import { isSensorRuntimeEnabled } from '@/src/config/sensor-runtime-guards';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { SectionHeader } from '@/src/shared/ui/SectionHeader';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -87,7 +88,8 @@ export function HomeScreen() {
   const { patient, hydrated } = usePatientSession();
   const { ready: consentUiReady, active: consentActive } = useConsentActive();
   const { snapshot: calibrationSnapshot } = useCalibrationSnapshot();
-  const { refresh: refreshTherapyGate } = useTherapyReadinessGate();
+  const sensorRuntimeEnabled = isSensorRuntimeEnabled();
+  const { refresh: refreshTherapyGate } = useTherapyReadinessGate({ enabled: sensorRuntimeEnabled });
   const { launchingLevelId, launchTherapySession } = useTherapySessionLauncher();
   const { lastReading, sensorStreamState, status: sensorStatus, mode: sensorMode } =
     useSensorConnection();
@@ -309,7 +311,7 @@ export function HomeScreen() {
       ? 'Activa el consentimiento para continuar'
       : 'Empezar nivel sugerido';
 
-  const sensorCard = (
+  const sensorCard = sensorRuntimeEnabled ? (
     <HomeDeviceCard
       calibrationSnapshot={calibrationSnapshot}
       sensorConnected={sensorConnected}
@@ -317,12 +319,13 @@ export function HomeScreen() {
       onPress={goSensorConnection}
       homePresentation
     />
-  );
+  ) : null;
 
   const quickAccessSection = (
     <>
       <SectionHeader title="Accesos rápidos" />
       <HomeQuickAccessGrid
+        showSensor={sensorRuntimeEnabled}
         onTherapy={() => {
           onLightImpact();
           router.push('/(tabs)/terapia');
