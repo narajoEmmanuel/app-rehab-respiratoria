@@ -10,7 +10,8 @@ import {
   resolveEvaluationFromSession,
 } from '@/src/modules/diagnostics/diagnostic-evaluation-session-service';
 import {
-  isTouchPracticeDiagnostic,
+  isDiagnosticPracticeOnly,
+  isTouchDiagnosticInputMode,
   parseDiagnosticInputMode,
 } from '@/src/modules/diagnostics/diagnostic-input-mode';
 import { isDiagnosticHighPerformance } from '@/src/modules/diagnostics/diagnostic-performance-threshold';
@@ -58,7 +59,8 @@ export function DiagnosticSummaryScreen() {
     inputMode?: string;
   }>();
   const inputMode = useMemo(() => parseDiagnosticInputMode(inputModeParam), [inputModeParam]);
-  const isTouchPractice = isTouchPracticeDiagnostic(inputMode);
+  const isTouchInput = isTouchDiagnosticInputMode(inputMode);
+  const isPracticeOnly = isDiagnosticPracticeOnly(inputMode);
   const [saving, setSaving] = useState(false);
   const [loadingSession, setLoadingSession] = useState(true);
   const [sessionMissing, setSessionMissing] = useState(false);
@@ -94,23 +96,23 @@ export function DiagnosticSummaryScreen() {
       attemptPeakForNumber(session.attempts, 2),
       attemptPeakForNumber(session.attempts, 3),
     ]);
-    setVimNumber(isTouchPractice ? practiceVim : resolved.vim);
+    setVimNumber(isPracticeOnly ? practiceVim : resolved.vim);
     setConsistencyLabel(resolved.consistencySummary.display_label);
     setBestAttemptNumber(resolved.bestAttemptNumber);
     setIsOfficialResultValid(
-      isTouchPractice
+      isPracticeOnly
         ? resolved.vim > 0
         : isValidOfficialDiagnosticFromAttempts(session.attempts, session.input_mode),
     );
     setLoadingSession(false);
-  }, [evaluationSessionId, isTouchPractice]);
+  }, [evaluationSessionId, isPracticeOnly]);
 
   useEffect(() => {
     void loadSession();
   }, [loadSession]);
 
   useEffect(() => {
-    if (isTouchPractice) {
+    if (isTouchInput) {
       setCalibratedRangeMaxMl(null);
       return;
     }
@@ -123,14 +125,14 @@ export function DiagnosticSummaryScreen() {
     return () => {
       active = false;
     };
-  }, [isTouchPractice]);
+  }, [isTouchInput]);
 
   const levelTargets = useMemo(
     () => (vimNumber > 0 ? previewDiagnosticLevelTargets(vimNumber) : []),
     [vimNumber],
   );
   const showHighPerformance =
-    !isTouchPractice &&
+    !isTouchInput &&
     isOfficialResultValid &&
     isDiagnosticHighPerformance(vimNumber, calibratedRangeMaxMl);
 
@@ -141,9 +143,9 @@ export function DiagnosticSummaryScreen() {
     }
     router.replace({
       pathname: '/diagnostico',
-      params: { inputMode: isTouchPractice ? 'touch_practice' : 'sensor' },
+      params: { inputMode: isTouchInput ? inputMode : 'auto' },
     });
-  }, [evaluationSessionId, isTouchPractice, router]);
+  }, [evaluationSessionId, inputMode, isTouchInput, router]);
 
   const onContinueOfficial = async () => {
     if (!patient) {
@@ -258,15 +260,15 @@ export function DiagnosticSummaryScreen() {
       />
       <ScrollView contentContainerStyle={styles.container}>
         <AppText variant="titleLarge" style={styles.title}>
-          {isTouchPractice ? 'Práctica completada' : 'Evaluación completada'}
+          {isPracticeOnly ? 'Práctica completada' : 'Evaluación completada'}
         </AppText>
         <AppText variant="bodyLarge" style={styles.subtitle}>
-          {isTouchPractice
+          {isPracticeOnly
             ? 'Estos valores son simulados con el dedo. No se guardan como evaluación oficial.'
             : 'Resultados de tus 3 intentos de inspiración máxima.'}
         </AppText>
 
-        {!isTouchPractice && !isOfficialResultValid ? (
+        {!isPracticeOnly && !isOfficialResultValid ? (
           <View style={styles.invalidBanner}>
             <AppText variant="bodySmall" style={styles.invalidBannerText}>
               {INVALID_DIAGNOSTIC_VIM_MESSAGE}
@@ -288,7 +290,7 @@ export function DiagnosticSummaryScreen() {
           </View>
         ) : null}
 
-        {isTouchPractice ? (
+        {isPracticeOnly ? (
           <View style={styles.practiceBanner}>
             <AppText variant="caption" style={styles.practiceBannerTitle}>
               Modo práctica
@@ -299,7 +301,7 @@ export function DiagnosticSummaryScreen() {
           </View>
         ) : null}
 
-        {!isTouchPractice ? (
+        {!isPracticeOnly ? (
           <View style={styles.infoCard}>
             <AppText variant="bodySmall" style={styles.infoText}>
               Tu volumen de referencia se usará para personalizar tus niveles.
@@ -317,7 +319,7 @@ export function DiagnosticSummaryScreen() {
           {ATTEMPT_NUMBERS.map((attemptNumber, index) => {
             const peak = attemptPeaks[index] ?? 0;
             const isBest =
-              bestAttemptNumber === attemptNumber && isOfficialResultValid && !isTouchPractice;
+              bestAttemptNumber === attemptNumber && isOfficialResultValid && !isPracticeOnly;
             return (
               <View key={attemptNumber}>
                 {index > 0 ? <View style={styles.resultDivider} /> : null}
@@ -341,13 +343,13 @@ export function DiagnosticSummaryScreen() {
           })}
           <View style={styles.finalVimWrap}>
             <AppText variant="chip" style={styles.finalVimLabel}>
-              Volumen de referencia {isTouchPractice ? '(simulado)' : ''}
+              Volumen de referencia {isPracticeOnly ? '(simulado)' : ''}
             </AppText>
             <AppText variant="metricLarge" style={styles.finalVimValue}>
               {Math.round(vimNumber)} mL
             </AppText>
           </View>
-          {!isTouchPractice && consistencyLabel ? (
+          {!isPracticeOnly && consistencyLabel ? (
             <View style={styles.consistencyWrap}>
               <AppText variant="titleSmall" style={styles.consistencyLabel}>
                 {consistencyLabel}
@@ -359,7 +361,7 @@ export function DiagnosticSummaryScreen() {
           ) : null}
         </View>
 
-        {!isTouchPractice && isOfficialResultValid && levelTargets.length > 0 ? (
+        {!isPracticeOnly && isOfficialResultValid && levelTargets.length > 0 ? (
           <View style={styles.levelGoalsCard}>
             <AppText variant="titleSmall" style={styles.levelGoalsTitle}>
               Tus niveles se personalizarán así
@@ -377,7 +379,7 @@ export function DiagnosticSummaryScreen() {
           </View>
         ) : null}
 
-        {!isTouchPractice && isOfficialResultValid ? (
+        {!isPracticeOnly && isOfficialResultValid ? (
           <Pressable
             style={styles.primaryBtn}
             onPress={onContinueOfficial}
@@ -392,7 +394,7 @@ export function DiagnosticSummaryScreen() {
           </Pressable>
         ) : null}
 
-        {!isTouchPractice ? (
+        {!isPracticeOnly ? (
           <Pressable
             style={({ pressed }) => [
               styles.secondaryBtn,

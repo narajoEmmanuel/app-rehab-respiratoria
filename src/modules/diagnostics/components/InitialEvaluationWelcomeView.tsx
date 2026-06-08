@@ -24,6 +24,8 @@ type InitialEvaluationWelcomeViewProps = {
   loading: boolean;
   statusMessage: string;
   spirometerLabel: string | null;
+  /** Touch evaluation — hide sensor-specific hints. */
+  isTouchMode?: boolean;
   onStart: () => void;
   onGoToSensor?: () => void;
   onBack?: () => void;
@@ -34,13 +36,14 @@ export function InitialEvaluationWelcomeView({
   loading,
   statusMessage,
   spirometerLabel,
+  isTouchMode = false,
   onStart,
   onGoToSensor,
   onBack,
 }: InitialEvaluationWelcomeViewProps) {
-  const showSensorHint = !canStart && !loading && onGoToSensor != null;
+  const showSensorHint = !isTouchMode && !canStart && !loading && onGoToSensor != null;
   const buttonDisabled = !canStart || loading;
-  const showReadyHint = canStart && !loading;
+  const showReadyHint = canStart && !loading && !isTouchMode;
   const waitingForSignal = statusMessage.includes('Esperando señal del sensor');
 
   return (
@@ -140,7 +143,7 @@ export function InitialEvaluationWelcomeView({
             accessibilityLabel="Comenzar evaluación"
             accessibilityState={{ disabled: buttonDisabled }}>
             <AppText variant="titleMedium" style={styles.primaryBtnText}>
-              {loading ? 'Verificando sensor…' : 'Comenzar evaluación'}
+              {loading && !isTouchMode ? 'Verificando sensor…' : 'Comenzar evaluación'}
             </AppText>
           </Pressable>
 

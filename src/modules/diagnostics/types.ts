@@ -1,4 +1,5 @@
 import type { DiagnosticInputMode } from '@/src/modules/diagnostics/diagnostic-input-mode';
+import type { DiagnosticMeasurementSource } from '@/src/modules/diagnostics/diagnostic-measurement-metadata';
 
 export type DiagnosticAttemptNumber = 1 | 2 | 3;
 
@@ -37,6 +38,9 @@ export type DiagnosticAttemptRecord = {
   live_sample_count?: number;
   signal_lost_during_attempt: boolean;
   sensor_status_summary?: string;
+  /** Provenance: touch input is never an ESP32 reading. */
+  measurement_source?: DiagnosticMeasurementSource;
+  sensor_used?: boolean;
   created_at: string;
 };
 
@@ -52,6 +56,8 @@ export type DiagnosticRecord = {
   vim_source?: DiagnosticVimSource;
   consistency_summary?: DiagnosticConsistencySummary | null;
   input_mode?: DiagnosticInputMode;
+  measurement_source?: DiagnosticMeasurementSource;
+  sensor_used?: boolean;
 };
 
 export type PatientLevelStatus = 'active' | 'locked' | 'completed';

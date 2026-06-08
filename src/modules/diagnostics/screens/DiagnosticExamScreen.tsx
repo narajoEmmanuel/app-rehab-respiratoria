@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { runtimeEnv } from '@/src/config/runtime-env';
 import { isSensorRuntimeEnabled } from '@/src/config/sensor-runtime-guards';
 import { InitialEvaluationCountdownView } from '@/src/modules/diagnostics/components/InitialEvaluationCountdownView';
 import { InitialEvaluationWelcomeView } from '@/src/modules/diagnostics/components/InitialEvaluationWelcomeView';
@@ -11,9 +12,12 @@ import {
   simulatedDiagnosticVolumeForHold,
 } from '@/src/modules/diagnostics/diagnostic-volume-input';
 import {
-  isTouchPracticeDiagnostic,
+  type DiagnosticInputMode,
+  isTouchDiagnosticInputMode,
+  parseDiagnosticInputModeParam,
   resolveDiagnosticInputMode,
 } from '@/src/modules/diagnostics/diagnostic-input-mode';
+import { isDiagnosticTouchFallbackAllowed } from '@/src/modules/diagnostics/resolve-diagnostic-launch';
 import {
   buildDiagnosticAttemptRecord,
   clearDiagnosticEvaluationSession,
@@ -25,6 +29,9 @@ import { useDiagnosticSensorVolume } from '@/src/modules/diagnostics/use-diagnos
 import { useInitialEvaluationReadiness } from '@/src/modules/diagnostics/use-initial-evaluation-readiness';
 import type { DiagnosticAttemptNumber, DiagnosticEvaluationSession } from '@/src/modules/diagnostics/types';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+import { isRealSensorTransportConnected } from '@/src/modules/device/sensor-real-connection';
+import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
+import { useTouchPracticeGate } from '@/src/modules/session/hooks/use-touch-practice-gate';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppText } from '@/src/shared/ui/AppText';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -120,8 +127,49 @@ export function DiagnosticExamScreen() {
   const router = useRouter();
   const { patient } = usePatientSession();
   const { inputMode: inputModeParam } = useLocalSearchParams<{ inputMode?: string }>();
-  const inputMode = useMemo(() => resolveDiagnosticInputMode(inputModeParam), [inputModeParam]);
-  const isTouchPractice = isTouchPracticeDiagnostic(inputMode);
+  const urlInputMode = useMemo(
+    () => parseDiagnosticInputModeParam(inputModeParam),
+    [inputModeParam],
+  );
+  const explicitTouchUrl =
+    urlInputMode === 'touch' || urlInputMode === 'touch_practice';
+
+  const { status: sensorStatus, mode: sensorMode } = useSensorConnection();
+  const sensorRuntimeEnabled = isSensorRuntimeEnabled();
+  const sensorTransportConnected =
+    sensorRuntimeEnabled && isRealSensorTransportConnected(sensorStatus, sensorMode);
+  const { profileTouchPracticeAllowed, preferenceHydrated } = useTouchPracticeGate({
+    sensorConnected: sensorTransportConnected,
+  });
+  const touchFallbackEligible = isDiagnosticTouchFallbackAllowed({
+    profileTouchPracticeAllowed,
+  });
+  const allowTouchFallback =
+    touchFallbackEligible &&
+    (runtimeEnv.isWebTouch || !sensorRuntimeEnabled || preferenceHydrated);
+
+  const readiness = useInitialEvaluationReadiness({
+    enabled: !explicitTouchUrl,
+    allowTouchFallback,
+    profileTouchPracticeAllowed,
+  });
+
+  const inputMode: DiagnosticInputMode = useMemo(() => {
+    if (explicitTouchUrl) {
+      return resolveDiagnosticInputMode(inputModeParam);
+    }
+    if (urlInputMode === 'auto' || urlInputMode === 'sensor') {
+      return readiness.resolvedInputMode;
+    }
+    return resolveDiagnosticInputMode(inputModeParam);
+  }, [
+    explicitTouchUrl,
+    inputModeParam,
+    readiness.resolvedInputMode,
+    urlInputMode,
+  ]);
+
+  const isTouchInput = isTouchDiagnosticInputMode(inputMode);
 
   const [phase, setPhase] = useState<DiagnosticPhase>('welcome');
   const [countdownValue, setCountdownValue] = useState(COUNTDOWN_START);
@@ -146,10 +194,13 @@ export function DiagnosticExamScreen() {
   const phaseTransitionLockRef = useRef(false);
   const countdownStartedRef = useRef(false);
 
-  const sensorRuntimeEnabled = isSensorRuntimeEnabled();
-  const readiness = useInitialEvaluationReadiness(!isTouchPractice && sensorRuntimeEnabled);
-  const canStartEvaluation = isTouchPractice || readiness.canStartNow;
-  const canShowStartButton = isTouchPractice || readiness.canStart;
+  const touchFallbackActive =
+    allowTouchFallback && readiness.resolvedInputMode !== 'sensor';
+
+  const canStartEvaluation =
+    readiness.canStartNow || touchFallbackActive || explicitTouchUrl;
+  const canShowStartButton =
+    readiness.canStart || touchFallbackActive || explicitTouchUrl;
 
   const inAttempt = isDiagnosticAttemptPhase(phase);
 
@@ -188,7 +239,7 @@ export function DiagnosticExamScreen() {
       const endedAt = new Date().toISOString();
       const startedAt = attemptStartedAtRef.current ?? endedAt;
       const tracking = { ...attemptTrackingRef.current, peak_volume_ml: maxVolumeRef.current };
-      if (isTouchPractice && tracking.peak_volume_ml > 0) {
+      if (isTouchInput && tracking.peak_volume_ml > 0) {
         tracking.had_live_signal = true;
       }
       const attempt = buildDiagnosticAttemptRecord({
@@ -209,7 +260,7 @@ export function DiagnosticExamScreen() {
       await saveDiagnosticEvaluationSession(updated);
       return attempt;
     },
-    [inputMode, isTouchPractice],
+    [inputMode, isTouchInput],
   );
 
   const navigateToSummary = useCallback(
@@ -226,7 +277,7 @@ export function DiagnosticExamScreen() {
   );
 
   const { spirometerLabel, hasLiveReading } = useDiagnosticSensorVolume({
-    enabled: !isTouchPractice,
+    enabled: !isTouchInput,
     sampling: inAttempt,
     onVolumeSample: ingestVolumeMl,
   });
@@ -357,7 +408,7 @@ export function DiagnosticExamScreen() {
   }, [phase]);
 
   useEffect(() => {
-    if (!isTouchPractice || !inAttempt) return;
+    if (!isTouchInput || !inAttempt) return;
 
     const id = setInterval(() => {
       const holdMs =
@@ -369,7 +420,7 @@ export function DiagnosticExamScreen() {
     }, TOUCH_VOLUME_TICK_MS);
 
     return () => clearInterval(id);
-  }, [inAttempt, ingestVolumeMl, isTouchPractice]);
+  }, [inAttempt, ingestVolumeMl, isTouchInput]);
 
   useEffect(() => {
     if (!isDiagnosticRestPhase(phase)) return;
@@ -506,13 +557,13 @@ export function DiagnosticExamScreen() {
   const progressRatio = Math.max(0, Math.min(1, 1 - timeLeftMs / currentPhaseDuration));
 
   const onPressIn = () => {
-    if (!isTouchPractice || !inAttempt) return;
+    if (!isTouchInput || !inAttempt) return;
     pressStartedAtRef.current = Date.now();
     setIsPressing(true);
   };
 
   const onPressOut = () => {
-    if (!isTouchPractice) return;
+    if (!isTouchInput) return;
     setIsPressing(false);
     pressStartedAtRef.current = null;
   };
@@ -524,12 +575,15 @@ export function DiagnosticExamScreen() {
     return (
       <InitialEvaluationWelcomeView
         canStart={canShowStartButton}
-        loading={!isTouchPractice && readiness.loading}
+        loading={!isTouchInput && readiness.loading}
         statusMessage={readiness.statusMessage}
         spirometerLabel={liveLabel}
+        isTouchMode={isTouchInput || touchFallbackActive}
         onStart={handleStartEvaluation}
         onGoToSensor={
-          sensorRuntimeEnabled ? () => router.push('/sensor-connection') : undefined
+          sensorRuntimeEnabled && !isTouchInput
+            ? () => router.push('/sensor-connection')
+            : undefined
         }
         onBack={handleBack}
       />
@@ -588,7 +642,7 @@ export function DiagnosticExamScreen() {
         </View>
 
         <AppText variant="caption" style={styles.activeCardMeta}>
-          {isTouchPractice
+          {isTouchInput
             ? 'Mantén presionado en el globo'
             : inAttempt && !hasLiveReading
               ? 'Esperando señal del sensor'
@@ -657,7 +711,7 @@ export function DiagnosticExamScreen() {
     </View>
   );
 
-  const gameCard = isTouchPractice ? (
+  const gameCard = isTouchInput ? (
     <Pressable
       style={styles.gameCardFlexFill}
       onPressIn={onPressIn}

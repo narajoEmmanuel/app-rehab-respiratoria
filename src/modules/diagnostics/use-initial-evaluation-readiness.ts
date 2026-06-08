@@ -1,9 +1,12 @@
 /**
- * Readiness para evaluación inicial: calibración + sensor + señal viva.
+ * Readiness para evaluación inicial: sensor (prioridad) o touch fallback.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { runtimeEnv } from '@/src/config/runtime-env';
 import { isSensorRuntimeEnabled } from '@/src/config/sensor-runtime-guards';
+import type { DiagnosticInputMode } from '@/src/modules/diagnostics/diagnostic-input-mode';
+import { resolveDiagnosticLaunchInputMode } from '@/src/modules/diagnostics/resolve-diagnostic-launch';
 import { useSensorConnection } from '@/src/modules/device/state/SensorConnectionProvider';
 import { evaluateDiagnosticSensorReadinessOnDemand } from '@/src/modules/device/volume-estimation';
 import { checkSensorReadingLive } from '@/src/modules/session/sensor/sensor-live-reading';
@@ -16,22 +19,41 @@ export type InitialEvaluationReadiness = {
   canStartNow: boolean;
   statusMessage: string;
   spirometerLabel: string | null;
+  /** Modo efectivo cuando la URL usa sensor/auto y hay fallback táctil. */
+  resolvedInputMode: DiagnosticInputMode;
 };
 
 const NOT_READY_MESSAGE = 'Conecta y calibra el espirómetro para continuar.';
-const WEB_TOUCH_EVAL_PENDING_MESSAGE =
-  'La evaluación con sensor no está disponible en este modo. La evaluación táctil se habilitará en una fase posterior.';
+const TOUCH_DISABLED_MESSAGE =
+  'La evaluación táctil no está habilitada en este modo. Revisa la configuración de la app.';
 const WAITING_SIGNAL_MESSAGE =
   'Esperando señal del sensor. Conecta el espirómetro para continuar.';
 const POLL_MS = 1500;
 const STABLE_READY_MS = 800;
 const STABLE_NOT_READY_MS = 500;
 
-type ReadinessSnapshot = Omit<InitialEvaluationReadiness, 'canStart' | 'canStartNow' | 'loading'> & {
+type ReadinessSnapshot = {
   canStartNow: boolean;
+  statusMessage: string;
+  spirometerLabel: string | null;
+  resolvedInputMode: DiagnosticInputMode;
+  sensorReadinessCanStart: boolean;
 };
 
-export function useInitialEvaluationReadiness(enabled: boolean): InitialEvaluationReadiness {
+export type UseInitialEvaluationReadinessOptions = {
+  /** Poll sensor/calibration when true (false for URL touch/touch_practice explícito). */
+  enabled: boolean;
+  /** Touch habilitado por flag + perfil (web_touch no requiere perfil). */
+  allowTouchFallback: boolean;
+  /** Flag + Perfil; no exige ausencia de transporte WS (a diferencia de terapia). */
+  profileTouchPracticeAllowed: boolean;
+};
+
+export function useInitialEvaluationReadiness(
+  options: UseInitialEvaluationReadinessOptions,
+): InitialEvaluationReadiness {
+  const { enabled, allowTouchFallback, profileTouchPracticeAllowed } = options;
+
   const { lastReading, status, mode, lastDataReceivedAt, sensorStreamState } =
     useSensorConnection();
 
@@ -50,11 +72,12 @@ export function useInitialEvaluationReadiness(enabled: boolean): InitialEvaluati
   modeRef.current = mode;
   sensorConnectedRef.current = sensorConnected;
 
-  const [loading, setLoading] = useState(enabled);
+  const [loading, setLoading] = useState(enabled && isSensorRuntimeEnabled());
   const [canStartNow, setCanStartNow] = useState(false);
   const [canStart, setCanStart] = useState(false);
   const [statusMessage, setStatusMessage] = useState(NOT_READY_MESSAGE);
   const [spirometerLabel, setSpirometerLabel] = useState<string | null>(null);
+  const [resolvedInputMode, setResolvedInputMode] = useState<DiagnosticInputMode>('sensor');
 
   const stableTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
@@ -77,6 +100,7 @@ export function useInitialEvaluationReadiness(enabled: boolean): InitialEvaluati
       setCanStartNow(snapshot.canStartNow);
       setStatusMessage(snapshot.statusMessage);
       setSpirometerLabel(snapshot.spirometerLabel);
+      setResolvedInputMode(snapshot.resolvedInputMode);
       if (options?.initialLoad) {
         setCanStart(snapshot.canStartNow);
         setLoading(false);
@@ -88,51 +112,65 @@ export function useInitialEvaluationReadiness(enabled: boolean): InitialEvaluati
   );
 
   const evaluateSnapshot = useCallback(async (): Promise<ReadinessSnapshot> => {
-    if (!isSensorRuntimeEnabled()) {
-      return {
-        canStartNow: false,
-        statusMessage: WEB_TOUCH_EVAL_PENDING_MESSAGE,
-        spirometerLabel: null,
-      };
+    const sensorRuntimeEnabled = isSensorRuntimeEnabled();
+    let sensorReadinessCanStart = false;
+    let nextStatusMessage = NOT_READY_MESSAGE;
+    let nextSpirometerLabel: string | null = null;
+
+    if (sensorRuntimeEnabled && enabled) {
+      const connected = sensorConnectedRef.current;
+      const gate = await evaluateDiagnosticSensorReadinessOnDemand({
+        sensorConnected: connected,
+      });
+      const liveCheck = checkSensorReadingLive({
+        lastReading: lastReadingRef.current,
+        sensorConnected: connected,
+        receivedAtMs: lastDataReceivedAtRef.current,
+        sensorStreamState:
+          modeRef.current === 'mock' ? 'receiving_data' : sensorStreamStateRef.current,
+      });
+
+      const calibrationOk = gate.canStartDiagnostic;
+      const signalLive = liveCheck.live;
+      sensorReadinessCanStart = calibrationOk && signalLive;
+
+      if (!calibrationOk) {
+        nextStatusMessage = NOT_READY_MESSAGE;
+      } else if (!signalLive) {
+        nextStatusMessage = WAITING_SIGNAL_MESSAGE;
+      } else {
+        nextStatusMessage = '';
+      }
+      nextSpirometerLabel = gate.context.spirometerLabel;
     }
 
-    const connected = sensorConnectedRef.current;
-    if (!enabled) {
-      return {
-        canStartNow: false,
-        statusMessage: NOT_READY_MESSAGE,
-        spirometerLabel: null,
-      };
-    }
-
-    const gate = await evaluateDiagnosticSensorReadinessOnDemand({
-      sensorConnected: connected,
-    });
-    const liveCheck = checkSensorReadingLive({
-      lastReading: lastReadingRef.current,
-      sensorConnected: connected,
-      receivedAtMs: lastDataReceivedAtRef.current,
-      sensorStreamState:
-        modeRef.current === 'mock' ? 'receiving_data' : sensorStreamStateRef.current,
+    const launchMode = resolveDiagnosticLaunchInputMode({
+      sensorReadinessCanStart,
+      profileTouchPracticeAllowed,
     });
 
-    const calibrationOk = gate.canStartDiagnostic;
-    const signalLive = liveCheck.live;
-    const readyNow = calibrationOk && signalLive;
+    const touchReady = allowTouchFallback && launchMode !== 'sensor';
 
-    let nextStatusMessage = '';
-    if (!calibrationOk) {
-      nextStatusMessage = NOT_READY_MESSAGE;
-    } else if (!signalLive) {
-      nextStatusMessage = WAITING_SIGNAL_MESSAGE;
+    const readyNow =
+      launchMode === 'sensor' ? sensorReadinessCanStart : touchReady;
+
+    if (!readyNow && !sensorRuntimeEnabled && !allowTouchFallback) {
+      nextStatusMessage = TOUCH_DISABLED_MESSAGE;
+    } else if (!readyNow && launchMode === 'sensor' && !sensorReadinessCanStart) {
+      // keep sensor-specific message from above
+    } else if (readyNow && launchMode !== 'sensor') {
+      nextStatusMessage = '';
+      nextSpirometerLabel = null;
     }
 
     return {
       canStartNow: readyNow,
       statusMessage: nextStatusMessage,
-      spirometerLabel: gate.context.spirometerLabel,
+      spirometerLabel: nextSpirometerLabel,
+      resolvedInputMode: readyNow ? launchMode : launchMode !== 'sensor' ? launchMode : 'sensor',
+      sensorReadinessCanStart,
     };
-  }, [enabled]);
+  }, [allowTouchFallback, enabled, profileTouchPracticeAllowed]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -146,14 +184,35 @@ export function useInitialEvaluationReadiness(enabled: boolean): InitialEvaluati
   }, []);
 
   useEffect(() => {
-    if (!enabled || !isSensorRuntimeEnabled()) {
+    if (!enabled && allowTouchFallback) {
+      const launchMode = resolveDiagnosticLaunchInputMode({
+        sensorReadinessCanStart: false,
+        profileTouchPracticeAllowed,
+      });
+      const touchReady = launchMode !== 'sensor';
+      setLoading(false);
+      setCanStart(touchReady);
+      setCanStartNow(touchReady);
+      setStatusMessage('');
+      setSpirometerLabel(null);
+      setResolvedInputMode(touchReady ? launchMode : 'sensor');
+      return;
+    }
+
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
+
+    if (!isSensorRuntimeEnabled() && !allowTouchFallback) {
       setLoading(false);
       setCanStart(false);
       setCanStartNow(false);
       setStatusMessage(
-        !isSensorRuntimeEnabled() ? WEB_TOUCH_EVAL_PENDING_MESSAGE : NOT_READY_MESSAGE,
+        runtimeEnv.isWebTouch ? TOUCH_DISABLED_MESSAGE : NOT_READY_MESSAGE,
       );
       setSpirometerLabel(null);
+      setResolvedInputMode('sensor');
       if (stableTimerRef.current) {
         clearTimeout(stableTimerRef.current);
         stableTimerRef.current = null;
@@ -182,7 +241,13 @@ export function useInitialEvaluationReadiness(enabled: boolean): InitialEvaluati
       cancelled = true;
       clearInterval(id);
     };
-  }, [applySnapshot, enabled, evaluateSnapshot]);
+  }, [
+    allowTouchFallback,
+    applySnapshot,
+    enabled,
+    evaluateSnapshot,
+    profileTouchPracticeAllowed,
+  ]);
 
   return {
     loading,
@@ -190,5 +255,6 @@ export function useInitialEvaluationReadiness(enabled: boolean): InitialEvaluati
     canStartNow,
     statusMessage,
     spirometerLabel,
+    resolvedInputMode,
   };
 }

@@ -10,5 +10,5 @@ export async function navigateToInitialEvaluation(router: Pick<Router, 'push'>):
     router.push(LEGAL_ACCEPT_HREF);
     return;
   }
-  router.push({ pathname: '/diagnostico', params: { inputMode: 'sensor' } });
+  router.push({ pathname: '/diagnostico', params: { inputMode: 'auto' } });
 }

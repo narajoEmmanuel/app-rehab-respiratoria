@@ -12,6 +12,10 @@ import {
 } from './diagnostic-repository';
 import { VIM_SOURCE } from './diagnostic-evaluation-session-service';
 import type { DiagnosticInputMode } from './diagnostic-input-mode';
+import {
+  buildDiagnosticMeasurementMetadata,
+  isDiagnosticPracticeOnly,
+} from './diagnostic-measurement-metadata';
 import type {
   DiagnosticAttemptRecord,
   DiagnosticConsistencySummary,
@@ -114,6 +118,8 @@ export async function createDiagnostic(
     patient_id: patientId,
   }));
 
+  const measurement = buildDiagnosticMeasurementMetadata(inputMode);
+
   const created: DiagnosticRecord = {
     diagnostic_id: diagnosticId,
     patient_id: patientId,
@@ -125,6 +131,8 @@ export async function createDiagnostic(
     vim_source: payload.vimSource ?? VIM_SOURCE,
     consistency_summary: consistencySummary,
     input_mode: inputMode,
+    measurement_source: measurement.measurement_source,
+    sensor_used: measurement.sensor_used,
   };
 
   diagnostics.push(created);
@@ -229,11 +237,18 @@ export async function applyDiagnosticVimToPatientLevels(
   return getPatientLevels(patientId);
 }
 
+/** Rechazado si se intenta persistir una evaluación de práctica táctil local como oficial. */
+export const PRACTICE_DIAGNOSTIC_NOT_PERSISTABLE = 'PRACTICE_DIAGNOSTIC_NOT_PERSISTABLE';
+
 /** Persiste evaluación oficial y propaga VIM a metas (primera vez o repetición). */
 export async function persistOfficialDiagnosticResult(
   patientId: number,
   payload: PersistOfficialDiagnosticPayload,
 ): Promise<{ diagnostic: DiagnosticRecord; levels: PatientLevelRecord[] }> {
+  if (isDiagnosticPracticeOnly(payload.inputMode)) {
+    throw new Error(PRACTICE_DIAGNOSTIC_NOT_PERSISTABLE);
+  }
+
   const { vim, validAttemptsCount } = payload;
   if (!Number.isFinite(vim) || vim <= 0 || validAttemptsCount <= 0) {
     throw new Error('INVALID_DIAGNOSTIC_VIM');
