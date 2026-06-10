@@ -185,10 +185,17 @@ export function RunnerGameFeedbackBar({
   const prepColor = RUNNER_FEEDBACK_COLORS.special;
   const phaseColor = instructionColor(instructionTone, accentColor);
   const instructionColorValue = instructionColor(instructionTone, accentColor);
+  const combinedPreInhaleSeconds = restTotalSeconds + PREP_TOTAL_SECONDS;
+  /** Descanso visual: últimos 3 s del total pertenecen a «Prepárate» (p. ej. 8→4 descanso, 3→1 prep). */
+  const restDisplaySeconds = inRest ? restSecondsRemaining + PREP_TOTAL_SECONDS : 0;
   const restProgress =
-    restTotalSeconds > 0 ? Math.min(1, restSecondsRemaining / restTotalSeconds) : 0;
+    combinedPreInhaleSeconds > 0
+      ? Math.min(1, restDisplaySeconds / combinedPreInhaleSeconds)
+      : 0;
   const prepProgress =
     PREP_TOTAL_SECONDS > 0 ? Math.min(1, prepSecondsRemaining / PREP_TOTAL_SECONDS) : 0;
+  const volumeProgressRatio =
+    targetVolume > 0 && showVolume ? Math.min(1, displayVolumeMl / targetVolume) : 0;
 
   const prepPulse = useSharedValue(1);
 
@@ -234,27 +241,42 @@ export function RunnerGameFeedbackBar({
   return (
     <View style={styles.wrap}>
       <View style={styles.metricsRow}>
-        <View style={styles.metricCell}>
-          <Text style={styles.metricLabel}>Volumen</Text>
-          <Text style={[styles.metricValue, volumeHudMessage ? styles.metricWaiting : null]}>
+        <View style={styles.volumeHeroCell}>
+          <Text style={styles.volumeHeroLabel}>Volumen actual</Text>
+          <Text style={[styles.volumeHeroValue, volumeHudMessage ? styles.metricWaiting : null]}>
             {volumeText}
           </Text>
+          {showVolume && !volumeHudMessage ? (
+            <View style={styles.volumeProgressTrack}>
+              <View
+                style={[
+                  styles.volumeProgressFill,
+                  {
+                    backgroundColor: accentColor,
+                    width: `${Math.round(volumeProgressRatio * 100)}%`,
+                  },
+                ]}
+              />
+            </View>
+          ) : null}
         </View>
         <View style={styles.metricDivider} />
-        <View style={styles.metricCell}>
-          <Text style={styles.metricLabel}>Meta</Text>
-          <Text style={styles.metricValue}>{targetVolume} mL</Text>
+        <View style={styles.targetHeroCell}>
+          <Text style={styles.volumeHeroLabel}>Meta</Text>
+          <Text style={[styles.targetHeroValue, { color: accentColor }]}>{targetVolume} mL</Text>
         </View>
-        <View style={styles.metricDivider} />
+      </View>
+
+      <View style={styles.secondaryMetricsRow}>
         <View style={styles.repCell}>
-          <Text style={styles.metricLabel}>Rep. {repetition}/10</Text>
+          <Text style={styles.secondaryMetricLabel}>Rep. {repetition}/10</Text>
           <View style={styles.repChipsRow}>
             <View style={styles.validChip}>
-              <Feather name="check-circle" size={13} color={RUNNER_FEEDBACK_COLORS.valid} />
+              <Feather name="check-circle" size={14} color={RUNNER_FEEDBACK_COLORS.valid} />
               <Text style={styles.validChipText}>{valid}</Text>
             </View>
             <View style={styles.failedChip}>
-              <Feather name="x-circle" size={13} color={RUNNER_FEEDBACK_COLORS.failed} />
+              <Feather name="x-circle" size={14} color={RUNNER_FEEDBACK_COLORS.failed} />
               <Text style={styles.failedChipText}>{failed}</Text>
             </View>
           </View>
@@ -267,7 +289,7 @@ export function RunnerGameFeedbackBar({
               onPress={onPressPause}
               accessibilityRole="button"
               accessibilityLabel="Pausar sesión">
-              <Feather name="pause" size={14} color={wellness.primaryDark} />
+              <Feather name="pause" size={15} color={wellness.primaryDark} />
               <Text style={styles.pauseBtnText}>Pausar</Text>
             </Pressable>
           </>
@@ -289,7 +311,7 @@ export function RunnerGameFeedbackBar({
                 },
               ]}
             />
-            <Text style={[styles.countdownBig, { color: accentColor }]}>{restSecondsRemaining}</Text>
+            <Text style={[styles.countdownBig, { color: accentColor }]}>{restDisplaySeconds}</Text>
           </View>
         </View>
       ) : inPrep ? (
@@ -334,51 +356,100 @@ export function RunnerGameFeedbackBar({
 const styles = StyleSheet.create({
   wrap: {
     width: '100%',
-    gap: 6,
+    gap: 8,
     marginBottom: 4,
   },
   metricsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.88)',
+    alignItems: 'stretch',
+    backgroundColor: 'rgba(255,255,255,0.92)',
     borderRadius: wellnessRadii.card,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: wellness.border,
   },
-  metricCell: {
+  secondaryMetricsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    borderRadius: wellnessRadii.card,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: wellness.border,
+  },
+  volumeHeroCell: {
+    flex: 1.15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 2,
+  },
+  targetHeroCell: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 2,
+  },
+  volumeHeroLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: wellness.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.35,
+    marginBottom: 4,
+  },
+  volumeHeroValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: wellness.text,
+    lineHeight: 26,
+  },
+  targetHeroValue: {
+    fontSize: 24,
+    fontWeight: '900',
+    lineHeight: 28,
+    letterSpacing: -0.3,
+  },
+  volumeProgressTrack: {
+    marginTop: 8,
+    width: '100%',
+    maxWidth: 140,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(0,0,0,0.06)',
+    overflow: 'hidden',
+  },
+  volumeProgressFill: {
+    height: '100%',
+    borderRadius: 3,
+    minWidth: 2,
   },
   repCell: {
-    flex: 1.1,
+    flex: 1,
     alignItems: 'center',
   },
   metricDivider: {
     width: 1,
-    height: 28,
+    alignSelf: 'stretch',
     backgroundColor: wellness.border,
     opacity: 0.6,
+    marginHorizontal: 4,
   },
-  metricLabel: {
-    fontSize: 10,
+  secondaryMetricLabel: {
+    fontSize: 11,
     fontWeight: '700',
     color: wellness.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
-    marginBottom: 2,
-  },
-  metricValue: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: wellness.text,
+    marginBottom: 4,
   },
   metricWaiting: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
     color: wellness.textSecondary,
     textAlign: 'center',
+    lineHeight: 18,
   },
   repChipsRow: {
     flexDirection: 'row',
@@ -424,7 +495,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(74, 155, 110, 0.28)',
   },
   validChipText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '800',
     color: RUNNER_FEEDBACK_COLORS.valid,
   },
@@ -440,23 +511,23 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(196, 92, 92, 0.22)',
   },
   failedChipText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '800',
     color: RUNNER_FEEDBACK_COLORS.failed,
   },
   pauseBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    gap: 5,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.95)',
     borderWidth: 1,
     borderColor: wellness.border,
   },
   pauseBtnText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     color: wellness.primaryDark,
   },

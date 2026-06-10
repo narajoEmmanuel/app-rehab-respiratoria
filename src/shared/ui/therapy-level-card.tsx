@@ -103,6 +103,7 @@ export function TherapyLevelCard({
   const accentDark = darkenHex(accentColor, 0.15);
 
   const perfectProgress = parseProgress(perfectSessionsDisplay);
+  const todayProgress = parseProgress(completedSessionsDisplay);
   const perfectPercent =
     perfectProgress.total > 0
       ? Math.min(100, Math.round((perfectProgress.current / perfectProgress.total) * 100))
@@ -210,28 +211,24 @@ export function TherapyLevelCard({
           </View>
         )}
 
-        {/* Progress bar + counts */}
+        {/* Progress bar + single unlock counter */}
         {!locked && (
           <View style={styles.progressSection}>
-            <View style={styles.progressCounts}>
-              <View style={styles.progressItem}>
-                <AppText variant="label" style={styles.progressLabel}>
-                  Completadas hoy
-                </AppText>
-                <AppText variant="statusValue" style={[styles.progressValue, { color: accentDark }]}>
-                  {completedSessionsDisplay}
-                </AppText>
-              </View>
-              <View style={[styles.progressDivider, { backgroundColor: accentBorder }]} />
-              <View style={styles.progressItem}>
-                <AppText variant="label" style={styles.progressLabel}>
-                  Dentro de meta
-                </AppText>
-                <AppText variant="statusValue" style={[styles.progressValue, { color: accentDark }]}>
-                  {perfectSessionsDisplay}
-                </AppText>
-              </View>
+            <View style={styles.progressHeader}>
+              <AppText variant="label" style={styles.progressLabel}>
+                Dentro de meta
+              </AppText>
+              <AppText variant="statusValue" style={[styles.progressValue, { color: accentDark }]}>
+                {perfectSessionsDisplay}
+              </AppText>
             </View>
+            {todayProgress.current > 0 ? (
+              <AppText variant="chip" style={styles.progressTodayHint}>
+            {todayProgress.current === 1
+              ? '1 sesión completada hoy'
+              : `${todayProgress.current} sesiones completadas hoy`}
+              </AppText>
+            ) : null}
             <View style={[styles.progressTrack, { backgroundColor: hexToRgba(accentColor, 0.10) }]}>
               <View
                 style={[
@@ -387,27 +384,23 @@ const styles = StyleSheet.create({
   progressSection: {
     marginBottom: spacing.sm,
   },
-  progressCounts: {
+  progressHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  progressItem: {
-    flex: 1,
-    alignItems: 'center',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: 6,
   },
   progressLabel: {
     fontWeight: '600',
     color: wellnessColors.textSecondary,
-    marginBottom: 2,
   },
   progressValue: {
     fontSize: 16,
   },
-  progressDivider: {
-    width: 1,
-    height: 24,
-    marginHorizontal: spacing.sm,
+  progressTodayHint: {
+    color: wellnessColors.textSecondary,
+    fontWeight: '600',
+    marginBottom: 6,
   },
   progressTrack: {
     height: 6,
