@@ -9,7 +9,6 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Pressable,
@@ -26,6 +25,7 @@ import { isWebPwaLayout, shouldUseNativeKeyboardAvoiding } from '@/src/shared/la
 import { authPalette } from '@/src/modules/auth/theme/auth-palette';
 import { getPatientByClave, normalizeClave } from '@/src/modules/patient/patient-service';
 import { getErrorMessage } from '@/src/shared/utils/get-error-message';
+import { showInfoAlert } from '@/src/shared/utils/cross-platform-dialogs';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { AppText } from '@/src/shared/ui/AppText';
@@ -156,7 +156,7 @@ export function LoginScreen() {
       }
     } catch (error) {
       console.error('[LOGIN] failed full object:', error);
-      Alert.alert('No se pudo iniciar sesión', getErrorMessage(error));
+      showInfoAlert('No se pudo iniciar sesión', getErrorMessage(error));
     } finally {
       setLoading(false);
     }

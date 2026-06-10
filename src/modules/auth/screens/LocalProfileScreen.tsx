@@ -5,7 +5,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   Share,
   StyleSheet,
@@ -32,6 +31,7 @@ import {
 } from '@/src/modules/patient/patient-service';
 import type { PatientRecord } from '@/src/modules/patient/types';
 import { getErrorMessage } from '@/src/shared/utils/get-error-message';
+import { showInfoAlert } from '@/src/shared/utils/cross-platform-dialogs';
 import { spacing } from '@/src/shared/theme/spacing';
 import { wellnessRadii, wellnessShadows } from '@/src/shared/theme/wellness-theme';
 import { AppText } from '@/src/shared/ui/AppText';
@@ -91,7 +91,7 @@ export function LocalProfileScreen() {
         }
       } catch (error) {
         console.error('[REGISTER] failed full object:', error);
-        Alert.alert('No se pudo activar el perfil', getErrorMessage(error));
+        showInfoAlert('No se pudo activar el perfil', getErrorMessage(error));
       } finally {
         setBusyId(null);
       }
@@ -111,7 +111,7 @@ export function LocalProfileScreen() {
         setCopyAck(false);
       } catch (error) {
         console.error('[REGISTER] failed full object:', error);
-        Alert.alert('No se pudo crear el registro', getErrorMessage(error));
+        showInfoAlert('No se pudo crear el registro', getErrorMessage(error));
       } finally {
         setBusyId(null);
       }
@@ -127,7 +127,7 @@ export function LocalProfileScreen() {
         router.replace(LEGAL_ACCEPT_HREF);
       } catch (error) {
         console.error('[REGISTER] failed full object:', error);
-        Alert.alert('No se pudo activar el perfil', getErrorMessage(error));
+        showInfoAlert('No se pudo activar el perfil', getErrorMessage(error));
       } finally {
         setBusyId(null);
       }
@@ -143,7 +143,7 @@ export function LocalProfileScreen() {
         });
         setCopyAck(true);
       } catch {
-        Alert.alert(
+        showInfoAlert(
           'Tu clave de acceso',
           `${createdPatient.clave}\n\nGuárdala en un lugar seguro.`,
         );

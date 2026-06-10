@@ -94,10 +94,19 @@ function truncateJson(raw: string | null, maxLength = 280): string {
   return `${raw.slice(0, maxLength)}…`;
 }
 
-export function SensorConnectionScreen() {
+export type SensorConnectionScreenProps = {
+  /**
+   * Modo demo web (web_touch): misma UI base, pero sin conexión real.
+   * Deshabilita conectar, oculta acciones de calibración/diagnóstico y muestra
+   * la visualización técnica read-only del prototipo.
+   */
+  readOnlyWebDemo?: boolean;
+};
+
+export function SensorConnectionScreen({ readOnlyWebDemo = false }: SensorConnectionScreenProps) {
   const router = useRouter();
-  const debug = isSensorDebugEnabled();
-  const technicalCalibrationEnabled = isTechnicalCalibrationEnabled();
+  const debug = isSensorDebugEnabled() && !readOnlyWebDemo;
+  const technicalCalibrationEnabled = isTechnicalCalibrationEnabled() && !readOnlyWebDemo;
 
   const {
     status,
@@ -158,9 +167,12 @@ export function SensorConnectionScreen() {
   const displayVolumeMl = volumeIsLive ? resolveDisplayVolumeFromEstimate(estimate) : null;
 
   const onConnect = useCallback(() => {
+    if (readOnlyWebDemo) {
+      return;
+    }
     hapticLight();
     connect();
-  }, [connect]);
+  }, [connect, readOnlyWebDemo]);
 
   const onDisconnect = useCallback(() => {
     hapticLight();
@@ -355,7 +367,9 @@ export function SensorConnectionScreen() {
           </View>
 
           <AppText variant="chip" style={styles.hint}>
-            {connectionHint}
+            {readOnlyWebDemo
+              ? 'La conexión real del sensor está desactivada en esta versión web. La información mostrada es solo de visualización técnica.'
+              : connectionHint}
           </AppText>
 
           {status === 'error' && errorMessage ? (
@@ -378,9 +392,16 @@ export function SensorConnectionScreen() {
             title={isConnecting ? 'Conectando…' : 'Conectar dispositivo'}
             onPress={onConnect}
             variant="primary"
-            disabled={isConnecting}
+            disabled={isConnecting || readOnlyWebDemo}
             iconName="dot.radiowaves.left.and.right"
           />
+        ) : null}
+
+        {readOnlyWebDemo ? (
+          <AppText variant="caption" style={styles.webDemoNote}>
+            Conectar no está disponible en la versión web: aquí solo se visualiza la información
+            técnica del dispositivo.
+          </AppText>
         ) : null}
 
         {/* Disconnect action */}
@@ -403,7 +424,11 @@ export function SensorConnectionScreen() {
             spirometerModel={calibrationCardMeta?.spirometerModel}
             calibrationDateShort={calibrationCardMeta?.calibrationDateShort}
           />
-          <CalibrationQuickActions showTechnicalSummary={therapyReady} />
+          <CalibrationQuickActions
+            showTechnicalSummary={therapyReady}
+            disableAddCalibration={readOnlyWebDemo}
+            disabledAddCalibrationNote="Agregar calibración no está disponible en la versión web."
+          />
         </View>
 
         {technicalCalibrationEnabled ? (
@@ -625,6 +650,11 @@ const styles = StyleSheet.create({
   hint: {
     lineHeight: 19,
     color: wellnessColors.textSecondary,
+  },
+  webDemoNote: {
+    color: wellnessColors.textMuted,
+    textAlign: 'center',
+    lineHeight: 16,
   },
   errorBox: {
     marginTop: spacing.md,

@@ -8,6 +8,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { Alert, Platform } from 'react-native';
 
+import { showInfoAlert } from '@/src/shared/utils/cross-platform-dialogs';
+
 export type DownloadExportFileResult =
   | { ok: true; mode: 'web_download' | 'native_share' }
   | { ok: false; reason: 'sharing_unavailable' | 'write_failed'; message: string };
@@ -73,7 +75,7 @@ export async function downloadExportFile(
       return { ok: true, mode: 'web_download' };
     } catch (error) {
       console.error('EXPORT ERROR:', error);
-      Alert.alert('Error al exportar', String(error instanceof Error ? error.message : error));
+      showInfoAlert('Error al exportar', String(error instanceof Error ? error.message : error));
       return {
         ok: false,
         reason: 'write_failed',

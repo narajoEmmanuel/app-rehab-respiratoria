@@ -4,8 +4,8 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Alert } from 'react-native';
 
+import { showInfoAlert } from '@/src/shared/utils/cross-platform-dialogs';
 import {
   describeWebLimitation,
   PERMISSION_DENIED_MESSAGE,
@@ -152,7 +152,7 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
         setSettings(next);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'No se pudo actualizar la configuración.';
-        Alert.alert('Error', message);
+        showInfoAlert('Error', message);
       } finally {
         setBusy(false);
       }
@@ -170,7 +170,7 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
       }
 
       if (!nativeSupported) {
-        Alert.alert('Versión web', describeWebLimitation());
+        showInfoAlert('Versión web', describeWebLimitation());
         return;
       }
 
@@ -185,7 +185,7 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
           });
           await saveNotificationSettings(patientId, denied);
           setSettings(denied);
-          Alert.alert('Recordatorios', PERMISSION_DENIED_MESSAGE);
+          showInfoAlert('Recordatorios', PERMISSION_DENIED_MESSAGE);
           return;
         }
 
@@ -198,7 +198,7 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
         setSettings(scheduled);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'No se pudo activar los recordatorios.';
-        Alert.alert('Error', message);
+        showInfoAlert('Error', message);
       } finally {
         setBusy(false);
       }
@@ -210,7 +210,7 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
     if (!patientId || settings == null) return;
 
     if (!nativeSupported) {
-      Alert.alert('Versión web', describeWebLimitation());
+      showInfoAlert('Versión web', describeWebLimitation());
       return;
     }
 
@@ -224,7 +224,7 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
         });
         await saveNotificationSettings(patientId, denied);
         setSettings(denied);
-        Alert.alert('Recordatorios', TEST_NOTIFICATION_DENIED_MESSAGE);
+        showInfoAlert('Recordatorios', TEST_NOTIFICATION_DENIED_MESSAGE);
         return;
       }
 
@@ -247,7 +247,7 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'No se pudo enviar la notificación de prueba.';
-      Alert.alert('Error', message);
+      showInfoAlert('Error', message);
     } finally {
       setBusy(false);
     }

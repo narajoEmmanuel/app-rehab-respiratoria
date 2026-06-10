@@ -10,7 +10,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -30,6 +29,7 @@ import {
   type LegalStatementId,
 } from '@/src/modules/legal/constants';
 import { acceptConsent, needsConsent } from '@/src/modules/legal/consent-service';
+import { showInfoAlert } from '@/src/shared/utils/cross-platform-dialogs';
 import { LEGAL_DOCUMENT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
@@ -308,7 +308,7 @@ export function LegalAcceptScreen() {
         router.replace('/(tabs)');
       } catch (e) {
         const message = e instanceof Error ? e.message : 'No se pudo guardar la aceptación.';
-        Alert.alert('Error', message);
+        showInfoAlert('Error', message);
       } finally {
         setBusy(false);
       }

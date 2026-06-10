@@ -17,6 +17,13 @@ export type CalibrationQuickActionsProps = {
   style?: StyleProp<ViewStyle>;
   /** Si false, solo se muestra «Agregar calibración» (p. ej. sin calibración activa). */
   showTechnicalSummary?: boolean;
+  /**
+   * Deshabilita «Agregar calibración» sin ocultarla (p. ej. versión web read-only).
+   * «Ver resumen técnico» sigue activo porque es solo lectura.
+   */
+  disableAddCalibration?: boolean;
+  /** Nota breve mostrada bajo las tarjetas cuando agregar calibración está deshabilitado. */
+  disabledAddCalibrationNote?: string;
 };
 
 const CARD_HEIGHT = 172;
@@ -38,9 +45,16 @@ type CalibrationActionCardProps = {
   icon: IconSymbolName;
   variant: 'primary' | 'secondary';
   onPress: () => void;
+  disabled?: boolean;
 };
 
-function CalibrationActionCard({ label, icon, variant, onPress }: CalibrationActionCardProps) {
+function CalibrationActionCard({
+  label,
+  icon,
+  variant,
+  onPress,
+  disabled = false,
+}: CalibrationActionCardProps) {
   const isPrimary = variant === 'primary';
 
   const inner = (
@@ -71,9 +85,15 @@ function CalibrationActionCard({ label, icon, variant, onPress }: CalibrationAct
     return (
       <Pressable
         onPress={onPress}
-        style={({ pressed }) => [styles.actionCard, pressed && styles.actionPressed]}
+        disabled={disabled}
+        style={({ pressed }) => [
+          styles.actionCard,
+          pressed && !disabled && styles.actionPressed,
+          disabled && styles.actionDisabled,
+        ]}
         accessibilityRole="button"
-        accessibilityLabel={label}>
+        accessibilityLabel={label}
+        accessibilityState={{ disabled }}>
         <LinearGradient
           colors={[...PRIMARY_GRADIENT]}
           start={{ x: 0, y: 0 }}
@@ -88,9 +108,16 @@ function CalibrationActionCard({ label, icon, variant, onPress }: CalibrationAct
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.actionCard, styles.actionCardSecondary, pressed && styles.actionPressed]}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.actionCard,
+        styles.actionCardSecondary,
+        pressed && !disabled && styles.actionPressed,
+        disabled && styles.actionDisabled,
+      ]}
       accessibilityRole="button"
-      accessibilityLabel={label}>
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}>
       {inner}
     </Pressable>
   );
@@ -100,6 +127,8 @@ function CalibrationActionCard({ label, icon, variant, onPress }: CalibrationAct
 export function CalibrationQuickActions({
   style,
   showTechnicalSummary = true,
+  disableAddCalibration = false,
+  disabledAddCalibrationNote,
 }: CalibrationQuickActionsProps) {
   const router = useRouter();
 
@@ -109,6 +138,9 @@ export function CalibrationQuickActions({
   };
 
   const onAddCalibration = () => {
+    if (disableAddCalibration) {
+      return;
+    }
     hapticLight();
     router.push({
       pathname: '/sensor-calibration',
@@ -132,8 +164,14 @@ export function CalibrationQuickActions({
           icon="plus.circle.fill"
           variant={showTechnicalSummary ? 'secondary' : 'primary'}
           onPress={onAddCalibration}
+          disabled={disableAddCalibration}
         />
       </View>
+      {disableAddCalibration && disabledAddCalibrationNote ? (
+        <AppText variant="caption" style={styles.disabledNote}>
+          {disabledAddCalibrationNote}
+        </AppText>
+      ) : null}
     </View>
   );
 }
@@ -191,6 +229,14 @@ const styles = StyleSheet.create({
   actionPressed: {
     opacity: 0.94,
     transform: [{ scale: 0.985 }],
+  },
+  actionDisabled: {
+    opacity: 0.45,
+  },
+  disabledNote: {
+    marginTop: 8,
+    textAlign: 'center',
+    color: '#7A8B88',
   },
   iconBubble: {
     width: 42,

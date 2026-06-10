@@ -3,6 +3,8 @@
  * Module: patient
  */
 
+import { runtimeEnv } from '@/src/config/runtime-env';
+
 export type ProfilePreferences = {
   avatarUri: string | null;
   notificationsEnabled: boolean;
@@ -15,9 +17,17 @@ export type ProfilePreferences = {
   allowTouchPracticeInput: boolean;
 };
 
+/**
+ * En web_touch la práctica táctil es el único modo de sesión disponible, por lo
+ * que el toggle inicia activado para usuarios sin preferencia guardada.
+ * En local_sensor (y demás modos) se conserva el default histórico: desactivado.
+ */
+export const DEFAULT_ALLOW_TOUCH_PRACTICE_INPUT: boolean =
+  runtimeEnv.isWebTouch && runtimeEnv.enableTouchPractice;
+
 export const DEFAULT_PROFILE_PREFERENCES: ProfilePreferences = {
   avatarUri: null,
   notificationsEnabled: false,
   preferredReminderTime: null,
-  allowTouchPracticeInput: false,
+  allowTouchPracticeInput: DEFAULT_ALLOW_TOUCH_PRACTICE_INPUT,
 };

@@ -31,7 +31,12 @@ function normalizePrefs(raw: unknown): ProfilePreferences {
     avatarUri: raw.avatarUri,
     notificationsEnabled: raw.notificationsEnabled,
     preferredReminderTime: raw.preferredReminderTime,
-    allowTouchPracticeInput: raw.allowTouchPracticeInput === true,
+    // Respeta la elección explícita guardada (true/false); solo cuando el campo
+    // no existe (preferencias legacy) se aplica el default del modo runtime.
+    allowTouchPracticeInput:
+      typeof raw.allowTouchPracticeInput === 'boolean'
+        ? raw.allowTouchPracticeInput
+        : DEFAULT_PROFILE_PREFERENCES.allowTouchPracticeInput,
   };
 }
 

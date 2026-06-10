@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { loadActiveVolumeEstimationContext } from '@/src/modules/device/volume-estimation/volume-estimation-service';
@@ -26,6 +26,10 @@ import {
 } from '@/src/modules/diagnostics/diagnostic-vim-validation';
 import type { DiagnosticAttemptNumber, DiagnosticAttemptRecord } from '@/src/modules/diagnostics/types';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
+import {
+  showAcknowledgeDialog,
+  showInfoAlert,
+} from '@/src/shared/utils/cross-platform-dialogs';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppText } from '@/src/shared/ui/AppText';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -155,7 +159,7 @@ export function DiagnosticSummaryScreen() {
 
   const onContinueOfficial = async () => {
     if (!patient) {
-      Alert.alert(
+      showInfoAlert(
         'Sin paciente activo',
         'Selecciona un paciente antes de guardar la evaluación.',
       );
@@ -166,9 +170,13 @@ export function DiagnosticSummaryScreen() {
     const sessionId = evaluationSessionId?.trim();
     const session = sessionId ? await getDiagnosticEvaluationSession(sessionId) : null;
     if (!session) {
-      Alert.alert('Sesión no encontrada', INVALID_DIAGNOSTIC_VIM_MESSAGE, [
-        { text: 'Repetir evaluación', onPress: navigateToRepeatEvaluation },
-      ]);
+      void showAcknowledgeDialog(
+        'Sesión no encontrada',
+        INVALID_DIAGNOSTIC_VIM_MESSAGE,
+        'Repetir evaluación',
+      ).then((ack) => {
+        if (ack) navigateToRepeatEvaluation();
+      });
       return;
     }
 
@@ -177,9 +185,13 @@ export function DiagnosticSummaryScreen() {
       !isValidOfficialDiagnosticFromAttempts(session.attempts, session.input_mode) ||
       resolved.vim <= 0
     ) {
-      Alert.alert('No se pudo guardar', INVALID_DIAGNOSTIC_VIM_MESSAGE, [
-        { text: 'Repetir evaluación', onPress: navigateToRepeatEvaluation },
-      ]);
+      void showAcknowledgeDialog(
+        'No se pudo guardar',
+        INVALID_DIAGNOSTIC_VIM_MESSAGE,
+        'Repetir evaluación',
+      ).then((ack) => {
+        if (ack) navigateToRepeatEvaluation();
+      });
       return;
     }
 
@@ -198,9 +210,13 @@ export function DiagnosticSummaryScreen() {
       }
       router.replace('/(tabs)/terapia');
     } catch {
-      Alert.alert('No se pudo guardar', INVALID_DIAGNOSTIC_VIM_MESSAGE, [
-        { text: 'Repetir evaluación', onPress: navigateToRepeatEvaluation },
-      ]);
+      void showAcknowledgeDialog(
+        'No se pudo guardar',
+        INVALID_DIAGNOSTIC_VIM_MESSAGE,
+        'Repetir evaluación',
+      ).then((ack) => {
+        if (ack) navigateToRepeatEvaluation();
+      });
     } finally {
       setSaving(false);
     }

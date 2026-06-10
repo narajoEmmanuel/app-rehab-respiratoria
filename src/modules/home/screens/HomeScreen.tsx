@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet } from 'react-native';
+import { Platform, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTherapyReadinessGate } from '@/src/modules/device/volume-estimation';
@@ -51,6 +51,11 @@ import { readAllSessions } from '@/src/modules/session/storage/session-progress-
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
 import { isLevelEntryLockedForUi } from '@/src/config/dev-level-flags';
 import { isSensorRuntimeEnabled } from '@/src/config/sensor-runtime-guards';
+import { runtimeEnv } from '@/src/config/runtime-env';
+import {
+  showConfirmDialog,
+  showInfoAlert,
+} from '@/src/shared/utils/cross-platform-dialogs';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { SectionHeader } from '@/src/shared/ui/SectionHeader';
 import { spacing } from '@/src/shared/theme/spacing';
@@ -223,7 +228,7 @@ export function HomeScreen() {
 
   const goStartRecommendedLevel = useCallback(() => {
     if (!hasCompletedDiagnostic) {
-      Alert.alert(
+      showInfoAlert(
         'Evaluación inicial pendiente',
         'Completa tu evaluación inicial para personalizar tu terapia.',
       );
@@ -231,14 +236,15 @@ export function HomeScreen() {
     }
     if (!consentUiReady) return;
     if (!consentActive) {
-      Alert.alert(
-        'Consentimiento',
-        'Para iniciar terapia necesitas un consentimiento activo. Puedes revisar y aceptar los documentos ahora o desde Perfil.',
-        [
-          { text: 'Entendido', style: 'cancel' },
-          { text: 'Revisar y aceptar', onPress: () => router.push(LEGAL_ACCEPT_HREF) },
-        ],
-      );
+      void showConfirmDialog({
+        title: 'Consentimiento',
+        message:
+          'Para iniciar terapia necesitas un consentimiento activo. Puedes revisar y aceptar los documentos ahora o desde Perfil.',
+        confirmLabel: 'Revisar y aceptar',
+        cancelLabel: 'Entendido',
+      }).then((accepted) => {
+        if (accepted) router.push(LEGAL_ACCEPT_HREF);
+      });
       return;
     }
     if (!activeLevelId || launchingLevelId !== null) {
@@ -266,7 +272,7 @@ export function HomeScreen() {
 
   const goSensorConnection = useCallback(() => {
     if (consentUiReady && !consentActive) {
-      Alert.alert(
+      showInfoAlert(
         'Consentimiento',
         'Para usar la conexión del sensor necesitas un consentimiento activo. Puedes volver a aceptar los documentos desde Perfil.',
       );
@@ -322,11 +328,15 @@ export function HomeScreen() {
     />
   ) : null;
 
+  // En web_touch la ruta /sensor-connection muestra la visualización técnica
+  // read-only del prototipo (sin conexión real), por eso el acceso sigue visible.
+  const sensorEntryVisible = sensorRuntimeEnabled || runtimeEnv.isWebTouch;
+
   const quickAccessSection = (
     <>
       <SectionHeader title="Accesos rápidos" />
       <HomeQuickAccessGrid
-        showSensor={sensorRuntimeEnabled}
+        showSensor={sensorEntryVisible}
         onTherapy={() => {
           onLightImpact();
           router.push('/(tabs)/terapia');

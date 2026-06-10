@@ -26,6 +26,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { showConfirmDialog } from '@/src/shared/utils/cross-platform-dialogs';
 import { ProfileAvatarView } from '@/src/modules/patient/components/ProfileAvatarView';
 import { IconSymbol } from '@/src/shared/ui/icon-symbol';
 import { AppText } from '@/src/shared/ui/AppText';
@@ -272,29 +273,23 @@ export function ProfileAvatarPicker({
 
   const handleDeletePhoto = useCallback(() => {
     closeSheet();
-    Alert.alert(
-      'Eliminar foto actual',
-      'La foto se quitará solo de este dispositivo.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              setIsSavingPhoto(true);
-              try {
-                await tryDeleteLocalFile(avatarUri);
-                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                await onAvatarUriChange(null);
-              } finally {
-                setIsSavingPhoto(false);
-              }
-            })();
-          },
-        },
-      ],
-    );
+    void (async () => {
+      const confirmed = await showConfirmDialog({
+        title: 'Eliminar foto actual',
+        message: 'La foto se quitará solo de este dispositivo.',
+        confirmLabel: 'Eliminar',
+        destructive: true,
+      });
+      if (!confirmed) return;
+      setIsSavingPhoto(true);
+      try {
+        await tryDeleteLocalFile(avatarUri);
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        await onAvatarUriChange(null);
+      } finally {
+        setIsSavingPhoto(false);
+      }
+    })();
   }, [avatarUri, closeSheet, onAvatarUriChange]);
 
   const sheetOptions: SheetOption[] = [];

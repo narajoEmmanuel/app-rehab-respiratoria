@@ -8,7 +8,6 @@ import { useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -49,6 +48,10 @@ import {
 } from '@/src/modules/patient/storage/profile-preferences-repository';
 import { readAllSessions } from '@/src/modules/session/storage/session-progress-repository';
 import type { SessionRecord } from '@/src/modules/session/types/session-progress';
+import {
+  showConfirmDialog,
+  showInfoAlert,
+} from '@/src/shared/utils/cross-platform-dialogs';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 import { AppButton } from '@/src/shared/ui/AppButton';
 import { AppCard } from '@/src/shared/ui/AppCard';
@@ -231,38 +234,32 @@ export function ProfileScreen() {
   );
 
   const onWithdraw = useCallback(() => {
-    Alert.alert(
-      'Retirar consentimiento',
-      'Si continúas, no podrás usar Terapia, Historial ni la conexión del sensor hasta que vuelvas a aceptar los documentos en la app.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Retirar',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              await withdrawConsent();
-              await refreshConsent();
-            })();
-          },
-        },
-      ],
-    );
+    void (async () => {
+      const confirmed = await showConfirmDialog({
+        title: 'Retirar consentimiento',
+        message:
+          'Si continúas, no podrás usar Terapia, Historial ni la conexión del sensor hasta que vuelvas a aceptar los documentos en la app.',
+        confirmLabel: 'Retirar',
+        destructive: true,
+      });
+      if (!confirmed) return;
+      await withdrawConsent();
+      await refreshConsent();
+    })();
   }, [refreshConsent]);
 
   const onRequestDeleteProfile = useCallback(() => {
-    Alert.alert(
-      'Eliminar perfil del paciente',
-      'Esta acción eliminará el perfil local, consentimiento, preferencias, notificaciones e historial de sesiones asociados a este paciente. La calibración del espirómetro se conservará.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Continuar',
-          style: 'destructive',
-          onPress: () => setDeleteModalVisible(true),
-        },
-      ],
-    );
+    void (async () => {
+      const confirmed = await showConfirmDialog({
+        title: 'Eliminar perfil del paciente',
+        message:
+          'Esta acción eliminará el perfil local, consentimiento, preferencias, notificaciones e historial de sesiones asociados a este paciente. La calibración del espirómetro se conservará.',
+        confirmLabel: 'Continuar',
+        destructive: true,
+      });
+      if (!confirmed) return;
+      setDeleteModalVisible(true);
+    })();
   }, []);
 
   const onConfirmDeleteProfile = useCallback(() => {
@@ -280,12 +277,12 @@ export function ProfileScreen() {
           router.replace('/auth/login');
         }
 
-        Alert.alert(
+        showInfoAlert(
           'Perfil eliminado',
           'Tu perfil y datos asociados se eliminaron de este dispositivo. Para volver a usar la app, crea un perfil nuevo o accede con una clave existente.',
         );
       } catch {
-        Alert.alert('Error', 'No se pudo eliminar el perfil. Inténtalo nuevamente.');
+        showInfoAlert('Error', 'No se pudo eliminar el perfil. Inténtalo nuevamente.');
       } finally {
         setDeleteBusy(false);
       }

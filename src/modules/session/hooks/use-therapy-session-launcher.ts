@@ -8,6 +8,7 @@ import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
 
 import { isSensorRuntimeEnabled } from '@/src/config/sensor-runtime-guards';
+import { showInfoAlert } from '@/src/shared/utils/cross-platform-dialogs';
 import {
   showTherapyReadinessAlert,
   useTherapyReadinessGate,
@@ -66,10 +67,10 @@ export function useTherapySessionLauncher() {
   const beginOfficialSensorSession = useCallback(
     async (levelId: LevelId) => {
       if (!sensorRuntimeEnabled) {
-        Alert.alert(
+        showInfoAlert(
           'Terapia con sensor no disponible',
           'En este modo la terapia con espirómetro no está disponible. La práctica táctil se habilitará en una fase posterior.',
-          [{ text: 'Entendido', style: 'default' }],
+          'Entendido',
         );
         return;
       }
@@ -129,10 +130,10 @@ export function useTherapySessionLauncher() {
         return;
       }
       if (!sensorRuntimeEnabled) {
-        Alert.alert(
+        showInfoAlert(
           'Terapia con sensor no disponible',
           'En este modo la terapia con espirómetro no está disponible. La práctica táctil se habilitará en una fase posterior.',
-          [{ text: 'Entendido', style: 'default' }],
+          'Entendido',
         );
         return;
       }
