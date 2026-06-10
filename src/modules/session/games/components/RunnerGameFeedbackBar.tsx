@@ -130,6 +130,34 @@ function instructionColor(tone: RunnerInstructionTone, accentColor: string): str
   }
 }
 
+const COUNT_CHIP_ICON_SIZE = 14;
+const COUNT_CHIP_HEIGHT = 32;
+const COUNT_CHIP_MIN_WIDTH = 56;
+
+function CountChip({
+  iconName,
+  value,
+  tone,
+}: {
+  iconName: 'check-circle' | 'x-circle';
+  value: number;
+  tone: 'valid' | 'failed';
+}) {
+  const isValid = tone === 'valid';
+  return (
+    <View style={[styles.countChip, isValid ? styles.validChip : styles.failedChip]}>
+      <Feather
+        name={iconName}
+        size={COUNT_CHIP_ICON_SIZE}
+        color={isValid ? RUNNER_FEEDBACK_COLORS.valid : RUNNER_FEEDBACK_COLORS.failed}
+      />
+      <Text style={[styles.countChipText, isValid ? styles.validChipText : styles.failedChipText]}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
 function RepetitionDots({ outcomes }: { outcomes: (boolean | null)[] }) {
   const slots = outcomes.length >= REP_COUNT ? outcomes.slice(0, REP_COUNT) : [
     ...outcomes,
@@ -240,45 +268,12 @@ export function RunnerGameFeedbackBar({
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.metricsRow}>
-        <View style={styles.volumeHeroCell}>
-          <Text style={styles.volumeHeroLabel}>Volumen actual</Text>
-          <Text style={[styles.volumeHeroValue, volumeHudMessage ? styles.metricWaiting : null]}>
-            {volumeText}
-          </Text>
-          {showVolume && !volumeHudMessage ? (
-            <View style={styles.volumeProgressTrack}>
-              <View
-                style={[
-                  styles.volumeProgressFill,
-                  {
-                    backgroundColor: accentColor,
-                    width: `${Math.round(volumeProgressRatio * 100)}%`,
-                  },
-                ]}
-              />
-            </View>
-          ) : null}
-        </View>
-        <View style={styles.metricDivider} />
-        <View style={styles.targetHeroCell}>
-          <Text style={styles.volumeHeroLabel}>Meta</Text>
-          <Text style={[styles.targetHeroValue, { color: accentColor }]}>{targetVolume} mL</Text>
-        </View>
-      </View>
-
-      <View style={styles.secondaryMetricsRow}>
-        <View style={styles.repCell}>
-          <Text style={styles.secondaryMetricLabel}>Rep. {repetition}/10</Text>
+      <View style={styles.repMetricsRow}>
+        <View style={styles.repTopGroup}>
+          <Text style={styles.repTopLabel}>Rep. {repetition}/10</Text>
           <View style={styles.repChipsRow}>
-            <View style={styles.validChip}>
-              <Feather name="check-circle" size={14} color={RUNNER_FEEDBACK_COLORS.valid} />
-              <Text style={styles.validChipText}>{valid}</Text>
-            </View>
-            <View style={styles.failedChip}>
-              <Feather name="x-circle" size={14} color={RUNNER_FEEDBACK_COLORS.failed} />
-              <Text style={styles.failedChipText}>{failed}</Text>
-            </View>
+            <CountChip iconName="check-circle" value={valid} tone="valid" />
+            <CountChip iconName="x-circle" value={failed} tone="failed" />
           </View>
         </View>
         {showPauseButton && onPressPause ? (
@@ -294,6 +289,42 @@ export function RunnerGameFeedbackBar({
             </Pressable>
           </>
         ) : null}
+      </View>
+
+      <View style={styles.volumeMetricsRow}>
+        <View style={styles.volumeHeroCell}>
+          <Text style={styles.volumeHeroLabel}>Volumen actual</Text>
+          <View style={styles.volumeValueSlot}>
+            <Text
+              style={[styles.volumeHeroValue, volumeHudMessage ? styles.metricWaiting : null]}
+              numberOfLines={volumeHudMessage ? 2 : 1}>
+              {volumeText}
+            </Text>
+          </View>
+          {showVolume && !volumeHudMessage ? (
+            <View style={styles.volumeProgressTrack}>
+              <View
+                style={[
+                  styles.volumeProgressFill,
+                  {
+                    backgroundColor: accentColor,
+                    width: `${Math.round(volumeProgressRatio * 100)}%`,
+                  },
+                ]}
+              />
+            </View>
+          ) : (
+            <View style={styles.volumeProgressPlaceholder} />
+          )}
+        </View>
+        <View style={styles.metricDivider} />
+        <View style={styles.targetHeroCell}>
+          <Text style={styles.volumeHeroLabel}>Meta</Text>
+          <View style={styles.volumeValueSlot}>
+            <Text style={[styles.targetHeroValue, { color: accentColor }]}>{targetVolume} mL</Text>
+          </View>
+          <View style={styles.volumeProgressPlaceholder} />
+        </View>
       </View>
 
       <RepetitionDots outcomes={attemptOutcomes} />
@@ -359,23 +390,41 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 4,
   },
-  metricsRow: {
+  repMetricsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: wellnessRadii.card,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: wellness.border,
+    minHeight: 52,
+  },
+  repTopGroup: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  repTopLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: wellness.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    fontVariant: ['tabular-nums'],
+    minWidth: 68,
+    textAlign: 'center',
+  },
+  volumeMetricsRow: {
     flexDirection: 'row',
     alignItems: 'stretch',
     backgroundColor: 'rgba(255,255,255,0.92)',
     borderRadius: wellnessRadii.card,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: wellness.border,
-  },
-  secondaryMetricsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.88)',
-    borderRadius: wellnessRadii.card,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: wellness.border,
   },
@@ -399,17 +448,33 @@ const styles = StyleSheet.create({
     letterSpacing: 0.35,
     marginBottom: 4,
   },
+  volumeValueSlot: {
+    minHeight: 28,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   volumeHeroValue: {
     fontSize: 22,
     fontWeight: '800',
     color: wellness.text,
     lineHeight: 26,
+    fontVariant: ['tabular-nums'],
+    textAlign: 'center',
   },
   targetHeroValue: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '900',
-    lineHeight: 28,
-    letterSpacing: -0.3,
+    lineHeight: 26,
+    letterSpacing: -0.2,
+    fontVariant: ['tabular-nums'],
+    textAlign: 'center',
+  },
+  volumeProgressPlaceholder: {
+    marginTop: 8,
+    width: '100%',
+    maxWidth: 140,
+    height: 5,
   },
   volumeProgressTrack: {
     marginTop: 8,
@@ -425,10 +490,6 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     minWidth: 2,
   },
-  repCell: {
-    flex: 1,
-    alignItems: 'center',
-  },
   metricDivider: {
     width: 1,
     alignSelf: 'stretch',
@@ -436,25 +497,35 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     marginHorizontal: 4,
   },
-  secondaryMetricLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: wellness.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-    marginBottom: 4,
-  },
   metricWaiting: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: wellness.textSecondary,
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 16,
   },
   repChipsRow: {
     flexDirection: 'row',
-    gap: 5,
-    marginTop: 1,
+    gap: 6,
+  },
+  countChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    minWidth: COUNT_CHIP_MIN_WIDTH,
+    height: COUNT_CHIP_HEIGHT,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  countChipText: {
+    fontSize: 13,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+    minWidth: 16,
+    textAlign: 'center',
+    lineHeight: 16,
   },
   repDotsRow: {
     flexDirection: 'row',
@@ -484,35 +555,17 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(197, 206, 200, 0.95)',
   },
   validChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
     backgroundColor: 'rgba(74, 155, 110, 0.14)',
-    borderRadius: 12,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderWidth: 1,
     borderColor: 'rgba(74, 155, 110, 0.28)',
   },
   validChipText: {
-    fontSize: 13,
-    fontWeight: '800',
     color: RUNNER_FEEDBACK_COLORS.valid,
   },
   failedChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
     backgroundColor: 'rgba(196, 92, 92, 0.1)',
-    borderRadius: 12,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderWidth: 1,
     borderColor: 'rgba(196, 92, 92, 0.22)',
   },
   failedChipText: {
-    fontSize: 13,
-    fontWeight: '800',
     color: RUNNER_FEEDBACK_COLORS.failed,
   },
   pauseBtn: {
