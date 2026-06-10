@@ -31,6 +31,12 @@ function isRespiraTherapyReminderData(data: Record<string, unknown> | undefined)
   return data.category === RESPIRA_THERAPY_REMINDER_CATEGORY;
 }
 
+function devLog(message: string): void {
+  if (__DEV__) {
+    console.log(`[notifications] ${message}`);
+  }
+}
+
 export async function cancelScheduledNotificationIds(
   notificationIds: readonly string[],
 ): Promise<void> {
@@ -40,13 +46,20 @@ export async function cancelScheduledNotificationIds(
   );
 }
 
-/** Cancels every locally scheduled notification tagged as a RESPIRA+ therapy reminder. */
+/**
+ * Cancels every locally scheduled notification tagged as a RESPIRA+ therapy reminder.
+ * Sweeps by `data.category`, so it also removes orphaned duplicates whose IDs were
+ * never persisted (e.g. after a race or a crash). Never touches other apps' notifications.
+ */
 export async function cancelAllRespiraReminders(): Promise<void> {
   if (!supportsNativeLocalNotifications()) return;
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   const toCancel = scheduled.filter((req) =>
     isRespiraTherapyReminderData(req.content.data as Record<string, unknown> | undefined),
   );
+  if (toCancel.length > 0) {
+    devLog(`Cancelando ${toCancel.length} recordatorio(s) RESPIRA+ programado(s).`);
+  }
   await Promise.all(
     toCancel.map((req) => Notifications.cancelScheduledNotificationAsync(req.identifier)),
   );
@@ -64,7 +77,9 @@ export async function scheduleDailyReminders(
   if (!supportsNativeLocalNotifications()) {
     throw new Error('Los recordatorios locales no están disponibles en la versión web.');
   }
-  if (reminderTimes.length === 0) {
+  // Defensive dedupe: at most one RESPIRA+ notification per HH:mm slot.
+  const uniqueTimes = Array.from(new Set(reminderTimes));
+  if (uniqueTimes.length === 0) {
     return { notificationIds: [], lastMessageKey: previousMessageKey ?? null };
   }
 
@@ -72,8 +87,8 @@ export async function scheduleDailyReminders(
   const ids: string[] = [];
   let lastKey: string | null = previousMessageKey ?? null;
 
-  for (let index = 0; index < reminderTimes.length; index += 1) {
-    const timeHHmm = reminderTimes[index];
+  for (let index = 0; index < uniqueTimes.length; index += 1) {
+    const timeHHmm = uniqueTimes[index];
     const { hour, minute } = parseTimeHHmm(timeHHmm);
     const { copy, messageKey } = pickMotivationalReminderCopyBySlot(index, lastKey);
     lastKey = messageKey;
@@ -100,6 +115,7 @@ export async function scheduleDailyReminders(
     ids.push(identifier);
   }
 
+  devLog(`Programados ${ids.length} recordatorio(s) diario(s).`);
   return { notificationIds: ids, lastMessageKey: lastKey };
 }
 

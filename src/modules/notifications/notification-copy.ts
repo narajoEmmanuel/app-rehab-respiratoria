@@ -474,6 +474,7 @@ export function pickMotivationalReminderCopy(excludeMessageKey?: string | null):
   if (pool.length === 0) {
     throw new Error('No hay mensajes de recordatorio configurados.');
   }
+  // Fallback: with a single message available, repetition is unavoidable and allowed.
   if (pool.length === 1) {
     const copy = pool[0];
     return { copy, messageKey: getReminderMessageKey(copy) };

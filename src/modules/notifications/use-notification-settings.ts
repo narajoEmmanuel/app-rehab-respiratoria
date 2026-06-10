@@ -17,6 +17,7 @@ import {
   supportsNativeLocalNotifications,
 } from '@/src/modules/notifications/notification-permissions';
 import {
+  cancelAllRespiraReminders,
   cancelScheduledNotificationIds,
   scheduleRemindersFromSettings,
   sendTestNotification,
@@ -53,6 +54,22 @@ type UseNotificationSettingsResult = {
   setActiveWindow: (start: string, end: string) => Promise<void>;
   sendTestReminder: () => Promise<void>;
 };
+/**
+ * Serializes every operation that schedules/cancels RESPIRA+ notifications.
+ * Prevents concurrent reschedules (mount effect + focus effect, double taps)
+ * from each scheduling their own batch and producing duplicates.
+ */
+let notificationOpQueue: Promise<unknown> = Promise.resolve();
+
+function runExclusive<T>(task: () => Promise<T>): Promise<T> {
+  const run = notificationOpQueue.then(task, task);
+  notificationOpQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
 async function rescheduleIfActive(
   patientId: string,
   draft: NotificationSettings,
@@ -62,6 +79,9 @@ async function rescheduleIfActive(
   if (normalized.scheduledNotificationIds.length > 0) {
     await cancelScheduledNotificationIds(normalized.scheduledNotificationIds);
   }
+  // Sweep by category to also remove orphaned/duplicated reminders whose IDs
+  // were never persisted (race conditions, crashes, stale storage).
+  await cancelAllRespiraReminders();
 
   const effectiveTimes = resolveEffectiveReminderTimes(normalized);
   const canSchedule =
@@ -105,19 +125,24 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
 
     setLoading(true);
     try {
-      let stored = applyNotificationDefaults(await loadNotificationSettings(patientId));
+      const stored = await runExclusive(async () => {
+        let next = applyNotificationDefaults(await loadNotificationSettings(patientId));
 
-      if (nativeSupported) {
-        const permissionStatus = await readNotificationPermissionStatus();
-        if (permissionStatus !== stored.permissionStatus) {
-          stored = { ...stored, permissionStatus };
+        if (nativeSupported) {
+          const permissionStatus = await readNotificationPermissionStatus();
+          if (permissionStatus !== next.permissionStatus) {
+            next = { ...next, permissionStatus };
+          }
+          if (next.enabled) {
+            // rescheduleIfActive persists the freshly scheduled IDs itself;
+            // saving again here could overwrite them with stale data.
+            return rescheduleIfActive(patientId, next);
+          }
         }
-        if (stored.enabled) {
-          stored = await rescheduleIfActive(patientId, stored);
-        }
-      }
 
-      await saveNotificationSettings(patientId, stored);
+        await saveNotificationSettings(patientId, next);
+        return next;
+      });
       setSettings(stored);
     } finally {
       setLoading(false);
@@ -133,22 +158,26 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
       if (!patientId || settings == null) return;
       setBusy(true);
       try {
-        let next = applyNotificationDefaults(updater(settings));
-        if (nativeSupported && next.enabled) {
-          next = await rescheduleIfActive(patientId, next);
-        } else if (nativeSupported && !next.enabled) {
-          if (next.scheduledNotificationIds.length > 0) {
-            await cancelScheduledNotificationIds(next.scheduledNotificationIds);
+        const next = await runExclusive(async () => {
+          let draft = applyNotificationDefaults(updater(settings));
+          if (nativeSupported && draft.enabled) {
+            draft = await rescheduleIfActive(patientId, draft);
+          } else if (nativeSupported && !draft.enabled) {
+            if (draft.scheduledNotificationIds.length > 0) {
+              await cancelScheduledNotificationIds(draft.scheduledNotificationIds);
+            }
+            await cancelAllRespiraReminders();
+            draft = {
+              ...draft,
+              scheduledNotificationIds: [],
+              lastScheduledAt: null,
+            };
+            await saveNotificationSettings(patientId, draft);
+          } else {
+            await saveNotificationSettings(patientId, draft);
           }
-          next = {
-            ...next,
-            scheduledNotificationIds: [],
-            lastScheduledAt: null,
-          };
-          await saveNotificationSettings(patientId, next);
-        } else {
-          await saveNotificationSettings(patientId, next);
-        }
+          return draft;
+        });
         setSettings(next);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'No se pudo actualizar la configuración.';
@@ -194,7 +223,9 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
           enabled: true,
           permissionStatus,
         });
-        const scheduled = await rescheduleIfActive(patientId, enabledSettings);
+        const scheduled = await runExclusive(() =>
+          rescheduleIfActive(patientId, enabledSettings),
+        );
         setSettings(scheduled);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'No se pudo activar los recordatorios.';
@@ -228,21 +259,19 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
         return;
       }
 
-      if (settings.permissionStatus !== permissionStatus) {
-        const updated = applyNotificationDefaults({
-          ...settings,
+      const updated = await runExclusive(async () => {
+        // Re-read storage so a concurrent reschedule can't be overwritten with
+        // stale scheduled IDs, and so the test excludes the latest message key.
+        const fresh = applyNotificationDefaults(await loadNotificationSettings(patientId));
+        const messageKey = await sendTestNotification(fresh.lastReminderMessageKey);
+        const next = applyNotificationDefaults({
+          ...fresh,
           permissionStatus,
+          lastReminderMessageKey: messageKey,
         });
-        await saveNotificationSettings(patientId, updated);
-        setSettings(updated);
-      }
-
-      const messageKey = await sendTestNotification(settings.lastReminderMessageKey);
-      const updated = applyNotificationDefaults({
-        ...settings,
-        lastReminderMessageKey: messageKey,
+        await saveNotificationSettings(patientId, next);
+        return next;
       });
-      await saveNotificationSettings(patientId, updated);
       setSettings(updated);
     } catch (error) {
       const message =
