@@ -217,8 +217,9 @@ export function HomeScreen() {
     return countWeeklyCompleted(patientSessions, getLocalDateKey());
   }, [patientSessions]);
 
-  const sensorConnected =
-    sensorStatus === 'connected' || sensorStatus === 'receiving' || sensorMode === 'mock';
+  // El modo por defecto es 'mock' aun sin conexión: solo el status refleja conexión real.
+  // Un mock activo (startMock) también pone status en 'connected', así que sigue cubierto.
+  const sensorConnected = sensorStatus === 'connected' || sensorStatus === 'receiving';
 
   const goStartRecommendedLevel = useCallback(() => {
     if (!hasCompletedDiagnostic) {

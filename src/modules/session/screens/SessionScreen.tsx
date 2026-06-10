@@ -66,6 +66,7 @@ import {
 } from '@/src/modules/session/sensor-evaluation';
 import { useTouchPracticeGate } from '@/src/modules/session/hooks/use-touch-practice-gate';
 import {
+  isTouchPracticeModeEnabled,
   isTouchPracticeSession,
   parseSessionInputMode,
   type SessionInputMode,
@@ -145,7 +146,7 @@ export function SessionScreen() {
   const router = useRouter();
   const isFocused = useIsFocused();
   const { patient } = usePatientSession();
-  const { levelId, sessionRunId } = useLocalSearchParams<{
+  const { levelId, sessionRunId, inputMode: inputModeParam } = useLocalSearchParams<{
     levelId?: string;
     sessionRunId?: string;
     inputMode?: string;
@@ -189,11 +190,16 @@ export function SessionScreen() {
     sensorRuntimeEnabled &&
     isRealSensorTransportConnected(sensorConnection.status, sensorConnection.mode);
 
-  const { effectiveTouchPracticeEnabled } = useTouchPracticeGate({
+  const { effectiveTouchPracticeEnabled, preferenceHydrated } = useTouchPracticeGate({
     sensorConnected: sensorTransportConnected,
   });
 
-  const isTouchPractice = effectiveTouchPracticeEnabled;
+  // El launcher ya resolvió el modo y lo pasa por URL; respetarlo evita depender
+  // únicamente de la preferencia de Perfil (que puede no haber hidratado aún).
+  const urlRequestsTouchPractice =
+    parseSessionInputMode(inputModeParam) === 'touch_practice' && isTouchPracticeModeEnabled();
+
+  const isTouchPractice = urlRequestsTouchPractice || effectiveTouchPracticeEnabled;
   const sessionInputMode: SessionInputMode = isTouchPractice ? 'touch_practice' : 'sensor';
 
   const levelSensor = useLevelSensorVolume({
@@ -275,6 +281,12 @@ export function SessionScreen() {
       return;
     }
 
+    // Mientras la preferencia táctil no haya hidratado, isTouchPractice puede ser
+    // false de forma transitoria: no alertar ni expulsar todavía.
+    if (!preferenceHydrated) {
+      return;
+    }
+
     if (!sensorRuntimeEnabled) {
       Alert.alert(
         'Terapia con sensor no disponible',
@@ -332,6 +344,7 @@ export function SessionScreen() {
     isRunnerLevel,
     isTouchPractice,
     patient?.paciente_id,
+    preferenceHydrated,
     router,
     sensorRuntimeEnabled,
     sessionInputMode,

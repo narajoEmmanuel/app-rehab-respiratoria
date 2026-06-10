@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { isSensorRuntimeEnabled } from '@/src/config/sensor-runtime-guards';
 import { getMockSensorReading } from '@/src/modules/device/mocks/mock-sensor-readings';
@@ -275,24 +275,47 @@ export function useEsp32WebSocketSensor() {
     }
   }, [resetMessageMetrics, resetStreamState, sensorConnectionAllowed, stopMock, url]);
 
-  return {
-    status,
-    mode,
-    sensorStreamState,
-    lastDataReceivedAt,
-    lastReading,
-    lastRawMessage,
-    messageCount,
-    messagesPerSecond,
-    errorMessage,
-    closeCode,
-    closeReason,
-    url,
-    setUrl,
-    connect,
-    disconnect,
-    resetConnection,
-    startMock,
-    stopMock,
-  };
+  // Referencia estable: evita re-renders en cascada de todos los consumidores
+  // del SensorConnectionProvider cuando ningún campo real cambió.
+  return useMemo(
+    () => ({
+      status,
+      mode,
+      sensorStreamState,
+      lastDataReceivedAt,
+      lastReading,
+      lastRawMessage,
+      messageCount,
+      messagesPerSecond,
+      errorMessage,
+      closeCode,
+      closeReason,
+      url,
+      setUrl,
+      connect,
+      disconnect,
+      resetConnection,
+      startMock,
+      stopMock,
+    }),
+    [
+      status,
+      mode,
+      sensorStreamState,
+      lastDataReceivedAt,
+      lastReading,
+      lastRawMessage,
+      messageCount,
+      messagesPerSecond,
+      errorMessage,
+      closeCode,
+      closeReason,
+      url,
+      connect,
+      disconnect,
+      resetConnection,
+      startMock,
+      stopMock,
+    ],
+  );
 }
