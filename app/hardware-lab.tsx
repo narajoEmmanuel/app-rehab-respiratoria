@@ -5,7 +5,7 @@ import { ConsentStackGuard } from '@/src/modules/legal/ConsentStackGuard';
 
 export default function HardwareLabRoute() {
   if (!isSensorRuntimeEnabled()) {
-    return <SensorUnavailableScreen backFallbackHref="/(tabs)/index" />;
+    return <SensorUnavailableScreen backFallbackHref="/(tabs)" />;
   }
 
   return (

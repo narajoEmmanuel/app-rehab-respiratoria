@@ -71,7 +71,7 @@ function truncate(raw: string | null, max = MAX_RAW_PREVIEW): string {
 
 export default function Esp32RawTestRoute() {
   if (!isSensorRuntimeEnabled()) {
-    return <SensorUnavailableScreen backFallbackHref="/(tabs)/index" />;
+    return <SensorUnavailableScreen backFallbackHref="/(tabs)" />;
   }
 
   return <Esp32RawTestContent />;

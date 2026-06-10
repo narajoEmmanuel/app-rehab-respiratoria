@@ -6,7 +6,7 @@ import { ConsentStackGuard } from '@/src/modules/legal/ConsentStackGuard';
 
 export default function SensorCalibrationRoute() {
   if (!isSensorRuntimeEnabled()) {
-    return <SensorUnavailableScreen backFallbackHref="/(tabs)/index" />;
+    return <SensorUnavailableScreen backFallbackHref="/(tabs)" />;
   }
 
   return (

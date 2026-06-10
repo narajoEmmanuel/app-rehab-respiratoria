@@ -60,6 +60,7 @@ export function resolveDiagnosticInputMode(
 }
 
 export function isTouchPracticeDiagnostic(mode: DiagnosticInputMode): boolean {
+  if (mode === 'touch') return true;
   return isTouchPracticeSession(mode);
 }
 

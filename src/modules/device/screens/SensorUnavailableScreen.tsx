@@ -3,7 +3,7 @@
  * Minimal UI — does not attempt WebSocket connection.
  */
 
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -14,7 +14,7 @@ import { AppText } from '@/src/shared/ui/AppText';
 import { AppTopBar } from '@/src/shared/ui/AppTopBar';
 
 type Props = {
-  backFallbackHref?: '/(tabs)' | '/(tabs)/index' | '/sensor-connection';
+  backFallbackHref?: Href;
 };
 
 export function SensorUnavailableScreen({ backFallbackHref = '/(tabs)' }: Props) {
