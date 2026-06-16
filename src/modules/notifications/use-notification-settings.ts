@@ -19,6 +19,7 @@ import {
 import {
   cancelAllRespiraReminders,
   cancelScheduledNotificationIds,
+  runNotificationExclusive,
   scheduleRemindersFromSettings,
   sendTestNotification,
 } from '@/src/modules/notifications/notification-scheduler';
@@ -54,22 +55,6 @@ type UseNotificationSettingsResult = {
   setActiveWindow: (start: string, end: string) => Promise<void>;
   sendTestReminder: () => Promise<void>;
 };
-/**
- * Serializes every operation that schedules/cancels RESPIRA+ notifications.
- * Prevents concurrent reschedules (mount effect + focus effect, double taps)
- * from each scheduling their own batch and producing duplicates.
- */
-let notificationOpQueue: Promise<unknown> = Promise.resolve();
-
-function runExclusive<T>(task: () => Promise<T>): Promise<T> {
-  const run = notificationOpQueue.then(task, task);
-  notificationOpQueue = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
-}
-
 async function rescheduleIfActive(
   patientId: string,
   draft: NotificationSettings,
@@ -125,7 +110,7 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
 
     setLoading(true);
     try {
-      const stored = await runExclusive(async () => {
+      const stored = await runNotificationExclusive(async () => {
         let next = applyNotificationDefaults(await loadNotificationSettings(patientId));
 
         if (nativeSupported) {
@@ -158,7 +143,7 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
       if (!patientId || settings == null) return;
       setBusy(true);
       try {
-        const next = await runExclusive(async () => {
+        const next = await runNotificationExclusive(async () => {
           let draft = applyNotificationDefaults(updater(settings));
           if (nativeSupported && draft.enabled) {
             draft = await rescheduleIfActive(patientId, draft);
@@ -212,7 +197,9 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
             enabled: false,
             permissionStatus,
           });
-          await saveNotificationSettings(patientId, denied);
+          await runNotificationExclusive(async () => {
+            await saveNotificationSettings(patientId, denied);
+          });
           setSettings(denied);
           showInfoAlert('Recordatorios', PERMISSION_DENIED_MESSAGE);
           return;
@@ -223,7 +210,7 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
           enabled: true,
           permissionStatus,
         });
-        const scheduled = await runExclusive(() =>
+        const scheduled = await runNotificationExclusive(() =>
           rescheduleIfActive(patientId, enabledSettings),
         );
         setSettings(scheduled);
@@ -253,13 +240,15 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
           ...settings,
           permissionStatus,
         });
-        await saveNotificationSettings(patientId, denied);
+        await runNotificationExclusive(async () => {
+          await saveNotificationSettings(patientId, denied);
+        });
         setSettings(denied);
         showInfoAlert('Recordatorios', TEST_NOTIFICATION_DENIED_MESSAGE);
         return;
       }
 
-      const updated = await runExclusive(async () => {
+      const updated = await runNotificationExclusive(async () => {
         // Re-read storage so a concurrent reschedule can't be overwritten with
         // stale scheduled IDs, and so the test excludes the latest message key.
         const fresh = applyNotificationDefaults(await loadNotificationSettings(patientId));

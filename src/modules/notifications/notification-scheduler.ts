@@ -21,10 +21,42 @@ import {
   supportsNativeLocalNotifications,
 } from '@/src/modules/notifications/notification-permissions';
 import {
+  isValidTimeHHmm,
+  normalizeTimeHHmm,
   parseTimeHHmm,
   resolveSchedulableReminderTimes,
   type NotificationSettings,
 } from '@/src/modules/notifications/notification-settings.types';
+
+/**
+ * Serializes every operation that schedules/cancels RESPIRA+ notifications.
+ * Composite flows (cancel stored IDs → sweep orphans → schedule batch) must
+ * run inside a single exclusive task so they cannot interleave.
+ */
+let notificationOpQueue: Promise<unknown> = Promise.resolve();
+
+export function runNotificationExclusive<T>(task: () => Promise<T>): Promise<T> {
+  const run = notificationOpQueue.then(task, task);
+  notificationOpQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/** At most one notification per normalized HH:mm slot. */
+function dedupeReminderTimesHHmm(reminderTimes: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const time of reminderTimes) {
+    if (!isValidTimeHHmm(time)) continue;
+    const normalized = normalizeTimeHHmm(time, time);
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    unique.push(normalized);
+  }
+  return unique;
+}
 
 function isRespiraTherapyReminderData(data: Record<string, unknown> | undefined): boolean {
   if (data == null) return false;
@@ -78,7 +110,7 @@ export async function scheduleDailyReminders(
     throw new Error('Los recordatorios locales no están disponibles en la versión web.');
   }
   // Defensive dedupe: at most one RESPIRA+ notification per HH:mm slot.
-  const uniqueTimes = Array.from(new Set(reminderTimes));
+  const uniqueTimes = dedupeReminderTimesHHmm(reminderTimes);
   if (uniqueTimes.length === 0) {
     return { notificationIds: [], lastMessageKey: previousMessageKey ?? null };
   }
