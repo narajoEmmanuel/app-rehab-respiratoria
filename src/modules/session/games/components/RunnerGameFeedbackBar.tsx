@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, {
+import {
   Easing,
   useAnimatedStyle,
   useSharedValue,
@@ -11,22 +11,17 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import type { LevelOnePhase } from '@/src/modules/session/engine/level-one/use-level-one-game';
-import { PRE_ATTEMPT_COUNTDOWN_MS } from '@/src/modules/session/engine/level-one/level-one-repetition-rules';
+import { PRE_ATTEMPT_COUNTDOWN_MS, LEVEL_ONE_OFFICIAL_EVAL_MS } from '@/src/modules/session/engine/level-one/level-one-repetition-rules';
+import { StableInstructionPanel } from '@/src/modules/session/games/components/StableInstructionPanel';
+import { RUNNER_FEEDBACK_COLORS } from '@/src/modules/session/games/components/runner-feedback-colors';
 import { wellness, wellnessRadii } from '@/src/shared/theme/wellness-theme';
+
+export { RUNNER_FEEDBACK_COLORS } from '@/src/modules/session/games/components/runner-feedback-colors';
 
 const REP_COUNT = 10;
 const VALID_FX_MS = 900;
 const PREP_TOTAL_SECONDS = Math.max(1, Math.round(PRE_ATTEMPT_COUNTDOWN_MS / 1000));
-
-/** Paleta emocional para mensajes motivacionales (sin saturación agresiva). */
-export const RUNNER_FEEDBACK_COLORS = {
-  achievement: '#C9A227',
-  motivation: '#E8876A',
-  special: '#8B7EC8',
-  valid: '#4A9B6E',
-  failed: '#C45C5C',
-  pending: '#C5CEC8',
-} as const;
+const HOLD_TOTAL_SECONDS = Math.max(1, Math.round(LEVEL_ONE_OFFICIAL_EVAL_MS / 1000));
 
 export type RunnerInstructionTone = 'level' | 'achievement' | 'motivation' | 'special';
 
@@ -48,6 +43,8 @@ type RunnerGameFeedbackBarProps = {
   accentColor: string;
   attemptFeedback?: 'idle' | 'valid' | 'failed';
   inhaleSoftHintVisible?: boolean;
+  metaJustReached?: boolean;
+  holdSecondsRemaining?: number;
   showPauseButton?: boolean;
   onPressPause?: () => void;
 };
@@ -115,6 +112,20 @@ export function resolveRunnerInstruction(params: {
     return { phaseLabel: 'Descansa', instructionText: '', instructionTone: 'level' };
   }
   return { phaseLabel: 'Listo', instructionText: '', instructionTone: 'level' };
+}
+
+/** Panel shows only the primary phase label — no secondary hint lines. */
+export function resolveVisibleInstructionHint(
+  _phaseLabel: string,
+  _instructionText: string,
+  _options: {
+    inhaleSoftHintVisible: boolean;
+    metaJustReached: boolean;
+    holdSecondsRemaining: number;
+    attemptFeedback: 'idle' | 'valid' | 'failed';
+  },
+): string {
+  return '';
 }
 
 function instructionColor(tone: RunnerInstructionTone, accentColor: string): string {
@@ -199,6 +210,8 @@ export function RunnerGameFeedbackBar({
   accentColor,
   attemptFeedback = 'idle',
   inhaleSoftHintVisible = false,
+  metaJustReached = false,
+  holdSecondsRemaining = 0,
   showPauseButton = false,
   onPressPause,
 }: RunnerGameFeedbackBarProps) {
@@ -210,9 +223,9 @@ export function RunnerGameFeedbackBar({
       : '—';
   const inRest = phase === 'resting';
   const inPrep = phase === 'preparing';
+  const inHold = phase === 'evaluating';
   const prepColor = RUNNER_FEEDBACK_COLORS.special;
   const phaseColor = instructionColor(instructionTone, accentColor);
-  const instructionColorValue = instructionColor(instructionTone, accentColor);
   const combinedPreInhaleSeconds = restTotalSeconds + PREP_TOTAL_SECONDS;
   /** Descanso visual: últimos 3 s del total pertenecen a «Prepárate» (p. ej. 8→4 descanso, 3→1 prep). */
   const restDisplaySeconds = inRest ? restSecondsRemaining + PREP_TOTAL_SECONDS : 0;
@@ -222,6 +235,9 @@ export function RunnerGameFeedbackBar({
       : 0;
   const prepProgress =
     PREP_TOTAL_SECONDS > 0 ? Math.min(1, prepSecondsRemaining / PREP_TOTAL_SECONDS) : 0;
+  const holdProgress =
+    HOLD_TOTAL_SECONDS > 0 ? Math.min(1, holdSecondsRemaining / HOLD_TOTAL_SECONDS) : 0;
+  const holdDisplaySeconds = inHold ? Math.max(0, holdSecondsRemaining) : 0;
   const volumeProgressRatio =
     targetVolume > 0 && showVolume ? Math.min(1, displayVolumeMl / targetVolume) : 0;
 
@@ -330,55 +346,43 @@ export function RunnerGameFeedbackBar({
       <RepetitionDots outcomes={attemptOutcomes} />
 
       {inRest ? (
-        <View style={[styles.restCapsule, { borderColor: accentColor }]}>
-          <Text style={[styles.restLabel, { color: accentColor }]}>Descansa</Text>
-          <View style={[styles.countdownBubble, { borderColor: `${accentColor}44` }]}>
-            <View
-              style={[
-                styles.countdownBubbleTrack,
-                {
-                  borderColor: accentColor,
-                  opacity: 0.14 + restProgress * 0.4,
-                },
-              ]}
-            />
-            <Text style={[styles.countdownBig, { color: accentColor }]}>{restDisplaySeconds}</Text>
-          </View>
-        </View>
+        <StableInstructionPanel
+          mode="rest"
+          accentColor={accentColor}
+          topLabel="Descansa"
+          centerText={String(restDisplaySeconds)}
+          progressRatio={restProgress}
+          progressColor={accentColor}
+        />
       ) : inPrep ? (
-        <Animated.View style={[styles.prepCapsule, { borderColor: prepColor }, prepPulseStyle]}>
-          <Text style={[styles.prepLabel, { color: prepColor }]}>Prepárate</Text>
-          <View style={[styles.countdownBubble, { borderColor: `${prepColor}50` }]}>
-            <View
-              style={[
-                styles.countdownBubbleTrack,
-                {
-                  borderColor: prepColor,
-                  opacity: 0.18 + prepProgress * 0.45,
-                },
-              ]}
-            />
-            <Text style={[styles.countdownBig, { color: prepColor }]}>{prepSecondsRemaining}</Text>
-          </View>
-          <Text style={[styles.prepHint, { color: prepColor }]}>Respira con calma</Text>
-        </Animated.View>
+        <StableInstructionPanel
+          mode="prep"
+          accentColor={accentColor}
+          topLabel="Prepárate"
+          centerText={String(prepSecondsRemaining)}
+          progressRatio={prepProgress}
+          progressColor={prepColor}
+          pulseStyle={prepPulseStyle}
+        />
+      ) : inHold ? (
+        <StableInstructionPanel
+          mode="hold"
+          accentColor={accentColor}
+          phaseColor={phaseColor}
+          topLabel={phaseLabel}
+          centerText={String(holdDisplaySeconds)}
+          progressRatio={holdProgress}
+          progressColor={phaseColor}
+          validFxStyle={metaJustReached ? validFxStyle : undefined}
+        />
       ) : (
-        <View style={[styles.phaseBlock, { borderColor: accentColor }]}>
-          <Animated.View style={[styles.validFxOverlay, validFxStyle]} pointerEvents="none">
-            <Text style={styles.validFxStars}>✦ ✧ ✦</Text>
-          </Animated.View>
-          <Text style={[styles.phaseLabel, { color: phaseColor }]}>{phaseLabel}</Text>
-          {instructionText ? (
-            <Text
-              style={[
-                styles.instructionText,
-                { color: instructionColorValue },
-                inhaleSoftHintVisible && styles.instructionSoftHint,
-              ]}>
-              {instructionText}
-            </Text>
-          ) : null}
-        </View>
+        <StableInstructionPanel
+          mode="phase"
+          accentColor={accentColor}
+          phaseColor={phaseColor}
+          centerText={phaseLabel}
+          validFxStyle={validFxStyle}
+        />
       )}
     </View>
   );
@@ -387,8 +391,8 @@ export function RunnerGameFeedbackBar({
 const styles = StyleSheet.create({
   wrap: {
     width: '100%',
-    gap: 8,
-    marginBottom: 4,
+    gap: 6,
+    marginBottom: 2,
   },
   repMetricsRow: {
     flexDirection: 'row',
@@ -583,104 +587,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: wellness.primaryDark,
-  },
-  phaseBlock: {
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: wellnessRadii.card,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderWidth: 2,
-    overflow: 'hidden',
-  },
-  validFxOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(201, 162, 39, 0.14)',
-    borderRadius: wellnessRadii.card,
-  },
-  validFxStars: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: RUNNER_FEEDBACK_COLORS.achievement,
-    letterSpacing: 6,
-  },
-  phaseLabel: {
-    fontSize: 28,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  instructionText: {
-    marginTop: 4,
-    fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  instructionSoftHint: {
-    fontSize: 12,
-    fontStyle: 'italic',
-    fontWeight: '600',
-    color: wellness.textSecondary,
-  },
-  restCapsule: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 16,
-    paddingHorizontal: 22,
-    borderRadius: wellnessRadii.cardLarge,
-    backgroundColor: 'rgba(255,255,255,0.94)',
-    borderWidth: 2,
-  },
-  restLabel: {
-    fontSize: 28,
-    fontWeight: '900',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-  countdownBubble: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.92)',
-  },
-  countdownBubbleTrack: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 48,
-    borderWidth: 4,
-  },
-  countdownBig: {
-    fontSize: 48,
-    fontWeight: '900',
-    lineHeight: 52,
-    letterSpacing: -1,
-  },
-  prepCapsule: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 16,
-    paddingHorizontal: 22,
-    borderRadius: wellnessRadii.cardLarge,
-    backgroundColor: 'rgba(139, 126, 200, 0.08)',
-    borderWidth: 2,
-  },
-  prepLabel: {
-    fontSize: 28,
-    fontWeight: '900',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-  prepHint: {
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 0.15,
-    opacity: 0.9,
   },
 });

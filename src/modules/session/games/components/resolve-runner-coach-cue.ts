@@ -9,6 +9,7 @@ export type RunnerCoachCue = {
   message: string;
   pose: RunnerCoachPose;
   tone: RunnerCoachTone;
+  autoHideMs?: number;
 };
 
 export type ResolveRunnerCoachCueParams = {
@@ -38,16 +39,21 @@ const TERMINAL_OR_INACTIVE_PHASES: ReadonlySet<LevelOnePhase> = new Set([
   'interrupted',
 ]);
 
+const DEFAULT_COACH_VISIBLE_MS = 5200;
+const BRIEF_COACH_VISIBLE_MS = 4800;
+
 function visibleCue(
   message: string,
   pose: RunnerCoachPose,
   tone: RunnerCoachTone,
+  autoHideMs = DEFAULT_COACH_VISIBLE_MS,
 ): RunnerCoachCue {
-  return { visible: true, message, pose, tone };
+  return { visible: true, message, pose, tone, autoHideMs };
 }
 
 /**
  * Declarative coach copy for Level 1 runner — no timers, no React, no gameplay side effects.
+ * Fewer cues during inhale/hold; longer display for messages that remain.
  */
 export function resolveRunnerCoachCue(params: ResolveRunnerCoachCueParams): RunnerCoachCue {
   const {
@@ -70,29 +76,20 @@ export function resolveRunnerCoachCue(params: ResolveRunnerCoachCueParams): Runn
 
   switch (phase) {
     case 'preparing':
-      return visibleCue(
-        'Prepárate. La próxima inspiración es a tu ritmo.',
-        'wink',
-        'info',
-      );
+      return visibleCue('La próxima inspiración es a tu ritmo.', 'wink', 'info', BRIEF_COACH_VISIBLE_MS);
     case 'ready':
-      return visibleCue('Cuando estés listo, inspira hacia la meta.', 'wink', 'info');
     case 'inhaling':
       if (inhaleSoftHintVisible) {
-        return visibleCue(
-          'Sin prisa. Revisa el sensor si hace falta.',
-          'wink',
-          'encourage',
-        );
+        return visibleCue('Sin prisa. Revisa el sensor si hace falta.', 'wink', 'encourage');
       }
-      return visibleCue('Sube con calma hasta la meta de volumen.', 'wink', 'info');
+      return HIDDEN_CUE;
     case 'evaluating':
       if (metaJustReached) {
-        return visibleCue('Meta alcanzada. Sostén un momento.', 'celebrate', 'success');
+        return visibleCue('Meta alcanzada. Sostén un momento.', 'celebrate', 'success', BRIEF_COACH_VISIBLE_MS);
       }
-      return visibleCue('Mantén el volumen arriba de la meta.', 'wink', 'info');
+      return HIDDEN_CUE;
     case 'resting':
-      return visibleCue('Exhala y deja que el cuerpo se relaje.', 'wink', 'rest');
+      return visibleCue('Respira con calma.', 'wink', 'rest', BRIEF_COACH_VISIBLE_MS);
     case 'exhale':
       if (attemptFeedback === 'valid') {
         return visibleCue('Buen trabajo. Repetición registrada.', 'celebrate', 'success');

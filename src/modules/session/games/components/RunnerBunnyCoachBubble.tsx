@@ -29,7 +29,7 @@ const BUNNY_SIZE = {
   regular: 56,
 } as const;
 
-const DEFAULT_AUTO_HIDE_MS = 3500;
+const DEFAULT_AUTO_HIDE_MS = 5200;
 const ENTER_MS = 180;
 const EXIT_MS = 200;
 const ENTER_TRANSLATE_Y = 4;
@@ -79,6 +79,8 @@ export type RunnerBunnyCoachBubbleProps = {
   accentColor?: string;
   autoHideMs?: number;
   disableAutoHide?: boolean;
+  /** Keeps layout height even when the bubble is hidden or fading out. */
+  reserveSpace?: boolean;
 };
 
 export function RunnerBunnyCoachBubble({
@@ -90,6 +92,7 @@ export function RunnerBunnyCoachBubble({
   accentColor,
   autoHideMs = DEFAULT_AUTO_HIDE_MS,
   disableAutoHide = false,
+  reserveSpace = true,
 }: RunnerBunnyCoachBubbleProps) {
   const [revealed, setRevealed] = useState(false);
   const opacity = useSharedValue(0);
@@ -156,52 +159,62 @@ export function RunnerBunnyCoachBubble({
     transform: [{ translateY: translateY.value }],
   }));
 
-  if (!visible || !revealed) {
+  const bunnyPx = BUNNY_SIZE[size];
+  const reservedHeight = size === 'compact' ? 48 : 56;
+  const showBubble = visible && revealed;
+
+  if (!reserveSpace && !showBubble) {
     return null;
   }
 
-  const bunnyPx = BUNNY_SIZE[size];
   const surface = COACH_TONE_SURFACES[tone];
   const borderColor = accentColor ?? surface.borderColor;
   const isCompact = size === 'compact';
   const hasAccentBar = surface.accentBarColor != null;
 
   return (
-    <Animated.View
-      style={[styles.root, animatedStyle]}
+    <View
+      style={[styles.root, reserveSpace && { minHeight: reservedHeight }]}
       pointerEvents="none"
-      accessibilityRole="text"
-      accessibilityLabel={message}>
-      <View
-        style={[
-          styles.bubble,
-          isCompact ? styles.bubbleCompact : styles.bubbleRegular,
-          hasAccentBar && styles.bubbleWithAccent,
-          {
-            backgroundColor: surface.backgroundColor,
-            borderColor,
-          },
-          wellnessShadows.soft,
-        ]}>
-        {surface.accentBarColor ? (
+      accessibilityElementsHidden={!showBubble}
+      importantForAccessibility={showBubble ? 'yes' : 'no-hide-descendants'}>
+      {showBubble ? (
+        <Animated.View
+          style={[styles.bubbleWrap, animatedStyle]}
+          accessibilityRole="text"
+          accessibilityLabel={message}>
           <View
             style={[
-              styles.accentBar,
-              { backgroundColor: accentColor ?? surface.accentBarColor },
-            ]}
-          />
-        ) : null}
-        <RespiraBunnyImage pose={pose} size={bunnyPx} />
-        <Text
-          style={[
-            isCompact ? styles.messageCompact : styles.messageRegular,
-            { color: surface.textColor },
-          ]}
-          numberOfLines={3}>
-          {message}
-        </Text>
-      </View>
-    </Animated.View>
+              styles.bubble,
+              isCompact ? styles.bubbleCompact : styles.bubbleRegular,
+              hasAccentBar && styles.bubbleWithAccent,
+              {
+                backgroundColor: surface.backgroundColor,
+                borderColor,
+              },
+              wellnessShadows.soft,
+            ]}>
+            {surface.accentBarColor ? (
+              <View
+                style={[
+                  styles.accentBar,
+                  { backgroundColor: accentColor ?? surface.accentBarColor },
+                ]}
+              />
+            ) : null}
+            <RespiraBunnyImage pose={pose} size={bunnyPx} />
+            <Text
+              style={[
+                isCompact ? styles.messageCompact : styles.messageRegular,
+                { color: surface.textColor },
+              ]}
+              numberOfLines={3}>
+              {message}
+            </Text>
+          </View>
+        </Animated.View>
+      ) : null}
+    </View>
   );
 }
 
@@ -209,6 +222,10 @@ const styles = StyleSheet.create({
   root: {
     width: '100%',
     alignItems: 'stretch',
+    justifyContent: 'center',
+  },
+  bubbleWrap: {
+    width: '100%',
   },
   bubble: {
     flexDirection: 'row',

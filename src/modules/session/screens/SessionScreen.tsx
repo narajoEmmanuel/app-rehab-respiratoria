@@ -1163,17 +1163,16 @@ export function SessionScreen() {
       />
       <AllLevelsCompleteCelebrationModal
         visible={celebrationKind === 'journey' && isFocused}
-        onGoHome={() => {
-          dismissSessionOverlays();
-          router.replace('/(tabs)');
-        }}
         onRedoDiagnostic={() => {
           dismissSessionOverlays();
           navigateToInitialEvaluation(router);
         }}
-        onViewSummary={
-          pendingSummarySessionId != null ? handleCelebrationViewSummary : undefined
-        }
+        onBackToTherapy={() => {
+          dismissSessionOverlays();
+          requestAnimationFrame(() => {
+            exitToTherapy();
+          });
+        }}
       />
       <SessionPauseModal
         visible={pauseModalVisible && isFocused}

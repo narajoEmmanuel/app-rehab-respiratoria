@@ -666,6 +666,8 @@ export function LevelOneGameView({
               accentColor={accentColor}
               attemptFeedback={attemptFeedback}
               inhaleSoftHintVisible={inhaleSoftHintVisible}
+              metaJustReached={metaJustReached}
+              holdSecondsRemaining={holdSecondsRemaining}
               showPauseButton={sessionActive && Boolean(onPressPause)}
               onPressPause={onPressPause}
             />
@@ -677,7 +679,8 @@ export function LevelOneGameView({
                 tone={coachCue.tone}
                 size="compact"
                 accentColor={accentColor}
-                autoHideMs={3600}
+                autoHideMs={coachCue.autoHideMs ?? 5200}
+                reserveSpace
               />
             </View>
           </View>
@@ -1167,9 +1170,11 @@ const styles = StyleSheet.create({
   },
   coachDock: {
     width: '100%',
-    marginTop: 6,
-    marginBottom: 2,
+    minHeight: 48,
+    marginTop: 4,
+    marginBottom: 0,
     paddingHorizontal: 2,
+    justifyContent: 'center',
   },
   hudOuter: {
     borderRadius: 14,
