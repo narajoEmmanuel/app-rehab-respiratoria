@@ -541,6 +541,11 @@ export function getReminderCopy(_tone?: unknown, variantIndex = 0): Motivational
 
 
 
+export const NOTIFICATIONS_DISABLED_BY_BUILD_MESSAGE =
+  'Recordatorios desactivados en esta versión de la app.';
+
+
+
 export function describeWebLimitation(): string {
 
   return 'En la versión web puedes revisar esta configuración, pero los recordatorios locales solo están disponibles en la app para iPhone o Android.';

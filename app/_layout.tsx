@@ -23,6 +23,10 @@ import 'react-native-reanimated';
 import { AppModeProvider } from '@/src/modules/app-mode';
 import { SensorConnectionProvider } from '@/src/modules/device/state/SensorConnectionProvider';
 import { LevelsProgressProvider } from '@/src/modules/levels/state/use-levels-progress';
+import {
+  initializeRespiraNotificationsOnStartup,
+  runNotificationExclusive,
+} from '@/src/modules/notifications/notification-scheduler';
 import { PatientSessionProvider } from '@/src/modules/patient/context/PatientSessionContext';
 import { TouchPracticePreferenceProvider } from '@/src/modules/session/hooks/use-touch-practice-preference';
 import { fontRegular } from '@/src/shared/theme/typography';
@@ -62,6 +66,11 @@ export default function RootLayout() {
   });
   const [isAppReady, setIsAppReady] = useState(false);
   const [showWebStartupSplash, setShowWebStartupSplash] = useState(Platform.OS === 'web');
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    void runNotificationExclusive(() => initializeRespiraNotificationsOnStartup());
+  }, []);
 
   useEffect(() => {
     if (!fontsLoaded && !fontError) return;

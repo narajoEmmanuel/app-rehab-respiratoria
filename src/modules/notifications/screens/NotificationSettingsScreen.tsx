@@ -27,6 +27,7 @@ import { reminderUi } from '@/src/modules/notifications/components/reminder-ui-t
 import {
   describeWebLimitation,
   formatAwakeWindowScheduleMessage,
+  NOTIFICATIONS_DISABLED_BY_BUILD_MESSAGE,
 } from '@/src/modules/notifications/notification-copy';
 import { useNotificationSettings } from '@/src/modules/notifications/use-notification-settings';
 import { usePatientSession } from '@/src/modules/patient/context/PatientSessionContext';
@@ -50,10 +51,10 @@ export function NotificationSettingsScreen() {
     loading,
     busy,
     nativeSupported,
+    notificationsGloballyEnabled,
     previewTimes,
     previewDisplay,
     activeWindowInvalid,
-    refresh,
     setEnabled,
     setActiveWindow,
     sendTestReminder,
@@ -77,14 +78,14 @@ export function NotificationSettingsScreen() {
     useCallback(() => {
       if (!hydrated) return;
       void loadConsent();
-      void refresh();
-    }, [hydrated, loadConsent, refresh]),
+    }, [hydrated, loadConsent]),
   );
 
   const blockedByConsent = patient != null && consentOk === false;
-  const controlsDisabled = busy || blockedByConsent;
+  const buildNotificationsDisabled = !notificationsGloballyEnabled;
+  const controlsDisabled = busy || blockedByConsent || buildNotificationsDisabled;
   const scheduleDisabled = controlsDisabled || !settings?.enabled;
-  const remindersDimmed = !settings?.enabled;
+  const remindersDimmed = !settings?.enabled || buildNotificationsDisabled;
 
   const commitStartTime = useCallback(() => {
     if (!settings) return;
@@ -164,6 +165,12 @@ export function NotificationSettingsScreen() {
           </AppText>
         ) : null}
 
+        {buildNotificationsDisabled ? (
+          <AppText variant="bodySmall" style={styles.note}>
+            {NOTIFICATIONS_DISABLED_BY_BUILD_MESSAGE}
+          </AppText>
+        ) : null}
+
         {patient && consentOk === true && settings != null ? (
           <>
             <ReminderHeroCard
@@ -201,7 +208,7 @@ export function NotificationSettingsScreen() {
               dimmed={remindersDimmed || activeWindowInvalid}
             />
 
-            {nativeSupported ? (
+            {nativeSupported && notificationsGloballyEnabled ? (
               <TestNotificationButton
                 onPress={() => void sendTestReminder()}
                 disabled={controlsDisabled}

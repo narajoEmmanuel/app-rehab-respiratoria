@@ -457,15 +457,18 @@ export type ProfileReminderStatus =
   | 'paused'
   | 'no_permission'
   | 'requires_review'
-  | 'web_only';
+  | 'web_only'
+  | 'app_disabled';
 
 
 
 export function resolveProfileReminderStatus(
   settings: NotificationSettings | null,
   nativeSupported: boolean,
+  notificationsGloballyEnabled = true,
 ): ProfileReminderStatus | null {
   if (settings == null) return null;
+  if (!notificationsGloballyEnabled) return 'app_disabled';
   if (!nativeSupported) return 'web_only';
   if (settings.permissionStatus === 'denied') return 'no_permission';
   if (!settings.enabled) return 'paused';
@@ -487,6 +490,8 @@ export function profileReminderStatusLabel(status: ProfileReminderStatus | null)
       return 'Requiere revisión';
     case 'web_only':
       return 'Solo en app';
+    case 'app_disabled':
+      return 'Desactivados';
     default:
       return '—';
   }
@@ -509,6 +514,9 @@ export function profileReminderStatusHint(
   }
   if (status === 'web_only') {
     return 'Los recordatorios locales están disponibles en la app para iPhone o Android.';
+  }
+  if (status === 'app_disabled') {
+    return 'Recordatorios desactivados en esta versión de la app.';
   }
   return 'Configura horarios para mantener tu rutina.';
 }

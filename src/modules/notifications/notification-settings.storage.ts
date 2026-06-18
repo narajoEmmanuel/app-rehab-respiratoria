@@ -5,6 +5,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { RESPIRA_NOTIFICATIONS_ENABLED } from '@/src/config/runtime-flags';
 import {
   readNotificationPermissionStatus,
   supportsNativeLocalNotifications,
@@ -131,7 +132,7 @@ export async function readNotificationSettingsForDisplay(
   patientId: string,
 ): Promise<NotificationSettings> {
   let stored = applyNotificationDefaults(await loadNotificationSettings(patientId));
-  if (supportsNativeLocalNotifications()) {
+  if (supportsNativeLocalNotifications() && RESPIRA_NOTIFICATIONS_ENABLED) {
     const permissionStatus = await readNotificationPermissionStatus();
     if (permissionStatus !== stored.permissionStatus) {
       stored = applyNotificationDefaults({

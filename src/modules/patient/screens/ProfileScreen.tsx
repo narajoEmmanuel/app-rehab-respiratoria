@@ -26,6 +26,7 @@ import {
 import { LEGAL_ACCEPT_HREF, LEGAL_DOCUMENT_HREF } from '@/src/modules/legal/legal-hrefs';
 import { readNotificationSettingsForDisplay } from '@/src/modules/notifications/notification-settings.storage';
 import { supportsNativeLocalNotifications } from '@/src/modules/notifications/notification-permissions';
+import { RESPIRA_NOTIFICATIONS_ENABLED } from '@/src/config/runtime-flags';
 import {
   profileReminderStatusHint,
   profileReminderStatusLabel,
@@ -300,6 +301,7 @@ export function ProfileScreen() {
   const reminderStatus = resolveProfileReminderStatus(
     notificationSettings,
     nativeNotificationsSupported,
+    RESPIRA_NOTIFICATIONS_ENABLED,
   );
   const remindersActive = reminderStatus === 'active';
   const reminderStatusPillTone = (status: ProfileReminderStatus | null) => {
@@ -311,6 +313,8 @@ export function ProfileScreen() {
         return 'warning' as const;
       case 'web_only':
         return 'info' as const;
+      case 'app_disabled':
+        return 'neutral' as const;
       default:
         return 'neutral' as const;
     }

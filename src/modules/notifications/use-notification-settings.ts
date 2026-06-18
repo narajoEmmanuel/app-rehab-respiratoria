@@ -5,9 +5,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { RESPIRA_NOTIFICATIONS_ENABLED } from '@/src/config/runtime-flags';
 import { showInfoAlert } from '@/src/shared/utils/cross-platform-dialogs';
 import {
   describeWebLimitation,
+  NOTIFICATIONS_DISABLED_BY_BUILD_MESSAGE,
   PERMISSION_DENIED_MESSAGE,
   TEST_NOTIFICATION_DENIED_MESSAGE,
 } from '@/src/modules/notifications/notification-copy';
@@ -17,11 +19,9 @@ import {
   supportsNativeLocalNotifications,
 } from '@/src/modules/notifications/notification-permissions';
 import {
-  cancelAllRespiraReminders,
-  cancelScheduledNotificationIds,
   runNotificationExclusive,
-  scheduleRemindersFromSettings,
   sendTestNotification,
+  syncRespiraNotifications,
 } from '@/src/modules/notifications/notification-scheduler';
 import {
   loadNotificationSettings,
@@ -45,6 +45,7 @@ type UseNotificationSettingsResult = {
   loading: boolean;
   busy: boolean;
   nativeSupported: boolean;
+  notificationsGloballyEnabled: boolean;
   scheduleSummary: string;
   previewTimes: string[];
   previewDisplay: PreviewDisplay;
@@ -55,51 +56,13 @@ type UseNotificationSettingsResult = {
   setActiveWindow: (start: string, end: string) => Promise<void>;
   sendTestReminder: () => Promise<void>;
 };
-async function rescheduleIfActive(
-  patientId: string,
-  draft: NotificationSettings,
-): Promise<NotificationSettings> {
-  const normalized = applyNotificationDefaults(draft);
-
-  if (normalized.scheduledNotificationIds.length > 0) {
-    await cancelScheduledNotificationIds(normalized.scheduledNotificationIds);
-  }
-  // Sweep by category to also remove orphaned/duplicated reminders whose IDs
-  // were never persisted (race conditions, crashes, stale storage).
-  await cancelAllRespiraReminders();
-
-  const effectiveTimes = resolveEffectiveReminderTimes(normalized);
-  const canSchedule =
-    normalized.enabled &&
-    effectiveTimes.length > 0 &&
-    isActiveWindowValid(normalized.activeWindowStart, normalized.activeWindowEnd);
-
-  if (!canSchedule) {
-    const cleared: NotificationSettings = {
-      ...normalized,
-      scheduledNotificationIds: [],
-      lastScheduledAt: null,
-    };
-    await saveNotificationSettings(patientId, cleared);
-    return cleared;
-  }
-
-  const { notificationIds, lastMessageKey } = await scheduleRemindersFromSettings(normalized);
-  const scheduled: NotificationSettings = {
-    ...normalized,
-    scheduledNotificationIds: notificationIds,
-    lastScheduledAt: new Date().toISOString(),
-    lastReminderMessageKey: lastMessageKey,
-  };
-  await saveNotificationSettings(patientId, scheduled);
-  return scheduled;
-}
 
 export function useNotificationSettings(patientId: string | null): UseNotificationSettingsResult {
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const nativeSupported = supportsNativeLocalNotifications();
+  const notificationsGloballyEnabled = RESPIRA_NOTIFICATIONS_ENABLED;
 
   const refresh = useCallback(async () => {
     if (!patientId) {
@@ -113,26 +76,21 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
       const stored = await runNotificationExclusive(async () => {
         let next = applyNotificationDefaults(await loadNotificationSettings(patientId));
 
-        if (nativeSupported) {
+        if (nativeSupported && notificationsGloballyEnabled) {
           const permissionStatus = await readNotificationPermissionStatus();
           if (permissionStatus !== next.permissionStatus) {
             next = { ...next, permissionStatus };
-          }
-          if (next.enabled) {
-            // rescheduleIfActive persists the freshly scheduled IDs itself;
-            // saving again here could overwrite them with stale data.
-            return rescheduleIfActive(patientId, next);
+            await saveNotificationSettings(patientId, next);
           }
         }
 
-        await saveNotificationSettings(patientId, next);
         return next;
       });
       setSettings(stored);
     } finally {
       setLoading(false);
     }
-  }, [nativeSupported, patientId]);
+  }, [nativeSupported, notificationsGloballyEnabled, patientId]);
 
   useEffect(() => {
     void refresh();
@@ -144,24 +102,10 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
       setBusy(true);
       try {
         const next = await runNotificationExclusive(async () => {
-          let draft = applyNotificationDefaults(updater(settings));
-          if (nativeSupported && draft.enabled) {
-            draft = await rescheduleIfActive(patientId, draft);
-          } else if (nativeSupported && !draft.enabled) {
-            if (draft.scheduledNotificationIds.length > 0) {
-              await cancelScheduledNotificationIds(draft.scheduledNotificationIds);
-            }
-            await cancelAllRespiraReminders();
-            draft = {
-              ...draft,
-              scheduledNotificationIds: [],
-              lastScheduledAt: null,
-            };
-            await saveNotificationSettings(patientId, draft);
-          } else {
-            await saveNotificationSettings(patientId, draft);
-          }
-          return draft;
+          const draft = applyNotificationDefaults(updater(settings));
+          const synced = await syncRespiraNotifications(draft);
+          await saveNotificationSettings(patientId, synced);
+          return synced;
         });
         setSettings(next);
       } catch (error) {
@@ -171,12 +115,17 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
         setBusy(false);
       }
     },
-    [nativeSupported, patientId, settings],
+    [patientId, settings],
   );
 
   const setEnabled = useCallback(
     async (enabled: boolean) => {
       if (!patientId || settings == null) return;
+
+      if (!notificationsGloballyEnabled) {
+        showInfoAlert('Recordatorios', NOTIFICATIONS_DISABLED_BY_BUILD_MESSAGE);
+        return;
+      }
 
       if (!enabled) {
         await applySettings((current) => ({ ...current, enabled: false }));
@@ -198,7 +147,8 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
             permissionStatus,
           });
           await runNotificationExclusive(async () => {
-            await saveNotificationSettings(patientId, denied);
+            const synced = await syncRespiraNotifications(denied);
+            await saveNotificationSettings(patientId, synced);
           });
           setSettings(denied);
           showInfoAlert('Recordatorios', PERMISSION_DENIED_MESSAGE);
@@ -210,9 +160,11 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
           enabled: true,
           permissionStatus,
         });
-        const scheduled = await runNotificationExclusive(() =>
-          rescheduleIfActive(patientId, enabledSettings),
-        );
+        const scheduled = await runNotificationExclusive(async () => {
+          const synced = await syncRespiraNotifications(enabledSettings);
+          await saveNotificationSettings(patientId, synced);
+          return synced;
+        });
         setSettings(scheduled);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'No se pudo activar los recordatorios.';
@@ -221,11 +173,16 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
         setBusy(false);
       }
     },
-    [applySettings, nativeSupported, patientId, settings],
+    [applySettings, nativeSupported, notificationsGloballyEnabled, patientId, settings],
   );
 
   const sendTestReminder = useCallback(async () => {
     if (!patientId || settings == null) return;
+
+    if (!notificationsGloballyEnabled) {
+      showInfoAlert('Recordatorios', NOTIFICATIONS_DISABLED_BY_BUILD_MESSAGE);
+      return;
+    }
 
     if (!nativeSupported) {
       showInfoAlert('Versión web', describeWebLimitation());
@@ -249,8 +206,6 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
       }
 
       const updated = await runNotificationExclusive(async () => {
-        // Re-read storage so a concurrent reschedule can't be overwritten with
-        // stale scheduled IDs, and so the test excludes the latest message key.
         const fresh = applyNotificationDefaults(await loadNotificationSettings(patientId));
         const messageKey = await sendTestNotification(fresh.lastReminderMessageKey);
         const next = applyNotificationDefaults({
@@ -269,7 +224,7 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
     } finally {
       setBusy(false);
     }
-  }, [nativeSupported, patientId, settings]);
+  }, [nativeSupported, notificationsGloballyEnabled, patientId, settings]);
 
   const setActiveWindow = useCallback(
     async (start: string, end: string) => {
@@ -294,6 +249,7 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
     loading,
     busy,
     nativeSupported,
+    notificationsGloballyEnabled,
     scheduleSummary: settings == null ? '—' : formatProfileReminderSummary(settings),
     previewTimes,
     previewDisplay,

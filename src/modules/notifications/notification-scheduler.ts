@@ -10,23 +10,38 @@ import {
 } from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import { RESPIRA_NOTIFICATIONS_ENABLED } from '@/src/config/runtime-flags';
 import {
+  motivationalReminderMessages,
   pickMotivationalReminderCopy,
   pickMotivationalReminderCopyBySlot,
 } from '@/src/modules/notifications/notification-copy';
 import {
   ensureAndroidReminderChannel,
   RESPIRA_ANDROID_CHANNEL_ID,
+  RESPIRA_LEGACY_THERAPY_REMINDER_CATEGORY,
   RESPIRA_THERAPY_REMINDER_CATEGORY,
   supportsNativeLocalNotifications,
 } from '@/src/modules/notifications/notification-permissions';
 import {
+  applyNotificationDefaults,
+  isActiveWindowValid,
   isValidTimeHHmm,
   normalizeTimeHHmm,
   parseTimeHHmm,
+  resolveEffectiveReminderTimes,
   resolveSchedulableReminderTimes,
   type NotificationSettings,
 } from '@/src/modules/notifications/notification-settings.types';
+
+export const RESPIRA_NOTIFICATION_APP_ID = 'RESPIRA_PLUS';
+export const RESPIRA_NOTIFICATION_SCHEDULER_ID = 'respira-notification-service';
+
+const LEGACY_DATA_CATEGORIES = new Set(['reminder', 'therapy']);
+
+const RESPIRA_REMINDER_COPY_KEYS = new Set(
+  motivationalReminderMessages.map((copy) => `${copy.title}\u0000${copy.body}`),
+);
 
 /**
  * Serializes every operation that schedules/cancels RESPIRA+ notifications.
@@ -58,15 +73,31 @@ function dedupeReminderTimesHHmm(reminderTimes: readonly string[]): string[] {
   return unique;
 }
 
-function isRespiraTherapyReminderData(data: Record<string, unknown> | undefined): boolean {
-  if (data == null) return false;
-  return data.category === RESPIRA_THERAPY_REMINDER_CATEGORY;
-}
-
 function devLog(message: string): void {
   if (__DEV__) {
     console.log(`[notifications] ${message}`);
   }
+}
+
+function isLegacyRespiraCopyMatch(title: string | null | undefined, body: string | null | undefined): boolean {
+  if (title == null || body == null) return false;
+  return RESPIRA_REMINDER_COPY_KEYS.has(`${title}\u0000${body}`);
+}
+
+function isRespiraScheduledNotification(
+  req: Notifications.NotificationRequest,
+): boolean {
+  const data = req.content.data as Record<string, unknown> | undefined;
+  if (data?.app === RESPIRA_NOTIFICATION_APP_ID) return true;
+
+  const category = data?.category;
+  if (typeof category === 'string') {
+    if (category === RESPIRA_THERAPY_REMINDER_CATEGORY) return true;
+    if (category === RESPIRA_LEGACY_THERAPY_REMINDER_CATEGORY) return true;
+    if (LEGACY_DATA_CATEGORIES.has(category)) return true;
+  }
+
+  return isLegacyRespiraCopyMatch(req.content.title, req.content.body);
 }
 
 export async function cancelScheduledNotificationIds(
@@ -79,23 +110,33 @@ export async function cancelScheduledNotificationIds(
 }
 
 /**
- * Cancels every locally scheduled notification tagged as a RESPIRA+ therapy reminder.
- * Sweeps by `data.category`, so it also removes orphaned duplicates whose IDs were
- * never persisted (e.g. after a race or a crash). Never touches other apps' notifications.
+ * Cancels every locally scheduled notification owned by RESPIRA+.
+ * Identifies by stable data tags and legacy title/body migration sweep.
  */
-export async function cancelAllRespiraReminders(): Promise<void> {
-  if (!supportsNativeLocalNotifications()) return;
+export async function cancelRespiraScheduledNotifications(): Promise<number> {
+  if (!supportsNativeLocalNotifications()) return 0;
+
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-  const toCancel = scheduled.filter((req) =>
-    isRespiraTherapyReminderData(req.content.data as Record<string, unknown> | undefined),
-  );
-  if (toCancel.length > 0) {
-    devLog(`Cancelando ${toCancel.length} recordatorio(s) RESPIRA+ programado(s).`);
+  const toCancel = scheduled.filter(isRespiraScheduledNotification);
+  const beforeCount = toCancel.length;
+
+  if (beforeCount > 0) {
+    devLog(`RESPIRA+ pendientes antes de cancelar: ${beforeCount}`);
   }
+
   await Promise.all(
     toCancel.map((req) => Notifications.cancelScheduledNotificationAsync(req.identifier)),
   );
+
+  if (beforeCount > 0) {
+    devLog(`Canceladas ${beforeCount} notificación(es) RESPIRA+`);
+  }
+
+  return beforeCount;
 }
+
+/** @deprecated Use cancelRespiraScheduledNotifications */
+export const cancelAllRespiraReminders = cancelRespiraScheduledNotifications;
 
 export type ScheduleDailyRemindersResult = {
   notificationIds: string[];
@@ -106,10 +147,13 @@ export async function scheduleDailyReminders(
   reminderTimes: readonly string[],
   previousMessageKey?: string | null,
 ): Promise<ScheduleDailyRemindersResult> {
-  if (!supportsNativeLocalNotifications()) {
+  if (Platform.OS === 'web') {
     throw new Error('Los recordatorios locales no están disponibles en la versión web.');
   }
-  // Defensive dedupe: at most one RESPIRA+ notification per HH:mm slot.
+  if (!RESPIRA_NOTIFICATIONS_ENABLED) {
+    throw new Error('Los recordatorios están desactivados en esta versión de la app.');
+  }
+
   const uniqueTimes = dedupeReminderTimesHHmm(reminderTimes);
   if (uniqueTimes.length === 0) {
     return { notificationIds: [], lastMessageKey: previousMessageKey ?? null };
@@ -136,7 +180,10 @@ export async function scheduleDailyReminders(
         title: copy.title,
         body: copy.body,
         data: {
+          app: RESPIRA_NOTIFICATION_APP_ID,
           category: RESPIRA_THERAPY_REMINDER_CATEGORY,
+          slotId: timeHHmm,
+          scheduledBy: RESPIRA_NOTIFICATION_SCHEDULER_ID,
           tone: 'motivador',
           time: timeHHmm,
           messageKey,
@@ -158,10 +205,89 @@ export async function scheduleRemindersFromSettings(
   return scheduleDailyReminders(reminderTimes, settings.lastReminderMessageKey);
 }
 
+/**
+ * Single entry point to align OS scheduled notifications with persisted settings.
+ * Always cancels the previous RESPIRA+ batch before scheduling a new one.
+ */
+export async function syncRespiraNotifications(
+  settings: NotificationSettings,
+): Promise<NotificationSettings> {
+  if (Platform.OS === 'web') {
+    return applyNotificationDefaults(settings);
+  }
+
+  const normalized = applyNotificationDefaults(settings);
+
+  if (!RESPIRA_NOTIFICATIONS_ENABLED) {
+    devLog('Omitiendo programación: EXPO_PUBLIC_RESPIRA_NOTIFICATIONS_ENABLED=false');
+    if (normalized.scheduledNotificationIds.length > 0) {
+      await cancelScheduledNotificationIds(normalized.scheduledNotificationIds);
+    }
+    await cancelRespiraScheduledNotifications();
+    return {
+      ...normalized,
+      scheduledNotificationIds: [],
+      lastScheduledAt: null,
+    };
+  }
+
+  if (!normalized.enabled) {
+    if (normalized.scheduledNotificationIds.length > 0) {
+      await cancelScheduledNotificationIds(normalized.scheduledNotificationIds);
+    }
+    await cancelRespiraScheduledNotifications();
+    return {
+      ...normalized,
+      scheduledNotificationIds: [],
+      lastScheduledAt: null,
+    };
+  }
+
+  const effectiveTimes = resolveEffectiveReminderTimes(normalized);
+  const canSchedule =
+    effectiveTimes.length > 0 &&
+    isActiveWindowValid(normalized.activeWindowStart, normalized.activeWindowEnd);
+
+  if (normalized.scheduledNotificationIds.length > 0) {
+    await cancelScheduledNotificationIds(normalized.scheduledNotificationIds);
+  }
+  await cancelRespiraScheduledNotifications();
+
+  if (!canSchedule) {
+    return {
+      ...normalized,
+      scheduledNotificationIds: [],
+      lastScheduledAt: null,
+    };
+  }
+
+  const { notificationIds, lastMessageKey } = await scheduleRemindersFromSettings(normalized);
+  return {
+    ...normalized,
+    scheduledNotificationIds: notificationIds,
+    lastScheduledAt: new Date().toISOString(),
+    lastReminderMessageKey: lastMessageKey,
+  };
+}
+
+/** Clears pending RESPIRA+ notifications on cold start when globally disabled. */
+export async function initializeRespiraNotificationsOnStartup(): Promise<void> {
+  if (Platform.OS === 'web') return;
+
+  if (!RESPIRA_NOTIFICATIONS_ENABLED) {
+    devLog('Flag apagada: limpiando notificaciones RESPIRA+ al iniciar la app');
+    await cancelRespiraScheduledNotifications();
+  }
+}
+
 export async function sendTestNotification(excludeMessageKey?: string | null): Promise<string> {
-  if (!supportsNativeLocalNotifications()) {
+  if (Platform.OS === 'web') {
     throw new Error('Las notificaciones de prueba no están disponibles en la versión web.');
   }
+  if (!RESPIRA_NOTIFICATIONS_ENABLED) {
+    throw new Error('Los recordatorios están desactivados en esta versión de la app.');
+  }
+
   await ensureAndroidReminderChannel();
   const { copy, messageKey } = pickMotivationalReminderCopy(excludeMessageKey);
   await Notifications.scheduleNotificationAsync({
@@ -169,7 +295,10 @@ export async function sendTestNotification(excludeMessageKey?: string | null): P
       title: copy.title,
       body: copy.body,
       data: {
+        app: RESPIRA_NOTIFICATION_APP_ID,
         category: RESPIRA_THERAPY_REMINDER_CATEGORY,
+        slotId: 'test',
+        scheduledBy: RESPIRA_NOTIFICATION_SCHEDULER_ID,
         test: true,
       },
       ...(Platform.OS === 'android' ? { channelId: RESPIRA_ANDROID_CHANNEL_ID } : {}),
@@ -178,4 +307,3 @@ export async function sendTestNotification(excludeMessageKey?: string | null): P
   });
   return messageKey;
 }
-
