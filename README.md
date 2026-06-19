@@ -139,7 +139,8 @@ Documentación de módulos y arquitectura:
 - [**Índice maestro `docs/`**](docs/README.md)
 - [Overview del producto](docs/00-overview/README.md)
 - [Índice de arquitectura](docs/01-app-architecture/README.md)
-- [Validación, QA y auditorías](docs/10-testing-and-validation/README.md)
+- [Validación académica](docs/09-academic-validation/README.md)
+- [QA y auditorías operativas](docs/10-testing-and-validation/README.md)
 - [Web, PWA y runtime-env](docs/12-web-cloud-migration/README.md)
 - [Arquitectura técnica](src/docs/architecture.md)
 - [Seguridad clínica y lenguaje](docs/08-clinical-safety/README.md)
@@ -327,7 +328,8 @@ Comandos web: `npx expo start --web -c` · export estático: `npx expo export -p
 
 | Evidencia | Estado |
 |-----------|--------|
-| Validación técnica (sensor, calibración, QA) | [10-testing-and-validation](docs/10-testing-and-validation/README.md) |
+| Validación técnica (sensor, calibración) | [09-academic-validation](docs/09-academic-validation/README.md) |
+| QA operativo | [10-testing-and-validation](docs/10-testing-and-validation/README.md) |
 | Encuesta de mercado (n = 66) | TODO: referencia pendiente en repositorio |
 | Validación cualitativa con profesionales | Narrativa en [legal](docs/legal/README-terminos-y-condiciones.md); TODO: referencia pendiente para instrumentos completos |
 
@@ -477,7 +479,8 @@ docs/                         # sensor-flow, calibración, Supabase
 
 - [Overview del producto](docs/00-overview/README.md)
 - [Índice de arquitectura](docs/01-app-architecture/README.md)
-- [Validación, QA y auditorías](docs/10-testing-and-validation/README.md)
+- [Validación académica](docs/09-academic-validation/README.md)
+- [QA y auditorías operativas](docs/10-testing-and-validation/README.md)
 - [Web, PWA y runtime-env](docs/12-web-cloud-migration/README.md)
 - [Notificaciones (feature)](docs/03-features/notificaciones.md) · [módulo](src/modules/notifications/README.md)
 - [Seguridad clínica y lenguaje](docs/08-clinical-safety/README.md)
@@ -505,4 +508,6 @@ Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+:
 
 Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Diccionario técnico del CSV de calibración* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, archivo `docs/calibration/README-csv-tecnico-calibracion.md`.
 
-Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Validación, pruebas y auditorías* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, carpeta `docs/10-testing-and-validation/`.
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Validación académica* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, carpeta `docs/09-academic-validation/`.
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Validación, pruebas y auditorías (QA operativo)* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, carpeta `docs/10-testing-and-validation/`.

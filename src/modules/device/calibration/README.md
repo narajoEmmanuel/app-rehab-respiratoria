@@ -18,6 +18,11 @@ Documentación técnica del **módulo de calibración local** (ESP32 + VL53L0X �
 | UI conexión | Termómetro visual 0–3000 mL (`VolumeThermometer`) |
 | Firmware de referencia | `arduino_codes/envio_datos_stream_button/envio_datos_stream_button.ino` |
 | Hardware | ESP32 WROOM 32 DevKit V1 + VL53L0X (GY-530) |
+| Métricas de banco (canónicas) | R² = **0,992**; MAE = **65,36 mL** (40 puntos; 8 volúmenes × 5 rep.) |
+
+### Reconciliación con informes anteriores
+
+La [auditoría técnica de mayo 2026](../../../docs/AUDITORIA-TECNICA-SENSOR-ESP32.md) documenta una **curva histórica de presentación** (\(V = 52{,}95 \times d - 2251{,}97\); R² = 0,9962; MAE = 41 mL) que **no es el modelo instalado** en el flujo paciente actual. Esas cifras corresponden a una sesión o versión anterior del trabajo del equipo. Para terapia y exportación prevalece el modelo de banco **2026-06-02** documentado arriba y en [README-csv-tecnico-calibracion.md](../../../docs/calibration/README-csv-tecnico-calibracion.md). Véase [Validación académica](../../../docs/09-academic-validation/README.md).
 
 ### Legacy (conservado en código, no activo en paciente)
 
@@ -54,7 +59,7 @@ Una calibración coherente reduce **sesgo sistemático** en la estimación de vo
 
 ### 1.5 Validación clínica pendiente
 
-En la UI y en tipos/comentarios del código se deja explícito que la estimación es **experimental** (`isExperimental: true`) y **pendiente de validación clínica** antes de un uso terapéutico formal. Esta documentación **no** afirma equivalencia metrológica con un espirómetro homologado para diagnóstico.
+En la UI y en tipos/comentarios del código se deja explícito que la estimación es **experimental** (`isExperimental: true`) y **pendiente de validación clínica** antes de un uso terapéutico formal. Esta documentación **no** afirma equivalencia metrológica con un espirómetro homologado para diagnóstico ni aptitud para espirometría clínica certificada; el sistema se documenta como **adecuado para monitoreo funcional preliminar** en el marco académico (Instituto Tecnológico y de Estudios Superiores de Monterrey, 2026; véase [Validación académica](../../../docs/09-academic-validation/README.md)).
 
 ---
 

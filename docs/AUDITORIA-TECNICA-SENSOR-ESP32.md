@@ -1,5 +1,7 @@
 # RESPIRA+ — Auditoría técnica: sensor, ESP32, WebSocket y calibración
 
+> **Nota de contexto temporal (junio 2026):** este informe corresponde a la auditoría del **28 de mayo de 2026**. Se conserva íntegro como registro histórico. El **modelo canónico vigente** para el flujo paciente es la calibración de banco del **2 de junio de 2026** (espirómetro 3000 mL; R² = 0,992; MAE = 65,36 mL). Las métricas citadas más abajo como «curva histórica de presentación» (R² = 0,9962; MAE = 41 mL) **no están instaladas** en la app actual. Reconciliación: [09-academic-validation/README.md](./09-academic-validation/README.md), [05-calibration/README.md](./05-calibration/README.md).
+
 **Fecha:** 28 de mayo de 2026  
 **Alcance:** Conexión ESP32–app, WebSocket local, ingestión JSON, estado del sensor, calibración mm→mL, almacenamiento, exportación, preparación para arquitectura online y deuda técnica.  
 **Firmware auditado (única referencia):** `arduino_codes/envio_datos_stream_button/envio_datos_stream_button.ino`  
@@ -15,14 +17,16 @@ RESPIRA+ es una aplicación para apoyar **ejercicios respiratorios postoperatori
 
 Hoy la comunicación es **local por WiFi (AP del ESP32) y WebSocket**. La arquitectura debe prepararse para un entorno **online** (PWA/web + ESP32 en red con internet + backend o broker).
 
-**Curva histórica de presentación (no usada en código):**
+**Curva histórica de presentación (mayo 2026 — no usada en código ni como modelo canónico actual):**
 
 ```
 V(mL) = 52.95 × distancia(mm) − 2251.97
 R² = 0.9962, MAE = 41 mL
 ```
 
-**Hallazgo:** Esa ecuación **no está hardcodeada**. El volumen en terapia sale del **modelo activo** (`linear_regression` o `piecewise_linear`) derivado de la calibración multi-punto en la app.
+**Hallazgo (mayo 2026):** Esa ecuación **no estaba hardcodeada** en el momento de la auditoría. El volumen en terapia sale del **modelo activo** (`linear_regression` o `piecewise_linear`) derivado de la calibración en la app.
+
+**Actualización (jun 2026):** el flujo paciente usa el modelo lineal predefinido de banco `cal-predefined-respira-3000-v20260602` (R² = 0,992; MAE = 65,36 mL). Las cifras de la curva anterior corresponden a una **sesión o versión anterior** de trabajo del equipo, no al estado canónico documentado en [README-csv-tecnico-calibracion.md](./calibration/README-csv-tecnico-calibracion.md).
 
 **Otros firmwares `.ino` en el repositorio:** Solo se mencionan cuando generan confusión o duplicación. **No** son fuente principal de esta auditoría.
 

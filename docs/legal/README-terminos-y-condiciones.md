@@ -93,6 +93,41 @@ Esto debe reflejarse de forma coherente en:
 
 **No** implica que el prototipo ya esté validado como dispositivo médico ni que pueda usarse fuera del marco académico acordado sin revisión ética y legal adicional.
 
+Documentación ampliada: [Validación académica](../09-academic-validation/README.md).
+
+---
+
+## 6.1 Bioética, consentimiento y privacidad (síntesis para el equipo)
+
+Esta sección **resume** el marco ético-legal; el texto completo para el usuario está en el PDF (`terminos-uso-etico.pdf`). No sustituye asesoría jurídica.
+
+| Tema | Qué debe quedar claro |
+|------|------------------------|
+| **Consentimiento informado** | Participación **voluntaria** en un prototipo académico en validación; derecho a **retirar** el consentimiento y limitar funciones |
+| **Datos personales y sensibles** | Perfil, sesiones, desempeño respiratorio estimado — posible categoría de datos de salud según marco aplicable |
+| **Finalidad académica y de seguimiento** | Adherencia, biofeedback, mejora del sistema, documentación del proyecto — **no** diagnóstico ni prescripción autónoma |
+| **Exportación** | El usuario puede generar CSV/JSON; la custodia posterior es responsabilidad de quien comparte el archivo |
+| **Confidencialidad** | Modo local-first por defecto; nube opcional/congelada; políticas Supabase de prototipo no aptas para producción con datos reales |
+| **Derechos del titular** | Acceso al PDF, retiro de consentimiento; rectificación/cancelación/portabilidad — alineación con LFPDPPP como **marco de referencia**, no certificación de cumplimiento |
+| **Limitaciones del prototipo** | Estimaciones sujetas a calibración; sin registro sanitario documentado; validación clínica formal pendiente |
+
+Síntomas de alerta documentados (detener ejercicio ante dolor, mareo, disnea intensa, tos excesiva, malestar): alineados con [Seguridad clínica](../08-clinical-safety/README.md) y sección 5 de este documento.
+
+---
+
+## 6.2 Consideraciones regulatorias (marco de referencia)
+
+RESPIRA+ **no cuenta con registro sanitario** documentado en el repositorio. Las referencias normativas siguientes son **consideraciones académicas preliminares** y **ruta futura** posible, no afirmaciones de cumplimiento:
+
+| Tema | Estado en documentación interna |
+|------|--------------------------------|
+| **COFEPRIS** (México) | TODO: referencia pendiente — ruta regulatoria no detallada en Markdown del repo |
+| **LFPDPPP** (México) | Marco de referencia citado en sección 4; cumplimiento pleno **no** certificado por este README |
+| **Buenas prácticas de fabricación, ISO 13485, ISO 14971, tecnovigilancia** | TODO: referencia pendiente |
+| **Etiquetado e instrucciones de uso (IFU)** | Parcial — PDF legal y copy de app; TODO: referencia pendiente para IFU formal |
+
+Detalle: [Validación académica](../09-academic-validation/README.md), sección 5.
+
 ---
 
 ## 7. Flujo esperado dentro de la app (implementación actual)
@@ -261,3 +296,13 @@ Rutas **encontradas** en el repositorio (mayo 2026). Rutas listadas en la solici
 ## Aviso final
 
 RESPIRA+ es un **prototipo académico** de Ingeniería Biomédica. Los textos legales y los guardas técnicos en la app **reducen riesgos** pero **no reemplazan** supervisión médica, validación regulatoria ni cumplimiento normativo completo. Ante dudas, consultar a profesionales de salud participantes en el proyecto y, cuando corresponda, a asesoría jurídica especializada.
+
+---
+
+## Referencias
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Documentación de seguridad clínica y lenguaje* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, carpeta `docs/08-clinical-safety/`.
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Validación académica* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, carpeta `docs/09-academic-validation/`.
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Notas de seguridad Supabase (desarrollo)* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, archivo `docs/supabase-security-notes.md`.

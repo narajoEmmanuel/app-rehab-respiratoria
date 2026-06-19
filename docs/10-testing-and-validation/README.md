@@ -1,18 +1,10 @@
 # Validación, pruebas y auditorías — RESPIRA+
 
-Esta carpeta agrupa la documentación de **aseguramiento de calidad**, **auditorías técnicas** y **validación académica** del prototipo RESPIRA+. RESPIRA+ es un sistema en desarrollo avanzado orientado al apoyo terapéutico en **pacientes adultos postoperatorios**; los procesos aquí descritos **no equivalen** a validación clínica formal ni a certificación de producto sanitario.
+Esta carpeta agrupa el **aseguramiento de calidad operativo (QA)** del prototipo RESPIRA+: checklists manuales, mapas de riesgo de regresión y enlaces a auditorías técnicas de código y hardware.
 
----
+La **validación académica preliminar** (calibración de banco, encuesta de mercado, validación cualitativa, marco regulatorio de referencia) se documenta en [09-academic-validation](../09-academic-validation/README.md) para evitar mezclar QA con evidencia académica.
 
-## Propósito de la validación en el proyecto
-
-El equipo documenta tres líneas complementarias de evidencia:
-
-1. **Validación técnica:** desempeño del pipeline sensor → calibración → estimación de volumen → sesión → exportación.
-2. **Validación de mercado:** percepción de usuarios potenciales sobre la propuesta de valor (adherencia, usabilidad, disposición de uso).
-3. **Validación cualitativa con profesionales de la salud:** revisión del enfoque clínico, incluido el **cambio de población objetivo** de escenarios centrados en EPOC hacia **postoperatorios** tras validación experta.
-
-Estas líneas informan el diseño del producto pero **no sustituyen** estudios clínicos controlados ni indicación médica individual.
+RESPIRA+ es un prototipo en desarrollo avanzado orientado al apoyo terapéutico en **pacientes adultos postoperatorios**; los procesos aquí descritos **no equivalen** a validación clínica formal ni a certificación de producto sanitario.
 
 ---
 
@@ -20,67 +12,49 @@ Estas líneas informan el diseño del producto pero **no sustituyen** estudios c
 
 | Documento | Tipo | Descripción |
 |-----------|------|-------------|
-| [full-app-manual-qa-checklist.md](./full-app-manual-qa-checklist.md) | QA manual | Checklist integral post-auditoría, tipografía, consentimiento, sensor, export |
-| [regression-risk-map.md](./regression-risk-map.md) | Riesgo | Mapa de áreas críticas y severidad ante regresiones |
+| [full-app-manual-qa-checklist.md](./full-app-manual-qa-checklist.md) | QA manual | Checklist integral: tipografía, consentimiento, sensor, export, notificaciones |
+| [regression-risk-map.md](./regression-risk-map.md) | Riesgo | Áreas críticas y severidad ante regresiones |
 
 ---
 
-## Auditorías y informes técnicos relacionados
+## Auditorías técnicas relacionadas
 
-| Documento | Ubicación | Alcance |
-|-----------|-----------|---------|
-| [Auditoría técnica sensor / ESP32 / calibración](../AUDITORIA-TECNICA-SENSOR-ESP32.md) | `docs/` | Arquitectura hardware-software, calibración, export técnico (mayo 2026) |
-| [Auditoría web / Supabase readiness](../12-web-cloud-migration/web-touch-supabase-readiness-audit.md) | `12-web-cloud-migration/` | Preparación modo web táctil y cloud |
-| [Smoke test web local](../12-web-cloud-migration/web-touch-local-smoke-test.md) | `12-web-cloud-migration/` | Prueba local del flujo web |
-| [Revisión documentación (jun 2026)](../00-overview/documentation-sync-report.md) | `00-overview/` | Sincronización de Markdown (5 jun 2026) |
-
----
-
-## Resultados técnicos canónicos (calibración)
-
-Para el **modelo lineal activo** del espirómetro RESPIRA+ **3000 mL** (`cal-predefined-respira-3000-v20260602`, validación de banco 2 jun 2026), la documentación técnica interna reporta:
-
-| Métrica | Valor documentado | Fuente interna |
-|---------|-------------------|----------------|
-| Coeficiente de determinación (R²) | 0,992 (0,9921507156019185 en código) | [README-csv-tecnico-calibracion.md](../calibration/README-csv-tecnico-calibracion.md); `predefined-calibration-models.ts` |
-| Error absoluto medio (MAE) | 65,36 mL | [README-csv-tecnico-calibracion.md](../calibration/README-csv-tecnico-calibracion.md) |
-
-**Nota metodológica:** otros informes del repositorio pueden citar métricas distintas (por ejemplo, R² = 0,9962 y MAE = 41 mL en la [auditoría de mayo 2026](../AUDITORIA-TECNICA-SENSOR-ESP32.md)). Esas cifras corresponden a **sesiones o modelos distintos** y no deben confundirse con el modelo predefinido instalado en el flujo paciente actual. Para terapia y exportación clínica prevalece el modelo canónico de 3000 mL documentado en [05-calibration/](../05-calibration/README.md).
+| Documento | Fecha | Alcance |
+|-----------|-------|---------|
+| [Auditoría sensor / ESP32 / calibración](../AUDITORIA-TECNICA-SENSOR-ESP32.md) | Mayo 2026 | Hardware-software, WebSocket, calibración (informe histórico; ver reconciliación en [09-academic-validation](../09-academic-validation/README.md)) |
+| [Auditoría web / Supabase](../12-web-cloud-migration/web-touch-supabase-readiness-audit.md) | 2026 | Preparación modo web/cloud |
+| [Smoke test web local](../12-web-cloud-migration/web-touch-local-smoke-test.md) | 2026 | Flujo web local |
+| [Revisión documentación](../00-overview/documentation-sync-report.md) | 5 jun 2026 | Sincronización Markdown |
 
 ---
 
-## Validación de mercado y validación cualitativa
+## Métricas de calibración (referencia cruzada)
 
-| Evidencia | Estado en el repositorio |
-|-----------|--------------------------|
-| Encuesta de validación de mercado (n = 66) | TODO: referencia pendiente — no se localizó el instrumento ni los resultados completos en archivos Markdown del repositorio al junio 2026 |
-| Validación cualitativa con profesionales de la salud | Documentada de forma narrativa en [Marco legal](../legal/README-terminos-y-condiciones.md) (cambio postoperatorio); TODO: referencia pendiente para actas, guías o transcripciones si existen fuera del repo |
-| Validación clínica formal | Pendiente; el prototipo se declara en desarrollo avanzado en [Overview](../00-overview/README.md) |
+El modelo canónico de banco (jun 2026) para espirómetro 3000 mL: R² = 0,992; MAE = 65,36 mL. No repetir aquí el detalle metrológico; véase [05-calibration](../05-calibration/README.md) y [Validación académica](../09-academic-validation/README.md).
 
 ---
 
-## Cómo usar el checklist QA
+## Cuándo ejecutar el checklist QA
 
-El [checklist manual](./full-app-manual-qa-checklist.md) debe ejecutarse tras cambios en:
+Tras cambios en:
 
 - Consentimiento y gates de arranque
 - Conexión ESP32 y estimación de volumen
 - Evaluación inicial (VIM) y terapia
 - Historial, exportación y clasificación sensor/práctica
-- Notificaciones (incluido `EXPO_PUBLIC_RESPIRA_NOTIFICATIONS_ENABLED=false`)
-- Modo web / PWA (véase [12-web-cloud-migration](../12-web-cloud-migration/README.md))
+- Notificaciones (`EXPO_PUBLIC_RESPIRA_NOTIFICATIONS_ENABLED=false`)
+- Modo web / PWA ([12-web-cloud-migration](../12-web-cloud-migration/README.md))
 
-Ante fallos, consultar el [mapa de riesgos](./regression-risk-map.md) para priorizar regresiones.
+Ante fallos, consultar el [mapa de riesgos](./regression-risk-map.md).
 
 ---
 
 ## Relación con otros índices
 
-- [Índice maestro de documentación](../README.md)
-- [Overview del producto](../00-overview/README.md)
+- [Índice maestro](../README.md)
+- [Validación académica](../09-academic-validation/README.md)
 - [Seguridad clínica](../08-clinical-safety/README.md)
 - [Calibración](../05-calibration/README.md)
-- [Migración web](../12-web-cloud-migration/README.md)
 
 ---
 
@@ -90,8 +64,6 @@ Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+:
 
 Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Mapa de riesgos de regresión* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, archivo `docs/10-testing-and-validation/regression-risk-map.md`.
 
-Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Diccionario técnico del CSV de calibración* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, archivo `docs/calibration/README-csv-tecnico-calibracion.md`.
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Validación académica* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, carpeta `docs/09-academic-validation/`.
 
 Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Auditoría técnica sensor ESP32 y calibración* [Informe interno, mayo 2026]. En repositorio `app-rehab-respiratoria`, archivo `docs/AUDITORIA-TECNICA-SENSOR-ESP32.md`.
-
-Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Marco de términos y condiciones para el equipo* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, carpeta `docs/legal/`.

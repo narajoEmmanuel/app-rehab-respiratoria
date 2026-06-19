@@ -76,6 +76,17 @@ Constantes: `src/modules/device/calibration/predefined-calibration-models.ts`.
 
 ---
 
+## Relación con informes técnicos anteriores
+
+| Fuente | Métricas citadas | Estado respecto al modelo canónico |
+|--------|------------------|--------------------------------------|
+| Este documento / banco 2026-06-02 | R² = 0,9922; MAE = 65,36 mL | **Vigente** — instalado en flujo paciente |
+| [Auditoría mayo 2026](../AUDITORIA-TECNICA-SENSOR-ESP32.md) | R² = 0,9962; MAE = 41 mL; ecuación \(52{,}95 \times d - 2251{,}97\) | **Histórica** — curva de presentación; no hardcodeada ni canónica en jun 2026 |
+
+No debe interpretarse la coexistencia de cifras como error de medición del modelo actual, sino como **evolución documental** entre sesiones de laboratorio y auditorías sucesivas. Reconciliación: [09-academic-validation/README.md](../09-academic-validation/README.md).
+
+---
+
 ## Cómo se genera el CSV (auditoría técnica)
 
 ### Flujo de generación
@@ -562,6 +573,8 @@ Equipo RESPIRA+. (2026). *Calibración del espirómetro — documentación de fl
 Equipo RESPIRA+. (2026). *Documentación técnica del módulo de calibración RESPIRA+* [Documento interno]. Tecnológico de Monterrey. `src/modules/device/calibration/README.md`
 
 Equipo RESPIRA+. (2026). *Auditoría técnica sensor ESP32 y calibración* [Documento interno]. Tecnológico de Monterrey. `docs/AUDITORIA-TECNICA-SENSOR-ESP32.md`
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Validación académica* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, carpeta `docs/09-academic-validation/`.
 
 Equipo RESPIRA+. (2026). *Flujo de datos del sensor RESPIRA+* [Documento interno]. Tecnológico de Monterrey. `docs/sensor-flow.md`
 

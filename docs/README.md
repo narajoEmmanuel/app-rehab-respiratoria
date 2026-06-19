@@ -28,7 +28,8 @@ docs/
 ├── 06-data-and-storage/           ← AsyncStorage, modelos, export schema, privacidad
 ├── 07-ui-design-system/           ← Tipografía, tokens, AppText
 ├── 08-clinical-safety/            ← Lenguaje clínico, límites, bioética
-├── 10-testing-and-validation/     ← QA, auditorías, validación académica
+├── 09-academic-validation/        ← Validación académica, calibración, marco regulatorio de referencia
+├── 10-testing-and-validation/     ← QA manual, mapa de riesgos, auditorías operativas
 ├── 12-web-cloud-migration/        ← Modo web, PWA, demo, runtime-env
 ├── 12-legacy/                     ← Código y documentación histórica conservada
 ├── legal/                         ← Términos, consentimiento, marco para el equipo
@@ -48,7 +49,7 @@ Documentación técnica complementaria en `src/docs/` (`architecture.md`, `team-
 1. [Overview del producto](./00-overview/README.md)
 2. [Seguridad clínica y lenguaje](./08-clinical-safety/README.md)
 3. [Términos y condiciones (equipo)](./legal/README-terminos-y-condiciones.md)
-4. [Validación, QA y auditorías](./10-testing-and-validation/README.md)
+4. [Validación académica](./09-academic-validation/README.md)
 
 ### Desarrollo con sensor (modo local)
 
@@ -85,7 +86,8 @@ Documentación técnica complementaria en `src/docs/` (`architecture.md`, `team-
 | `06-data-and-storage` | [README](./06-data-and-storage/README.md) | Persistencia local, privacidad |
 | `07-ui-design-system` | [README](./07-ui-design-system/README.md) | Design system |
 | `08-clinical-safety` | [README](./08-clinical-safety/README.md) | Límites clínicos y copy |
-| `10-testing-and-validation` | [README](./10-testing-and-validation/README.md) | QA manual, auditorías, validación |
+| `09-academic-validation` | [README](./09-academic-validation/README.md) | Validación académica, calibración, marco regulatorio de referencia |
+| `10-testing-and-validation` | [README](./10-testing-and-validation/README.md) | QA manual, regresiones, auditorías operativas |
 | `12-web-cloud-migration` | [README](./12-web-cloud-migration/README.md) | Web, PWA, runtime-env, preview público |
 | `12-legacy` | [README](./12-legacy/README.md) | Limpieza conservadora |
 
@@ -109,8 +111,8 @@ Estas rutas se mantienen para no romper enlaces existentes. Las métricas de cal
 | Flujo sensor + calibración 3000 mL | Consolidada |
 | Notificaciones con flag global desactivada | Actualizada (jun 2026) |
 | Modo web / PWA / demo | Índice en `12-web-cloud-migration/` |
-| Validación académica (encuesta, cualitativa) | Parcial; véase [10-testing-and-validation](./10-testing-and-validation/README.md) |
-| Marco regulatorio detallado | Parcial en `legal/`; TODO: referencia pendiente para normas específicas |
+| Validación académica (encuesta, cualitativa, regulatorio) | Parcial; véase [09-academic-validation](./09-academic-validation/README.md) y [10-testing-and-validation](./10-testing-and-validation/README.md) (QA) |
+| Marco regulatorio detallado | Marco de referencia en [09-academic-validation](./09-academic-validation/README.md) y [legal/](./legal/README-terminos-y-condiciones.md); TODOs para normas específicas |
 
 Informe de sincronización previo: [documentation-sync-report.md](./00-overview/documentation-sync-report.md) (5 jun 2026). Los cambios posteriores (notificaciones, índices maestros) se documentan en los README actualizados de esta fase.
 
@@ -123,5 +125,7 @@ Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+:
 Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Marco de términos y condiciones para el equipo* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, carpeta `docs/legal/`.
 
 Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Diccionario técnico del CSV de calibración* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, archivo `docs/calibration/README-csv-tecnico-calibracion.md`.
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Validación académica* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, carpeta `docs/09-academic-validation/`.
 
 Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Auditoría técnica sensor ESP32 y calibración* [Informe interno, mayo 2026]. En repositorio `app-rehab-respiratoria`, archivo `docs/AUDITORIA-TECNICA-SENSOR-ESP32.md`.

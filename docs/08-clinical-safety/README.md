@@ -1,10 +1,28 @@
 # Seguridad clínica y lenguaje — RESPIRA+
 
-Directrices para copy, documentación y futuras pantallas. Reflejan el comportamiento actual del código, no aspiraciones futuras.
+Directrices para copy, documentación y futuras pantallas del prototipo académico **RESPIRA+**. Reflejan el comportamiento documentado en el repositorio, no aspiraciones comerciales ni claims de producto sanitario registrado.
+
+---
+
+## Alcance clínico del prototipo
+
+RESPIRA+ apoya **ejercicios respiratorios con espirómetro incentivador** en **pacientes adultos postoperatorios**, **siempre bajo indicación y supervisión** del equipo de salud del paciente. El sistema registra variables funcionales de **seguimiento y adherencia**, entre ellas:
+
+- Volumen inspirado **estimado** (mL)
+- Tiempo de inspiración sostenida
+- Repeticiones válidas e inválidas
+- Cumplimiento y consistencia de sesión
+- Historial, rachas y exportación para revisión profesional
+
+Estas variables **no constituyen diagnóstico clínico**, **no reemplazan** pruebas formales de función pulmonar (espirometría clínica certificada, gasometría, imagen) ni **no deben modificarse** indicaciones médicas, dosis o planes terapéuticos de forma autónoma.
+
+El diseño inicial consideraba escenarios orientados a **EPOC**; tras **validación experta** documentada en [Marco legal](../legal/README-terminos-y-condiciones.md), la población objetivo final del prototipo es **postoperatoria**. EPOC no debe presentarse como población objetivo actual.
+
+---
 
 ## Uso bajo indicación profesional
 
-RESPIRA+ está pensada como **apoyo** al ejercicio respiratorio postoperatorio con espirómetro incentivador, **bajo indicación y supervisión** del equipo de salud del paciente.
+RESPIRA+ está pensada como **apoyo** al ejercicio respiratorio postoperatorio, no como tratamiento autónomo.
 
 Copy de referencia en la app:
 
@@ -12,122 +30,134 @@ Copy de referencia en la app:
 - `src/modules/patient/screens/ProfileScreen.tsx` — consultar profesional ante dudas.
 - `src/modules/notifications/notification-copy.ts` — ajustar según indicación profesional.
 
+Documento legal para el usuario: `assets/legal/terminos-uso-etico.pdf` (vía `open-legal-document.ts`).
+
+---
+
 ## No es diagnóstico
 
-La **evaluación inicial** calcula un volumen inspiratorio máximo (VIM) de apoyo para fijar objetivos de terapia. **No sustituye** una valoración médica.
+La **evaluación inicial** calcula un volumen inspiratorio máximo (VIM) de **apoyo** para fijar objetivos de terapia. **No sustituye** una valoración médica.
 
 Pantallas con disclaimer explícito:
 
 - `src/modules/diagnostics/screens/DiagnosticSummaryScreen.tsx`
 - `src/modules/diagnostics/screens/InitialEvaluationSummaryScreen.tsx`
 
-Evitar en UI y READMEs:
+**Evitar** en UI y READMEs: «Diagnóstico de capacidad pulmonar», «Resultado clínico definitivo», «Estado respiratorio del paciente».
 
-- “Diagnóstico de capacidad pulmonar”
-- “Resultado clínico definitivo”
-- “Estado respiratorio del paciente”
+**Preferir:** «Evaluación inicial de apoyo», «Referencia para objetivos de terapia», «Resultado estimado para seguimiento con su profesional».
 
-Preferir:
-
-- “Evaluación inicial de apoyo”
-- “Referencia para objetivos de terapia”
-- “Resultado estimado para seguimiento con su profesional”
+---
 
 ## No sustituye al profesional de la salud
 
-La app **no prescribe**, **no ajusta tratamiento** ni **no reemplaza** consulta, urgencias o indicaciones médicas.
-
-Documento legal: `assets/legal/terminos-uso-etico.pdf` (abierto vía `src/modules/legal/open-legal-document.ts`).
+La app **no prescribe**, **no ajusta tratamiento** ni **reemplaza** consulta, urgencias o indicaciones médicas individuales.
 
 Framework legal para el equipo: [docs/legal/README-terminos-y-condiciones.md](../legal/README-terminos-y-condiciones.md).
 
-## No tratamiento autónomo
+---
 
-Los niveles, recordatorios y métricas son **herramientas de adherencia y práctica guiada**. El paciente debe seguir el plan acordado con su equipo de salud.
-
-## Volumen inspirado estimado
+## Volumen inspirado estimado y calibración
 
 | Hecho técnico | Implicación clínica en copy |
 |---------------|----------------------------|
-| ESP32 envía **distancia** (`distanceMm`), no volumen | Explicar que el volumen es **calculado en la app** |
-| Modelo de calibración lineal RESPIRA+ 3000 mL | Volumen **estimado** con incertidumbre; no equivalencia a espirometría clínica certificada |
+| ESP32 envía **distancia** (`distanceMm`), no volumen | El volumen es **calculado en la app** |
+| Modelo lineal RESPIRA+ 3000 mL (banco jun 2026) | Volumen **estimado**; R² ≈ 0,992 y MAE ≈ 65,36 mL en banco — **validación técnica inicial**, no certificación clínica |
 | Clamp 0–3000 mL | Valores fuera de rango visual no implican medición clínica exacta |
-| U95 visible solo en modo técnico/debug | No prometer precisión metrológica al paciente en flujo normal |
+| U95 visible solo en modo técnico | No prometer precisión metrológica al paciente en flujo normal |
 
-Archivos sensibles en copy futuro:
+El pipeline distancia→volumen es **adecuado para monitoreo funcional preliminar** en el marco académico; **no** equivale a espirometría diagnóstica. Detalle: [05-calibration](../05-calibration/README.md), [Validación académica](../09-academic-validation/README.md).
 
-- `src/modules/device/components/VolumeThermometer.tsx`
-- `src/modules/device/components/LiveVolumeCard.tsx`
-- `src/modules/session/games/components/SessionEstimatedVolumeCard.tsx`
-- `src/modules/summary/components/SessionSummaryHero.tsx`
+Archivos sensibles en copy futuro: `VolumeThermometer.tsx`, `LiveVolumeCard.tsx`, `SessionEstimatedVolumeCard.tsx`, `SessionSummaryHero.tsx`.
 
-**Lenguaje recomendado:** “volumen inspirado **estimado**”, “referencia de apoyo”, “lectura orientativa”.
+**Lenguaje recomendado:** «volumen inspirado **estimado**», «referencia de apoyo», «lectura orientativa».
+
+---
 
 ## Presión inspiratoria — fuera de alcance
 
-La versión actual **no mide ni muestra presión inspiratoria** (PIP, MIP, cmH₂O, etc.). No documentar ni insinuar estas métricas en READMEs de paciente.
+La versión actual **no mide ni muestra presión inspiratoria** (PIP, MIP, cmH₂O, etc.).
 
-## Síntomas de alerta
+---
 
-Mensajes actuales mencionan detener el ejercicio ante:
+## Síntomas de alerta y suspensión de uso
 
-- **Dolor**
+Los documentos legales y las pantallas operativas del repositorio indican **suspender el ejercicio** y **consultar al profesional de la salud** si aparecen, entre otros:
+
+- **Dolor** (incluido dolor torácico, según redacción del PDF legal)
 - **Mareo**
-- Falta de aire intensa / **fatiga** respiratoria excesiva
-- **Tos** intensa o **malestar**
+- **Dificultad respiratoria inusual** / falta de aire intensa / **fatiga** respiratoria excesiva
+- **Tos** intensa o **malestar** inusual
 
-Ubicaciones: `LevelsScreen`, `ProfileScreen`, `InitialEvaluationWelcomeView`, documento legal.
+Ubicaciones documentadas: `LevelsScreen`, `ProfileScreen`, `InitialEvaluationWelcomeView`, [Marco legal](../legal/README-terminos-y-condiciones.md) (sección 5).
 
 **Recomendación:** mantener estos términos visibles antes y durante sesión/evaluación; no minimizarlos en rediseños.
 
+---
+
 ## Sesión oficial con sensor vs práctica táctil
 
-Comportamiento definido en código:
+| Aspecto | Sesión oficial (`sensor`) | Práctica táctil (`touch_practice`) |
+|---------|---------------------------|-------------------------------------|
+| Origen datos | `sensor_model` | `touch_simulation` |
+| Validación | Reglas en `sensor-evaluation/` | Simulación; no métricas oficiales de sensor |
+| Desbloqueo niveles | Sí, si sesión perfecta terapéutica | **No** |
+| Copy | Sesión con volumen estimado por sensor | «Modo práctica — no sustituye sesión con sensor» |
 
-| Aspecto | Sesión oficial (`input_mode: sensor`) | Práctica táctil (`touch_practice`) |
-|---------|--------------------------------------|-------------------------------------|
-| Origen datos | `data_source: sensor_model` | `data_source: touch_simulation` |
-| Flag sesión | `is_practice_session: false` | `is_practice_session: true` |
-| Validación | Reglas sensor en `sensor-evaluation/` | Simulación táctil |
-| Desbloqueo niveles | Cuenta si perfecta y terapéutica (`isTherapeuticSessionRecord`) | **No desbloquea** (`persistSessionResult` retorna `NO_UNLOCK`) |
-| Activación | Sensor conectado + readiness | `EXPO_PUBLIC_ENABLE_TOUCH_PRACTICE_MODE=true` + preferencia en Perfil + sin transporte sensor (`resolve-therapy-session-launch.ts`) |
+Clasificación UI: **Sensor**, **Práctica sin sensor**, **Sin clasificar** (`session-record-classification.ts`).
 
-Clasificación UI: `src/modules/session/session-record-classification.ts` — etiquetas **Sensor**, **Práctica sin sensor**, **Sin clasificar**.
+---
 
-**Copy recomendado para práctica táctil:**
+## Consentimiento, privacidad y exportación
 
-- “Modo práctica — no sustituye sesión con sensor”
-- “Esta sesión no cuenta para desbloquear niveles” (si se muestra al usuario)
+Resumen; detalle en [Marco legal](../legal/README-terminos-y-condiciones.md):
 
-## Consentimiento y privacidad
+| Tema | Comportamiento documentado |
+|------|----------------------------|
+| **Consentimiento informado** | Pantalla `/legal/accept`; siete casillas; versión `LEGAL_DOCUMENT_VERSION = '1.0'` |
+| **Datos sensibles** | Desempeño respiratorio, sesiones, perfil — tratamiento descrito en aviso de privacidad (PDF) |
+| **Finalidad** | Apoyo académico, adherencia, mejora del prototipo — **no** diagnóstico autónomo |
+| **Exportación** | Manual CSV/JSON para **revisión con profesional**; no informe certificado |
+| **Confidencialidad** | Local-first por defecto; modo nube opcional/congelado |
+| **Derechos del usuario** | Retiro de consentimiento; acceso al PDF; derechos adicionales según madurez y normativa — TODO: referencia pendiente para procedimiento formal fuera del prototipo |
+| **Limitaciones del prototipo** | Estimaciones sujetas a calibración; validación clínica formal pendiente |
 
-- Consentimiento digital requerido para Terapia, Historial, sensor, exportación, notificaciones y **evaluación inicial** (`ConsentTabGuard`, `ConsentStackGuard`, `navigateToInitialEvaluation`).
-- **Arranque local-first:** `app/index.tsx` redirige a `/legal/accept` si `!isConsentActive()` antes de abrir tabs.
-- Exportación etiquetada para revisión con profesional (`DataExportScreen.tsx`).
-- Modo local-first: datos en dispositivo (AsyncStorage). Borrado en `patient-delete-service.ts`.
+**Revisión manual requerida:** fail-open de consentimiento en `app/index.tsx`; seed de consentimiento en modo local de desarrollo — no usar con personas reales sin protocolo ético acordado.
 
-**Requiere revisión manual:** si falla la lectura de consentimiento en arranque, `app/index.tsx` permite tabs (fail-open). No usar en estudios con personas reales sin manejo de error acordado.
+---
 
-**Requiere revisión manual:** `seedLocalPrototypeConsentForPatient` en `consent-service.ts` — bypass dev disponible pero **no invocado** desde `app/index.tsx`; no usar en pruebas con usuarios reales sin acuerdo ético.
-
-## Recomendaciones de lenguaje para futuras pantallas y READMEs
+## Recomendaciones de lenguaje
 
 ### Usar
 
-- Apoyo terapéutico, ejercicio guiado, adherencia, estimación, referencia, revisar con profesional, bajo indicación médica, espirómetro incentivador, rehabilitación postoperatoria.
+Apoyo terapéutico, ejercicio guiado, adherencia, estimación, referencia, revisar con profesional, bajo indicación médica, espirómetro incentivador, rehabilitación postoperatoria, prototipo académico.
 
 ### Evitar
 
-- Diagnosticar, curar, recuperación garantizada, tratamiento autónomo, presión inspiratoria, espirometría clínica certificada (salvo contexto de limitación explícita), “resultado normal/anormal” clínico.
+Diagnosticar, curar, recuperación garantizada, tratamiento autónomo, presión inspiratoria, espirometría clínica certificada (salvo limitación explícita), «resultado normal/anormal» clínico, producto sanitario registrado.
 
 ### Exportación e historial
 
-- “Resumen para revisar con su profesional de la salud” — no “informe clínico certificado”.
-- Incluir versión de export (`2.4.0`) y naturaleza estimada de volúmenes en documentación técnica, no alarmista en UI paciente.
+«Resumen para revisar con su profesional de la salud» — no «informe clínico certificado».
+
+---
+
+## Referencias cruzadas
+
+- [Marco legal](../legal/README-terminos-y-condiciones.md)
+- [Validación académica](../09-academic-validation/README.md)
+- [QA operativo](../10-testing-and-validation/README.md)
+- [Overview](../00-overview/README.md)
+- [README raíz](../../README.md)
+
+---
 
 ## Referencias
 
-- [Overview](../00-overview/README.md)
-- [README raíz](../../README.md)
-- [Términos y condiciones (equipo)](../legal/README-terminos-y-condiciones.md)
-- [Export clínico](../../src/modules/export/services/clinical-export-service.ts) — `CLINICAL_EXPORT_FORMAT_VERSION = '2.4.0'`
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Marco de términos y condiciones para el equipo* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, carpeta `docs/legal/`.
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Validación académica* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, carpeta `docs/09-academic-validation/`.
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Diccionario técnico del CSV de calibración* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, archivo `docs/calibration/README-csv-tecnico-calibracion.md`.
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Exportación clínica* [Código fuente interno]. Módulo `clinical-export-service.ts` — versión de formato 2.4.0.
