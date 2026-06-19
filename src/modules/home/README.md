@@ -1,15 +1,33 @@
 # Módulo `home` (Inicio)
 
-Dashboard principal del paciente: CTA de terapia, estado del sensor, última sesión y accesos esenciales. RESPIRA+ **no diagnostica**; el copy de sensor habla de **volumen estimado**, no presión inspiratoria.
+## Propósito
+
+Dashboard principal del **paciente** tras el gate de arranque y el consentimiento informado. Centraliza el acceso a terapia gamificada, conexión del sensor, evaluación inicial, historial y exportación. El copy de sensor enfatiza **volumen estimado**, no presión inspiratoria ni diagnóstico.
+
+RESPIRA+ es un **prototipo académico** de apoyo en **pacientes adultos postoperatorios** (ITESM, 2026).
 
 ---
 
-## Propósito
+## Relación con el flujo clínico y funcional
 
-- Pantalla **Inicio** (`HomeScreen`) tras gate de arranque y consentimiento.
-- Resumen compacto de la última sesión (`HomeLastSessionCard`).
-- Integración del modal de bienvenida (`onboarding/RespiraWelcomeOnboarding`).
-- Punto de entrada a terapia, sensor, evaluación, exportación e historial.
+Inicio actúa como **hub** del recorrido local-first:
+
+| Estado del paciente | CTA principal |
+|---------------------|---------------|
+| Sin evaluación | Evaluación inicial (VIM) |
+| Con evaluación, meta diaria cumplida | Refuerzo motivacional |
+| Listo para terapia | Nivel sugerido → `useTherapySessionLauncher` |
+
+Integraciones transversales:
+
+- **Sensor** (`device/`): `HomeDeviceCard` — conexión ESP32/VL53L0X y calibración.
+- **Terapia** (`levels/`, `session/`): lanzamiento con compuertas de readiness.
+- **Export** (`export/`): `/data-export` para revisión profesional (no informe certificado).
+- **Historial** (`history/`): acceso rápido desde grid.
+
+**Modo local con sensor:** flujo recomendado para sesión y VIM oficiales.
+
+**Modo touch / web / demo:** CTAs pueden ofrecer práctica táctil; no equivale a medición con hardware.
 
 ---
 
@@ -110,7 +128,15 @@ Detalle: [onboarding/README.md](../onboarding/README.md).
 
 ## Exportación
 
-Enlace a `/data-export` desde sección de datos clínicos (requiere consentimiento activo en pantalla de export).
+Enlace a `/data-export` desde sección de datos clínicos (requiere consentimiento activo en pantalla de export). Apoyo para revisión profesional; ver [Módulo export](../export/README.md).
+
+---
+
+## Límites del módulo
+
+- No administra identidad (ver `patient/`, `auth/`).
+- No ejecuta sesión ni validación de intentos.
+- Cloud auth no es flujo principal (`README_CLOUD_FREEZE.md`).
 
 ---
 
@@ -128,10 +154,20 @@ Enlace a `/data-export` desde sección de datos clínicos (requiere consentimien
 
 ---
 
-## Referencias
+## Documentación canónica
 
 - [Pestaña Inicio](../../../docs/02-tabs/inicio.md)
 - [Evaluación inicial](../../../docs/03-features/evaluacion-inicial.md)
 - [Exportación](../../../docs/03-features/exportacion-datos.md)
 - [Onboarding](../../../docs/03-features/onboarding.md)
-- Tipografía: `AppText` (Fase 4M) — [typography-scale.md](../../../docs/07-ui-design-system/typography-scale.md)
+- [Seguridad clínica](../../../docs/08-clinical-safety/README.md)
+- [Web / demo](../../../docs/12-web-cloud-migration/README.md)
+- Tipografía: [typography-scale.md](../../../docs/07-ui-design-system/typography-scale.md)
+
+---
+
+## Referencias
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *Seguridad clínica y lenguaje — RESPIRA+* [Documento interno del repositorio]. `docs/08-clinical-safety/README.md`.
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *Exportación de datos — RESPIRA+* [Documento interno del repositorio]. `docs/03-features/exportacion-datos.md`.

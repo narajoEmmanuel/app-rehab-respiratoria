@@ -1,15 +1,27 @@
 # Módulo `levels` (Terapia — selección y progreso)
 
-UI de la pestaña **Terapia** y estado de **progreso por nivel** en memoria + AsyncStorage. RESPIRA+ **no diagnostica**; los targets por nivel derivan del VIM (referencia personal) y el volumen en sesión es **estimado** por sensor y calibración.
+## Propósito
+
+Presenta la pestaña **Terapia**: selección de niveles gamificados, estado de **progreso por nivel** y puente hacia la sesión activa. Los objetivos de volumen por nivel derivan del **VIM** (evaluación inicial); el volumen durante la sesión es **estimado** por sensor y calibración.
+
+RESPIRA+ es un **prototipo académico** de apoyo en **pacientes adultos postoperatorios**. **No diagnostica** ni sustituye indicaciones del profesional de salud (ITESM, 2026).
 
 ---
 
-## Propósito
+## Relación con el flujo clínico y funcional
 
-- Pantalla de selección de niveles (`LevelsScreen`).
-- Contexto React `LevelsProgressProvider` para partidas en curso (nivel 1 y runner levels).
-- Persistencia de punteros de sesión/repetición por paciente.
-- Puente hacia `SessionScreen` tras compuertas de sensor, evaluación y consentimiento.
+```
+Evaluación inicial (VIM) → patient_levels → LevelsScreen → compuertas → SessionScreen
+```
+
+| Compuerta | Origen |
+|-----------|--------|
+| Consentimiento | `ConsentTabGuard` |
+| Evaluación | CTA si no hay `DiagnosticRecord` |
+| Sensor readiness | `useTherapyReadinessGate` antes de sesión oficial |
+| Práctica táctil | Alternativa documentada; no cuenta para unlock |
+
+**Progresión:** tras **6 sesiones perfectas oficiales** con sensor en el nivel activo, se desbloquea el siguiente (`checkAndUnlockNextLevel`). Niveles 2+ pueden mostrarse como «próximamente» aunque la progresión lo permita.
 
 ---
 
@@ -66,6 +78,8 @@ Progreso de partida (slot actual, reps): `rehab.levels.progress.v1.u{patientId}`
 
 Sin `DiagnosticRecord` / `patient_levels`, Terapia muestra CTA hacia evaluación (`navigateToInitialEvaluation`). Los targets de volumen por nivel se calculan desde el VIM en `diagnostics/diagnostic-service.ts`.
 
+Ver [Módulo diagnostics](../diagnostics/README.md).
+
 ---
 
 ## Sesión oficial vs práctica táctil
@@ -74,8 +88,17 @@ Sin `DiagnosticRecord` / `patient_levels`, Terapia muestra CTA hacia evaluación
 |------|--------|------------------|
 | **Sensor** | Readiness OK, consentimiento activo | Cuenta para desbloqueo y historial terapéutico |
 | **Práctica táctil** | Flag + preferencia perfil + sin sensor real | `is_practice_session`; **no** equivale a sesión oficial |
+| **Web / demo** | Sin hardware ESP32 | No sesión oficial con volumen medido |
 
 La sesión activa (HUD/juego) vive en `session/` y conserva **`Text` nativo** por excepción visual (Fase 4O).
+
+---
+
+## Límites del módulo
+
+- No ejecuta validación de intentos ni persistencia de sesión (delegado a `session/`).
+- Gameplay completo documentado principalmente para nivel 1; niveles superiores en evolución.
+- No modifica VIM ni targets clínicos fuera del flujo de re-evaluación en `diagnostics/`.
 
 ---
 
@@ -90,10 +113,19 @@ La sesión activa (HUD/juego) vive en `session/` y conserva **`Text` nativo** po
 
 ---
 
-## Referencias
+## Documentación canónica
 
 - [Pestaña Terapia](../../../docs/02-tabs/terapia.md)
 - [Niveles y progresión](../../../docs/03-features/niveles-progresion.md)
-- [Sesión y HUD](../../../src/modules/session/README.md)
-- [Evaluación inicial](../../../docs/03-features/evaluacion-inicial.md)
+- [Evaluación inicial](../../../docs/03-features/evaluacion-inicial.md) · [Sesión](../../../src/modules/session/README.md)
+- [Seguridad clínica](../../../docs/08-clinical-safety/README.md)
+- [Validación académica](../../../docs/09-academic-validation/README.md)
 - Tipografía: [typography-scale.md](../../../docs/07-ui-design-system/typography-scale.md)
+
+---
+
+## Referencias
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *Niveles y progresión — RESPIRA+* [Documento interno del repositorio]. `docs/03-features/niveles-progresion.md`.
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *Evaluación inicial — RESPIRA+* [Documento interno del repositorio]. `docs/03-features/evaluacion-inicial.md`.

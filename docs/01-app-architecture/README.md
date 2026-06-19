@@ -26,9 +26,9 @@ app-rehab-respiratoria/
 |--------|:------------:|-----------------|---------------|
 | `device/` | 69 | WebSocket ESP32, calibración, volumen, pantallas sensor | [device/README.md](../../src/modules/device/README.md) |
 | `session/` | 56 | Terapia, sesión, intentos, juego, persistencia, unlock | [session/README.md](../../src/modules/session/README.md) |
-| `patient/` | 20 | Perfil, prefs, contexto paciente, borrado local | — |
-| `diagnostics/` | 20 | Evaluación inicial, VIM, `patient_levels` | — |
-| `export/` | 13 | Export JSON/CSV clínico v2.4.0 | — |
+| `patient/` | 20 | Perfil, prefs, contexto paciente, borrado local | [patient/README.md](../../src/modules/patient/README.md) |
+| `diagnostics/` | 20 | Evaluación inicial, VIM, `patient_levels` | [diagnostics/README.md](../../src/modules/diagnostics/README.md) |
+| `export/` | 13 | Export JSON/CSV clínico v2.4.0 | [export/README.md](../../src/modules/export/README.md) |
 | `notifications/` | 16 | Recordatorios locales (flag global off en build ref.) | [notifications/README.md](../../src/modules/notifications/README.md) |
 | `legal/` | 10 | Consentimiento, guards, PDF | [docs/legal](../legal/README-terminos-y-condiciones.md) |
 | `auth/` | 13 | Login cloud, perfil local | [auth/README.md](../../src/modules/auth/README.md) |

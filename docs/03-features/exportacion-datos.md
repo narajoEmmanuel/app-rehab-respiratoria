@@ -1,5 +1,15 @@
 # Exportación de datos
 
+## Contexto académico
+
+La exportación permite al paciente generar un **paquete local** (JSON/CSV, formato clínico v2.4.0) para **revisión con un profesional de la salud**. Es **apoyo documental**, no un informe médico certificado, no un diagnóstico ni una prescripción.
+
+Incluye sesiones con sensor (volúmenes **estimados**) y sesiones de práctica táctil **clasificadas** para no confundir métricas. RESPIRA+ es un **prototipo académico** en **pacientes adultos postoperatorios** (ITESM, 2026).
+
+El módulo `clinician/` es **scaffold** sin dashboard terminado; la revisión profesional documentada pasa por este flujo de exportación e historial del paciente.
+
+---
+
 ## Propósito
 
 Permitir al paciente exportar un paquete clínico local (JSON/CSV) para revisión con profesional de la salud; export técnico de calibración CSV solo en modo técnico.
@@ -18,6 +28,8 @@ Permitir al paciente exportar un paquete clínico local (JSON/CSV) para revisió
 | CSV técnico cal | `src/modules/export/services/calibration-technical-export-service.ts` |
 | Descarga | `src/modules/export/utils/download-export-file.ts` |
 | Tipos | `src/modules/export/types/export-record.ts` |
+
+Documentación del módulo: [export/README.md](../../src/modules/export/README.md).
 
 ## Rutas relacionadas
 
@@ -45,6 +57,7 @@ Versión export: `CLINICAL_EXPORT_FORMAT_VERSION = '2.4.0'`, schema `1.0.0` (`cl
 | Paciente | Snapshot del paciente activo |
 | Sensor/práctica | Incluye `input_mode`, `is_practice_session`, volúmenes estimados |
 | Calibración técnica | CSV solo si `EXPO_PUBLIC_ENABLE_TECHNICAL_CALIBRATION` |
+| Cloud | Sin sync Supabase en build de referencia (local-first) |
 
 ## Riesgos clínicos o técnicos
 
@@ -54,7 +67,7 @@ Versión export: `CLINICAL_EXPORT_FORMAT_VERSION = '2.4.0'`, schema `1.0.0` (`cl
 
 ## Pendientes
 
-- README módulo `export/` no existe.
+- ~~README módulo `export/` no existe.~~ → Ver [export/README.md](../../src/modules/export/README.md).
 - Sincronizar docs CSV técnico con `docs/calibration/README-csv-tecnico-calibracion.md`.
 
 ## Checklist manual mínimo
@@ -73,3 +86,10 @@ Versión export: `CLINICAL_EXPORT_FORMAT_VERSION = '2.4.0'`, schema `1.0.0` (`cl
 - [CSV técnico calibración](../05-calibration/csv-tecnico.md)
 - [CSV diccionario](../calibration/README-csv-tecnico-calibracion.md)
 - [Seguridad clínica](../08-clinical-safety/README.md)
+- [Módulo export](../../src/modules/export/README.md) · [Módulo clinician](../../src/modules/clinician/README.md)
+
+## Referencias
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *Esquema de exportación clínica v2.4.0* [Documento interno del repositorio]. `docs/06-data-and-storage/export-schema-v2.4.0.md`.
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *Seguridad clínica y lenguaje — RESPIRA+* [Documento interno del repositorio]. `docs/08-clinical-safety/README.md`.

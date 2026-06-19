@@ -1,8 +1,18 @@
 # Evaluación inicial
 
+## Contexto académico
+
+La evaluación inicial estima un **volumen inspiratorio máximo de apoyo (VIM)** mediante **tres intentos oficiales con sensor** (ESP32 + VL53L0X + modelo de calibración). El VIM personaliza los objetivos de volumen por nivel en la terapia gamificada posterior. RESPIRA+ es un **prototipo académico** orientado a **pacientes adultos postoperatorios** bajo indicación profesional.
+
+**No es diagnóstico clínico**, no sustituye espirometría certificada ni prescripción terapéutica (Instituto Tecnológico y de Estudios Superiores de Monterrey [ITESM], 2026; véase [Seguridad clínica](../08-clinical-safety/README.md)).
+
+El flujo oficial requiere **modo local con sensor**. En **modo touch / web / demo** no existe equivalencia clínica al VIM medido; los tipos de código permiten touch con flag, pero la navegación principal documenta sensor.
+
+---
+
 ## Propósito
 
-Estimar volumen inspiratorio máximo de apoyo (VIM) con 3 intentos oficiales con sensor, generar objetivos por nivel y habilitar terapia. **No es diagnóstico clínico.**
+Estimar VIM con 3 intentos oficiales con sensor, generar objetivos por nivel y habilitar terapia. **No es diagnóstico clínico.**
 
 ## Archivos principales
 
@@ -20,6 +30,8 @@ Estimar volumen inspiratorio máximo de apoyo (VIM) con 3 intentos oficiales con
 | Validación VIM | `src/modules/diagnostics/diagnostic-vim-validation.ts` |
 
 Componentes: `InitialEvaluationWelcomeView`, `InitialEvaluationCountdownView`, `EvaluationAttemptsCard`, `EvaluationComparisonCard`, `EvaluationLevelTargetsCard`.
+
+Documentación del módulo: [diagnostics/README.md](../../src/modules/diagnostics/README.md).
 
 ## Rutas relacionadas
 
@@ -53,6 +65,7 @@ Componentes: `InitialEvaluationWelcomeView`, `InitialEvaluationCountdownView`, `
 | Consent | Rutas `/diagnostico`, `/diagnostico-resumen`, `/evaluacion-resumen` envueltas en `ConsentStackGuard` → `/legal/accept` si inactivo; CTA vía `navigateToInitialEvaluation` verifica `isConsentActive()` |
 | Sensor | Flujo oficial vía `navigateToInitialEvaluation` (`inputMode: sensor`) |
 | Touch | Tipos permiten touch con flag; **no** es flujo principal documentado en nav |
+| Calibración | Modelo activo RESPIRA+ 3000 mL — [Calibración](../05-calibration/README.md) |
 
 ## Riesgos clínicos o técnicos
 
@@ -63,7 +76,7 @@ Componentes: `InitialEvaluationWelcomeView`, `InitialEvaluationCountdownView`, `
 ## Pendientes
 
 - Dos rutas “resumen” (`diagnostico-resumen` vs `evaluacion-resumen`) — nomenclatura confusa.
-- README módulo `diagnostics/` no existe aún.
+- ~~README módulo `diagnostics/` no existe aún.~~ → Ver [diagnostics/README.md](../../src/modules/diagnostics/README.md).
 
 ## Checklist manual mínimo
 
@@ -78,4 +91,13 @@ Componentes: `InitialEvaluationWelcomeView`, `InitialEvaluationCountdownView`, `
 
 - [Terapia](../02-tabs/terapia.md)
 - [Niveles y progresión](./niveles-progresion.md)
+- [Dispositivo y sensor](../04-device-and-sensor/README.md)
 - [Seguridad clínica](../08-clinical-safety/README.md)
+- [Validación académica](../09-academic-validation/README.md)
+- [Módulo diagnostics](../../src/modules/diagnostics/README.md)
+
+## Referencias
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *Seguridad clínica y lenguaje — RESPIRA+* [Documento interno del repositorio]. `docs/08-clinical-safety/README.md`.
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *Validación académica — RESPIRA+* [Documento interno del repositorio]. `docs/09-academic-validation/README.md`.

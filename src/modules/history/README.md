@@ -1,14 +1,25 @@
 # Módulo `history` (Historial)
 
-Vista de **progreso motivacional**: calendario, rachas, agregados por día y detalle de sesiones. No sustituye informe clínico. Los volúmenes mostrados son **estimaciones** del sensor cuando la sesión es terapéutica con sensor.
+## Propósito
+
+Ofrece una vista de **progreso motivacional y seguimiento de adherencia**: calendario mensual, rachas de días activos, agregados por día y detalle de sesiones. Los volúmenes mostrados son **estimaciones** del sensor cuando la sesión es terapéutica con sensor. **No sustituye un informe clínico** ni un expediente médico.
+
+RESPIRA+ es un **prototipo académico** para apoyo en **pacientes adultos postoperatorios** (ITESM, 2026).
 
 ---
 
-## Propósito
+## Relación con el flujo clínico y funcional
 
-- Pantalla **Historial** (`HistoryScreen`).
-- Agregaciones puras en `history-aggregates.ts`.
-- Utilidad de racha de sesiones exitosas (`session-success-streak.ts`), reutilizada también en resumen.
+El historial complementa la terapia gamificada (`session/`) y el resumen inmediato (`summary/`). El paciente revisa adherencia visual; el profesional puede obtener un paquete estructurado vía **exportación** (`export/`), no mediante un dashboard clínico terminado (`clinician/` scaffold).
+
+| Métrica en UI | Interpretación |
+|---------------|----------------|
+| Racha de días | Actividad terapéutica con sensor (práctica táctil excluida de racha de sesiones exitosas) |
+| Calendario | Clasificación por día: completada, parcial, interrumpida, práctica sin sensor |
+| Progreso respiratorio | Referencias VIM, sostén y adherencia — seguimiento, no diagnóstico |
+| Export card | Atajo a `/data-export` para revisión profesional |
+
+La evaluación inicial **no** es requisito para ver Historial (comentario en cabecera de pantalla).
 
 ---
 
@@ -31,8 +42,6 @@ Vista de **progreso motivacional**: calendario, rachas, agregados por día y det
 | Modal día | `components/HistoryDayDetailModal.tsx` |
 
 **Ruta:** `app/(tabs)/historial.tsx` → `HistoryScreen` (con `ConsentTabGuard`).
-
-**Nota:** La evaluación inicial **no** es requisito para ver Historial (comentario en cabecera de pantalla).
 
 ---
 
@@ -121,6 +130,14 @@ Labels en UI y agregados usan volumen del modelo de sensor (`max_sensor_estimate
 
 ---
 
+## Límites del módulo
+
+- No diagnostica ni prescribe ajustes terapéuticos.
+- No reemplaza exportación formal para revisión profesional.
+- Agregados motivacionales pueden diferir de criterios clínicos hospitalarios.
+
+---
+
 ## Riesgos al modificar
 
 | Riesgo | Impacto |
@@ -134,9 +151,20 @@ Labels en UI y agregados usan volumen del modelo de sensor (`max_sensor_estimate
 
 ---
 
-## Referencias
+## Documentación canónica
 
 - [Pestaña Historial](../../../docs/02-tabs/historial.md)
-- [Clasificación de sesiones](../../../src/modules/session/session-record-classification.ts)
+- [Exportación](../../../docs/03-features/exportacion-datos.md) · [Módulo export](../export/README.md)
+- [Clasificación de sesiones](../session/session-record-classification.ts)
 - [Resumen post-sesión](../summary/README.md)
+- [Seguridad clínica](../../../docs/08-clinical-safety/README.md)
+- [Validación académica](../../../docs/09-academic-validation/README.md)
 - Tipografía: [typography-scale.md](../../../docs/07-ui-design-system/typography-scale.md)
+
+---
+
+## Referencias
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *Seguridad clínica y lenguaje — RESPIRA+* [Documento interno del repositorio]. `docs/08-clinical-safety/README.md`.
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *Exportación de datos — RESPIRA+* [Documento interno del repositorio]. `docs/03-features/exportacion-datos.md`.

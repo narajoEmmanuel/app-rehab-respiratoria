@@ -1,5 +1,15 @@
 # Sesión de terapia
 
+## Contexto académico
+
+La sesión de terapia ejecuta ejercicios respiratorios **gamificados** (nivel 1: **10 intentos** con inspiración, sostenimiento y **descansos** entre repeticiones). En **modo local con sensor**, captura volumen **estimado** y tiempo sostenido vía ESP32/VL53L0X; valida cada intento con reglas conservadoras; persiste sesión e intentos en AsyncStorage.
+
+RESPIRA+ es un **prototipo académico** de apoyo en **pacientes adultos postoperatorios**. No diagnostica, no prescribe ni demuestra eficacia clínica (ITESM, 2026).
+
+**Modo touch / web / demo:** simula entrada táctil; registros marcados como práctica — **no equivalentes** a sesión oficial con sensor para unlock, rachas terapéuticas ni export clínico interpretado como medición.
+
+---
+
 ## Propósito
 
 Ejecutar una sesión gamificada de ejercicios respiratorios (10 intentos en nivel 1): captura volumen **estimado** y tiempo sostenido vía sensor oficial o simulación táctil; valida intentos; persiste sesión e intentos.
@@ -53,6 +63,7 @@ Tipografía: sesión activa y juego usan `Text` nativo con estilos locales (exce
 | Validación | `sensor-evaluation/` | Simulación touch |
 | Unlock niveles | Sí si perfecta | **No** |
 | Volumen | Estimado desde modelo | Simulado — no equivalente clínico |
+| Pipeline hardware | ESP32 + WebSocket | No aplica |
 
 ## Riesgos clínicos o técnicos
 
@@ -80,3 +91,12 @@ Tipografía: sesión activa y juego usan `Text` nativo con estilos locales (exce
 - [Resumen sesión](./resumen-sesion.md)
 - [Niveles progresión](./niveles-progresion.md)
 - [Módulo session](../../src/modules/session/README.md)
+- [Calibración](../05-calibration/README.md)
+- [Seguridad clínica](../08-clinical-safety/README.md)
+- [Validación académica](../09-academic-validation/README.md)
+
+## Referencias
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *Seguridad clínica y lenguaje — RESPIRA+* [Documento interno del repositorio]. `docs/08-clinical-safety/README.md`.
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *Validación académica — RESPIRA+* [Documento interno del repositorio]. `docs/09-academic-validation/README.md`.

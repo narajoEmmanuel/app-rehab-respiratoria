@@ -1,15 +1,27 @@
 # Módulo `summary` (Resumen post-sesión)
 
-Pantalla de **resumen** tras completar o interrumpir una sesión de terapia. Carga la sesión persistida por `sessionId` y presenta métricas de apoyo. RESPIRA+ **no diagnostica**; volúmenes en mL son **estimaciones** cuando la sesión usó sensor.
+## Propósito
+
+Presenta el **resumen inmediato** tras completar o interrumpir una sesión de terapia gamificada. Carga la sesión persistida por `sessionId` y muestra métricas de **seguimiento y motivación**. Los volúmenes en mL son **estimaciones** cuando la sesión usó sensor oficial.
+
+RESPIRA+ es un **prototipo académico** de apoyo en **pacientes adultos postoperatorios**; **no diagnostica** ni certifica resultados clínicos (ITESM, 2026).
 
 ---
 
-## Propósito
+## Relación con el flujo clínico y funcional
 
-- Mostrar resultado de una sesión guardada en AsyncStorage.
-- Celebración visual y métricas compactas.
-- Navegación de vuelta a Terapia o Historial.
-- Racha de sesiones exitosas (solo sesiones terapéuticas oficiales).
+```
+SessionScreen → persistSessionResult → SummaryScreen → Terapia / Historial / Export (opcional)
+```
+
+| Elemento | Rol |
+|----------|-----|
+| Métricas de repeticiones | Adherencia a la sesión del día |
+| Volumen máx./prom. estimado | Seguimiento funcional; no espirometría certificada |
+| Racha de sesiones exitosas | Motivación; solo sesiones terapéuticas oficiales con sensor |
+| Clasificación sensor/práctica | Alineación con historial y export v2.4.0 |
+
+El profesional de salud puede revisar el mismo registro persistido vía **exportación**; este resumen es vista paciente, no informe médico.
 
 ---
 
@@ -79,6 +91,14 @@ Racha: `computeSuccessfulSessionStreak` sobre sesiones del mismo `patient_id`.
 
 ---
 
+## Límites del módulo
+
+- Solo lectura; no exporta ni sincroniza con cloud.
+- No sustituye revisión profesional del paquete JSON/CSV.
+- Práctica táctil no debe presentarse con la misma validez que sesión con sensor.
+
+---
+
 ## Riesgos al modificar
 
 | Riesgo | Impacto |
@@ -90,9 +110,18 @@ Racha: `computeSuccessfulSessionStreak` sobre sesiones del mismo `patient_id`.
 
 ---
 
-## Referencias
+## Documentación canónica
 
 - [Resumen de sesión (feature)](../../../docs/03-features/resumen-sesion.md)
-- [Sesión y persistencia](../../../src/modules/session/README.md)
+- [Sesión y persistencia](../session/README.md)
 - [Historial / rachas](../history/README.md)
-- Tipografía: `AppText` (Fase 4D + 4P) — [typography-scale.md](../../../docs/07-ui-design-system/typography-scale.md)
+- [Seguridad clínica](../../../docs/08-clinical-safety/README.md)
+- Tipografía: [typography-scale.md](../../../docs/07-ui-design-system/typography-scale.md)
+
+---
+
+## Referencias
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *Resumen de sesión — RESPIRA+* [Documento interno del repositorio]. `docs/03-features/resumen-sesion.md`.
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *Seguridad clínica y lenguaje — RESPIRA+* [Documento interno del repositorio]. `docs/08-clinical-safety/README.md`.

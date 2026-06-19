@@ -1,6 +1,24 @@
 # Módulo `session` (terapia y sesión)
 
-Orquesta la **sesión guiada**, el motor del nivel 1, la **validación de intentos** (sensor o práctica táctil) y la persistencia local de sesiones e intentos.
+## Propósito
+
+Orquesta la **sesión guiada de terapia gamificada**, el motor del nivel 1, la **validación de intentos** (sensor oficial o práctica táctil), los **descansos entre repeticiones** y la **persistencia local** de sesiones e intentos. En el flujo con sensor, cada intento evalúa volumen **estimado** y tiempo sostenido frente a la meta derivada del VIM.
+
+RESPIRA+ es un **prototipo académico** de apoyo en **pacientes adultos postoperatorios**; no diagnostica, no prescribe ni certifica eficacia clínica (ITESM, 2026).
+
+---
+
+## Relación con el flujo clínico y funcional
+
+| Modo | Activación | Persistencia | Rol clínico |
+|------|------------|--------------|-------------|
+| **Sensor (oficial)** | Terapia tras compuerta OK | `input_mode: sensor`, `data_source: sensor_model` | Cuenta para unlock, historial terapéutico y export |
+| **Práctica táctil** | `EXPO_PUBLIC_ENABLE_TOUCH_PRACTICE_MODE=true` + alerta | `touch_practice`, `is_practice_session: true` | Entrenamiento UI; **no** equivalente a sesión medida |
+| **Web / demo** | Sin ESP32 | Igual que táctil o sin sesión oficial | No pipeline VL53L0X |
+
+La validación conservadora con sensor exige, entre otros criterios, **`lowerBoundMl >= target`** y tiempo sostenido configurado en el motor del nivel. Nivel 1: **10 intentos** con fases de inspiración, sostén y descanso; pausa permite guardar e interrumpir.
+
+Flujo posterior: `persistSessionResult` → resumen (`summary/`) → historial (`history/`) → export opcional (`export/`).
 
 ---
 
@@ -48,22 +66,12 @@ API expuesta: `launchTherapySession(levelId)`, `launchingLevelId`, `navigateToSe
 
 ---
 
-## Modos de entrada
-
-| Modo | Activación | Persistencia |
-|------|------------|--------------|
-| **Sensor** | Terapia tras compuerta OK | `input_mode: sensor`, `data_source: sensor_model` |
-| **Práctica táctil** | `EXPO_PUBLIC_ENABLE_TOUCH_PRACTICE_MODE=true` + acción en alerta | `touch_practice`, `is_practice_session: true` |
-
-La validación conservadora con sensor exige, entre otros criterios, **`lowerBoundMl >= target`** y tiempo sostenido configurado en el motor del nivel.
-
----
-
 ## Reglas
 
-1. **No** abrir WebSocket desde session; usar `useActiveVolumeEstimate` y `useSensorConnection`.
+1. **No** abrir WebSocket desde session; usar `useActiveVolumeEstimate` y `useSensorConnection` (`device/`).
 2. **No** mezclar métricas de práctica táctil con sesiones medidas por sensor en informes clínicos.
 3. Sesiones **sin clasificar** son compatibilidad con registros antiguos (sin `input_mode`).
+4. Unlock de siguiente nivel: **6 sesiones perfectas oficiales** con sensor (`checkAndUnlockNextLevel`).
 
 ---
 
@@ -121,6 +129,33 @@ Copy volumen en HUD: «Volumen» / abreviaciones; en modal de resumen de sesión
 
 ---
 
+## Límites del módulo
+
+- Niveles 2–5 en catálogo con bloqueo progresivo (`comingSoon` / diagnóstico); gameplay completo solo nivel 1.
+- No implementa exportación ni dashboard clínico (ver `export/`, `clinician/`).
+- Sesión interrumpida — persistencia parcial requiere revisión manual (checklist en feature doc).
+
+---
+
 ## Estado
 
 Nivel 1 con juego visual y validación por sensor implementados. Niveles 2–5 en catálogo con bloqueo progresivo (`comingSoon` / diagnóstico).
+
+---
+
+## Documentación canónica
+
+- [Sesión de terapia (feature)](../../../docs/03-features/sesion-terapia.md)
+- [Niveles y progresión](../../../docs/03-features/niveles-progresion.md) · [Módulo levels](../levels/README.md)
+- [Dispositivo](../device/README.md) · [Resumen](../summary/README.md) · [Historial](../history/README.md)
+- [Seguridad clínica](../../../docs/08-clinical-safety/README.md)
+- [Validación académica](../../../docs/09-academic-validation/README.md)
+- [QA](../../../docs/10-testing-and-validation/README.md)
+
+---
+
+## Referencias
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *Sesión de terapia — RESPIRA+* [Documento interno del repositorio]. `docs/03-features/sesion-terapia.md`.
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *Seguridad clínica y lenguaje — RESPIRA+* [Documento interno del repositorio]. `docs/08-clinical-safety/README.md`.

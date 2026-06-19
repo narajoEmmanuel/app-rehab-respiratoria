@@ -2,13 +2,13 @@
 
 Documentación por flujo funcional (no solo pestaña visible).
 
-| Función | Documento |
-|---------|-----------|
-| Evaluación inicial | [evaluacion-inicial.md](./evaluacion-inicial.md) |
-| Sesión de terapia | [sesion-terapia.md](./sesion-terapia.md) |
-| Resumen de sesión | [resumen-sesion.md](./resumen-sesion.md) |
-| Niveles y progresión | [niveles-progresion.md](./niveles-progresion.md) |
-| Exportación de datos | [exportacion-datos.md](./exportacion-datos.md) |
+| Función | Documento | Módulo (`src/modules/`) |
+|---------|-----------|---------------------------|
+| Evaluación inicial | [evaluacion-inicial.md](./evaluacion-inicial.md) | [diagnostics/README.md](../../src/modules/diagnostics/README.md) |
+| Sesión de terapia | [sesion-terapia.md](./sesion-terapia.md) | [session/README.md](../../src/modules/session/README.md) |
+| Resumen de sesión | [resumen-sesion.md](./resumen-sesion.md) | [summary/README.md](../../src/modules/summary/README.md) |
+| Niveles y progresión | [niveles-progresion.md](./niveles-progresion.md) | [levels/README.md](../../src/modules/levels/README.md) |
+| Exportación de datos | [exportacion-datos.md](./exportacion-datos.md) | [export/README.md](../../src/modules/export/README.md) |
 | Notificaciones | [notificaciones.md](./notificaciones.md) |
 | Términos y consentimiento | [terminos-consentimiento.md](./terminos-consentimiento.md) |
 | Onboarding | [onboarding.md](./onboarding.md) |
@@ -20,3 +20,5 @@ Funciones de dispositivo (sensor, calibración): ver [../04-device-and-sensor/RE
 - [Pestañas](../02-tabs/README.md)
 - [Arquitectura](../01-app-architecture/README.md)
 - [Seguridad clínica](../08-clinical-safety/README.md)
+- [Validación académica](../09-academic-validation/README.md)
+- [Datos y almacenamiento](../06-data-and-storage/README.md)
