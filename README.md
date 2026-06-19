@@ -1,10 +1,16 @@
 # RESPIRA+
 
-Sistema de monitoreo, biofeedback y acompañamiento para **ejercicios respiratorios postoperatorios** con **espirómetro incentivador**. La app guía sesiones por niveles, estima volumen a partir del sensor óptico, registra adherencia y permite exportar datos para seguimiento clínico en contexto de desarrollo y validación.
+**RESPIRA+** es un prototipo académico de monitoreo, biofeedback y acompañamiento para **ejercicios respiratorios postoperatorios** con **espirómetro incentivador** en **pacientes adultos**. La aplicación guía sesiones por niveles, estima volumen a partir del sensor óptico, registra adherencia y permite exportar datos para **revisión con un profesional de la salud**. No diagnostica, no prescribe ni sustituye la supervisión clínica.
 
 **Stack:** Expo · React Native · TypeScript · Expo Router · AsyncStorage · ESP32 (Wi‑Fi / WebSocket) · VL53L0X.
 
-**Nube (opcional / congelada):** la integración Supabase y auth online pueden permanecer desactivadas durante el trabajo con hardware local. Detalle: [README_CLOUD_FREEZE.md](README_CLOUD_FREEZE.md).
+**Documentación completa:** [docs/README.md](docs/README.md) (índice maestro narrativo).
+
+**Nube (opcional / congelada):** Supabase y auth online desactivados por defecto durante el trabajo con hardware local. Detalle: [README_CLOUD_FREEZE.md](README_CLOUD_FREEZE.md).
+
+### Problema clínico
+
+La **baja adherencia** a la rehabilitación pulmonar domiciliaria postoperatoria dificulta la constancia en ejercicios respiratorios prescritos. RESPIRA+ apoya la práctica guiada con objetivos personalizados, retroalimentación estimada e historial; el detalle clínico y metodológico se desarrolla en [docs/00-overview/README.md](docs/00-overview/README.md).
 
 ---
 
@@ -16,7 +22,7 @@ Sistema de monitoreo, biofeedback y acompañamiento para **ejercicios respirator
 
 ### Contexto del cambio de enfoque
 
-El proyecto comenzó orientado a **EPOC**. Tras revisión con especialista en rehabilitación pulmonar, el equipo redirigió el producto hacia **postoperatorios**: volumen objetivo, sostenimiento, constancia y registro de sesiones con sensor. La arquitectura actual (perfiles de espirómetro, calibración por unidad física, terapia con validación conservadora) refleja ese enfoque.
+El proyecto comenzó orientado a **EPOC**. Tras **validación experta** con especialista en rehabilitación pulmonar, el equipo redirigió el producto hacia **postoperatorios**: volumen objetivo, sostenimiento, constancia y registro de sesiones con sensor. La arquitectura actual (perfil RESPIRA+ 3000 mL, calibración predefinida, terapia con validación conservadora) refleja ese enfoque final. Contexto ampliado: [docs/legal/README-terminos-y-condiciones.md](docs/legal/README-terminos-y-condiciones.md).
 
 ### Qué mide y registra (versión actual)
 
@@ -61,6 +67,9 @@ El proyecto comenzó orientado a **EPOC**. Tras revisión con especialista en re
 | Clasificación de sesiones | Sensor · Práctica · Sin clasificar |
 | Historial / resumen / exportación | Distinguen origen; export técnico solo en modo técnico/debug |
 | Supabase / auth online | Opcional; por defecto **local-first** |
+| Notificaciones locales | Implementadas; **desactivadas** con `EXPO_PUBLIC_RESPIRA_NOTIFICATIONS_ENABLED=false` (default) |
+| Modo web / PWA / demo | Documentado; práctica táctil sin sensor — [docs/12-web-cloud-migration/](docs/12-web-cloud-migration/README.md) |
+| Dashboard clínico | Módulo `clinician/` en **scaffold**; revisión profesional vía **exportación** e historial |
 
 ### Modelo lineal predeterminado (RESPIRA+ 3000 mL)
 
@@ -71,6 +80,8 @@ Volumen (mL) = 28.66324925966009 × distanceMm − 523.8262554875091
 ```
 
 Resultado acotado entre **0** y **3000 mL** (valores < 0 se muestran como 0 mL; valores > 3000 pueden mostrarse como sobre rango visual). Constantes en `predefined-calibration-models.ts`.
+
+**Métricas de banco (modelo canónico):** R² ≈ **0,992**, MAE ≈ **65,36 mL** ([docs/calibration/README-csv-tecnico-calibracion.md](docs/calibration/README-csv-tecnico-calibracion.md)). Otras cifras en informes históricos (p. ej. auditoría mayo 2026) pueden corresponder a sesiones distintas; prevalece este modelo para el flujo paciente.
 
 ### Legacy (no activo en flujo paciente)
 
@@ -125,8 +136,11 @@ Resultado acotado entre **0** y **3000 mL** (valores < 0 se muestran como 0 mL; 
 
 Documentación de módulos y arquitectura:
 
+- [**Índice maestro `docs/`**](docs/README.md)
 - [Overview del producto](docs/00-overview/README.md)
 - [Índice de arquitectura](docs/01-app-architecture/README.md)
+- [Validación, QA y auditorías](docs/10-testing-and-validation/README.md)
+- [Web, PWA y runtime-env](docs/12-web-cloud-migration/README.md)
 - [Arquitectura técnica](src/docs/architecture.md)
 - [Seguridad clínica y lenguaje](docs/08-clinical-safety/README.md)
 - [Dispositivo y sensor](docs/04-device-and-sensor/README.md)
@@ -294,6 +308,29 @@ Exportación clínica: `CLINICAL_EXPORT_FORMAT_VERSION = '2.4.0'`, `CLINICAL_EXP
 
 Export CSV técnico de calibración: schema `2.4.0` en `calibration-technical-csv-exporter.ts` (solo con flag técnico).
 
+La **revisión profesional** documentada se realiza mediante exportación clínica e historial del paciente, no mediante un dashboard clínico terminado (módulo `clinician/` en scaffold).
+
+---
+
+## Modos de despliegue
+
+| Modo | Uso | Documentación |
+|------|-----|---------------|
+| **Local con sensor** | iOS/Android + ESP32; flujo principal | Este README; [04-device-and-sensor](docs/04-device-and-sensor/README.md) |
+| **Web / PWA / demo** | Navegador, práctica táctil, preview académico | [12-web-cloud-migration](docs/12-web-cloud-migration/README.md) |
+
+Comandos web: `npx expo start --web -c` · export estático: `npx expo export -p web`.
+
+---
+
+## Validación académica (resumen)
+
+| Evidencia | Estado |
+|-----------|--------|
+| Validación técnica (sensor, calibración, QA) | [10-testing-and-validation](docs/10-testing-and-validation/README.md) |
+| Encuesta de mercado (n = 66) | TODO: referencia pendiente en repositorio |
+| Validación cualitativa con profesionales | Narrativa en [legal](docs/legal/README-terminos-y-condiciones.md); TODO: referencia pendiente para instrumentos completos |
+
 ---
 
 ## Variables de entorno
@@ -308,6 +345,9 @@ Copiar `.env.example` → `.env` ( **no subir** `.env` a Git).
 | `EXPO_PUBLIC_ENABLE_TECHNICAL_CALIBRATION` | `false` | Calibración técnica multi-volumen, U95 y export CSV en UI |
 | `EXPO_PUBLIC_ENABLE_TOUCH_PRACTICE_MODE` | `false` | Práctica táctil (Perfil + lanzamiento sin transporte sensor) |
 | `EXPO_PUBLIC_UNLOCK_ALL_LEVELS_FOR_REVIEW` | `false` | Desbloqueo UI de niveles para revisión (`dev-level-flags.ts`; no altera progresión persistida) |
+| `EXPO_PUBLIC_RESPIRA_NOTIFICATIONS_ENABLED` | `false` | `false` = **sin programación** local; limpieza en startup, foreground y refresh |
+
+Variables de **runtime env** (modo `local_sensor` vs `web_touch`): comentadas en `.env.example`; detalle en [docs/12-web-cloud-migration/runtime-env-modes.md](docs/12-web-cloud-migration/runtime-env-modes.md) y [src/modules/app-mode/README.md](src/modules/app-mode/README.md).
 
 Opcionales para nube (solo si se reactiva auth):
 
@@ -433,20 +473,19 @@ docs/                         # sensor-flow, calibración, Supabase
 
 ## Documentación adicional
 
+Índice completo: [docs/README.md](docs/README.md).
+
 - [Overview del producto](docs/00-overview/README.md)
 - [Índice de arquitectura](docs/01-app-architecture/README.md)
-- [Pestañas principales](docs/02-tabs/README.md)
-- [Funciones y flujos](docs/03-features/README.md)
-- [Dispositivo y sensor](docs/04-device-and-sensor/README.md)
-- [Calibración](docs/05-calibration/README.md)
-- [Datos y almacenamiento](docs/06-data-and-storage/README.md)
+- [Validación, QA y auditorías](docs/10-testing-and-validation/README.md)
+- [Web, PWA y runtime-env](docs/12-web-cloud-migration/README.md)
+- [Notificaciones (feature)](docs/03-features/notificaciones.md) · [módulo](src/modules/notifications/README.md)
 - [Seguridad clínica y lenguaje](docs/08-clinical-safety/README.md)
-- [Checklist QA manual](docs/10-testing-and-validation/full-app-manual-qa-checklist.md)
-- [Congelación de nube](README_CLOUD_FREEZE.md)
-- [Seguridad Supabase (desarrollo)](docs/supabase-security-notes.md)
-- [Arquitectura técnica](src/docs/architecture.md)
-- [Reparto por módulos](src/docs/team-ownership.md)
 - [Términos y condiciones (equipo)](docs/legal/README-terminos-y-condiciones.md)
+- [Congelación de nube](README_CLOUD_FREEZE.md)
+- [Arquitectura técnica](src/docs/architecture.md) · [Reparto por módulos](src/docs/team-ownership.md)
+
+Detalle técnico por área: [02-tabs](docs/02-tabs/README.md) · [03-features](docs/03-features/README.md) · [04-device](docs/04-device-and-sensor/README.md) · [05-calibration](docs/05-calibration/README.md) · [06-data](docs/06-data-and-storage/README.md) · [07-ui](docs/07-ui-design-system/README.md)
 
 ## Script `reset-project`
 
@@ -454,4 +493,16 @@ docs/                         # sensor-flow, calibración, Supabase
 
 ## Aviso
 
-RESPIRA+ es software en desarrollo para apoyo al ejercicio respiratorio. **No sustituye** valoración médica ni atención de urgencias.
+RESPIRA+ es un **prototipo académico** en desarrollo avanzado para apoyo al ejercicio respiratorio postoperatorio. **No sustituye** valoración médica, diagnóstico ni atención de urgencias.
+
+---
+
+## Referencias
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Documentación central del proyecto* [Repositorio académico]. En repositorio `app-rehab-respiratoria`, carpeta `docs/`.
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Marco de términos y condiciones para el equipo* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, carpeta `docs/legal/`.
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Diccionario técnico del CSV de calibración* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, archivo `docs/calibration/README-csv-tecnico-calibracion.md`.
+
+Instituto Tecnológico y de Estudios Superiores de Monterrey. (2026). *RESPIRA+: Validación, pruebas y auditorías* [Documento interno del proyecto]. En repositorio `app-rehab-respiratoria`, carpeta `docs/10-testing-and-validation/`.

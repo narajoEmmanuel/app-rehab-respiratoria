@@ -29,7 +29,7 @@ app-rehab-respiratoria/
 | `patient/` | 20 | Perfil, prefs, contexto paciente, borrado local | — |
 | `diagnostics/` | 20 | Evaluación inicial, VIM, `patient_levels` | — |
 | `export/` | 13 | Export JSON/CSV clínico v2.4.0 | — |
-| `notifications/` | 16 | Recordatorios locales | — |
+| `notifications/` | 16 | Recordatorios locales (flag global off en build ref.) | [notifications/README.md](../../src/modules/notifications/README.md) |
 | `legal/` | 10 | Consentimiento, guards, PDF | [docs/legal](../legal/README-terminos-y-condiciones.md) |
 | `auth/` | 13 | Login cloud, perfil local | [auth/README.md](../../src/modules/auth/README.md) |
 | `levels/` | 7 | UI Terapia, progreso niveles | [levels/README.md](../../src/modules/levels/README.md) |
@@ -122,6 +122,7 @@ El archivo [src/docs/architecture.md](../../src/docs/architecture.md) contiene:
 
 ## Otras referencias
 
+- [Índice maestro de documentación](../README.md)
 - [Overview del producto](../00-overview/README.md)
 - [Pestañas principales](../02-tabs/README.md)
 - [Funciones y flujos](../03-features/README.md)
@@ -131,7 +132,8 @@ El archivo [src/docs/architecture.md](../../src/docs/architecture.md) contiene:
 - [Design system / tipografía](../07-ui-design-system/README.md)
 - [Legacy y limpieza](../12-legacy/README.md)
 - [Seguridad clínica](../08-clinical-safety/README.md)
-- [Testing y validación QA](../10-testing-and-validation/full-app-manual-qa-checklist.md) · [Mapa de riesgos](../10-testing-and-validation/regression-risk-map.md)
-- [Flujo del sensor](../sensor-flow.md)
-- [Calibración](../calibration/README.md)
+- [Validación, QA y auditorías](../10-testing-and-validation/README.md) · [Checklist manual](../10-testing-and-validation/full-app-manual-qa-checklist.md) · [Mapa de riesgos](../10-testing-and-validation/regression-risk-map.md)
+- [Web, PWA y runtime-env](../12-web-cloud-migration/README.md)
+- [Flujo del sensor](../sensor-flow.md) · [versión central](../04-device-and-sensor/sensor-flow.md)
+- [Calibración (histórica)](../calibration/README.md)
 - [Ownership por equipo](../../src/docs/team-ownership.md)
