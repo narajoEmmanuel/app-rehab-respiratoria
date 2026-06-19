@@ -20,10 +20,13 @@ import {
 } from '@/src/modules/notifications/notification-permissions';
 import {
   runNotificationExclusive,
+  cancelScheduledNotificationIds,
+  cleanupRespiraNotificationsWhenGloballyDisabled,
   sendTestNotification,
   syncRespiraNotifications,
 } from '@/src/modules/notifications/notification-scheduler';
 import {
+  coerceNotificationSettingsWhenGloballyDisabled,
   loadNotificationSettings,
   saveNotificationSettings,
 } from '@/src/modules/notifications/notification-settings.storage';
@@ -74,12 +77,29 @@ export function useNotificationSettings(patientId: string | null): UseNotificati
     setLoading(true);
     try {
       const stored = await runNotificationExclusive(async () => {
-        let next = applyNotificationDefaults(await loadNotificationSettings(patientId));
+        const loaded = applyNotificationDefaults(await loadNotificationSettings(patientId));
+        let next = coerceNotificationSettingsWhenGloballyDisabled(loaded);
 
         if (nativeSupported && notificationsGloballyEnabled) {
           const permissionStatus = await readNotificationPermissionStatus();
           if (permissionStatus !== next.permissionStatus) {
             next = { ...next, permissionStatus };
+            await saveNotificationSettings(patientId, next);
+          }
+          return next;
+        }
+
+        if (nativeSupported && !notificationsGloballyEnabled) {
+          if (loaded.scheduledNotificationIds.length > 0) {
+            await cancelScheduledNotificationIds(loaded.scheduledNotificationIds);
+          }
+          await cleanupRespiraNotificationsWhenGloballyDisabled('refresh');
+
+          const needsPersist =
+            loaded.enabled ||
+            loaded.scheduledNotificationIds.length > 0 ||
+            loaded.lastScheduledAt != null;
+          if (needsPersist) {
             await saveNotificationSettings(patientId, next);
           }
         }

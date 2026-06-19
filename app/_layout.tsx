@@ -26,6 +26,7 @@ import { LevelsProgressProvider } from '@/src/modules/levels/state/use-levels-pr
 import {
   initializeRespiraNotificationsOnStartup,
   runNotificationExclusive,
+  subscribeRespiraNotificationCleanupOnForeground,
 } from '@/src/modules/notifications/notification-scheduler';
 import { PatientSessionProvider } from '@/src/modules/patient/context/PatientSessionContext';
 import { TouchPracticePreferenceProvider } from '@/src/modules/session/hooks/use-touch-practice-preference';
@@ -70,6 +71,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (Platform.OS === 'web') return;
     void runNotificationExclusive(() => initializeRespiraNotificationsOnStartup());
+    return subscribeRespiraNotificationCleanupOnForeground();
   }, []);
 
   useEffect(() => {

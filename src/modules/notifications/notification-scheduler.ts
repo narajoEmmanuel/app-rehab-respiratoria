@@ -8,7 +8,7 @@ import {
   type DailyTriggerInput,
   SchedulableTriggerInputTypes,
 } from 'expo-notifications';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 import { RESPIRA_NOTIFICATIONS_ENABLED } from '@/src/config/runtime-flags';
 import {
@@ -135,6 +135,82 @@ export async function cancelRespiraScheduledNotifications(): Promise<number> {
   return beforeCount;
 }
 
+async function countRemainingRespiraScheduledNotifications(): Promise<number> {
+  if (!supportsNativeLocalNotifications()) return 0;
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  return scheduled.filter(isRespiraScheduledNotification).length;
+}
+
+export type RespiraNotificationCleanupReason = 'startup' | 'foreground' | 'refresh';
+
+export type RespiraNotificationCleanupResult = {
+  respiraCancelled: number;
+  devFallbackUsed: boolean;
+  remainingRespiraCount: number;
+};
+
+/**
+ * Clears pending RESPIRA+ notifications when the global build flag is off.
+ * In __DEV__ only, may call cancelAllScheduledNotificationsAsync to flush orphaned
+ * Expo Go / iOS queue entries that survive targeted cancellation.
+ */
+export async function cleanupRespiraNotificationsWhenGloballyDisabled(
+  reason: RespiraNotificationCleanupReason,
+): Promise<RespiraNotificationCleanupResult> {
+  if (Platform.OS === 'web' || RESPIRA_NOTIFICATIONS_ENABLED) {
+    return { respiraCancelled: 0, devFallbackUsed: false, remainingRespiraCount: 0 };
+  }
+
+  devLog(`EXPO_PUBLIC_RESPIRA_NOTIFICATIONS_ENABLED=false — limpieza (${reason})`);
+
+  const respiraCancelled = await cancelRespiraScheduledNotifications();
+  let remainingRespiraCount = await countRemainingRespiraScheduledNotifications();
+  let devFallbackUsed = false;
+
+  if (__DEV__ && remainingRespiraCount > 0) {
+    // Expo Go migration: orphans may remain listed by iOS after selective cancel.
+    devLog(
+      `Quedan ${remainingRespiraCount} RESPIRA+ pendiente(s); ejecutando cancelAllScheduledNotificationsAsync (solo __DEV__, flag apagada)`,
+    );
+    await Notifications.cancelAllScheduledNotificationsAsync();
+    devFallbackUsed = true;
+    remainingRespiraCount = await countRemainingRespiraScheduledNotifications();
+    devLog(
+      devFallbackUsed
+        ? `Fallback dev cancelAllScheduled aplicado (${reason}); RESPIRA+ restantes: ${remainingRespiraCount}`
+        : `Limpieza (${reason}) completada`,
+    );
+  } else if (respiraCancelled > 0) {
+    devLog(`Limpieza (${reason}): canceladas ${respiraCancelled} notificación(es) RESPIRA+`);
+  }
+
+  return { respiraCancelled, devFallbackUsed, remainingRespiraCount };
+}
+
+const FOREGROUND_CLEANUP_MIN_INTERVAL_MS = 3000;
+let lastForegroundCleanupAt = 0;
+
+/** Subscribes to AppState and cleans when the app returns to foreground (native, flag off). */
+export function subscribeRespiraNotificationCleanupOnForeground(): () => void {
+  if (Platform.OS === 'web' || RESPIRA_NOTIFICATIONS_ENABLED) {
+    return () => undefined;
+  }
+
+  const subscription = AppState.addEventListener('change', (nextState) => {
+    if (nextState !== 'active') return;
+
+    const now = Date.now();
+    if (now - lastForegroundCleanupAt < FOREGROUND_CLEANUP_MIN_INTERVAL_MS) return;
+    lastForegroundCleanupAt = now;
+
+    void runNotificationExclusive(() =>
+      cleanupRespiraNotificationsWhenGloballyDisabled('foreground'),
+    );
+  });
+
+  return () => subscription.remove();
+}
+
 /** @deprecated Use cancelRespiraScheduledNotifications */
 export const cancelAllRespiraReminders = cancelRespiraScheduledNotifications;
 
@@ -223,9 +299,10 @@ export async function syncRespiraNotifications(
     if (normalized.scheduledNotificationIds.length > 0) {
       await cancelScheduledNotificationIds(normalized.scheduledNotificationIds);
     }
-    await cancelRespiraScheduledNotifications();
+    await cleanupRespiraNotificationsWhenGloballyDisabled('refresh');
     return {
       ...normalized,
+      enabled: false,
       scheduledNotificationIds: [],
       lastScheduledAt: null,
     };
@@ -272,12 +349,7 @@ export async function syncRespiraNotifications(
 
 /** Clears pending RESPIRA+ notifications on cold start when globally disabled. */
 export async function initializeRespiraNotificationsOnStartup(): Promise<void> {
-  if (Platform.OS === 'web') return;
-
-  if (!RESPIRA_NOTIFICATIONS_ENABLED) {
-    devLog('Flag apagada: limpiando notificaciones RESPIRA+ al iniciar la app');
-    await cancelRespiraScheduledNotifications();
-  }
+  await cleanupRespiraNotificationsWhenGloballyDisabled('startup');
 }
 
 export async function sendTestNotification(excludeMessageKey?: string | null): Promise<string> {

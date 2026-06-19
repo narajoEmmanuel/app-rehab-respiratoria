@@ -127,6 +127,21 @@ function migrateLegacyPreferences(raw: unknown): NotificationSettings | null {
   return next;
 }
 
+/** Forces reminders off in memory when the global build flag disables scheduling. */
+export function coerceNotificationSettingsWhenGloballyDisabled(
+  settings: NotificationSettings,
+): NotificationSettings {
+  if (RESPIRA_NOTIFICATIONS_ENABLED) {
+    return applyNotificationDefaults(settings);
+  }
+  return applyNotificationDefaults({
+    ...settings,
+    enabled: false,
+    scheduledNotificationIds: [],
+    lastScheduledAt: null,
+  });
+}
+
 /** Read-only snapshot for UI (Perfil, etc.) — same storage key as NotificationSettingsScreen. */
 export async function readNotificationSettingsForDisplay(
   patientId: string,
@@ -149,7 +164,9 @@ export async function loadNotificationSettings(patientId: string): Promise<Notif
   const stored = await AsyncStorage.getItem(key);
   if (stored) {
     try {
-      return normalizeSettings(JSON.parse(stored) as unknown);
+      return coerceNotificationSettingsWhenGloballyDisabled(
+        normalizeSettings(JSON.parse(stored) as unknown),
+      );
     } catch {
       return createDefaultNotificationSettings();
     }
@@ -160,8 +177,9 @@ export async function loadNotificationSettings(patientId: string): Promise<Notif
     try {
       const migrated = migrateLegacyPreferences(JSON.parse(legacyStored) as unknown);
       if (migrated) {
-        await saveNotificationSettings(patientId, migrated);
-        return migrated;
+        const coerced = coerceNotificationSettingsWhenGloballyDisabled(migrated);
+        await saveNotificationSettings(patientId, coerced);
+        return coerced;
       }
     } catch {
       // fall through to defaults
@@ -175,7 +193,7 @@ export async function saveNotificationSettings(
   patientId: string,
   settings: NotificationSettings,
 ): Promise<void> {
-  const normalized = normalizeSettings(settings);
+  const normalized = coerceNotificationSettingsWhenGloballyDisabled(normalizeSettings(settings));
   await AsyncStorage.setItem(storageKeyForPatient(patientId), JSON.stringify(normalized));
 }
 
