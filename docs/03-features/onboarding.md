@@ -46,8 +46,9 @@ Tipografía: `RespiraWelcomeOnboarding` usa `AppText` + tokens (Fase 4L); sin ca
 
 ## Pendientes
 
-- README módulo onboarding no existe.
 - **Requiere revisión manual:** comportamiento si JSON corrupto en storage (marca como seen).
+
+Documentación del módulo: [onboarding/README.md](../../src/modules/onboarding/README.md).
 
 ## Checklist manual mínimo
 

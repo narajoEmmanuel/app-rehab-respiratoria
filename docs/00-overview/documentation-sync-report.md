@@ -1,5 +1,7 @@
 # Revisión final de documentación
 
+> **Nota (junio 2026):** este informe corresponde al **5 de junio de 2026** y se conserva como registro histórico de una pasada anterior de sincronización documental. El **estado final** posterior a las Fases A, B, C y D-lite de documentación está en [documentation-final-report.md](./documentation-final-report.md).
+
 ## Fecha y alcance
 
 **Fecha:** 5 de junio de 2026  

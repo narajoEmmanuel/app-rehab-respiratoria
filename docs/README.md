@@ -114,7 +114,9 @@ Estas rutas se mantienen para no romper enlaces existentes. Las métricas de cal
 | Validación académica (encuesta, cualitativa, regulatorio) | Parcial; véase [09-academic-validation](./09-academic-validation/README.md) y [10-testing-and-validation](./10-testing-and-validation/README.md) (QA) |
 | Marco regulatorio detallado | Marco de referencia en [09-academic-validation](./09-academic-validation/README.md) y [legal/](./legal/README-terminos-y-condiciones.md); TODOs para normas específicas |
 
-Informe de sincronización previo: [documentation-sync-report.md](./00-overview/documentation-sync-report.md) (5 jun 2026). Los cambios posteriores (notificaciones, índices maestros) se documentan en los README actualizados de esta fase.
+**Reporte final de documentación (cierre Fases A–D-lite):** [documentation-final-report.md](./00-overview/documentation-final-report.md).
+
+Informe de sincronización histórico: [documentation-sync-report.md](./00-overview/documentation-sync-report.md) (5 jun 2026).
 
 ---
 

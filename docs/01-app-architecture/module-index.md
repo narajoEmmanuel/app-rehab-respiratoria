@@ -9,16 +9,16 @@ Referencia breve por módulo. Detalle de rutas y providers: [README.md](./README
 | Módulo | Responsabilidad | README |
 |--------|-----------------|--------|
 | `auth/` | Acceso local-first y cloud opcional | [auth/README.md](../../src/modules/auth/README.md) |
-| `patient/` | Perfil, contexto paciente, borrado | — *(pendiente o en rama)* |
-| `diagnostics/` | Evaluación inicial, VIM, niveles | — |
+| `patient/` | Perfil, contexto paciente, borrado | [patient/README.md](../../src/modules/patient/README.md) |
+| `diagnostics/` | Evaluación inicial, VIM, niveles | [diagnostics/README.md](../../src/modules/diagnostics/README.md) |
 | `device/` | ESP32, calibración, volumen estimado | [device/README.md](../../src/modules/device/README.md) |
 | `session/` | Sesión guiada, juego, persistencia | [session/README.md](../../src/modules/session/README.md) |
 | `levels/` | UI Terapia, progreso niveles | [levels/README.md](../../src/modules/levels/README.md) |
 | `home/` | Dashboard Inicio | [home/README.md](../../src/modules/home/README.md) |
 | `history/` | Historial, calendario, rachas | [history/README.md](../../src/modules/history/README.md) |
 | `summary/` | Resumen post-sesión | [summary/README.md](../../src/modules/summary/README.md) |
-| `export/` | Export clínico v2.4.0 | — |
-| `notifications/` | Recordatorios locales | — |
+| `export/` | Export clínico v2.4.0 | [export/README.md](../../src/modules/export/README.md) |
+| `notifications/` | Recordatorios locales | [notifications/README.md](../../src/modules/notifications/README.md) |
 | `legal/` | Consentimiento y guards | — |
 | `onboarding/` | Bienvenida primera visita | [onboarding/README.md](../../src/modules/onboarding/README.md) |
 | `app-mode/` | Flags env y modo app | [app-mode/README.md](../../src/modules/app-mode/README.md) |

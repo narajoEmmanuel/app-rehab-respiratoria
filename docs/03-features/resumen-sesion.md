@@ -46,8 +46,9 @@ Solo lectura de sesión/intentos ya guardados. No escribe nuevos registros clín
 
 ## Pendientes
 
-- README módulo `summary/` no existe.
 - `SessionSuccessStreakCard` (módulo `session/`) aún sin migrar a `AppText`.
+
+Documentación del módulo: [summary/README.md](../../src/modules/summary/README.md).
 
 ## Checklist manual mínimo
 

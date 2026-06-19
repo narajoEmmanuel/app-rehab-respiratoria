@@ -55,7 +55,8 @@ Hooks: `usePatientSession`, `useTouchPracticePreference`, `loadNotificationSetti
 
 - Discoverability: perfil fuera de tab bar visible (solo `AppTopBar` / quick access).
 - Logout route en modo local-first.
-- Falta README módulo `src/modules/patient/README.md`.
+
+Documentación del módulo: [patient/README.md](../../src/modules/patient/README.md).
 
 ## Checklist manual mínimo
 
