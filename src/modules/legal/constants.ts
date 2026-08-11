@@ -3,9 +3,9 @@
  * Module: legal
  */
 
-export const LEGAL_DOCUMENT_VERSION = '1.0';
+export const LEGAL_DOCUMENT_VERSION = '1.1';
 
-export const LEGAL_DOCUMENT_TITLE = 'RESPIRA+ — Términos, consentimiento, privacidad y descargo (v1)';
+export const LEGAL_DOCUMENT_TITLE = 'RESPIRA+ — Términos, consentimiento, privacidad y descargo (v1.1)';
 
 export const LEGAL_STORAGE_KEY = '@rehab/legal_consent_v1';
 

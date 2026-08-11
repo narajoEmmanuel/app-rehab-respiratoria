@@ -136,10 +136,11 @@ Resumen del comportamiento **según el código** del repositorio (puede evolucio
 
 ### 7.1 Documento legal y versión
 
-- Versión actual en código: **`LEGAL_DOCUMENT_VERSION = '1.0'`** (`src/modules/legal/constants.ts`).
-- Título registrado: **“RESPIRA+ — Términos, consentimiento, privacidad y descargo (v1)”**.
-- PDF abierto desde la app: **`assets/legal/terminos-uso-etico.pdf`** (`open-legal-document.ts`).
-- Existe además **`assets/docs/respira-legal-v1.pdf`** en el repositorio; **no** es el archivo que importa `openLegalDocument` hoy — conviene unificar o documentar cuál es el canónico.
+- Versión actual en código: **`LEGAL_DOCUMENT_VERSION = '1.1'`** (`src/modules/legal/constants.ts`).
+- Título registrado: **“RESPIRA+ — Términos, consentimiento, privacidad y descargo (v1.1)”**.
+- PDF abierto desde la app: **`assets/legal/terminos-uso-etico.pdf`** (`open-legal-document.ts`) — **canónico**.
+- Copia alineada para el equipo: **`assets/docs/respira-legal-v1.pdf`** (mismo contenido que el canónico desde v1.1).
+- Archivo histórico v1.0: **`assets/legal/terminos-uso-etico-v1.0.pdf`** (no lo abre la app).
 
 ### 7.2 Pantalla de aceptación
 
@@ -171,7 +172,7 @@ Resumen del comportamiento **según el código** del repositorio (puede evolucio
 
 | Mecanismo | Alcance |
 |-----------|---------|
-| **`app/index.tsx`** | Con nube activa, redirige a `/legal/accept` si `needsConsent()` (sin registro o versión distinta de `1.0`). |
+| **`app/index.tsx`** | Con nube activa, redirige a `/legal/accept` si `needsConsent()` (sin registro o versión distinta de `LEGAL_DOCUMENT_VERSION`, hoy `1.1`). |
 | **`ConsentTabGuard`** | Envuelve **Terapia**, **Plan**, **Historial**; redirige a Inicio si no hay consentimiento activo. |
 | **`(tabs)/_layout.tsx`** | En pestañas protegidas, `tabPress` muestra alerta y enlace a aceptación. |
 | **`HomeScreen`** | Alertas al intentar Terapia o sensor sin consentimiento; tarjeta “Consentimiento pendiente”. |
@@ -248,8 +249,9 @@ Rutas **encontradas** en el repositorio (mayo 2026). Rutas listadas en la solici
 
 | Archivo | Rol |
 |---------|-----|
-| `assets/legal/terminos-uso-etico.pdf` | PDF usado por `openLegalDocument`. |
-| `assets/docs/respira-legal-v1.pdf` | PDF adicional en repo (no referenciado por `open-legal-document.ts`). |
+| `assets/legal/terminos-uso-etico.pdf` | PDF canónico usado por `openLegalDocument` (v1.1). |
+| `assets/docs/respira-legal-v1.pdf` | Copia alineada al canónico (mismo hash desde v1.1). |
+| `assets/legal/terminos-uso-etico-v1.0.pdf` | Archivo histórico v1.0 (no lo abre la app). |
 | `legal-assets.d.ts` | Declaración TypeScript para importar `*.pdf`. |
 
 ### 8.5 Base de datos y documentación
@@ -280,7 +282,7 @@ Rutas **encontradas** en el repositorio (mayo 2026). Rutas listadas en la solici
    - Modo prueba de sensor (`offline_sensor_test`).
    - Posible versión clínica futura (requeriría revisión regulatoria aparte).
 6. **Revisar documentos** cuando cambien: población objetivo (p. ej. postoperatorio vs EPOC), variables medidas, calibración del sensor, almacenamiento o exportación.
-7. **Unificar PDFs** (`terminos-uso-etico.pdf` vs `respira-legal-v1.pdf`) para evitar que usuario y desarrolladores lean versiones distintas.
+7. **Mantener alineados** `terminos-uso-etico.pdf` (canónico app) y `assets/docs/respira-legal-v1.pdf` (copia de equipo) cuando cambie el documento.
 8. **Endurecer Supabase en producción**: las políticas “Prototype open access” **no** son adecuadas para datos reales; ver checklist en `docs/supabase-security-notes.md`.
 9. **Evaluar el seed automático** de consentimiento en modo local: útil para laboratorio, **inadecuado** para ensayos con pacientes sin pantalla de aceptación real.
 10. **Cualquier uso clínico real** (hospital, consultorio, ensayo con pacientes identificables) debe pasar por comité de ética, consentimiento informado en papel o digital según protocolo, y asesoría legal/local.

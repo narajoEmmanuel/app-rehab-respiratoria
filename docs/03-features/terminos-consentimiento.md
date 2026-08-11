@@ -11,7 +11,7 @@ Capturar consentimiento informado digital (7 declaraciones + versión documento)
 | Aceptación | `app/legal/accept.tsx` → `src/modules/legal/screens/LegalAcceptScreen.tsx` |
 | Documento | `app/legal/document.tsx` → `LegalDocumentScreen.tsx` |
 | Servicio | `src/modules/legal/consent-service.ts` |
-| Constantes | `src/modules/legal/constants.ts` (`LEGAL_DOCUMENT_VERSION = '1.0'`, `@rehab/legal_consent_v1`) |
+| Constantes | `src/modules/legal/constants.ts` (`LEGAL_DOCUMENT_VERSION = '1.1'`, `@rehab/legal_consent_v1`) |
 | Guards | `src/modules/legal/ConsentTabGuard.tsx`, `ConsentStackGuard.tsx` |
 | Hrefs | `src/modules/legal/legal-hrefs.ts` |
 | PDF | `assets/legal/terminos-uso-etico.pdf` (vía `open-legal-document.ts`) |
@@ -56,7 +56,8 @@ Documento equipo: [../legal/README-terminos-y-condiciones.md](../legal/README-te
 
 - Declaraciones incluyen prototipo académico y no sustitución médica.
 - `seedLocalPrototypeConsentForPatient` — bypass dev (no invocado desde index); **no usar con usuarios reales** sin acuerdo ético.
-- PDF duplicado `assets/docs/respira-legal-v1.pdf` no referenciado en código.
+- Archivo histórico v1.0 en `assets/legal/terminos-uso-etico-v1.0.pdf` (no lo abre la app).
+- Copia de equipo `assets/docs/respira-legal-v1.pdf` alineada al canónico desde v1.1.
 
 ## Pendientes
 
@@ -71,7 +72,7 @@ Documento equipo: [../legal/README-terminos-y-condiciones.md](../legal/README-te
 - [ ] Retiro consent: tabs protegidos bloqueados al pulsar.
 - [ ] Retiro consent: “Comenzar evaluación” y `/diagnostico` → `/legal/accept`.
 - [ ] PDF abre desde document screen.
-- [ ] Versión 1.0 persistida en registro.
+- [ ] Versión 1.1 persistida en registro.
 
 ## Docs relacionados
 

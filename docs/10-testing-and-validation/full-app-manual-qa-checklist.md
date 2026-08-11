@@ -58,7 +58,7 @@ Completar antes de iniciar la batería de pruebas.
 ## 4. Consentimiento legal
 
 **Rutas:** `/legal/accept` · `/legal/document`  
-**Servicio:** `src/modules/legal/consent-service.ts` · **Versión documento:** `LEGAL_DOCUMENT_VERSION = '1.0'`
+**Servicio:** `src/modules/legal/consent-service.ts` · **Versión documento:** `LEGAL_DOCUMENT_VERSION = '1.1'`
 
 | Caso | Pasos | Esperado |
 |------|-------|----------|

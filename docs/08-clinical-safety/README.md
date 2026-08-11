@@ -114,7 +114,7 @@ Resumen; detalle en [Marco legal](../legal/README-terminos-y-condiciones.md):
 
 | Tema | Comportamiento documentado |
 |------|----------------------------|
-| **Consentimiento informado** | Pantalla `/legal/accept`; siete casillas; versión `LEGAL_DOCUMENT_VERSION = '1.0'` |
+| **Consentimiento informado** | Pantalla `/legal/accept`; siete casillas; versión `LEGAL_DOCUMENT_VERSION = '1.1'` |
 | **Datos sensibles** | Desempeño respiratorio, sesiones, perfil — tratamiento descrito en aviso de privacidad (PDF) |
 | **Finalidad** | Apoyo académico, adherencia, mejora del prototipo — **no** diagnóstico autónomo |
 | **Exportación** | Manual CSV/JSON para **revisión con profesional**; no informe certificado |
